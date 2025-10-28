@@ -36,7 +36,7 @@ export default function SplashScreen({ onEnter }: SplashScreenProps) {
   return (
     <>
       <BloodCanvas />
-      <div className={`fixed inset-0 z-40 bg-black flex flex-col items-center justify-center ${shake ? 'shake' : ''}`}>
+      <div className={`fixed inset-0 z-40 flex flex-col items-center justify-center ${shake ? 'shake' : ''}`} style={{ background: 'transparent' }}>
         {/* Title */}
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-widest text-[#ff0000] mb-8 relative z-10 animate-pulse"
             style={{ 
