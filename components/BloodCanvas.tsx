@@ -18,11 +18,11 @@ export default function BloodCanvas() {
     updateCanvasSize()
 
     class BloodDrop {
-      x: number
-      y: number
-      speed: number
-      length: number
-      opacity: number
+      x: number = 0
+      y: number = 0
+      speed: number = 2
+      length: number = 20
+      opacity: number = 0.5
 
       constructor() {
         this.reset()
