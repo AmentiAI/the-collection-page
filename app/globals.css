@@ -69,3 +69,9 @@ html {
 .shake > * {
   position: relative;
 }
+
+.shake > *[style*="position: absolute"],
+.shake > *[class*="absolute"] {
+  position: absolute !important;
+  transform: none !important;
+}
