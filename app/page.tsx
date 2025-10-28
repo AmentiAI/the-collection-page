@@ -107,7 +107,7 @@ export default function Home() {
           <main className={`min-h-screen relative overflow-x-hidden ${shake ? 'shake' : ''}`}>
         <Header />
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
             <aside className="order-2 lg:order-1">
               <Filters 
                 ordinals={ordinals}

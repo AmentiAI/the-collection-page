@@ -44,12 +44,12 @@ export default function Filters({ ordinals, filters, onFilterChange, onClearAll 
   }
 
   return (
-    <aside className="bg-[rgba(20,20,20,0.95)] border-2 border-[#8B0000] rounded-lg p-6 h-fit sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto">
-      <div className="flex justify-between items-center mb-4 pb-2 border-b-2 border-[#8B0000]">
-        <h2 className="text-[#ff0000] text-2xl font-bold">FILTERS</h2>
+    <aside className="bg-[rgba(20,20,20,0.95)] border-2 border-[#8B0000] rounded-lg p-4 sm:p-6 h-fit sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-2 border-b-2 border-[#8B0000] gap-3 sm:gap-0">
+        <h2 className="text-[#ff0000] text-xl sm:text-2xl font-bold">FILTERS</h2>
         <button
           onClick={onClearAll}
-          className="px-4 py-2 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] hover:shadow-[0_0_15px_rgba(255,0,0,0.5)] font-bold text-sm uppercase transition-all"
+          className="w-full sm:w-auto px-4 py-2 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] hover:shadow-[0_0_15px_rgba(255,0,0,0.5)] font-bold text-sm uppercase transition-all"
         >
           Clear All
         </button>
