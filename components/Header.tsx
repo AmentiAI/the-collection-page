@@ -43,6 +43,7 @@ export default function Header() {
           target="_blank" 
           rel="noopener noreferrer"
           className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 animate-pulse"
+          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
           aria-label="Follow on X"
         >
           <svg 
@@ -61,6 +62,7 @@ export default function Header() {
           target="_blank" 
           rel="noopener noreferrer"
           className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 animate-pulse"
+          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
           aria-label="Join Discord"
         >
           <svg 

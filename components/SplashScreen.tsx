@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import BloodCanvas from './BloodCanvas'
 
 interface SplashScreenProps {
@@ -9,6 +9,16 @@ interface SplashScreenProps {
 
 export default function SplashScreen({ onEnter }: SplashScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [shake, setShake] = useState(false)
+
+  useEffect(() => {
+    const shakeInterval = setInterval(() => {
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+    }, 4000)
+
+    return () => clearInterval(shakeInterval)
+  }, [])
 
   const handleEnterClick = async () => {
     // Start music before entering
@@ -24,7 +34,7 @@ export default function SplashScreen({ onEnter }: SplashScreenProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+    <div className={`fixed inset-0 z-50 bg-black flex flex-col items-center justify-center ${shake ? 'shake' : ''}`}>
       <BloodCanvas />
       
       {/* Title */}
