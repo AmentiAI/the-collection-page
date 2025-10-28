@@ -42,7 +42,7 @@ export default function Header() {
           href="https://x.com/The__Damned__" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200"
+          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 animate-pulse"
           aria-label="Follow on X"
         >
           <svg 
@@ -60,7 +60,7 @@ export default function Header() {
           href="https://discord.gg/vJ4yw9N55j" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200"
+          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 animate-pulse"
           aria-label="Join Discord"
         >
           <svg 
