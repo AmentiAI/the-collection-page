@@ -4,6 +4,10 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'The Damned - Ordinals Collection',
   description: 'Explore The Damned Bitcoin Ordinals Collection',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 }
 
 export default function RootLayout({
@@ -13,6 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+      </head>
       <body>{children}</body>
     </html>
   )
