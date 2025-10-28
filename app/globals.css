@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #e0e0e0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Cinzel', 'Courier New', monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #8B0000;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff0000;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    opacity: 1;
+    text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000, 0 0 30px #8B0000;
+  }
+  50% { 
+    opacity: 0.8;
+    text-shadow: 0 0 15px #ff0000, 0 0 25px #ff0000, 0 0 35px #8B0000;
+  }
+}
+
+.glow-text {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px) translateY(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px) translateY(2px); }
+}
+
+.shake {
+  animation: shake 0.5s;
+}
+
+.shake > * {
+  position: relative;
+}
