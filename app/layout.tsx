@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 export const metadata: Metadata = {
   title: 'The Damned - Ordinals Collection',
@@ -21,7 +22,11 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/favicon.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        <LaserEyesWrapper>
+          {children}
+        </LaserEyesWrapper>
+      </body>
     </html>
   )
 }

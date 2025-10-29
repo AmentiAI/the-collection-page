@@ -1,8 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import WalletConnect from './WalletConnect'
 
-export default function Header() {
+interface HeaderProps {
+  isHolder?: boolean
+  isVerifying?: boolean
+  onHolderVerified?: (isHolder: boolean, address?: string) => void
+  onVerifyingStart?: () => void
+}
+
+export default function Header({ isHolder, isVerifying, onHolderVerified, onVerifyingStart }: HeaderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const title = 'THE DAMNED'
@@ -77,7 +85,24 @@ export default function Header() {
           </svg>
         </a>
       </div>
-      <p className="text-base text-[#ff6b6b] uppercase tracking-wide">Ordinals Collection</p>
+      <div className="flex justify-center items-center gap-4 mt-2">
+        <p className="text-base text-[#ff6b6b] uppercase tracking-wide">Ordinals Collection</p>
+        <WalletConnect 
+          onHolderVerified={onHolderVerified}
+          onVerifyingStart={onVerifyingStart}
+        />
+        {(isVerifying || isHolder !== undefined) && (
+          <div className="text-sm font-bold">
+            {isVerifying ? (
+              <span className="text-[#ff6b6b] animate-pulse">Verifying...</span>
+            ) : isHolder ? (
+              <span className="text-[#00ff00]">✓ The Damned Holder</span>
+            ) : (
+              <span className="text-[#ff6b6b]">Not A Holder</span>
+            )}
+          </div>
+        )}
+      </div>
     </header>
   )
 }

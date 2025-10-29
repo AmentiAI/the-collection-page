@@ -20,10 +20,21 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true)
   const [startMusic, setStartMusic] = useState(false) // Will start after 2 seconds
   const [userInteracted, setUserInteracted] = useState(false)
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
 
   const handleEnter = () => {
     setUserInteracted(true)
     setShowSplash(false)
+  }
+
+  const handleHolderVerified = (holder: boolean, address?: string) => {
+    setIsHolder(holder)
+    setIsVerifying(false)
+  }
+
+  const handleVerifyingStart = () => {
+    setIsVerifying(true)
   }
 
   useEffect(() => {
@@ -105,7 +116,12 @@ export default function Home() {
         <>
           <BloodCanvas />
           <main className={`min-h-screen relative overflow-x-hidden ${shake ? 'shake' : ''}`}>
-        <Header />
+        <Header 
+          isHolder={isHolder} 
+          isVerifying={isVerifying}
+          onHolderVerified={handleHolderVerified}
+          onVerifyingStart={handleVerifyingStart}
+        />
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
             <aside className="order-2 lg:order-1">

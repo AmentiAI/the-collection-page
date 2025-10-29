@@ -9,6 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@omnisat/lasereyes": "^0.0.161",
+    "@omnisat/lasereyes-core": "^0.0.83",
+    "@omnisat/lasereyes-react": "^0.0.78",
     "next": "14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
