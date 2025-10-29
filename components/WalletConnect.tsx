@@ -67,8 +67,8 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     setIsVerifying(true)
     onVerifyingStart?.()
     try {
-      // Check if the connected address has any ordinals from "The Damned" collection (runeseekers)
-      console.log('🔍 Calling checkForOrdinals for runeseekers collection...')
+      // Check if the connected address has any ordinals from "The Damned" collection (rooster)
+      console.log('🔍 Calling checkForOrdinals for rooster collection...')
       const hasOrdinals = await checkForOrdinals(address)
       console.log('✅ checkForOrdinals returned:', hasOrdinals)
       setIsHolder(hasOrdinals)
@@ -110,11 +110,11 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const checkForOrdinals = async (walletAddress: string, retryCount = 0): Promise<boolean> => {
     try {
       // Proxy through our API route to avoid CORS issues
-      const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=runeseekers`
+      const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=rooster`
       
-      console.log('🔍🔍🔍 CHECKING RUNESEEKERS COLLECTION 🔍🔍🔍')
+      console.log('🔍🔍🔍 CHECKING ROOSTER COLLECTION 🔍🔍🔍')
       console.log('📍 Wallet address:', walletAddress)
-      console.log('🏷️ Collection: runeseekers')
+      console.log('🏷️ Collection: rooster')
       console.log('🔗 Using proxy API route:', apiUrl)
       
       // Call our proxy API route (handles CORS and API key server-side)
