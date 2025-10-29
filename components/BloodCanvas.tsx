@@ -14,9 +14,8 @@ export default function BloodCanvas() {
     })
     if (!ctx) return
 
-    // Optimize canvas settings
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'low'
+    // Optimize canvas settings for performance
+    ctx.imageSmoothingEnabled = false // Faster when disabled
     
     // Cache canvas dimensions to avoid expensive getBoundingClientRect calls
     let canvasWidth = window.innerWidth
@@ -67,79 +66,38 @@ export default function BloodCanvas() {
       draw() {
         if (!ctx) return
         
-        // Realistic blood drop shape - teardrop with elongated body
+        // Optimized teardrop shape - using gradient for single draw call
         const width = this.size * 0.7
         const height = this.size * 1.8
         
-        // Main drop shadow/depth (darker base)
-        ctx.fillStyle = `rgba(100, 0, 0, ${this.opacity * 0.8})`
-        ctx.beginPath()
-        ctx.moveTo(this.x, this.y)
-        ctx.bezierCurveTo(
-          this.x - width * 0.4, this.y + height * 0.4,
-          this.x - width * 0.5, this.y + height * 0.75,
-          this.x - width * 0.4, this.y + height
-        )
-        ctx.bezierCurveTo(
-          this.x - width * 0.2, this.y + height * 1.05,
-          this.x + width * 0.2, this.y + height * 1.05,
-          this.x + width * 0.4, this.y + height
-        )
-        ctx.bezierCurveTo(
-          this.x + width * 0.5, this.y + height * 0.75,
-          this.x + width * 0.4, this.y + height * 0.4,
-          this.x, this.y
-        )
-        ctx.closePath()
-        ctx.fill()
-        
-        // Main drop body (lighter red)
-        ctx.fillStyle = `rgba(180, 0, 0, ${this.opacity})`
-        ctx.beginPath()
-        ctx.moveTo(this.x, this.y)
-        ctx.bezierCurveTo(
-          this.x - width * 0.35, this.y + height * 0.35,
-          this.x - width * 0.45, this.y + height * 0.7,
-          this.x - width * 0.35, this.y + height * 0.95
-        )
-        ctx.bezierCurveTo(
-          this.x - width * 0.15, this.y + height * 1.0,
-          this.x + width * 0.15, this.y + height * 1.0,
-          this.x + width * 0.35, this.y + height * 0.95
-        )
-        ctx.bezierCurveTo(
-          this.x + width * 0.45, this.y + height * 0.7,
-          this.x + width * 0.35, this.y + height * 0.35,
-          this.x, this.y
-        )
-        ctx.closePath()
-        ctx.fill()
-        
-        // Highlight/shine on top
-        const highlightY = this.y + height * 0.25
-        const highlightSize = width * 0.2
-        ctx.fillStyle = `rgba(255, 100, 100, ${this.opacity * 0.6})`
-        ctx.beginPath()
-        ctx.ellipse(
-          this.x - width * 0.15,
-          highlightY,
-          highlightSize * 0.6,
-          highlightSize,
-          -0.3,
+        // Create radial gradient for depth effect (combined shadow + body + highlight)
+        const gradient = ctx.createRadialGradient(
+          this.x - width * 0.2, 
+          this.y + height * 0.3, 
           0,
-          Math.PI * 2
+          this.x, 
+          this.y + height * 0.5, 
+          height * 0.8
         )
-        ctx.fill()
+        gradient.addColorStop(0, `rgba(255, 150, 150, ${this.opacity * 0.7})`) // Highlight
+        gradient.addColorStop(0.4, `rgba(180, 0, 0, ${this.opacity})`) // Main body
+        gradient.addColorStop(0.7, `rgba(139, 0, 0, ${this.opacity * 0.9})`) // Darker middle
+        gradient.addColorStop(1, `rgba(100, 0, 0, ${this.opacity * 0.8})`) // Shadow edge
         
-        // Small bright highlight spot
-        ctx.fillStyle = `rgba(255, 200, 200, ${this.opacity * 0.8})`
+        ctx.fillStyle = gradient
         ctx.beginPath()
-        ctx.arc(this.x - width * 0.1, highlightY, highlightSize * 0.3, 0, Math.PI * 2)
+        // Simplified teardrop using fewer curves (quadratic instead of bezier)
+        ctx.moveTo(this.x, this.y)
+        ctx.quadraticCurveTo(this.x - width * 0.4, this.y + height * 0.5, this.x - width * 0.35, this.y + height * 0.9)
+        ctx.quadraticCurveTo(this.x - width * 0.2, this.y + height * 1.0, this.x, this.y + height)
+        ctx.quadraticCurveTo(this.x + width * 0.2, this.y + height * 1.0, this.x + width * 0.35, this.y + height * 0.9)
+        ctx.quadraticCurveTo(this.x + width * 0.4, this.y + height * 0.5, this.x, this.y)
+        ctx.closePath()
         ctx.fill()
       }
     }
 
-    const maxDrops = 80
+    const maxDrops = 65
     const bloodDrops: BloodDrop[] = []
 
     for (let i = 0; i < maxDrops; i++) {
@@ -155,11 +113,18 @@ export default function BloodCanvas() {
       // Clear entire canvas - no trail effect for better performance
       ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
-      // Batch update and draw for better performance
+      // Batch update first, then batch draw for better performance
+      const visibleDrops: BloodDrop[] = []
       bloodDrops.forEach(drop => {
         drop.update()
-        drop.draw()
+        // Only draw drops that are visible on screen
+        if (drop.y > -50 && drop.y < canvasHeight + 50) {
+          visibleDrops.push(drop)
+        }
       })
+      
+      // Draw only visible drops
+      visibleDrops.forEach(drop => drop.draw())
 
       animationFrameId = requestAnimationFrame(animate)
     }

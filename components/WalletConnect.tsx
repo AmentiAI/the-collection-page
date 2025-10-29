@@ -45,37 +45,58 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
 
   // Check if user is a holder when wallet connects
   useEffect(() => {
+    console.log('🔄 useEffect triggered - connected:', connected, 'address:', address)
     if (connected && address) {
+      console.log('✅ Wallet connected, starting holder check...')
       checkHolderStatus()
     } else {
+      console.log('❌ Wallet not connected or no address')
       setIsHolder(false)
       onHolderVerified?.(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, address])
 
   const checkHolderStatus = async () => {
-    if (!address) return
+    if (!address) {
+      console.log('⚠️ No address to check')
+      return
+    }
 
+    console.log('🚀 Starting holder check for address:', address)
     setIsVerifying(true)
     onVerifyingStart?.()
     try {
-      // Check if the connected address has any ordinals from "The Damned" collection
+      // Check if the connected address has any ordinals from "The Damned" collection (runeseekers)
+      console.log('🔍 Calling checkForOrdinals for runeseekers collection...')
       const hasOrdinals = await checkForOrdinals(address)
+      console.log('✅ checkForOrdinals returned:', hasOrdinals)
       setIsHolder(hasOrdinals)
       onHolderVerified?.(hasOrdinals, address)
       
       // If holder, get verification code
       if (hasOrdinals) {
-        const response = await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address })
-        })
-        const data = await response.json()
-        if (data.verified && data.code) {
-          setVerificationCode(data.code)
-          setShowCodeModal(true)
+        console.log('🎫 Holder detected! Getting verification code...')
+        try {
+          const response = await fetch('/api/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address })
+          })
+          const data = await response.json()
+          console.log('📝 Verification API response:', data)
+          if (data.verified && data.code) {
+            console.log('✅ Verification code generated:', data.code)
+            setVerificationCode(data.code)
+            setShowCodeModal(true)
+          } else {
+            console.error('❌ Verification failed:', data.message || 'Unknown error')
+          }
+        } catch (error) {
+          console.error('❌ Error getting verification code:', error)
         }
+      } else {
+        console.log('❌ Not a holder - no verification code will be generated')
       }
     } catch (error) {
       console.error('Error checking holder status:', error)
@@ -86,19 +107,88 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     }
   }
 
-  const checkForOrdinals = async (walletAddress: string): Promise<boolean> => {
+  const checkForOrdinals = async (walletAddress: string, retryCount = 0): Promise<boolean> => {
     try {
-      // This is a placeholder - you'll need to implement actual ordinal checking
-      // You might check against a specific inscription range or collection criteria
+      // Proxy through our API route to avoid CORS issues
+      const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=runeseekers`
       
-      // For now, we'll do a simple check - you can enhance this based on your collection
-      const response = await fetch(`https://api.ordinals.com/v1/inscriptions?address=${walletAddress}`)
+      console.log('🔍🔍🔍 CHECKING RUNESEEKERS COLLECTION 🔍🔍🔍')
+      console.log('📍 Wallet address:', walletAddress)
+      console.log('🏷️ Collection: runeseekers')
+      console.log('🔗 Using proxy API route:', apiUrl)
+      
+      // Call our proxy API route (handles CORS and API key server-side)
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
+      })
+      
+      // Handle rate limiting with exponential backoff
+      if (response.status === 429) {
+        const errorData = await response.json().catch(() => ({}))
+        const retryAfter = errorData.message?.match(/retry in (\d+) (minute|second)/i)
+        const waitTime = retryAfter 
+          ? parseInt(retryAfter[1]) * (retryAfter[2].toLowerCase() === 'minute' ? 60000 : 1000)
+          : Math.min(1000 * Math.pow(2, retryCount), 60000) // Max 60 seconds
+        
+        if (retryCount < 2) {
+          console.log(`⏳ Rate limit hit (429). Waiting ${Math.round(waitTime/1000)}s... (attempt ${retryCount + 1}/2)`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return checkForOrdinals(walletAddress, retryCount + 1)
+        } else {
+          console.error('❌ Rate limit exceeded. Please wait a minute before trying again.')
+          return false
+        }
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Magic Eden API error:', response.status, response.statusText)
+        console.error('Error response body:', errorText)
+        return false
+      }
+      
+      console.log('📡 Response status:', response.status, response.statusText)
+      
       const data = await response.json()
+      console.log('📦 FULL Magic Eden API response:', JSON.stringify(data, null, 2))
+      console.log('📊 Response keys:', Object.keys(data))
       
-      // Check if user has any ordinals (you can make this more specific)
-      return data.inscriptions && data.inscriptions.length > 0
+      // Check multiple possible response formats
+      let total = 0
+      if (typeof data.total === 'number') {
+        total = data.total
+        console.log('✓ Found data.total:', total)
+      } else if (Array.isArray(data.tokens)) {
+        total = data.tokens.length
+        console.log('✓ Found data.tokens array with length:', total)
+      } else if (Array.isArray(data)) {
+        total = data.length
+        console.log('✓ Response is array with length:', total)
+      } else if (typeof data.count === 'number') {
+        total = data.count
+        console.log('✓ Found data.count:', total)
+      } else {
+        // If no total/count, check if tokens array exists
+        if (Array.isArray(data.tokens) && data.tokens.length > 0) {
+          total = data.tokens.length
+          console.log('✓ Found tokens array with items:', total)
+        } else {
+          console.warn('⚠️ Could not find total in response structure')
+          console.log('📋 Full data structure:', JSON.stringify(data, null, 2))
+          // If we have any data, assume they might be a holder
+          total = Object.keys(data).length > 0 ? 1 : 0
+        }
+      }
+      
+      const hasOrdinals = total > 0
+      console.log('🎯 FINAL RESULT - Total ordinals:', total, '| Is holder:', hasOrdinals)
+      
+      return hasOrdinals
     } catch (error) {
-      console.error('Error fetching ordinals:', error)
+      console.error('Error fetching ordinals from Magic Eden:', error)
       return false
     }
   }

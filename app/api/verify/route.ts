@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // In-memory storage (use database in production with Redis/PostgreSQL)
 const verificationCodes = new Map()
 
@@ -8,17 +10,37 @@ function generateCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase()
 }
 
-// Check if address is a holder (use your existing logic)
+// Check if address is a holder using Magic Eden API for Runeseekers collection
 async function checkForOrdinals(address: string): Promise<boolean> {
   try {
-    const response = await fetch(`https://api.ordinals.com/v1/inscriptions?address=${address}`)
+    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
+    const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=runeseekers&ownerAddress=${encodeURIComponent(address)}&showAll=true&sortBy=priceAsc`
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+        'Authorization': `Bearer ${apiKey}`
+      }
+    })
+    
+    if (!response.ok) {
+      console.error('Magic Eden API error:', response.status)
+      return false
+    }
+    
     const data = await response.json()
     
-    // Check if user has any ordinals
-    // TODO: Customize this to check for specific "The Damned" ordinals
-    return data.inscriptions && data.inscriptions.length > 0
+    // Check multiple possible response formats
+    const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
+    const hasOrdinals = total > 0
+    
+    console.log('Verify route - Total Runeseekers ordinals:', total, 'Is holder:', hasOrdinals)
+    
+    return hasOrdinals
   } catch (error) {
-    console.error('Error fetching ordinals:', error)
+    console.error('Error fetching ordinals from Magic Eden:', error)
     return false
   }
 }
