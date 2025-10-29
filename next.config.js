@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Disable static optimization to prevent SSR issues with client-only libraries
   output: 'standalone',
-  webpack: (config, { isServer }) => {
+  experimental: {
+    serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react'],
+  },
+  webpack: (config, { isServer, dev }) => {
     // Exclude problematic packages from server-side bundle
     if (isServer) {
       config.externals = config.externals || []
@@ -14,8 +16,6 @@ const nextConfig = {
       })
     }
     
-    // Don't alias on client - let it load in separate chunk
-    
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -24,10 +24,22 @@ const nextConfig = {
       crypto: false,
     }
     
+    // Fix webpack chunk loading issues in dev mode
+    if (dev) {
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'named',
+        chunkIds: 'named',
+      }
+      
+      // Improve chunk splitting
+      config.output = {
+        ...config.output,
+        chunkFilename: dev ? 'static/chunks/[name].js' : 'static/chunks/[name].[contenthash].js',
+      }
+    }
+    
     return config
-  },
-  experimental: {
-    serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react'],
   },
 }
 

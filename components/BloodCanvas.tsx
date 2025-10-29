@@ -10,23 +10,21 @@ export default function BloodCanvas() {
     const ctx = canvas.getContext('2d', { 
       alpha: true,
       desynchronized: true,
-      willReadFrequently: false
-    })
+      willReadFrequently: false,
+      powerPreference: 'high-performance'
+    }) as CanvasRenderingContext2D | null
     if (!ctx) return
 
-    // Optimize canvas settings for performance
     ctx.imageSmoothingEnabled = false
     
-    // Cache canvas dimensions
     let canvasWidth = window.innerWidth
     let canvasHeight = window.innerHeight
-    let dpr = window.devicePixelRatio || 1
+    let dpr = Math.min(window.devicePixelRatio || 1, 2)
     
     const updateCanvasSize = () => {
-      dpr = window.devicePixelRatio || 1
-      const rect = canvas.getBoundingClientRect()
-      canvasWidth = rect.width
-      canvasHeight = rect.height
+      dpr = Math.min(window.devicePixelRatio || 1, 2)
+      canvasWidth = window.innerWidth
+      canvasHeight = window.innerHeight
       canvas.width = canvasWidth * dpr
       canvas.height = canvasHeight * dpr
       ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -37,15 +35,27 @@ export default function BloodCanvas() {
 
     updateCanvasSize()
 
-    // Pre-cache colors to avoid string concatenation
-    const darkRed = 'rgba(139, 0, 0, 0.65)'
-    const brightRed = 'rgba(200, 0, 0, 0.75)'
+    // Realistic blood colors - darker, more viscous
+    const bloodColors = {
+      darkest: 'rgba(60, 0, 0, 0.95)',
+      dark: 'rgba(90, 0, 0, 0.9)',
+      medium: 'rgba(140, 0, 0, 0.85)',
+      bright: 'rgba(180, 20, 20, 0.75)',
+      highlight: 'rgba(220, 40, 40, 0.6)',
+      shine: 'rgba(255, 100, 100, 0.4)',
+    }
     
     class BloodDrop {
       x: number = 0
       y: number = 0
       speed: number = 2
       size: number = 8
+      opacity: number = 0.8
+      sway: number = 0
+      swaySpeed: number = 0
+      trailLength: number = 0
+      viscosity: number = 0 // How thick/stringy the trail is
+      wobble: number = 0 // Additional organic movement
 
       constructor() {
         this.reset()
@@ -53,14 +63,28 @@ export default function BloodCanvas() {
 
       reset() {
         this.x = Math.random() * canvasWidth
-        this.y = -30
-        this.speed = 1.5 + Math.random() * 3
-        this.size = 4 + Math.random() * 10
+        this.y = -80 - Math.random() * 400
+        this.speed = 0.8 + Math.random() * 4.5
+        this.size = 5 + Math.random() * 18
+        this.opacity = 0.7 + Math.random() * 0.3
+        this.sway = Math.random() * Math.PI * 2
+        this.swaySpeed = 0.008 + Math.random() * 0.025
+        this.trailLength = 0
+        this.viscosity = 0.3 + Math.random() * 0.4
+        this.wobble = Math.random() * Math.PI * 2
       }
 
       update() {
         this.y += this.speed
-        if (this.y > canvasHeight + 30) {
+        // Natural sway with organic wobble
+        this.sway += this.swaySpeed
+        this.wobble += 0.02
+        const swayAmount = Math.sin(this.sway) * 0.4 + Math.sin(this.wobble * 0.5) * 0.15
+        this.x += swayAmount
+        // Build up trail over time
+        this.trailLength = Math.min(this.trailLength + this.speed * 0.5, this.size * 2.5)
+        
+        if (this.y > canvasHeight + 80) {
           this.reset()
         }
       }
@@ -68,35 +92,162 @@ export default function BloodCanvas() {
       draw() {
         if (!ctx) return
         
-        // Use simple ellipse - much faster than complex teardrop paths
-        const radiusX = this.size * 0.35
-        const radiusY = this.size * 0.85
+        const radius = this.size * 0.35
+        const height = this.size * 1.3
         
-        // Solid color instead of expensive gradient
-        ctx.fillStyle = darkRed
+        ctx.save()
+        
+        // Wall stain/trail above drop - more realistic vertical streaks
+        if (this.trailLength > 4 && this.y > 0) {
+          const trailHeight = Math.min(this.trailLength, this.y)
+          const trailWidth = radius * (0.5 + this.viscosity * 0.3)
+          
+          // Multiple gradient layers for realistic blood stain
+          const trailGradient1 = ctx.createLinearGradient(
+            this.x, this.y - trailHeight,
+            this.x, this.y
+          )
+          trailGradient1.addColorStop(0, `rgba(90, 0, 0, 0)`)
+          trailGradient1.addColorStop(0.2, `rgba(90, 0, 0, ${this.opacity * 0.2})`)
+          trailGradient1.addColorStop(0.6, `rgba(140, 0, 0, ${this.opacity * 0.4})`)
+          trailGradient1.addColorStop(1, `rgba(140, 0, 0, ${this.opacity * 0.6})`)
+          
+          // Main trail
+          ctx.beginPath()
+          const trailVariation = Math.sin(this.wobble) * trailWidth * 0.1
+          ctx.moveTo(this.x - trailWidth * 0.35 + trailVariation, this.y - trailHeight)
+          ctx.lineTo(this.x + trailWidth * 0.35 + trailVariation, this.y - trailHeight)
+          ctx.lineTo(this.x + trailWidth * 0.4, this.y)
+          ctx.lineTo(this.x - trailWidth * 0.4, this.y)
+          ctx.closePath()
+          ctx.fillStyle = trailGradient1
+          ctx.fill()
+          
+          // Inner darker core of trail
+          if (trailHeight > 10) {
+            const coreGradient = ctx.createLinearGradient(
+              this.x, this.y - trailHeight * 0.5,
+              this.x, this.y
+            )
+            coreGradient.addColorStop(0, `rgba(60, 0, 0, ${this.opacity * 0.3})`)
+            coreGradient.addColorStop(1, `rgba(90, 0, 0, ${this.opacity * 0.5})`)
+            
+            ctx.beginPath()
+            ctx.moveTo(this.x - trailWidth * 0.2, this.y - trailHeight * 0.5)
+            ctx.lineTo(this.x + trailWidth * 0.2, this.y - trailHeight * 0.5)
+            ctx.lineTo(this.x + trailWidth * 0.25, this.y)
+            ctx.lineTo(this.x - trailWidth * 0.25, this.y)
+            ctx.closePath()
+            ctx.fillStyle = coreGradient
+            ctx.fill()
+          }
+        }
+        
+        // Main teardrop body - more realistic viscous blood drop
         ctx.beginPath()
-        ctx.ellipse(this.x, this.y + radiusY * 0.5, radiusX, radiusY, 0, 0, Math.PI * 2)
+        // Top point (more pointy)
+        ctx.moveTo(this.x, this.y)
+        // Left curve (more pronounced bulge)
+        ctx.bezierCurveTo(
+          this.x - radius * 0.45, this.y + height * 0.25,
+          this.x - radius * 0.7, this.y + height * 0.65,
+          this.x - radius * 0.38, this.y + height
+        )
+        // Bottom curve (more rounded, heavier)
+        ctx.arc(this.x, this.y + height, radius * 0.38, Math.PI, 0, false)
+        // Right curve
+        ctx.bezierCurveTo(
+          this.x + radius * 0.7, this.y + height * 0.65,
+          this.x + radius * 0.45, this.y + height * 0.25,
+          this.x, this.y
+        )
+        ctx.closePath()
+        
+        // Multi-layer gradient for depth
+        const dropGradient = ctx.createLinearGradient(
+          this.x - radius * 0.3, this.y,
+          this.x + radius * 0.3, this.y + height
+        )
+        dropGradient.addColorStop(0, bloodColors.medium)
+        dropGradient.addColorStop(0.3, bloodColors.dark)
+        dropGradient.addColorStop(0.7, bloodColors.darkest)
+        dropGradient.addColorStop(1, bloodColors.darkest)
+        ctx.fillStyle = dropGradient
         ctx.fill()
         
-        // Small highlight for depth (simple, fast)
-        ctx.fillStyle = brightRed
+        // Strong highlight on top-left (light source)
         ctx.beginPath()
-        ctx.arc(this.x - radiusX * 0.2, this.y + radiusY * 0.25, radiusX * 0.25, 0, Math.PI * 2)
+        const highlightRadius = radius * 0.25
+        ctx.ellipse(
+          this.x - radius * 0.25, 
+          this.y + height * 0.2, 
+          highlightRadius * 0.8, 
+          highlightRadius * 1.2, 
+          -0.25, 
+          0, 
+          Math.PI * 2
+        )
+        ctx.fillStyle = bloodColors.highlight
         ctx.fill()
+        
+        // Subtle shine spot
+        ctx.beginPath()
+        ctx.arc(this.x - radius * 0.3, this.y + height * 0.15, highlightRadius * 0.4, 0, Math.PI * 2)
+        ctx.fillStyle = bloodColors.shine
+        ctx.fill()
+        
+        // Dark shadow at bottom (thicker, more realistic)
+        ctx.beginPath()
+        ctx.ellipse(
+          this.x, 
+          this.y + height, 
+          radius * 0.4, 
+          radius * 0.2, 
+          0, 
+          0, 
+          Math.PI * 2
+        )
+        ctx.fillStyle = bloodColors.darkest
+        ctx.fill()
+        
+        // Edge darkening for depth
+        ctx.strokeStyle = `rgba(60, 0, 0, ${this.opacity * 0.8})`
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(this.x, this.y)
+        ctx.bezierCurveTo(
+          this.x - radius * 0.45, this.y + height * 0.25,
+          this.x - radius * 0.7, this.y + height * 0.65,
+          this.x - radius * 0.38, this.y + height
+        )
+        ctx.stroke()
+        
+        ctx.beginPath()
+        ctx.moveTo(this.x, this.y)
+        ctx.bezierCurveTo(
+          this.x + radius * 0.45, this.y + height * 0.25,
+          this.x + radius * 0.7, this.y + height * 0.65,
+          this.x + radius * 0.38, this.y + height
+        )
+        ctx.stroke()
+        
+        ctx.restore()
       }
     }
 
-    const maxDrops = 50 // Increased blood drops for more dramatic effect
+    // Increased for more blood
+    const maxDrops = 120
     const bloodDrops: BloodDrop[] = []
 
     for (let i = 0; i < maxDrops; i++) {
       bloodDrops.push(new BloodDrop())
+      bloodDrops[i].y = -80 - (i * (canvasHeight / maxDrops + 15))
     }
 
     let animationFrameId: number
     let isRunning = true
     let lastTime = 0
-    const targetFPS = 60
+    const targetFPS = 55
     const frameInterval = 1000 / targetFPS
 
     const animate = (currentTime: number) => {
@@ -104,20 +255,16 @@ export default function BloodCanvas() {
       
       const deltaTime = currentTime - lastTime
       
-      // Throttle frame rate to save CPU
       if (deltaTime >= frameInterval) {
         lastTime = currentTime - (deltaTime % frameInterval)
         
-        // Clear canvas
         ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
-        // Single loop: update and draw visible drops only
         for (let i = 0; i < bloodDrops.length; i++) {
           const drop = bloodDrops[i]
           drop.update()
           
-          // Cull drops outside viewport
-          if (drop.y > -40 && drop.y < canvasHeight + 40 && drop.x > -20 && drop.x < canvasWidth + 20) {
+          if (drop.y > -60 && drop.y < canvasHeight + 60 && drop.x > -40 && drop.x < canvasWidth + 40) {
             drop.draw()
           }
         }
@@ -134,7 +281,7 @@ export default function BloodCanvas() {
       resizeTimeout = setTimeout(() => {
         updateCanvasSize()
         bloodDrops.forEach(drop => drop.reset())
-      }, 100)
+      }, 200)
     }
 
     window.addEventListener('resize', handleResize)
@@ -151,7 +298,7 @@ export default function BloodCanvas() {
   return (
     <canvas
       id="bloodCanvas"
-      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-80 z-0"
+      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-90 z-0"
       style={{ transform: 'none' }}
     />
   )
