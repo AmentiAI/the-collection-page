@@ -1,8 +1,17 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+import dynamicImport from 'next/dynamic'
 
 export const dynamic = 'force-dynamic'
+
+// Dynamically import LaserEyesWrapper with SSR disabled to avoid client-side errors
+const LaserEyesWrapper = dynamicImport(
+  () => import('@/components/LaserEyesWrapper'),
+  { 
+    ssr: false,
+    loading: () => null // Don't show loading indicator
+  }
+)
 
 export const metadata: Metadata = {
   title: 'The Damned - Ordinals Collection',
