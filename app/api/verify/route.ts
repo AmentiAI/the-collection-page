@@ -46,11 +46,12 @@ export async function POST(request: NextRequest) {
     verificationCodes.set(code, { address, timestamp })
     
     // Clean up old codes (older than 10 minutes)
-    for (const [key, value] of verificationCodes.entries()) {
-      if (Date.now() - value.timestamp > 600000) {
+    const now = Date.now()
+    Array.from(verificationCodes.entries()).forEach(([key, value]) => {
+      if (now - value.timestamp > 600000) {
         verificationCodes.delete(key)
       }
-    }
+    })
     
     return NextResponse.json({ 
       verified: true, 

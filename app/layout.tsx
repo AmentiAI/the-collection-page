@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'The Damned - Ordinals Collection',
   description: 'Explore The Damned Bitcoin Ordinals Collection',
