@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import WalletConnect from './WalletConnect'
+import dynamicImport from 'next/dynamic'
+
+// Lazy load WalletConnect to prevent LaserEyes from loading immediately
+const WalletConnect = dynamicImport(() => import('./WalletConnect'), {
+  ssr: false,
+  loading: () => <div className="px-4 py-2 bg-[#8B0000] text-white rounded font-bold text-sm uppercase">Loading...</div>
+})
 
 interface HeaderProps {
   isHolder?: boolean

@@ -14,7 +14,8 @@ const nextConfig = {
       })
     }
     
-    // Fix for client-side bundling issues
+    // Don't alias on client - let it load in separate chunk
+    
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
