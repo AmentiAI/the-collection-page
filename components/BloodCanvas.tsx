@@ -7,12 +7,26 @@ export default function BloodCanvas() {
     const canvas = document.getElementById('bloodCanvas') as HTMLCanvasElement
     if (!canvas) return
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { 
+      alpha: true,
+      desynchronized: true,
+      willReadFrequently: false
+    })
     if (!ctx) return
 
+    // Optimize canvas settings
+    ctx.imageSmoothingEnabled = false
+    
+    let dpr = 1
     const updateCanvasSize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset transform
+      ctx.scale(dpr, dpr)
+      canvas.style.width = rect.width + 'px'
+      canvas.style.height = rect.height + 'px'
     }
 
     updateCanvasSize()
@@ -29,16 +43,18 @@ export default function BloodCanvas() {
       }
 
       reset() {
-        this.x = Math.random() * canvas.width
+        const rect = canvas.getBoundingClientRect()
+        this.x = Math.random() * rect.width
         this.y = -10
         this.speed = 2 + Math.random() * 3
         this.length = 20 + Math.random() * 40
-        this.opacity = 0.5 + Math.random() * 0.5
+        this.opacity = 0.6 + Math.random() * 0.4
       }
 
       update() {
         this.y += this.speed
-        if (this.y > canvas.height) {
+        const rect = canvas.getBoundingClientRect()
+        if (this.y > rect.height) {
           this.reset()
         }
       }
@@ -66,28 +82,50 @@ export default function BloodCanvas() {
       bloodDrops.push(new BloodDrop())
     }
 
-    const animate = () => {
+    let animationFrameId: number
+    let lastTime = 0
+    const fps = 60
+    const frameInterval = 1000 / fps
+
+    const animate = (currentTime: number) => {
       if (!ctx) return
-      ctx.fillStyle = 'rgba(10, 10, 10, 0.1)'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      
+      const deltaTime = currentTime - lastTime
+      
+      if (deltaTime >= frameInterval) {
+        // Clear entire canvas properly (use scaled dimensions)
+        const rect = canvas.getBoundingClientRect()
+        ctx.clearRect(0, 0, rect.width, rect.height)
+        
+        // Draw trail effect more efficiently
+        ctx.fillStyle = 'rgba(10, 10, 10, 0.08)'
+        ctx.fillRect(0, 0, rect.width, rect.height)
 
-      bloodDrops.forEach(drop => {
-        drop.update()
-        drop.draw()
-      })
+        bloodDrops.forEach(drop => {
+          drop.update()
+          drop.draw()
+        })
 
-      requestAnimationFrame(animate)
+        lastTime = currentTime - (deltaTime % frameInterval)
+      }
+
+      animationFrameId = requestAnimationFrame(animate)
     }
 
-    animate()
+    animationFrameId = requestAnimationFrame(animate)
 
     const handleResize = () => {
       updateCanvasSize()
+      // Reset drops on resize
+      bloodDrops.forEach(drop => drop.reset())
     }
 
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('resize', handleResize)
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [])
 
