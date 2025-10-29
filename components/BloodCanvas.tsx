@@ -15,9 +15,9 @@ export default function BloodCanvas() {
     if (!ctx) return
 
     // Optimize canvas settings for performance
-    ctx.imageSmoothingEnabled = false // Faster when disabled
+    ctx.imageSmoothingEnabled = false
     
-    // Cache canvas dimensions to avoid expensive getBoundingClientRect calls
+    // Cache canvas dimensions
     let canvasWidth = window.innerWidth
     let canvasHeight = window.innerHeight
     let dpr = window.devicePixelRatio || 1
@@ -29,7 +29,7 @@ export default function BloodCanvas() {
       canvasHeight = rect.height
       canvas.width = canvasWidth * dpr
       canvas.height = canvasHeight * dpr
-      ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset transform
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.scale(dpr, dpr)
       canvas.style.width = canvasWidth + 'px'
       canvas.style.height = canvasHeight + 'px'
@@ -37,12 +37,15 @@ export default function BloodCanvas() {
 
     updateCanvasSize()
 
+    // Pre-cache colors to avoid string concatenation
+    const darkRed = 'rgba(139, 0, 0, 0.65)'
+    const brightRed = 'rgba(200, 0, 0, 0.75)'
+    
     class BloodDrop {
       x: number = 0
       y: number = 0
       speed: number = 2
       size: number = 8
-      opacity: number = 0.5
 
       constructor() {
         this.reset()
@@ -50,15 +53,14 @@ export default function BloodCanvas() {
 
       reset() {
         this.x = Math.random() * canvasWidth
-        this.y = -20
-        this.speed = 1.5 + Math.random() * 4
-        this.size = 5 + Math.random() * 15
-        this.opacity = 0.5 + Math.random() * 0.5
+        this.y = -30
+        this.speed = 1.5 + Math.random() * 3
+        this.size = 4 + Math.random() * 10
       }
 
       update() {
         this.y += this.speed
-        if (this.y > canvasHeight + 20) {
+        if (this.y > canvasHeight + 30) {
           this.reset()
         }
       }
@@ -66,38 +68,25 @@ export default function BloodCanvas() {
       draw() {
         if (!ctx) return
         
-        // Optimized teardrop shape - using gradient for single draw call
-        const width = this.size * 0.7
-        const height = this.size * 1.8
+        // Use simple ellipse - much faster than complex teardrop paths
+        const radiusX = this.size * 0.35
+        const radiusY = this.size * 0.85
         
-        // Create radial gradient for depth effect (combined shadow + body + highlight)
-        const gradient = ctx.createRadialGradient(
-          this.x - width * 0.2, 
-          this.y + height * 0.3, 
-          0,
-          this.x, 
-          this.y + height * 0.5, 
-          height * 0.8
-        )
-        gradient.addColorStop(0, `rgba(255, 150, 150, ${this.opacity * 0.7})`) // Highlight
-        gradient.addColorStop(0.4, `rgba(180, 0, 0, ${this.opacity})`) // Main body
-        gradient.addColorStop(0.7, `rgba(139, 0, 0, ${this.opacity * 0.9})`) // Darker middle
-        gradient.addColorStop(1, `rgba(100, 0, 0, ${this.opacity * 0.8})`) // Shadow edge
-        
-        ctx.fillStyle = gradient
+        // Solid color instead of expensive gradient
+        ctx.fillStyle = darkRed
         ctx.beginPath()
-        // Simplified teardrop using fewer curves (quadratic instead of bezier)
-        ctx.moveTo(this.x, this.y)
-        ctx.quadraticCurveTo(this.x - width * 0.4, this.y + height * 0.5, this.x - width * 0.35, this.y + height * 0.9)
-        ctx.quadraticCurveTo(this.x - width * 0.2, this.y + height * 1.0, this.x, this.y + height)
-        ctx.quadraticCurveTo(this.x + width * 0.2, this.y + height * 1.0, this.x + width * 0.35, this.y + height * 0.9)
-        ctx.quadraticCurveTo(this.x + width * 0.4, this.y + height * 0.5, this.x, this.y)
-        ctx.closePath()
+        ctx.ellipse(this.x, this.y + radiusY * 0.5, radiusX, radiusY, 0, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // Small highlight for depth (simple, fast)
+        ctx.fillStyle = brightRed
+        ctx.beginPath()
+        ctx.arc(this.x - radiusX * 0.2, this.y + radiusY * 0.25, radiusX * 0.25, 0, Math.PI * 2)
         ctx.fill()
       }
     }
 
-    const maxDrops = 65
+    const maxDrops = 30 // Reduced from 65 for better performance
     const bloodDrops: BloodDrop[] = []
 
     for (let i = 0; i < maxDrops; i++) {
@@ -106,25 +95,33 @@ export default function BloodCanvas() {
 
     let animationFrameId: number
     let isRunning = true
+    let lastTime = 0
+    const targetFPS = 60
+    const frameInterval = 1000 / targetFPS
 
-    const animate = () => {
+    const animate = (currentTime: number) => {
       if (!ctx || !isRunning) return
       
-      // Clear entire canvas - no trail effect for better performance
-      ctx.clearRect(0, 0, canvasWidth, canvasHeight)
-
-      // Batch update first, then batch draw for better performance
-      const visibleDrops: BloodDrop[] = []
-      bloodDrops.forEach(drop => {
-        drop.update()
-        // Only draw drops that are visible on screen
-        if (drop.y > -50 && drop.y < canvasHeight + 50) {
-          visibleDrops.push(drop)
-        }
-      })
+      const deltaTime = currentTime - lastTime
       
-      // Draw only visible drops
-      visibleDrops.forEach(drop => drop.draw())
+      // Throttle frame rate to save CPU
+      if (deltaTime >= frameInterval) {
+        lastTime = currentTime - (deltaTime % frameInterval)
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+        // Single loop: update and draw visible drops only
+        for (let i = 0; i < bloodDrops.length; i++) {
+          const drop = bloodDrops[i]
+          drop.update()
+          
+          // Cull drops outside viewport
+          if (drop.y > -40 && drop.y < canvasHeight + 40 && drop.x > -20 && drop.x < canvasWidth + 20) {
+            drop.draw()
+          }
+        }
+      }
 
       animationFrameId = requestAnimationFrame(animate)
     }
@@ -133,11 +130,9 @@ export default function BloodCanvas() {
 
     let resizeTimeout: NodeJS.Timeout
     const handleResize = () => {
-      // Debounce resize to avoid excessive canvas resets
       clearTimeout(resizeTimeout)
       resizeTimeout = setTimeout(() => {
         updateCanvasSize()
-        // Reset drops on resize
         bloodDrops.forEach(drop => drop.reset())
       }, 100)
     }

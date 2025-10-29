@@ -10,11 +10,11 @@ function generateCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase()
 }
 
-// Check if address is a holder using Magic Eden API for Rooster collection
+// Check if address is a holder using Magic Eden API for The Damned collection
 async function checkForOrdinals(address: string): Promise<boolean> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-    const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=rooster&ownerAddress=${encodeURIComponent(address)}&showAll=true&sortBy=priceAsc`
+    const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(address)}&showAll=true&sortBy=priceAsc`
     
     const response = await fetch(apiUrl, {
       headers: {
@@ -36,7 +36,7 @@ async function checkForOrdinals(address: string): Promise<boolean> {
     const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
     const hasOrdinals = total > 0
     
-    console.log('Verify route - Total Rooster ordinals:', total, 'Is holder:', hasOrdinals)
+    console.log('Verify route - Total The Damned ordinals:', total, 'Is holder:', hasOrdinals)
     
     return hasOrdinals
   } catch (error) {

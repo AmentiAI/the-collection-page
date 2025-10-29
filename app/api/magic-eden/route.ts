@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const ownerAddress = searchParams.get('ownerAddress')
-    const collectionSymbol = searchParams.get('collectionSymbol') || 'rooster'
+    const collectionSymbol = searchParams.get('collectionSymbol') || 'the-damned'
 
     if (!ownerAddress) {
       return NextResponse.json(

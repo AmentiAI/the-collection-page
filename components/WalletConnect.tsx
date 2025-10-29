@@ -1,6 +1,6 @@
 'use client'
 
-import { useLaserEyes, UNISAT, XVERSE, PHANTOM } from '@omnisat/lasereyes'
+import { useLaserEyes, UNISAT, XVERSE, PHANTOM, MAGIC_EDEN } from '@omnisat/lasereyes'
 import { useState, useEffect } from 'react'
 
 interface WalletConnectProps {
@@ -9,10 +9,30 @@ interface WalletConnectProps {
   onConnectedChange?: (connected: boolean) => void
 }
 
+// Custom wallet connector for OYO (Magic Eden is supported by LaserEyes)
+const OYO_WALLET = {
+  id: 'oyo',
+  name: 'OYO',
+  icon: '🦉',
+  connect: async () => {
+    if (typeof window !== 'undefined' && (window as any).oyowallet) {
+      try {
+        const accounts = await (window as any).oyowallet.requestAccounts()
+        return accounts[0]
+      } catch (error) {
+        throw new Error('Failed to connect OYO wallet')
+      }
+    }
+    throw new Error('OYO wallet not found. Please install the OYO wallet extension.')
+  }
+}
+
 const WALLET_OPTIONS = [
-  { id: 'unisat', name: 'Unisat', icon: '🔗', wallet: UNISAT },
-  { id: 'xverse', name: 'Xverse', icon: '⚡', wallet: XVERSE },
-  { id: 'phantom', name: 'Phantom', icon: '👻', wallet: PHANTOM },
+  { id: 'unisat', name: 'Unisat', icon: '🔗', wallet: UNISAT, type: 'lasereyes' },
+  { id: 'xverse', name: 'Xverse', icon: '⚡', wallet: XVERSE, type: 'lasereyes' },
+  { id: 'phantom', name: 'Phantom', icon: '👻', wallet: PHANTOM, type: 'lasereyes' },
+  { id: 'magiceden', name: 'Magic Eden', icon: '✨', wallet: MAGIC_EDEN, type: 'lasereyes' },
+  { id: 'oyo', name: 'OYO', icon: '🦉', wallet: OYO_WALLET, type: 'custom' },
 ]
 
 export default function WalletConnect({ onHolderVerified, onVerifyingStart, onConnectedChange }: WalletConnectProps) {
@@ -28,12 +48,23 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const [verificationCode, setVerificationCode] = useState<string | null>(null)
   const [showCodeModal, setShowCodeModal] = useState(false)
 
-  const handleConnect = async (wallet: any) => {
+  const handleConnect = async (wallet: any, walletType: string = 'lasereyes') => {
     try {
       setShowDropdown(false)
-      await connect(wallet)
+      if (walletType === 'custom') {
+        // Handle custom wallet connections (Magic Eden, OYO)
+        const address = await wallet.connect()
+        // Manually set connected state for custom wallets
+        // Note: This is a simplified implementation - you may need to integrate with LaserEyes differently
+        console.log('Custom wallet connected:', address)
+        // You'll need to handle the custom wallet connection state here
+      } else {
+        // Use LaserEyes for standard wallets
+        await connect(wallet)
+      }
     } catch (error) {
       console.error('Failed to connect wallet:', error)
+      alert(error instanceof Error ? error.message : 'Failed to connect wallet')
     }
   }
 
@@ -67,8 +98,8 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     setIsVerifying(true)
     onVerifyingStart?.()
     try {
-      // Check if the connected address has any ordinals from "The Damned" collection (rooster)
-      console.log('🔍 Calling checkForOrdinals for rooster collection...')
+      // Check if the connected address has any ordinals from "The Damned" collection (the-damned)
+      console.log('🔍 Calling checkForOrdinals for the-damned collection...')
       const hasOrdinals = await checkForOrdinals(address)
       console.log('✅ checkForOrdinals returned:', hasOrdinals)
       setIsHolder(hasOrdinals)
@@ -110,11 +141,11 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const checkForOrdinals = async (walletAddress: string, retryCount = 0): Promise<boolean> => {
     try {
       // Proxy through our API route to avoid CORS issues
-      const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=rooster`
+      const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned`
       
-      console.log('🔍🔍🔍 CHECKING ROOSTER COLLECTION 🔍🔍🔍')
+      console.log('🔍🔍🔍 CHECKING THE DAMNED COLLECTION 🔍🔍🔍')
       console.log('📍 Wallet address:', walletAddress)
-      console.log('🏷️ Collection: rooster')
+      console.log('🏷️ Collection: the-damned')
       console.log('🔗 Using proxy API route:', apiUrl)
       
       // Call our proxy API route (handles CORS and API key server-side)
@@ -213,7 +244,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
                 {WALLET_OPTIONS.map((wallet) => (
                   <button
                     key={wallet.id}
-                    onClick={() => handleConnect(wallet.wallet)}
+                       onClick={() => handleConnect(wallet.wallet, wallet.type)}
                     className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[rgba(139,0,0,0.3)] rounded transition-all group"
                   >
                     <span className="text-lg">{wallet.icon}</span>

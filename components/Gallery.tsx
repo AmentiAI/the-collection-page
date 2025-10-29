@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Ordinal } from '@/types'
 
 interface GalleryProps {
@@ -13,6 +13,34 @@ const ORDINALS_PER_PAGE = 8
 
 export default function Gallery({ ordinals, loading, onOrdinalClick }: GalleryProps) {
   const [currentPage, setCurrentPage] = useState(1)
+  const [hoveredOrdinal, setHoveredOrdinal] = useState<Ordinal | null>(null)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const hoverRef = useRef<HTMLDivElement>(null)
+  
+  // Calculate preview position to stay on screen
+  const getPreviewStyle = () => {
+    const previewWidth = 400
+    const previewHeight = 400
+    const offset = 20
+    let left = mousePosition.x + offset
+    let top = mousePosition.y + offset
+    
+    // Check if preview would go off right edge
+    if (typeof window !== 'undefined' && left + previewWidth > window.innerWidth) {
+      left = mousePosition.x - previewWidth - offset
+    }
+    
+    // Check if preview would go off bottom edge
+    if (typeof window !== 'undefined' && top + previewHeight > window.innerHeight) {
+      top = mousePosition.y - previewHeight - offset
+    }
+    
+    // Ensure it stays on screen
+    left = Math.max(offset, Math.min(left, (typeof window !== 'undefined' ? window.innerWidth : 1920) - previewWidth - offset))
+    top = Math.max(offset, Math.min(top, (typeof window !== 'undefined' ? window.innerHeight : 1080) - previewHeight - offset))
+    
+    return { left: `${left}px`, top: `${top}px` }
+  }
 
   // Calculate pagination
   const totalPages = Math.ceil(ordinals.length / ORDINALS_PER_PAGE)
@@ -57,24 +85,32 @@ export default function Gallery({ ordinals, loading, onOrdinalClick }: GalleryPr
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {currentOrdinals.map(ordinal => (
-          <div
-            key={ordinal.id}
-            onClick={() => onOrdinalClick(ordinal)}
-            className="bg-[rgba(20,20,20,0.9)] border-2 border-gray-700 rounded-lg overflow-hidden cursor-pointer transition-all hover:-translate-y-2 hover:border-[#ff0000] hover:shadow-[0_10px_30px_rgba(255,0,0,0.3)]"
-          >
-            <div className="relative aspect-square">
-              <img
-                src={ordinal.thumbnail_url}
-                alt={`Ordinal ${ordinal.id}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Crect fill='%23000'/%3E%3Ctext fill='%23ff0000' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace'%3ENO IMAGE%3C/text%3E%3C/svg%3E"
-                }}
-              />
-            </div>
+      <div 
+        className="relative"
+        onMouseMove={(e) => {
+          setMousePosition({ x: e.clientX, y: e.clientY })
+        }}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {currentOrdinals.map(ordinal => (
+            <div
+              key={ordinal.id}
+              onClick={() => onOrdinalClick(ordinal)}
+              onMouseEnter={() => setHoveredOrdinal(ordinal)}
+              onMouseLeave={() => setHoveredOrdinal(null)}
+              className="bg-[rgba(20,20,20,0.9)] border-2 border-gray-700 rounded-lg overflow-hidden cursor-pointer transition-all hover:-translate-y-2 hover:border-[#ff0000] hover:shadow-[0_10px_30px_rgba(255,0,0,0.3)]"
+            >
+              <div className="relative aspect-square">
+                <img
+                  src={ordinal.thumbnail_url}
+                  alt={`Ordinal ${ordinal.id}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Crect fill='%23000'/%3E%3Ctext fill='%23ff0000' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace'%3ENO IMAGE%3C/text%3E%3C/svg%3E"
+                  }}
+                />
+              </div>
             <div className="p-4">
               <div className="text-[#ff6b6b] font-bold text-sm mb-2">
                 ID: {ordinal.id.slice(-12)}
@@ -87,8 +123,36 @@ export default function Gallery({ ordinals, loading, onOrdinalClick }: GalleryPr
                 ))}
               </div>
             </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Hover Preview */}
+        {hoveredOrdinal && hoveredOrdinal.image_url && (
+          <div
+            ref={hoverRef}
+            className="fixed pointer-events-none z-50 border-4 border-[#ff0000] rounded-lg shadow-[0_0_30px_rgba(255,0,0,0.8)] bg-black"
+            style={{
+              ...getPreviewStyle(),
+              width: '400px',
+              height: '400px',
+              maxWidth: 'calc(100vw - 40px)',
+              maxHeight: 'calc(100vh - 40px)',
+            }}
+          >
+            <img
+              src={hoveredOrdinal.image_url}
+              alt={`Ordinal ${hoveredOrdinal.id} - Large Preview`}
+              className="w-full h-full object-contain rounded-lg"
+              onError={(e) => {
+                e.currentTarget.src = hoveredOrdinal.thumbnail_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23000'/%3E%3Ctext fill='%23ff0000' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace'%3ENO IMAGE%3C/text%3E%3C/svg%3E"
+              }}
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 rounded-b-lg">
+              <div className="text-white text-sm font-bold">ID: {hoveredOrdinal.id}</div>
+            </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Pagination Controls */}
