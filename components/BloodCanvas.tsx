@@ -67,22 +67,74 @@ export default function BloodCanvas() {
       draw() {
         if (!ctx) return
         
-        // Simplified teardrop shape using ellipse and triangle approximation
-        const radius = this.size * 0.5
-        const height = this.size * 1.4
+        // Realistic blood drop shape - teardrop with elongated body
+        const width = this.size * 0.7
+        const height = this.size * 1.8
         
-        // Draw main drop body (simplified teardrop)
-        ctx.fillStyle = `rgba(139, 0, 0, ${this.opacity})`
+        // Main drop shadow/depth (darker base)
+        ctx.fillStyle = `rgba(100, 0, 0, ${this.opacity * 0.8})`
         ctx.beginPath()
-        // Top point
         ctx.moveTo(this.x, this.y)
-        // Left side curve (simplified as arc)
-        ctx.quadraticCurveTo(this.x - radius * 0.5, this.y + height * 0.5, this.x - radius * 0.4, this.y + height)
-        // Bottom (rounded)
-        ctx.arc(this.x, this.y + height, radius * 0.6, Math.PI, 0, false)
-        // Right side curve
-        ctx.quadraticCurveTo(this.x + radius * 0.5, this.y + height * 0.5, this.x, this.y)
+        ctx.bezierCurveTo(
+          this.x - width * 0.4, this.y + height * 0.4,
+          this.x - width * 0.5, this.y + height * 0.75,
+          this.x - width * 0.4, this.y + height
+        )
+        ctx.bezierCurveTo(
+          this.x - width * 0.2, this.y + height * 1.05,
+          this.x + width * 0.2, this.y + height * 1.05,
+          this.x + width * 0.4, this.y + height
+        )
+        ctx.bezierCurveTo(
+          this.x + width * 0.5, this.y + height * 0.75,
+          this.x + width * 0.4, this.y + height * 0.4,
+          this.x, this.y
+        )
         ctx.closePath()
+        ctx.fill()
+        
+        // Main drop body (lighter red)
+        ctx.fillStyle = `rgba(180, 0, 0, ${this.opacity})`
+        ctx.beginPath()
+        ctx.moveTo(this.x, this.y)
+        ctx.bezierCurveTo(
+          this.x - width * 0.35, this.y + height * 0.35,
+          this.x - width * 0.45, this.y + height * 0.7,
+          this.x - width * 0.35, this.y + height * 0.95
+        )
+        ctx.bezierCurveTo(
+          this.x - width * 0.15, this.y + height * 1.0,
+          this.x + width * 0.15, this.y + height * 1.0,
+          this.x + width * 0.35, this.y + height * 0.95
+        )
+        ctx.bezierCurveTo(
+          this.x + width * 0.45, this.y + height * 0.7,
+          this.x + width * 0.35, this.y + height * 0.35,
+          this.x, this.y
+        )
+        ctx.closePath()
+        ctx.fill()
+        
+        // Highlight/shine on top
+        const highlightY = this.y + height * 0.25
+        const highlightSize = width * 0.2
+        ctx.fillStyle = `rgba(255, 100, 100, ${this.opacity * 0.6})`
+        ctx.beginPath()
+        ctx.ellipse(
+          this.x - width * 0.15,
+          highlightY,
+          highlightSize * 0.6,
+          highlightSize,
+          -0.3,
+          0,
+          Math.PI * 2
+        )
+        ctx.fill()
+        
+        // Small bright highlight spot
+        ctx.fillStyle = `rgba(255, 200, 200, ${this.opacity * 0.8})`
+        ctx.beginPath()
+        ctx.arc(this.x - width * 0.1, highlightY, highlightSize * 0.3, 0, Math.PI * 2)
         ctx.fill()
       }
     }
