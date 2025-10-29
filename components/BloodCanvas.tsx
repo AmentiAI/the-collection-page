@@ -35,7 +35,7 @@ export default function BloodCanvas() {
       x: number = 0
       y: number = 0
       speed: number = 2
-      length: number = 20
+      size: number = 8
       opacity: number = 0.5
 
       constructor() {
@@ -45,37 +45,73 @@ export default function BloodCanvas() {
       reset() {
         const rect = canvas.getBoundingClientRect()
         this.x = Math.random() * rect.width
-        this.y = -10
-        this.speed = 2 + Math.random() * 3
-        this.length = 20 + Math.random() * 40
-        this.opacity = 0.6 + Math.random() * 0.4
+        this.y = -20
+        this.speed = 1.5 + Math.random() * 4
+        this.size = 5 + Math.random() * 15
+        this.opacity = 0.5 + Math.random() * 0.5
       }
 
       update() {
         this.y += this.speed
         const rect = canvas.getBoundingClientRect()
-        if (this.y > rect.height) {
+        if (this.y > rect.height + 20) {
           this.reset()
         }
       }
 
       draw() {
         if (!ctx) return
-        ctx.strokeStyle = `rgba(139, 0, 0, ${this.opacity})`
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.moveTo(this.x, this.y)
-        ctx.lineTo(this.x, this.y + this.length)
-        ctx.stroke()
-
+        
+        // Draw a teardrop/blood drop shape
+        const dropHeight = this.size * 1.5
+        const dropWidth = this.size * 0.8
+        
         ctx.fillStyle = `rgba(139, 0, 0, ${this.opacity})`
         ctx.beginPath()
-        ctx.arc(this.x, this.y + this.length, 3, 0, Math.PI * 2)
+        
+        // Top point (where drop comes to a point)
+        ctx.moveTo(this.x, this.y)
+        
+        // Left curve
+        ctx.bezierCurveTo(
+          this.x - dropWidth * 0.3, this.y + dropHeight * 0.3,
+          this.x - dropWidth * 0.5, this.y + dropHeight * 0.7,
+          this.x - dropWidth * 0.4, this.y + dropHeight
+        )
+        
+        // Bottom rounded end
+        ctx.bezierCurveTo(
+          this.x - dropWidth * 0.2, this.y + dropHeight * 1.1,
+          this.x + dropWidth * 0.2, this.y + dropHeight * 1.1,
+          this.x + dropWidth * 0.4, this.y + dropHeight
+        )
+        
+        // Right curve
+        ctx.bezierCurveTo(
+          this.x + dropWidth * 0.5, this.y + dropHeight * 0.7,
+          this.x + dropWidth * 0.3, this.y + dropHeight * 0.3,
+          this.x, this.y
+        )
+        
+        ctx.fill()
+        
+        // Add highlight for 3D effect
+        ctx.fillStyle = `rgba(255, 0, 0, ${this.opacity * 0.3})`
+        ctx.beginPath()
+        ctx.ellipse(
+          this.x - dropWidth * 0.2, 
+          this.y + dropHeight * 0.3, 
+          dropWidth * 0.15, 
+          dropHeight * 0.2, 
+          0, 
+          0, 
+          Math.PI * 2
+        )
         ctx.fill()
       }
     }
 
-    const maxDrops = 35
+    const maxDrops = 80
     const bloodDrops: BloodDrop[] = []
 
     for (let i = 0; i < maxDrops; i++) {
