@@ -5,7 +5,7 @@ A high-quality horror-themed Next.js collection site for Bitcoin Ordinals featur
 ## Features
 
 - **Animated Blood Drips**: CSS canvas animation with blood drops continuously dripping down the screen
-- **Advanced Filtering**: Filter by every trait option across all categories (Eyes, Head, Mouth, Body Skin, Background, Right Hand)
+- **Advanced Filtering**: Filter by every trait option across all categories (Eyes, Head, Mouth, Body Skin, Background, Props)
 - **Collapsible Filter Categories**: Organize your filters with expandable/collapsible sections
 - **Full Collection View**: Browse all ordinals in a responsive grid layout
 - **Modal Detail View**: Click any ordinal to see full details and high-resolution image

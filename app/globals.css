@@ -16,8 +16,17 @@
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: var(--background) !important;
   font-family: 'Cinzel', 'Courier New', monospace;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+html {
+  background: var(--background) !important;
+  margin: 0;
+  padding: 0;
 }
 
 html {

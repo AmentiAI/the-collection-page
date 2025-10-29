@@ -12,11 +12,13 @@ const WalletConnect = dynamicImport(() => import('./WalletConnect'), {
 interface HeaderProps {
   isHolder?: boolean
   isVerifying?: boolean
+  connected?: boolean
   onHolderVerified?: (isHolder: boolean, address?: string) => void
   onVerifyingStart?: () => void
+  onConnectedChange?: (connected: boolean) => void
 }
 
-export default function Header({ isHolder, isVerifying, onHolderVerified, onVerifyingStart }: HeaderProps) {
+export default function Header({ isHolder, isVerifying, connected, onHolderVerified, onVerifyingStart, onConnectedChange }: HeaderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const title = 'THE DAMNED'
@@ -96,15 +98,19 @@ export default function Header({ isHolder, isVerifying, onHolderVerified, onVeri
         <WalletConnect 
           onHolderVerified={onHolderVerified}
           onVerifyingStart={onVerifyingStart}
+          onConnectedChange={onConnectedChange}
         />
-        {(isVerifying || isHolder !== undefined) && (
+        {connected && (isVerifying || isHolder !== undefined) && (
           <div className="text-sm font-bold">
             {isVerifying ? (
               <span className="text-[#ff6b6b] animate-pulse">Verifying...</span>
             ) : isHolder ? (
               <span className="text-[#00ff00]">✓ The Damned Holder</span>
             ) : (
-              <span className="text-[#ff6b6b]">Not A Holder</span>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[#ff6b6b]">Not A Holder</span>
+                <span className="text-xs text-[#ff6b6b] opacity-80">Buy a The Damned Ordinal To Get Verified</span>
+              </div>
             )}
           </div>
         )}

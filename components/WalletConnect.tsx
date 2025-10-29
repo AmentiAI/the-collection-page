@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 interface WalletConnectProps {
   onHolderVerified?: (isHolder: boolean, address?: string) => void
   onVerifyingStart?: () => void
+  onConnectedChange?: (connected: boolean) => void
 }
 
 const WALLET_OPTIONS = [
@@ -14,8 +15,13 @@ const WALLET_OPTIONS = [
   { id: 'phantom', name: 'Phantom', icon: '👻', wallet: PHANTOM },
 ]
 
-export default function WalletConnect({ onHolderVerified, onVerifyingStart }: WalletConnectProps) {
+export default function WalletConnect({ onHolderVerified, onVerifyingStart, onConnectedChange }: WalletConnectProps) {
   const { connect, disconnect, connected, address, balance } = useLaserEyes()
+  
+  // Notify parent when connection status changes
+  useEffect(() => {
+    onConnectedChange?.(connected)
+  }, [connected, onConnectedChange])
   const [isVerifying, setIsVerifying] = useState(false)
   const [isHolder, setIsHolder] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -131,21 +137,22 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart }: Wa
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm">
-            <div className="text-[#ff6b6b] font-bold">
-              {isVerifying ? (
-                <span className="animate-pulse">Verifying...</span>
-              ) : isHolder ? (
-                <span className="text-[#00ff00]">✓ Holder Verified</span>
-              ) : (
-                <span className="text-[#ff6b6b]">Connected</span>
-              )}
-            </div>
             <div className="text-xs text-gray-400 truncate max-w-[200px]">
               {address?.slice(0, 8)}...{address?.slice(-8)}
             </div>
           </div>
+          
+          {/* Show verification code button if holder */}
+          {isHolder && verificationCode && !showCodeModal && (
+            <button
+              onClick={() => setShowCodeModal(true)}
+              className="px-3 py-1 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] text-xs font-bold transition-all"
+            >
+              Show Code
+            </button>
+          )}
           <button
             onClick={handleDisconnect}
             className="px-3 py-1 bg-[#333] text-[#ff6b6b] rounded hover:bg-[#8B0000] hover:text-white text-xs font-bold transition-all"
@@ -167,9 +174,9 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart }: Wa
       {showCodeModal && verificationCode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
           <div className="bg-[rgba(20,20,20,0.98)] border-2 border-[#ff0000] rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl text-[#ff0000] font-bold mb-4">Discord Verification Code</h3>
+            <h3 className="text-xl text-[#ff0000] font-bold mb-2">✓ The Damned Holder</h3>
             <p className="text-[#ff6b6b] mb-4">
-              Copy this code and use <code className="bg-black px-2 py-1 rounded">/verifycode</code> in Discord:
+              Copy this code and type <code className="bg-black px-2 py-1 rounded">/verifycode YOUR_CODE</code> in Discord to join the holders chat:
             </p>
             <div className="bg-black p-4 rounded mb-4">
               <code className="text-lg text-white font-bold select-all">{verificationCode}</code>

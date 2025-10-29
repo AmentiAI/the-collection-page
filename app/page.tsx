@@ -34,6 +34,7 @@ export default function Home() {
   const [userInteracted, setUserInteracted] = useState(false)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
 
   const handleEnter = () => {
     setUserInteracted(true)
@@ -119,6 +120,16 @@ export default function Home() {
     setFilters({})
   }
 
+  // Ensure we always render something
+  if (!showSplash && ordinals.length === 0 && !loading) {
+    // Initial load - show loading state
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-[#ff6b6b] text-xl">Loading The Damned...</div>
+      </div>
+    )
+  }
+
   return (
     <LaserEyesWrapper>
       <BackgroundMusic shouldPlay={startMusic} />
@@ -128,35 +139,37 @@ export default function Home() {
         <>
           <BloodCanvas />
           <main className={`min-h-screen relative overflow-x-hidden ${shake ? 'shake' : ''}`}>
-        <Header 
-          isHolder={isHolder} 
-          isVerifying={isVerifying}
-          onHolderVerified={handleHolderVerified}
-          onVerifyingStart={handleVerifyingStart}
-        />
-        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
-            <aside className="order-2 lg:order-1">
-              <Filters 
-                ordinals={ordinals}
-                filters={filters}
-                onFilterChange={updateFilters}
-                onClearAll={clearAllFilters}
-              />
-            </aside>
-            <main className="order-1 lg:order-2">
-              <Gallery 
-                ordinals={filteredOrdinals} 
-                loading={loading} 
-                onOrdinalClick={setSelectedOrdinal}
-              />
-            </main>
-          </div>
-          </div>
-        </main>
-        {selectedOrdinal && (
-          <Modal ordinal={selectedOrdinal} onClose={() => setSelectedOrdinal(null)} />
-        )}
+            <Header 
+              isHolder={isHolder} 
+              isVerifying={isVerifying}
+              connected={connected}
+              onHolderVerified={handleHolderVerified}
+              onVerifyingStart={handleVerifyingStart}
+              onConnectedChange={setConnected}
+            />
+            <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
+              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
+                <aside className="order-2 lg:order-1">
+                  <Filters 
+                    ordinals={ordinals}
+                    filters={filters}
+                    onFilterChange={updateFilters}
+                    onClearAll={clearAllFilters}
+                  />
+                </aside>
+                <main className="order-1 lg:order-2">
+                  <Gallery 
+                    ordinals={filteredOrdinals} 
+                    loading={loading} 
+                    onOrdinalClick={setSelectedOrdinal}
+                  />
+                </main>
+              </div>
+            </div>
+          </main>
+          {selectedOrdinal && (
+            <Modal ordinal={selectedOrdinal} onClose={() => setSelectedOrdinal(null)} />
+          )}
         </>
       )}
     </LaserEyesWrapper>

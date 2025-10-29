@@ -23,7 +23,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/favicon.png" />
       </head>
-      <body>
+      <body style={{ backgroundColor: '#0a0a0a', margin: 0, padding: 0, minHeight: '100vh' }}>
         {children}
       </body>
     </html>
