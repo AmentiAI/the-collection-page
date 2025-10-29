@@ -15,18 +15,25 @@ export default function BloodCanvas() {
     if (!ctx) return
 
     // Optimize canvas settings
-    ctx.imageSmoothingEnabled = false
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'low'
     
-    let dpr = 1
+    // Cache canvas dimensions to avoid expensive getBoundingClientRect calls
+    let canvasWidth = window.innerWidth
+    let canvasHeight = window.innerHeight
+    let dpr = window.devicePixelRatio || 1
+    
     const updateCanvasSize = () => {
       dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
+      canvasWidth = rect.width
+      canvasHeight = rect.height
+      canvas.width = canvasWidth * dpr
+      canvas.height = canvasHeight * dpr
       ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset transform
       ctx.scale(dpr, dpr)
-      canvas.style.width = rect.width + 'px'
-      canvas.style.height = rect.height + 'px'
+      canvas.style.width = canvasWidth + 'px'
+      canvas.style.height = canvasHeight + 'px'
     }
 
     updateCanvasSize()
@@ -43,8 +50,7 @@ export default function BloodCanvas() {
       }
 
       reset() {
-        const rect = canvas.getBoundingClientRect()
-        this.x = Math.random() * rect.width
+        this.x = Math.random() * canvasWidth
         this.y = -20
         this.speed = 1.5 + Math.random() * 4
         this.size = 5 + Math.random() * 15
@@ -53,8 +59,7 @@ export default function BloodCanvas() {
 
       update() {
         this.y += this.speed
-        const rect = canvas.getBoundingClientRect()
-        if (this.y > rect.height + 20) {
+        if (this.y > canvasHeight + 20) {
           this.reset()
         }
       }
@@ -62,51 +67,22 @@ export default function BloodCanvas() {
       draw() {
         if (!ctx) return
         
-        // Draw a teardrop/blood drop shape
-        const dropHeight = this.size * 1.5
-        const dropWidth = this.size * 0.8
+        // Simplified teardrop shape using ellipse and triangle approximation
+        const radius = this.size * 0.5
+        const height = this.size * 1.4
         
+        // Draw main drop body (simplified teardrop)
         ctx.fillStyle = `rgba(139, 0, 0, ${this.opacity})`
         ctx.beginPath()
-        
-        // Top point (where drop comes to a point)
+        // Top point
         ctx.moveTo(this.x, this.y)
-        
-        // Left curve
-        ctx.bezierCurveTo(
-          this.x - dropWidth * 0.3, this.y + dropHeight * 0.3,
-          this.x - dropWidth * 0.5, this.y + dropHeight * 0.7,
-          this.x - dropWidth * 0.4, this.y + dropHeight
-        )
-        
-        // Bottom rounded end
-        ctx.bezierCurveTo(
-          this.x - dropWidth * 0.2, this.y + dropHeight * 1.1,
-          this.x + dropWidth * 0.2, this.y + dropHeight * 1.1,
-          this.x + dropWidth * 0.4, this.y + dropHeight
-        )
-        
-        // Right curve
-        ctx.bezierCurveTo(
-          this.x + dropWidth * 0.5, this.y + dropHeight * 0.7,
-          this.x + dropWidth * 0.3, this.y + dropHeight * 0.3,
-          this.x, this.y
-        )
-        
-        ctx.fill()
-        
-        // Add highlight for 3D effect
-        ctx.fillStyle = `rgba(255, 0, 0, ${this.opacity * 0.3})`
-        ctx.beginPath()
-        ctx.ellipse(
-          this.x - dropWidth * 0.2, 
-          this.y + dropHeight * 0.3, 
-          dropWidth * 0.15, 
-          dropHeight * 0.2, 
-          0, 
-          0, 
-          Math.PI * 2
-        )
+        // Left side curve (simplified as arc)
+        ctx.quadraticCurveTo(this.x - radius * 0.5, this.y + height * 0.5, this.x - radius * 0.4, this.y + height)
+        // Bottom (rounded)
+        ctx.arc(this.x, this.y + height, radius * 0.6, Math.PI, 0, false)
+        // Right side curve
+        ctx.quadraticCurveTo(this.x + radius * 0.5, this.y + height * 0.5, this.x, this.y)
+        ctx.closePath()
         ctx.fill()
       }
     }
@@ -119,46 +95,41 @@ export default function BloodCanvas() {
     }
 
     let animationFrameId: number
-    let lastTime = 0
-    const fps = 60
-    const frameInterval = 1000 / fps
+    let isRunning = true
 
-    const animate = (currentTime: number) => {
-      if (!ctx) return
+    const animate = () => {
+      if (!ctx || !isRunning) return
       
-      const deltaTime = currentTime - lastTime
-      
-      if (deltaTime >= frameInterval) {
-        // Clear entire canvas properly (use scaled dimensions)
-        const rect = canvas.getBoundingClientRect()
-        ctx.clearRect(0, 0, rect.width, rect.height)
-        
-        // Draw trail effect more efficiently
-        ctx.fillStyle = 'rgba(10, 10, 10, 0.08)'
-        ctx.fillRect(0, 0, rect.width, rect.height)
+      // Clear entire canvas - no trail effect for better performance
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
-        bloodDrops.forEach(drop => {
-          drop.update()
-          drop.draw()
-        })
-
-        lastTime = currentTime - (deltaTime % frameInterval)
-      }
+      // Batch update and draw for better performance
+      bloodDrops.forEach(drop => {
+        drop.update()
+        drop.draw()
+      })
 
       animationFrameId = requestAnimationFrame(animate)
     }
 
     animationFrameId = requestAnimationFrame(animate)
 
+    let resizeTimeout: NodeJS.Timeout
     const handleResize = () => {
-      updateCanvasSize()
-      // Reset drops on resize
-      bloodDrops.forEach(drop => drop.reset())
+      // Debounce resize to avoid excessive canvas resets
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        updateCanvasSize()
+        // Reset drops on resize
+        bloodDrops.forEach(drop => drop.reset())
+      }, 100)
     }
 
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('resize', handleResize)
+      isRunning = false
+      clearTimeout(resizeTimeout)
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
