@@ -86,7 +86,7 @@ export default function BloodCanvas() {
       }
     }
 
-    const maxDrops = 30 // Reduced from 65 for better performance
+    const maxDrops = 50 // Increased blood drops for more dramatic effect
     const bloodDrops: BloodDrop[] = []
 
     for (let i = 0; i < maxDrops; i++) {
