@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
+import dynamicImport from 'next/dynamic'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
 import Filters from '@/components/Filters'
@@ -11,6 +12,15 @@ import BackgroundMusic from '@/components/BackgroundMusic'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
 import { Ordinal, Trait } from '@/types'
+
+// Only load LaserEyes provider after page is mounted
+const LaserEyesWrapper = dynamicImport(
+  () => import('@/components/LaserEyesWrapper'),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
 
 export default function Home() {
   const [ordinals, setOrdinals] = useState<Ordinal[]>([])
@@ -110,7 +120,7 @@ export default function Home() {
   }
 
   return (
-    <>
+    <LaserEyesWrapper>
       <BackgroundMusic shouldPlay={startMusic} />
       {showSplash ? (
         <SplashScreen onEnter={handleEnter} />
@@ -149,6 +159,6 @@ export default function Home() {
         )}
         </>
       )}
-    </>
+    </LaserEyesWrapper>
   )
 }
