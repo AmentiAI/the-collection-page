@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 interface BackgroundMusicProps {
   shouldPlay: boolean
   onInteraction?: () => void
+  volume?: number
+  isMuted?: boolean
 }
 
-export default function BackgroundMusic({ shouldPlay, onInteraction }: BackgroundMusicProps) {
+export default function BackgroundMusic({ shouldPlay, onInteraction, volume = 30, isMuted = false }: BackgroundMusicProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [currentTrack, setCurrentTrack] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -22,8 +24,8 @@ export default function BackgroundMusic({ shouldPlay, onInteraction }: Backgroun
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    audio.volume = 0.3
-  }, [])
+    audio.volume = isMuted ? 0 : volume / 100
+  }, [volume, isMuted])
 
   // Handle track end and play next track
   useEffect(() => {

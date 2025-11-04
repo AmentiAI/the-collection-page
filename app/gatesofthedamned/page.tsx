@@ -132,9 +132,9 @@ export default function GatesOfTheDamnedPage() {
       color: string
       size: number
 
-      constructor() {
-        this.x = Math.random() * canvas.width
-        this.y = canvas.height + 10
+      constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = Math.random() * canvasWidth
+        this.y = canvasHeight + 10
         this.vx = (Math.random() - 0.5) * 2
         this.vy = -Math.random() * 6 - 3
         this.life = 0
@@ -178,7 +178,7 @@ export default function GatesOfTheDamnedPage() {
 
       if (particles.length < maxParticles) {
         for (let i = 0; i < 10; i++) {
-          particles.push(new Particle())
+          particles.push(new Particle(canvas.width, canvas.height))
         }
       }
 

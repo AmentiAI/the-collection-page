@@ -35,6 +35,8 @@ export default function Home() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(30)
+  const [isMusicMuted, setIsMusicMuted] = useState(false)
 
   const handleEnter = () => {
     setUserInteracted(true)
@@ -132,7 +134,7 @@ export default function Home() {
 
   return (
     <LaserEyesWrapper>
-      <BackgroundMusic shouldPlay={startMusic} />
+      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       {showSplash ? (
         <SplashScreen onEnter={handleEnter} />
       ) : (
@@ -146,6 +148,10 @@ export default function Home() {
               onHolderVerified={handleHolderVerified}
               onVerifyingStart={handleVerifyingStart}
               onConnectedChange={setConnected}
+              musicVolume={musicVolume}
+              onMusicVolumeChange={setMusicVolume}
+              isMusicMuted={isMusicMuted}
+              onMusicMutedChange={setIsMusicMuted}
             />
             <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">

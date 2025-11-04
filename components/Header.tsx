@@ -17,9 +17,24 @@ interface HeaderProps {
   onHolderVerified?: (isHolder: boolean, address?: string) => void
   onVerifyingStart?: () => void
   onConnectedChange?: (connected: boolean) => void
+  musicVolume?: number
+  onMusicVolumeChange?: (volume: number) => void
+  isMusicMuted?: boolean
+  onMusicMutedChange?: (muted: boolean) => void
 }
 
-export default function Header({ isHolder, isVerifying, connected, onHolderVerified, onVerifyingStart, onConnectedChange }: HeaderProps) {
+export default function Header({ 
+  isHolder, 
+  isVerifying, 
+  connected, 
+  onHolderVerified, 
+  onVerifyingStart, 
+  onConnectedChange,
+  musicVolume = 30,
+  onMusicVolumeChange,
+  isMusicMuted = false,
+  onMusicMutedChange
+}: HeaderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const title = 'THE DAMNED'
@@ -121,7 +136,7 @@ export default function Header({ isHolder, isVerifying, connected, onHolderVerif
           🔥 GATES
         </Link>
       </div>
-      <div className="flex justify-center items-center gap-4 mt-2">
+      <div className="flex justify-center items-center gap-4 mt-2 flex-wrap">
         <p className="text-base text-[#ff6b6b] uppercase tracking-wide">Ordinals Collection</p>
         <WalletConnect 
           onHolderVerified={onHolderVerified}
@@ -142,6 +157,37 @@ export default function Header({ isHolder, isVerifying, connected, onHolderVerif
             )}
           </div>
         )}
+        {/* Music Volume Control */}
+        <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50">
+          <button
+            onClick={() => onMusicMutedChange?.(!isMusicMuted)}
+            className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors"
+            aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
+          >
+            {isMusicMuted ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+            )}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={musicVolume}
+            onChange={(e) => onMusicVolumeChange?.(Number(e.target.value))}
+            disabled={isMusicMuted}
+            className="w-20 accent-red-600"
+          />
+          <span className="text-xs text-[#ff6b6b] font-mono w-8">
+            {isMusicMuted ? 'MUTED' : `${musicVolume}%`}
+          </span>
+        </div>
       </div>
     </header>
   )
