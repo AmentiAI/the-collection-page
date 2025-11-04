@@ -296,8 +296,8 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
           <div className="bg-[rgba(20,20,20,0.98)] border-2 border-[#ff0000] rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl text-[#ff0000] font-bold mb-2">✓ The Damned Holder</h3>
-            <p className="text-[#ff6b6b] mb-4">
-              Copy this code and type <code className="bg-black px-2 py-1 rounded">/verifycode YOUR_CODE</code> in Discord to join the holders chat:
+                        <p className="text-[#ff6b6b] mb-4">
+              Copy this code and type <code className="bg-black px-2 py-1 rounded">/verify code:</code> then paste your code in Discord to join the holders chat:            
             </p>
             <div className="bg-black p-4 rounded mb-4">
               <code className="text-lg text-white font-bold select-all">{verificationCode}</code>

@@ -84,3 +84,56 @@ html {
   position: absolute !important;
   transform: none !important;
 }
+
+/* Gates of the Damned animations */
+@keyframes run-across {
+  0% {
+    left: 100%;
+  }
+  100% {
+    left: -20%;
+  }
+}
+
+@keyframes run-across-reverse {
+  0% {
+    left: -20%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes tilt-run {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.animate-run-across {
+  animation: run-across 6s linear infinite;
+}
+
+.animate-run-across-reverse {
+  animation: run-across-reverse 6s linear infinite;
+}
+
+.animate-tilt-run-fast {
+  animation: tilt-run 0.3s ease-in-out infinite;
+}
+
+.animate-tilt-run {
+  animation: tilt-run 0.4s ease-in-out infinite;
+}
+
+.animate-tilt-run-slow {
+  animation: tilt-run 0.5s ease-in-out infinite;
+}
+
+.animate-tilt-run-slower {
+  animation: tilt-run 0.6s ease-in-out infinite;
+}
