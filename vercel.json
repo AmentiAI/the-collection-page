@@ -1,0 +1,10 @@
+{
+  "crons": [
+    {
+      "path": "/api/holders/cron-check",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}
+
+

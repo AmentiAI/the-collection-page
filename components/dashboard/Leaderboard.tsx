@@ -12,29 +12,26 @@ interface LeaderboardEntry {
   total_bad_karma: number
 }
 
-export default function Leaderboard() {
+interface LeaderboardProps {
+  chosenSide: 'good' | 'evil'
+}
+
+export default function Leaderboard({ chosenSide }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [badLeaderboard, setBadLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'good' | 'bad'>('good')
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [])
+  }, [chosenSide])
 
   const fetchLeaderboard = async () => {
     setLoading(true)
     try {
-      const [goodRes, badRes] = await Promise.all([
-        fetch('/api/leaderboard?type=good&limit=50'),
-        fetch('/api/leaderboard?type=bad&limit=50')
-      ])
+      // Only fetch leaderboard for the chosen side
+      const response = await fetch(`/api/leaderboard?type=${chosenSide}&limit=50`)
+      const data = await response.json()
       
-      const goodData = await goodRes.json()
-      const badData = await badRes.json()
-      
-      setLeaderboard(goodData.leaderboard || [])
-      setBadLeaderboard(badData.leaderboard || [])
+      setLeaderboard(data.leaderboard || [])
     } catch (error) {
       console.error('Error fetching leaderboard:', error)
     } finally {
@@ -42,38 +39,13 @@ export default function Leaderboard() {
     }
   }
 
-  const displayLeaderboard = activeTab === 'good' ? leaderboard : badLeaderboard
-
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 mb-6">
-        <button
-          onClick={() => setActiveTab('good')}
-          className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-            activeTab === 'good'
-              ? 'bg-green-600/80 border-green-600 text-white'
-              : 'bg-black/60 border-green-600/50 text-green-600 hover:bg-green-600/20'
-          }`}
-        >
-          Good Karma ⬆️
-        </button>
-        <button
-          onClick={() => setActiveTab('bad')}
-          className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-            activeTab === 'bad'
-              ? 'bg-red-600/80 border-red-600 text-white'
-              : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
-          }`}
-        >
-          Bad Karma ⬇️
-        </button>
-      </div>
-
       {loading ? (
         <div className="text-center py-12">
           <div className="text-red-600 font-mono text-lg animate-pulse">Loading leaderboard...</div>
         </div>
-      ) : displayLeaderboard.length === 0 ? (
+      ) : leaderboard.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-400 font-mono text-lg">No entries yet</div>
         </div>
@@ -87,12 +59,12 @@ export default function Leaderboard() {
                   <th className="px-6 py-4 text-left text-red-600 font-mono font-bold text-sm uppercase">Wallet</th>
                   <th className="px-6 py-4 text-left text-red-600 font-mono font-bold text-sm uppercase">Username</th>
                   <th className="px-6 py-4 text-right text-red-600 font-mono font-bold text-sm uppercase">
-                    {activeTab === 'good' ? 'Good Karma' : 'Bad Karma'}
+                    {chosenSide === 'good' ? 'Good Karma' : 'Bad Karma'}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {displayLeaderboard.map((entry, index) => (
+                {leaderboard.map((entry, index) => (
                   <tr
                     key={entry.id}
                     className="border-b border-red-600/20 hover:bg-black/40 transition-colors"
@@ -121,7 +93,7 @@ export default function Leaderboard() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className={`font-mono font-bold text-lg ${
-                        activeTab === 'good' ? 'text-green-500' : 'text-red-500'
+                        chosenSide === 'good' ? 'text-green-500' : 'text-red-500'
                       }`}>
                         {entry.total_points.toLocaleString()}
                       </span>

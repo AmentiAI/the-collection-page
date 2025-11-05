@@ -300,52 +300,83 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Periodic job to check holders and remove roles (runs every hour)
+// Periodic job to check holders and manage roles (runs every hour)
 setInterval(async () => {
   try {
-    console.log('🔄 Running periodic holder check...');
-    const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/holders/check`;
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      console.error('Failed to check holders:', response.status);
+    console.log('🔄 Running periodic holder role check...');
+    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+    if (!guild) {
+      console.error('Guild not found');
       return;
     }
     
-    const data = await response.json();
+    const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+    if (!role) {
+      console.error('Holder role not found');
+      return;
+    }
     
-    if (data.usersToRemoveRole && data.usersToRemoveRole.length > 0) {
-      const guild = client.guilds.cache.get(process.env.GUILD_ID);
-      if (!guild) {
-        console.error('Guild not found');
-        return;
-      }
-      
-      const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-      if (!role) {
-        console.error('Holder role not found');
-        return;
-      }
-      
+    // Get Discord IDs that should have role removed (0 ordinals)
+    const removeResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=remove`
+    );
+    
+    if (!removeResponse.ok) {
+      console.error('Failed to fetch users to remove roles:', removeResponse.status);
+      return;
+    }
+    
+    const removeData = await removeResponse.json();
+    let removedCount = 0;
+    
+    if (removeData.discordIds && removeData.discordIds.length > 0) {
       // Remove roles from users who no longer have ordinals
-      for (const user of data.usersToRemoveRole) {
+      for (const discordId of removeData.discordIds) {
         try {
-          const member = await guild.members.fetch(user.discordUserId);
+          const member = await guild.members.fetch(discordId);
           if (member.roles.cache.has(role.id)) {
             await member.roles.remove(role);
-            console.log(`✅ Removed holder role from ${member.user.tag} (${user.discordUserId}) - no longer has ordinals`);
+            removedCount++;
+            console.log(`✅ Removed holder role from ${member.user.tag} (${discordId}) - no longer has ordinals`);
           }
         } catch (error) {
-          console.error(`Error removing role from ${user.discordUserId}:`, error);
+          console.error(`Error removing role from ${discordId}:`, error);
         }
       }
-      
-      console.log(`✅ Periodic check complete: Removed ${data.usersToRemoveRole.length} holder roles`);
-    } else {
-      console.log('✅ Periodic check complete: All holders still have ordinals');
     }
+    
+    // Get Discord IDs that should have role added (> 0 ordinals)
+    const addResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=add`
+    );
+    
+    if (!addResponse.ok) {
+      console.error('Failed to fetch users to add roles:', addResponse.status);
+      return;
+    }
+    
+    const addData = await addResponse.json();
+    let addedCount = 0;
+    
+    if (addData.discordIds && addData.discordIds.length > 0) {
+      // Add roles to users who have ordinals but don't have the role
+      for (const discordId of addData.discordIds) {
+        try {
+          const member = await guild.members.fetch(discordId);
+          if (!member.roles.cache.has(role.id)) {
+            await member.roles.add(role);
+            addedCount++;
+            console.log(`✅ Added holder role to ${member.user.tag} (${discordId}) - has ordinals`);
+          }
+        } catch (error) {
+          console.error(`Error adding role to ${discordId}:`, error);
+        }
+      }
+    }
+    
+    console.log(`✅ Periodic check complete: Removed ${removedCount} roles, Added ${addedCount} roles`);
   } catch (error) {
-    console.error('Error in periodic holder check:', error);
+    console.error('Error in periodic holder role check:', error);
   }
 }, 3600000); // Run every hour (3600000 ms)
 

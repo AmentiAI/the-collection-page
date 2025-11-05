@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useToast } from '@/components/Toast'
 
 interface KarmaTask {
   id: string
@@ -14,18 +15,18 @@ interface KarmaTask {
 
 interface MoralityProps {
   walletAddress: string | null
+  chosenSide: 'good' | 'evil'
 }
 
-export default function Morality({ walletAddress }: MoralityProps) {
-  const [goodTasks, setGoodTasks] = useState<KarmaTask[]>([])
-  const [badTasks, setBadTasks] = useState<KarmaTask[]>([])
+export default function Morality({ walletAddress, chosenSide }: MoralityProps) {
+  const toast = useToast()
+  const [tasks, setTasks] = useState<KarmaTask[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'good' | 'bad'>('good')
   const [completingTask, setCompletingTask] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTasks()
-  }, [walletAddress])
+  }, [walletAddress, chosenSide])
 
   const fetchTasks = async () => {
     setLoading(true)
@@ -33,16 +34,11 @@ export default function Morality({ walletAddress }: MoralityProps) {
       const includeCompleted = walletAddress ? 'true' : 'false'
       const walletParam = walletAddress ? `&walletAddress=${encodeURIComponent(walletAddress)}` : ''
       
-      const [goodRes, badRes] = await Promise.all([
-        fetch(`/api/tasks?type=good&includeCompleted=${includeCompleted}${walletParam}`),
-        fetch(`/api/tasks?type=bad&includeCompleted=${includeCompleted}${walletParam}`)
-      ])
+      // Only fetch tasks for the chosen side
+      const response = await fetch(`/api/tasks?type=${chosenSide}&includeCompleted=${includeCompleted}${walletParam}`)
+      const data = await response.json()
       
-      const goodData = await goodRes.json()
-      const badData = await badRes.json()
-      
-      setGoodTasks(goodData.tasks || [])
-      setBadTasks(badData.tasks || [])
+      setTasks(data.tasks || [])
     } catch (error) {
       console.error('Error fetching tasks:', error)
     } finally {
@@ -52,7 +48,7 @@ export default function Morality({ walletAddress }: MoralityProps) {
 
   const handleCompleteTask = async (taskId: string) => {
     if (!walletAddress) {
-      alert('Please connect your wallet to complete tasks')
+      toast.warning('Please connect your wallet to complete tasks')
       return
     }
 
@@ -73,59 +69,35 @@ export default function Morality({ walletAddress }: MoralityProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Failed to complete task')
+        toast.error(data.error || 'Failed to complete task')
         return
       }
 
       // Refresh tasks to show completion
       await fetchTasks()
-      alert(`Task completed! You earned ${data.karmaAwarded} ${data.karmaAwarded > 0 ? 'good' : 'bad'} karma points!`)
+      toast.success(`Task completed! You earned ${data.karmaAwarded} ${data.karmaAwarded > 0 ? 'good' : 'bad'} karma points!`)
     } catch (error) {
       console.error('Error completing task:', error)
-      alert('Failed to complete task')
+      toast.error('Failed to complete task')
     } finally {
       setCompletingTask(null)
     }
   }
 
-  const displayTasks = activeTab === 'good' ? goodTasks : badTasks
-
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 mb-6">
-        <button
-          onClick={() => setActiveTab('good')}
-          className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-            activeTab === 'good'
-              ? 'bg-green-600/80 border-green-600 text-white'
-              : 'bg-black/60 border-green-600/50 text-green-600 hover:bg-green-600/20'
-          }`}
-        >
-          Good Karma Tasks ⬆️
-        </button>
-        <button
-          onClick={() => setActiveTab('bad')}
-          className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-            activeTab === 'bad'
-              ? 'bg-red-600/80 border-red-600 text-white'
-              : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
-          }`}
-        >
-          Bad Karma Tasks ⬇️
-        </button>
-      </div>
 
       {loading ? (
         <div className="text-center py-12">
           <div className="text-red-600 font-mono text-lg animate-pulse">Loading tasks...</div>
         </div>
-      ) : displayTasks.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-400 font-mono text-lg">No tasks available</div>
+          <div className="text-gray-400 font-mono text-lg">No {chosenSide === 'good' ? 'good' : 'evil'} tasks available</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayTasks.map((task) => (
+          {tasks.map((task) => (
             <div
               key={task.id}
               className={`bg-black/60 backdrop-blur-sm border rounded-lg p-6 transition-all ${

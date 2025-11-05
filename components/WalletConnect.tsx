@@ -2,6 +2,7 @@
 
 import { useLaserEyes, UNISAT, XVERSE, PHANTOM, MAGIC_EDEN } from '@omnisat/lasereyes'
 import { useState, useEffect } from 'react'
+import { useToast } from '@/components/Toast'
 
 interface WalletConnectProps {
   onHolderVerified?: (isHolder: boolean, address?: string) => void
@@ -37,6 +38,7 @@ const WALLET_OPTIONS = [
 
 export default function WalletConnect({ onHolderVerified, onVerifyingStart, onConnectedChange }: WalletConnectProps) {
   const { connect, disconnect, connected, address, balance } = useLaserEyes()
+  const toast = useToast()
   
   // Notify parent when connection status changes
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       }
     } catch (error) {
       console.error('Failed to connect wallet:', error)
-      alert(error instanceof Error ? error.message : 'Failed to connect wallet')
+      toast.error(error instanceof Error ? error.message : 'Failed to connect wallet')
     }
   }
 
@@ -134,7 +136,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
           if (data.verified && data.code) {
             console.log('✅ Verification code generated:', data.code)
             setVerificationCode(data.code)
-            setShowCodeModal(true)
+            // Don't auto-show modal - user must click "Show Code" button
           } else {
             console.error('❌ Verification failed:', data.message || 'Unknown error')
           }

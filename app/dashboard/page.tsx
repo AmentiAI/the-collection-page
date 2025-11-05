@@ -11,6 +11,7 @@ import Leaderboard from '@/components/dashboard/Leaderboard'
 import PointsHistory from '@/components/dashboard/PointsHistory'
 import Morality from '@/components/dashboard/Morality'
 import { useLaserEyes } from '@omnisat/lasereyes'
+import { useToast } from '@/components/Toast'
 
 // Only load LaserEyes provider after page is mounted
 const LaserEyesWrapper = dynamicImport(
@@ -49,6 +50,7 @@ interface MagicEdenToken {
 
 function DashboardContent() {
   const { connected, address } = useLaserEyes()
+  const toast = useToast()
   const blessedVideoRef = useRef<HTMLVideoElement>(null)
   const damnedVideoRef = useRef<HTMLVideoElement>(null)
   const [userOrdinals, setUserOrdinals] = useState<MagicEdenToken[]>([])
@@ -74,6 +76,18 @@ function DashboardContent() {
   const [totalGoodKarma, setTotalGoodKarma] = useState<number>(0)
   const [totalBadKarma, setTotalBadKarma] = useState<number>(0)
   const [loadingKarma, setLoadingKarma] = useState(false)
+  const karmaCalculatedRef = useRef<Set<string>>(new Set()) // Track which wallets have had karma calculated
+  const [checkInStatus, setCheckInStatus] = useState<{
+    canCheckIn: boolean
+    hoursRemaining: number
+    nextCheckin: string | null
+    lastCheckin: string | null
+  } | null>(null)
+  const [checkingIn, setCheckingIn] = useState(false)
+  const [checkInCountdown, setCheckInCountdown] = useState<number>(0)
+  const [chosenSide, setChosenSide] = useState<'good' | 'evil' | null>(null)
+  const [loadingSide, setLoadingSide] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
       
   // Helper function to convert satoshis to BTC
   const satoshisToBTC = (satoshis: number | string): string => {
@@ -82,7 +96,7 @@ function DashboardContent() {
     return btc.toFixed(8).replace(/\.?0+$/, '') // Remove trailing zeros
   }
 
-  // Fetch karma totals
+  // Fetch karma totals and chosen side
   const fetchKarmaTotals = useCallback(async (walletAddress: string) => {
     if (!walletAddress) return
     setLoadingKarma(true)
@@ -92,11 +106,84 @@ function DashboardContent() {
       if (profile && !profile.error) {
         setTotalGoodKarma(profile.total_good_karma || 0)
         setTotalBadKarma(profile.total_bad_karma || 0)
+        setChosenSide(profile.chosen_side || null)
       }
     } catch (error) {
       console.error('Error fetching karma totals:', error)
     } finally {
       setLoadingKarma(false)
+    }
+  }, [])
+
+  // Fetch chosen side
+  const fetchChosenSide = useCallback(async (walletAddress: string) => {
+    if (!walletAddress) return
+    try {
+      const response = await fetch(`/api/profile/reset-karma?walletAddress=${encodeURIComponent(walletAddress)}`)
+      const data = await response.json()
+      if (data && !data.error) {
+        setChosenSide(data.chosenSide)
+      }
+    } catch (error) {
+      console.error('Error fetching chosen side:', error)
+    }
+  }, [])
+
+  // Handle reset karma and choose side
+  const handleResetKarma = async (side: 'good' | 'evil') => {
+    if (!address) {
+      toast.warning('Please connect your wallet first')
+      return
+    }
+    
+    setLoadingSide(true)
+    try {
+      const response = await fetch('/api/profile/reset-karma', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          chosenSide: side
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setChosenSide(side)
+        setTotalGoodKarma(0)
+        setTotalBadKarma(0)
+        setShowResetConfirm(false)
+        toast.success(data.message || `You have chosen the ${side} side!`)
+        // Refresh page data
+        await fetchKarmaTotals(address)
+      } else {
+        toast.error(data.error || 'Failed to reset karma')
+      }
+    } catch (error) {
+      console.error('Error resetting karma:', error)
+      toast.error('Failed to reset karma. Please try again.')
+    } finally {
+      setLoadingSide(false)
+    }
+  }
+
+  // Fetch check-in status
+  const fetchCheckInStatus = useCallback(async (walletAddress: string) => {
+    if (!walletAddress) return
+    try {
+      const response = await fetch(`/api/daily-checkin?walletAddress=${encodeURIComponent(walletAddress)}`)
+      const data = await response.json()
+      if (data && !data.error) {
+        setCheckInStatus({
+          canCheckIn: data.canCheckIn,
+          hoursRemaining: data.hoursRemaining || 0,
+          nextCheckin: data.nextCheckin,
+          lastCheckin: data.lastCheckin
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching check-in status:', error)
     }
   }, [])                                  
 
@@ -185,10 +272,11 @@ function DashboardContent() {
       console.log('✅ Parsed tokens count:', tokens.length)
       setUserOrdinals(tokens)
       
-      // Calculate karma based on ordinal ownership (+5 points per ordinal)
-      // Purchase karma (+10 per ordinal) is awarded automatically when count increases are detected
-      if (tokens.length > 0) {
+      // Calculate karma only once per wallet connection session to prevent duplicates
+      // Purchase karma is awarded automatically when count increases are detected
+      if (tokens.length > 0 && !karmaCalculatedRef.current.has(walletAddress)) {
         try {
+          karmaCalculatedRef.current.add(walletAddress)
           await fetch('/api/karma/calculate-ordinal-karma', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -196,6 +284,7 @@ function DashboardContent() {
           })
         } catch (error) {
           console.error('Error calculating ordinal karma:', error)
+          karmaCalculatedRef.current.delete(walletAddress) // Remove on error so it can retry
         }
       }
     } catch (error) {
@@ -260,6 +349,8 @@ function DashboardContent() {
       checkDiscordStatus()
       checkTwitterStatus()
       fetchKarmaTotals(address)
+      fetchCheckInStatus(address)
+      fetchChosenSide(address)
     } else {
       setUserOrdinals([])
       setDiscordLinked(false)
@@ -269,8 +360,11 @@ function DashboardContent() {
       setTwitterUsername(null)
       setTotalGoodKarma(0)
       setTotalBadKarma(0)
+      setCheckInStatus(null)
+      setChosenSide(null)
+      karmaCalculatedRef.current.clear() // Reset when wallet disconnects
     }
-  }, [connected, address, fetchUserOrdinals, checkDiscordStatus, checkTwitterStatus, fetchKarmaTotals])
+  }, [connected, address, fetchUserOrdinals, checkDiscordStatus, checkTwitterStatus, fetchKarmaTotals, fetchCheckInStatus, fetchChosenSide])
 
   // Check Discord auth status from URL params
   useEffect(() => {
@@ -299,7 +393,7 @@ function DashboardContent() {
   // Handle Discord auth
   const handleDiscordAuth = () => {
     if (!address) {
-      alert('Please connect your wallet first')
+      toast.warning('Please connect your wallet first')
       return
     }
     window.location.href = `/api/discord/auth?walletAddress=${encodeURIComponent(address)}`
@@ -308,88 +402,202 @@ function DashboardContent() {
   // Handle Twitter auth
   const handleTwitterAuth = () => {
     if (!address) {
-      alert('Please connect your wallet first')
+      toast.warning('Please connect your wallet first')
       return
     }
     window.location.href = `/api/twitter/auth?walletAddress=${encodeURIComponent(address)}`
   }
 
+  // Handle daily check-in
+  const handleDailyCheckIn = async (type: 'good' | 'evil') => {
+    if (!address) {
+      toast.warning('Please connect your wallet first')
+      return
+    }
+    
+    if (checkInStatus && !checkInStatus.canCheckIn) {
+      return
+    }
+    
+    setCheckingIn(true)
+    try {
+      const response = await fetch('/api/daily-checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          type
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Update karma totals
+        setTotalGoodKarma(data.totalGoodKarma || totalGoodKarma)
+        setTotalBadKarma(data.totalBadKarma || totalBadKarma)
+        // Refresh check-in status
+        await fetchCheckInStatus(address)
+        toast.success(data.message || `Check-in successful! ${data.karmaAwarded > 0 ? '+' : ''}${data.karmaAwarded} karma`)
+      } else {
+        toast.error(data.error || 'Check-in failed')
+        // Refresh status to get updated countdown
+        await fetchCheckInStatus(address)
+      }
+    } catch (error) {
+      console.error('Error checking in:', error)
+      toast.error('Failed to check in. Please try again.')
+    } finally {
+      setCheckingIn(false)
+    }
+  }
+
+  // Countdown timer for check-in
+  useEffect(() => {
+    if (!checkInStatus || checkInStatus.canCheckIn) {
+      setCheckInCountdown(0)
+      return
+    }
+    
+    if (!checkInStatus.nextCheckin) {
+      return
+    }
+    
+    const updateCountdown = () => {
+      const now = new Date().getTime()
+      const nextCheckin = new Date(checkInStatus.nextCheckin!).getTime()
+      const diff = nextCheckin - now
+      
+      if (diff > 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60))
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+        setCheckInCountdown(Math.ceil(diff / (1000 * 60 * 60)))
+      } else {
+        // Check-in is available, refresh status
+        fetchCheckInStatus(address!)
+      }
+    }
+    
+    updateCountdown()
+    const interval = setInterval(updateCountdown, 60000) // Update every minute
+    
+    return () => clearInterval(interval)
+  }, [checkInStatus, address, fetchCheckInStatus])
+
   // Fetch activity history from Magic Eden
+  // Note: Must NOT include collectionSymbol in query - filter client-side instead
+  // Fetch 3 pages deep (offset 0, 100, 200) for each activity type
   const fetchActivityHistory = useCallback(async (walletAddress: string) => {
     if (!walletAddress) return
     
     setLoadingHistory(true)
     try {
-      const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
+      // Fetch all activity types with 3 pages each (no collectionSymbol in query)
+      const offsets = [0, 100, 200]
+      const limit = 100
       
+      // Helper function to fetch multiple pages for an activity kind
+      const fetchPages = async (kind: string) => {
+        const pagePromises = offsets.map(offset =>
+          fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&kind=${kind}&limit=${limit}&offset=${offset}`)
+        )
+        const responses = await Promise.all(pagePromises)
+        const allActivities: any[] = []
+        
+        for (const res of responses) {
+          if (res.ok) {
+            const data = await res.json()
+            // Filter for the-damned collection (client-side filtering)
+            const filtered = (data.activities || []).filter((activity: any) => 
+              activity.collectionSymbol === 'the-damned'
+            )
+            allActivities.push(...filtered)
+          }
+        }
+        
+        return allActivities
+      }
+
       // Fetch all activity types in parallel
-      const [purchasesRes, listsRes, delistsRes, sellsRes] = await Promise.all([
-        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=buying_broadcasted&limit=100`),
-        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=list&limit=100`),
-        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=delist&limit=100`),
-        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=transfer&limit=100`)
+      const [buysBroadcasted, mints, creates, lists, delists, transfers] = await Promise.all([
+        fetchPages('buying_broadcasted'),
+        fetchPages('mint_broadcasted'),
+        fetchPages('create'),
+        fetchPages('list'),
+        fetchPages('delist'),
+        fetchPages('transfer')
       ])
 
-      // Parse purchase history (buying_broadcasted)
-      if (purchasesRes.ok) {
-        const purchasesData = await purchasesRes.json()
-        // Filter where user is the new owner (bought something)
-        const purchases = (purchasesData.activities || []).filter((activity: any) => 
-          activity.newOwner?.toLowerCase() === walletAddress.toLowerCase() &&
-          activity.kind === 'buying_broadcasted'
-        )
-        // Sort by date (newest first)
-        purchases.sort((a: any, b: any) => {
-          const dateA = new Date(a.createdAt || 0).getTime()
-          const dateB = new Date(b.createdAt || 0).getTime()
-          return dateB - dateA
-        })
-        setPurchaseHistory(purchases)
-      }
+      // Combine all buy activities: mint, create, buying_broadcasted
+      let allPurchases: any[] = []
+      
+      // Filter buying_broadcasted where user is the new owner (bought something)
+      const purchases = buysBroadcasted.filter((activity: any) => 
+        activity.newOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+        activity.kind === 'buying_broadcasted'
+      )
+      allPurchases.push(...purchases)
 
-      // Parse list history (list and delist)
-      let allLists: any[] = []
-      if (listsRes.ok) {
-        const listsData = await listsRes.json()
-        const lists = (listsData.activities || []).filter((activity: any) => 
-          activity.kind === 'list' &&
-          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
-        )
-        allLists.push(...lists)
-      }
-      if (delistsRes.ok) {
-        const delistsData = await delistsRes.json()
-        const delists = (delistsData.activities || []).filter((activity: any) => 
-          activity.kind === 'delist' &&
-          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
-        )
-        allLists.push(...delists)
-      }
-      // Sort by date (newest first)
-      allLists.sort((a, b) => {
+      // Filter mint_broadcasted where user is the new owner
+      const mintsFiltered = mints.filter((activity: any) => 
+        activity.newOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+        (activity.kind === 'mint_broadcasted' || activity.kind === 'mint')
+      )
+      allPurchases.push(...mintsFiltered)
+
+      // Filter create activities where user is the new owner
+      const createsFiltered = creates.filter((activity: any) => 
+        activity.newOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+        activity.kind === 'create'
+      )
+      allPurchases.push(...createsFiltered)
+
+      // Sort purchases by date (newest first)
+      allPurchases.sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt || 0).getTime()
         const dateB = new Date(b.createdAt || 0).getTime()
         return dateB - dateA
       })
-      setListHistory(allLists)
+      setPurchaseHistory(allPurchases)
+
+      // Parse list history (list and delist) - treated as negative
+      let allListsFiltered: any[] = []
+      
+      const listsFiltered = lists.filter((activity: any) => 
+        activity.kind === 'list' &&
+        activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
+      )
+      allListsFiltered.push(...listsFiltered)
+      
+      const delistsFiltered = delists.filter((activity: any) => 
+        activity.kind === 'delist' &&
+        activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
+      )
+      allListsFiltered.push(...delistsFiltered)
+      
+      // Sort by date (newest first)
+      allListsFiltered.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime()
+        const dateB = new Date(b.createdAt || 0).getTime()
+        return dateB - dateA
+      })
+      setListHistory(allListsFiltered)
 
       // Parse sell history (transfers where user was the old owner)
-      if (sellsRes.ok) {
-        const sellsData = await sellsRes.json()
-        const sells = (sellsData.activities || []).filter((activity: any) => 
-          activity.kind === 'transfer' &&
-          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase() &&
-          activity.newOwner?.toLowerCase() !== walletAddress.toLowerCase() &&
-          activity.txValue && activity.txValue > 0 // Only actual sales with value
-        )
-        // Sort by date (newest first)
-        sells.sort((a: any, b: any) => {
-          const dateA = new Date(a.createdAt || 0).getTime()
-          const dateB = new Date(b.createdAt || 0).getTime()
-          return dateB - dateA
-        })
-        setSellHistory(sells)
-      }
+      const sellsFiltered = transfers.filter((activity: any) => 
+        activity.kind === 'transfer' &&
+        activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+        activity.newOwner?.toLowerCase() !== walletAddress.toLowerCase() &&
+        activity.txValue && activity.txValue > 0 // Only actual sales with value
+      )
+      // Sort by date (newest first)
+      sellsFiltered.sort((a: any, b: any) => {
+        const dateA = new Date(a.createdAt || 0).getTime()
+        const dateB = new Date(b.createdAt || 0).getTime()
+        return dateB - dateA
+      })
+      setSellHistory(sellsFiltered)
     } catch (error) {
       console.error('Error fetching activity history:', error)
     } finally {
@@ -397,20 +605,17 @@ function DashboardContent() {
     }
   }, [])
 
-  // Fetch activity history when wallet connects or when switching to activity tabs
+  // Fetch activity history when wallet connects or when entering my-damned section
+  // This ensures counts are available for the tab buttons before clicking them
   useEffect(() => {
-    if (connected && address && activeSection === 'my-damned' && myDamnedTab !== 'collection') {
+    if (connected && address && activeSection === 'my-damned') {
       fetchActivityHistory(address)
-        }
-  }, [connected, address, activeSection, myDamnedTab, fetchActivityHistory])
+    }
+  }, [connected, address, activeSection, fetchActivityHistory])
 
 
   // Calculate stats
   const totalOrdinals = userOrdinals.length
-  const totalValue = userOrdinals.reduce((sum, token) => {
-    const price = token.priceInfo?.price || token.price || 0
-    return sum + Number(price)
-  }, 0)
 
   return (
     <>
@@ -480,6 +685,7 @@ function DashboardContent() {
               }} />
 
               {/* Compact scoreboard container */}
+              {chosenSide && (
               <div className="relative bg-gradient-to-br from-black via-red-950/30 to-black border-2 border-red-600/50 rounded-sm p-4 shadow-2xl overflow-hidden" style={{
                 boxShadow: 'inset 0 0 30px rgba(220, 38, 38, 0.2), 0 0 50px rgba(220, 38, 38, 0.4)'
               }}>
@@ -502,91 +708,42 @@ function DashboardContent() {
                 <div className="absolute inset-0 bg-gradient-to-r from-red-900/15 via-orange-900/5 to-red-900/15 animate-pulse" />
                 
                 <div className="relative z-10">
-                  {/* Compact horizontal scoreboard with NET in center */}
-                  <div className="grid grid-cols-3 gap-2 md:gap-4 items-center max-w-4xl mx-auto">
-                    {/* Good Karma - Left */}
-                    <div className="relative group">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-sm opacity-50 group-hover:opacity-75 blur-sm transition duration-300" style={{ boxShadow: '0 0 15px rgba(34, 197, 94, 0.5)' }} />
-                      <div className="relative bg-black/95 border-2 border-green-500/80 rounded-sm px-3 py-2 md:px-4 md:py-2" style={{ 
-                        boxShadow: 'inset 0 0 15px rgba(34, 197, 94, 0.15), 0 0 25px rgba(34, 197, 94, 0.4)'
-                      }}>
-                        <div className="flex items-center gap-2 md:gap-3">
-                          <span className="text-base md:text-lg" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.8)', filter: 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.6))' }}>✦</span>
-                          <div>
-                            <div className="text-green-400 text-[10px] font-mono uppercase tracking-widest font-bold">GOOD</div>
-                            {loadingKarma ? (
-                              <div className="text-green-400 font-mono text-xs animate-pulse">...</div>
-                            ) : (
-                              <div className="text-xl md:text-2xl font-black text-green-400 font-mono" style={{
-                                textShadow: '0 0 15px rgba(34, 197, 94, 0.9), 0 0 30px rgba(34, 197, 94, 0.5), 0 1px 0 #000',
-                                fontVariantNumeric: 'tabular-nums',
-                                filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))'
-                              }}>
-                                {totalGoodKarma.toLocaleString()}
-          </div>
-                            )}
-        </div>
-                        </div>
-          </div>
-        </div>
-
-                    {/* Net Karma - Center (where page divides) */}
+                  {/* Compact horizontal scoreboard - show only chosen side karma */}
+                  <div className="flex justify-center items-center max-w-4xl mx-auto">
                     <div className="relative group">
                       <div className={`absolute -inset-0.5 rounded-sm opacity-50 group-hover:opacity-70 blur-sm transition duration-300 ${
-                        totalGoodKarma - totalBadKarma >= 0 ? 'bg-gradient-to-r from-yellow-500 to-green-500' : 'bg-gradient-to-r from-yellow-600 to-red-600'
-                      }`} style={{ boxShadow: `0 0 20px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.6)' : 'rgba(220, 38, 38, 0.7)'}` }} />
-                      <div className={`relative bg-black/95 border-2 ${totalGoodKarma - totalBadKarma >= 0 ? 'border-yellow-500/80' : 'border-orange-600/80'} rounded-sm px-3 py-2 md:px-4 md:py-2 text-center`} style={{ 
-                        boxShadow: `inset 0 0 15px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.2)' : 'rgba(220, 38, 38, 0.25)'}, 0 0 25px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.5)' : 'rgba(220, 38, 38, 0.6)'}`
+                        chosenSide === 'good' ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-red-600 to-red-700'
+                      }`} style={{ boxShadow: chosenSide === 'good' ? '0 0 20px rgba(34, 197, 94, 0.6)' : '0 0 20px rgba(220, 38, 38, 0.7)' }} />
+                      <div className={`relative bg-black/95 border-2 ${chosenSide === 'good' ? 'border-green-500/80' : 'border-red-600/80'} rounded-sm px-6 py-3 md:px-8 md:py-4 text-center`} style={{ 
+                        boxShadow: chosenSide === 'good'
+                          ? 'inset 0 0 15px rgba(34, 197, 94, 0.2), 0 0 25px rgba(34, 197, 94, 0.5)'
+                          : 'inset 0 0 15px rgba(220, 38, 38, 0.2), 0 0 25px rgba(220, 38, 38, 0.6)'
                       }}>
                         <div>
-                          <div className={`text-[9px] md:text-[10px] font-mono uppercase tracking-wider font-bold ${totalGoodKarma - totalBadKarma >= 0 ? 'text-yellow-400' : 'text-orange-400'}`}>NET</div>
+                          <div className={`text-[10px] md:text-xs font-mono uppercase tracking-widest font-bold ${chosenSide === 'good' ? 'text-green-400' : 'text-red-400'}`}>
+                            {chosenSide === 'good' ? 'GOOD KARMA' : 'EVIL KARMA'}
+                          </div>
                           {loadingKarma ? (
-                            <div className={`font-mono text-xs animate-pulse ${totalGoodKarma - totalBadKarma >= 0 ? 'text-green-400' : 'text-red-400'}`}>...</div>
+                            <div className={`font-mono text-xs animate-pulse mt-2 ${chosenSide === 'good' ? 'text-green-400' : 'text-red-400'}`}>...</div>
                           ) : (
-                            <div className={`text-2xl md:text-3xl font-black font-mono ${
-                              totalGoodKarma - totalBadKarma >= 0 ? 'text-green-400' : 'text-red-500'
+                            <div className={`text-3xl md:text-4xl font-black font-mono mt-2 ${
+                              chosenSide === 'good' ? 'text-green-400' : 'text-red-500'
                             }`} style={{
-                              textShadow: totalGoodKarma - totalBadKarma >= 0 
+                              textShadow: chosenSide === 'good'
                                 ? '0 0 20px rgba(34, 197, 94, 1), 0 0 40px rgba(34, 197, 94, 0.6), 0 1px 0 #000'
                                 : '0 0 20px rgba(220, 38, 38, 1), 0 0 40px rgba(220, 38, 38, 0.7), 0 1px 0 #000',
                               fontVariantNumeric: 'tabular-nums',
-                              filter: totalGoodKarma - totalBadKarma >= 0 
+                              filter: chosenSide === 'good'
                                 ? 'drop-shadow(0 0 10px rgba(34, 197, 94, 0.8))'
                                 : 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.9))'
                             }}>
-                              {totalGoodKarma - totalBadKarma >= 0 ? '+' : ''}{(totalGoodKarma - totalBadKarma).toLocaleString()}
-          </div>
+                              {(chosenSide === 'good' ? totalGoodKarma : totalBadKarma).toLocaleString()}
+                            </div>
                           )}
-        </div>
-          </div>
-        </div>
-
-                    {/* Bad Karma - Right */}
-                    <div className="relative group">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-red-700 rounded-sm opacity-50 group-hover:opacity-75 blur-sm transition duration-300" style={{ boxShadow: '0 0 15px rgba(220, 38, 38, 0.6)' }} />
-                      <div className="relative bg-black/95 border-2 border-red-600/80 rounded-sm px-3 py-2 md:px-4 md:py-2" style={{ 
-                        boxShadow: 'inset 0 0 15px rgba(220, 38, 38, 0.2), 0 0 25px rgba(220, 38, 38, 0.5)'
-                      }}>
-                        <div className="flex items-center gap-2 md:gap-3 justify-end">
-                          <div className="text-right">
-                            <div className="text-red-400 text-[10px] font-mono uppercase tracking-widest font-bold">BAD</div>
-                            {loadingKarma ? (
-                              <div className="text-red-400 font-mono text-xs animate-pulse">...</div>
-                            ) : (
-                              <div className="text-xl md:text-2xl font-black text-red-500 font-mono" style={{
-                                textShadow: '0 0 15px rgba(220, 38, 38, 1), 0 0 30px rgba(220, 38, 38, 0.6), 0 1px 0 #000',
-                                fontVariantNumeric: 'tabular-nums',
-                                filter: 'drop-shadow(0 0 8px rgba(220, 38, 38, 0.8))'
-                              }}>
-                                {totalBadKarma.toLocaleString()}
-          </div>
-                            )}
-        </div>
-                          <span className="text-base md:text-lg" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.8)', filter: 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.6))' }}>⚡</span>
-          </div>
-        </div>
-          </div>
-        </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* KARMA Header above the scoreboard */}
                   <div className="text-center mt-3">
@@ -594,11 +751,13 @@ function DashboardContent() {
                       textShadow: '0 0 20px rgba(220, 38, 38, 0.8), 0 0 40px rgba(220, 38, 38, 0.5), 0 1px 0 #000',
                       filter: 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.6))'
                     }}>
-                      KARMA
+                      {chosenSide === 'good' ? 'GOOD KARMA' : 'EVIL KARMA'}
                     </h2>
-          </div>
-        </div>
-      </div>
+                    </div>
+                  </div>
+                </div>
+           
+              )}
             </div>
           )}
 
@@ -732,6 +891,132 @@ function DashboardContent() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Chosen Side Section */}
+                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                    <div className="text-gray-400 text-sm font-mono uppercase mb-4">Chosen Side</div>
+                    <div className="space-y-3">
+                      {chosenSide === null ? (
+                        <div className="space-y-3">
+                          <div className="text-yellow-500 font-mono text-sm">⚠️ You must choose a side to participate</div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => handleResetKarma('good')}
+                              disabled={loadingSide}
+                              className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                loadingSide
+                                  ? 'opacity-50 cursor-not-allowed bg-green-600/80 border-green-600 text-white'
+                                  : 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
+                              }`}
+                            >
+                              {loadingSide ? 'Choosing...' : '✓ Choose Good'}
+                            </button>
+                            <button
+                              onClick={() => handleResetKarma('evil')}
+                              disabled={loadingSide}
+                              className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                loadingSide
+                                  ? 'opacity-50 cursor-not-allowed bg-red-600/80 border-red-600 text-white'
+                                  : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
+                              }`}
+                            >
+                              {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
+                            </button>
+                          </div>
+                          <div className="text-gray-500 font-mono text-xs">
+                            ⚠️ This will reset all karma points and history. Your profile and social accounts will be preserved.
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className={`font-mono font-bold text-lg ${chosenSide === 'good' ? 'text-green-500' : 'text-red-500'}`}>
+                            {chosenSide === 'good' ? '✓ Good Side' : '✗ Evil Side'}
+                          </div>
+                          <button
+                            onClick={() => setShowResetConfirm(true)}
+                            disabled={loadingSide}
+                            className="w-full px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 bg-yellow-600/80 border-yellow-600 text-white hover:bg-yellow-600 hover:border-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {loadingSide ? 'Resetting...' : 'Reset & Change Side'}
+                          </button>
+                          {showResetConfirm && (
+                            <div className="bg-black/60 rounded-lg p-4 border border-yellow-600/50">
+                              <div className="text-yellow-500 font-mono text-sm mb-3">
+                                ⚠️ This will wipe all karma points and history. Are you sure?
+                              </div>
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => handleResetKarma('good')}
+                                  disabled={loadingSide}
+                                  className="flex-1 px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-green-600/80 border-green-600 text-white hover:bg-green-600 disabled:opacity-50"
+                                >
+                                  Choose Good
+                                </button>
+                                <button
+                                  onClick={() => handleResetKarma('evil')}
+                                  disabled={loadingSide}
+                                  className="flex-1 px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-red-600/80 border-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  Choose Evil
+                                </button>
+                                <button
+                                  onClick={() => setShowResetConfirm(false)}
+                                  className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-gray-600/80 border-gray-600 text-white hover:bg-gray-600"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Daily Check-in Section */}
+                  {chosenSide && (
+                    <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                      <div className="text-gray-400 text-sm font-mono uppercase mb-4">Daily Check-in</div>
+                      <div className="space-y-3">
+                        {checkInStatus === null ? (
+                          <div className="text-gray-500 font-mono text-sm">Loading check-in status...</div>
+                        ) : checkInStatus.canCheckIn ? (
+                          <div className="space-y-3">
+                            <div className="text-green-500 font-mono text-sm">✓ Ready to check in!</div>
+                            <button
+                              onClick={() => handleDailyCheckIn(chosenSide)}
+                              disabled={checkingIn}
+                              className={`w-full px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                checkingIn
+                                  ? 'opacity-50 cursor-not-allowed'
+                                  : chosenSide === 'good'
+                                    ? 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
+                                    : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
+                              }`}
+                            >
+                              {checkingIn ? 'Checking in...' : chosenSide === 'good' ? '✓ Check in for Good (+5)' : '✗ Check in for Evil (-5)'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="text-red-500 font-mono text-sm">
+                              ⏰ Cooldown: {checkInCountdown > 0 ? `${checkInCountdown} hour${checkInCountdown !== 1 ? 's' : ''} remaining` : 'Calculating...'}
+                            </div>
+                            {checkInStatus.nextCheckin && (
+                              <div className="text-gray-400 font-mono text-xs">
+                                Next check-in: {new Date(checkInStatus.nextCheckin).toLocaleString()}
+                              </div>
+                            )}
+                            {checkInStatus.lastCheckin && (
+                              <div className="text-gray-500 font-mono text-xs">
+                                Last check-in: {new Date(checkInStatus.lastCheckin).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">
@@ -745,16 +1030,10 @@ function DashboardContent() {
 
           {/* Stats Cards */}
           {connected && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
                 <div className="text-gray-400 text-sm font-mono uppercase mb-2">Total Ordinals</div>
                 <div className="text-3xl font-bold text-red-600 font-mono">{totalOrdinals}</div>
-              </div>
-              <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
-                <div className="text-gray-400 text-sm font-mono uppercase mb-2">Collection Value</div>
-                <div className="text-3xl font-bold text-red-600 font-mono">
-                  {totalValue > 0 ? `$${totalValue.toLocaleString()}` : 'N/A'}
-                </div>
               </div>
               <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
                 <div className="text-gray-400 text-sm font-mono uppercase mb-2">Status</div>
@@ -1094,7 +1373,18 @@ function DashboardContent() {
               <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
                 LEADERBOARD
               </h2>
-              <Leaderboard />
+              {chosenSide ? (
+                <Leaderboard chosenSide={chosenSide} />
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-yellow-500 font-mono text-lg mb-4">
+                    ⚠️ You must choose a side to view the leaderboard
+                  </div>
+                  <div className="text-gray-400 font-mono text-sm">
+                    Go to My Profile to choose your side (Good or Evil)
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1104,7 +1394,18 @@ function DashboardContent() {
               <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
                 POINTS HISTORY
               </h2>
-              <PointsHistory walletAddress={address} />
+              {chosenSide ? (
+                <PointsHistory walletAddress={address} chosenSide={chosenSide} />
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-yellow-500 font-mono text-lg mb-4">
+                    ⚠️ You must choose a side to view your karma history
+                  </div>
+                  <div className="text-gray-400 font-mono text-sm">
+                    Go to My Profile to choose your side (Good or Evil)
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1114,10 +1415,23 @@ function DashboardContent() {
               <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
                 MORALITY TASKS
               </h2>
-              <p className="text-gray-400 font-mono text-sm mb-6">
-                Complete tasks to earn good karma or receive bad karma. All tasks are tracked and verified.
-              </p>
-              <Morality walletAddress={address} />
+              {chosenSide ? (
+                <>
+                  <p className="text-gray-400 font-mono text-sm mb-6">
+                    Complete tasks to earn {chosenSide === 'good' ? 'good' : 'bad'} karma. All tasks are tracked and verified.
+                  </p>
+                  <Morality walletAddress={address} chosenSide={chosenSide} />
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-yellow-500 font-mono text-lg mb-4">
+                    ⚠️ You must choose a side to view tasks
+                  </div>
+                  <div className="text-gray-400 font-mono text-sm">
+                    Go to My Profile to choose your side (Good or Evil)
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

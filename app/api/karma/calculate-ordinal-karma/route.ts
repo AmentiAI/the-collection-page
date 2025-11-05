@@ -1,21 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import type { Pool } from 'pg'
 
 export const dynamic = 'force-dynamic'
 
-// Calculate karma based on ordinal ownership (+5 points per ordinal)
-export async function POST(request: Request) {
+// Core function to calculate ordinal karma (can be called directly or via HTTP)
+export async function calculateOrdinalKarmaForWallet(walletAddress: string, pool: Pool, forceRecalculate: boolean = false) {
   try {
-    const { walletAddress } = await request.json()
-    
-    if (!walletAddress) {
-      return NextResponse.json(
-        { error: 'walletAddress is required' },
-        { status: 400 }
-      )
-    }
-    
-    const pool = getPool()
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     
     // Get current ordinal count
@@ -44,7 +35,7 @@ export async function POST(request: Request) {
     
         // Get or create profile
     let profileResult = await pool.query(
-      'SELECT id, last_ordinal_count, current_ordinal_count FROM profiles WHERE wallet_address = $1',
+      'SELECT id, last_ordinal_count, current_ordinal_count, updated_at, chosen_side FROM profiles WHERE wallet_address = $1',
       [walletAddress]
     )
     
@@ -54,35 +45,37 @@ export async function POST(request: Request) {
         [walletAddress]
       )
       profileResult = await pool.query(
-        'SELECT id, last_ordinal_count, current_ordinal_count FROM profiles WHERE wallet_address = $1',
+        'SELECT id, last_ordinal_count, current_ordinal_count, updated_at, chosen_side FROM profiles WHERE wallet_address = $1',
         [walletAddress]
       )
     }
     
     const profileId = profileResult.rows[0].id
+    const profileUpdatedAt = profileResult.rows[0].updated_at
+    const chosenSide = profileResult.rows[0].chosen_side || 'good' // Default to good if not set
 
     // Get previous ordinal counts from profiles
     const previousCount = profileResult.rows[0].last_ordinal_count || 0
     const currentCountInDb = profileResult.rows[0].current_ordinal_count || 0
     
     // Only proceed with karma adjustments if the ordinal count has actually changed
-    const ordinalCountChanged = ordinalCount !== currentCountInDb
+    // OR if we're forcing recalculation (e.g., after reset)
+    const ordinalCountChanged = ordinalCount !== currentCountInDb || forceRecalculate
     
-    // Detect if user bought new ordinals (count increased) - +20 karma per purchase
-    if (ordinalCount > previousCount && previousCount >= 0) {
-      const purchasedCount = ordinalCount - previousCount
-      const purchaseKarma = purchasedCount * 20
-      
-      // Award karma for purchases
-      await pool.query(`
-        INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-        VALUES ($1, $2, 'good', 'Purchased The Damned ordinal', 'system')
-      `, [profileId, purchaseKarma])
-      
-      console.log(`Awarded ${purchaseKarma} karma to ${walletAddress} for purchasing ${purchasedCount} ordinal(s)`)
+    // If count hasn't changed and we're not forcing, don't do anything (prevents duplicate processing)
+    if (!ordinalCountChanged && !forceRecalculate) {
+      return {
+        success: true,
+        ordinalCount,
+        karmaPoints: expectedKarma,
+        karmaDifference: 0,
+        ordinalCountChanged: false,
+        message: `Ordinal count unchanged (${ordinalCount})`
+      }
     }
     
-    // Update ordinal counts in profiles
+    // Update ordinal counts in profiles FIRST (before awarding karma)
+    // This ensures we have a proper timestamp for duplicate detection
     await pool.query(`
       UPDATE profiles 
       SET last_ordinal_count = COALESCE(current_ordinal_count, 0),
@@ -91,10 +84,56 @@ export async function POST(request: Request) {
       WHERE wallet_address = $2
     `, [ordinalCount, walletAddress])
     
+    // Get the updated timestamp for duplicate detection
+    const updatedProfileResult = await pool.query(
+      'SELECT updated_at FROM profiles WHERE wallet_address = $1',
+      [walletAddress]
+    )
+    const newUpdatedAt = updatedProfileResult.rows[0]?.updated_at
+    
+    // Detect if user bought new ordinals (count increased) - +20 karma per purchase
+    // Only award if count actually increased from previous count
+    if (ordinalCount > previousCount && previousCount >= 0) {
+      const purchasedCount = ordinalCount - previousCount
+      
+      // Check how many purchase karma entries exist for this profile
+      // Look for entries created in the last 5 minutes to catch any duplicates from rapid calls
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      
+      const existingPurchaseKarmaResult = await pool.query(`
+        SELECT COUNT(*) as count
+        FROM karma_points
+        WHERE profile_id = $1 
+          AND reason = 'Purchased The Damned ordinal'
+          AND created_at >= $2
+      `, [profileId, fiveMinutesAgo])
+      
+      const existingPurchaseCount = parseInt(existingPurchaseKarmaResult.rows[0]?.count || '0')
+      
+      // Only award if we haven't already recorded all the purchases
+      // This prevents duplicates if the function is called multiple times
+      if (existingPurchaseCount < purchasedCount && purchasedCount > 0) {
+        const remainingPurchases = purchasedCount - existingPurchaseCount
+        
+        // Award karma for remaining purchases (separate entries)
+        // Use chosen_side for karma type (purchases are always +20, but type matches chosen side)
+        for (let i = 0; i < remainingPurchases; i++) {
+          await pool.query(`
+            INSERT INTO karma_points (profile_id, points, type, reason, given_by)
+            VALUES ($1, $2, $3, 'Purchased The Damned ordinal', 'system')
+          `, [profileId, 20, chosenSide])
+        }
+        
+        console.log(`✅ Awarded ${remainingPurchases * 20} karma (${remainingPurchases} separate entries) to ${walletAddress} for ${remainingPurchases} new purchase(s) (total: ${purchasedCount}, existing: ${existingPurchaseCount})`)
+      } else if (existingPurchaseCount >= purchasedCount) {
+        console.log(`⏭️ Skipping duplicate purchase karma for ${walletAddress} - already recorded ${existingPurchaseCount} purchase(s), expected ${purchasedCount}`)
+      }
+    }
+    
     let karmaDifference = 0
     
-    // Only adjust karma if the ordinal count has actually changed
-    if (ordinalCountChanged) {
+    // Always adjust karma if ordinal count changed OR if we're forcing recalculation
+    if (ordinalCountChanged || forceRecalculate) {
       // Get existing ordinal karma (sum of all "Ordinal ownership" karma entries)
       const existingKarmaResult = await pool.query(`
         SELECT COALESCE(SUM(points), 0) as total
@@ -106,31 +145,55 @@ export async function POST(request: Request) {
       karmaDifference = expectedKarma - existingKarma
       
       // If there's a difference, add or remove karma points
+      // Use chosen_side for karma type
       if (karmaDifference !== 0) {
         if (karmaDifference > 0) {
-          // Add karma points
+          // Add karma points (always positive, but type matches chosen side)
           await pool.query(`
             INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-            VALUES ($1, $2, 'good', 'Ordinal ownership', 'system')
-          `, [profileId, karmaDifference])
+            VALUES ($1, $2, $3, 'Ordinal ownership', 'system')
+          `, [profileId, karmaDifference, chosenSide])
         } else {
-          // Remove karma points (if they sold ordinals)
+          // Remove karma points (if they sold ordinals) - use opposite of chosen side
+          const oppositeSide = chosenSide === 'good' ? 'bad' : 'good'
           await pool.query(`
             INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-            VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
-          `, [profileId, karmaDifference])
+            VALUES ($1, $2, $3, 'Ordinal ownership adjustment', 'system')
+          `, [profileId, karmaDifference, oppositeSide])
         }
       }
     }
     
-    return NextResponse.json({
+    return {
       success: true,
       ordinalCount,
       karmaPoints: expectedKarma,
       karmaDifference,
       ordinalCountChanged,
       message: `You have ${ordinalCount} ordinals, earning ${expectedKarma} karma points`
-    })
+    }
+  } catch (error) {
+    console.error('Calculate ordinal karma error:', error)
+    throw error
+  }
+}
+
+// Calculate karma based on ordinal ownership (+5 points per ordinal)
+export async function POST(request: Request) {
+  try {
+    const { walletAddress } = await request.json()
+    
+    if (!walletAddress) {
+      return NextResponse.json(
+        { error: 'walletAddress is required' },
+        { status: 400 }
+      )
+    }
+    
+    const pool = getPool()
+    const result = await calculateOrdinalKarmaForWallet(walletAddress, pool)
+    
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Calculate ordinal karma error:', error)
     return NextResponse.json(

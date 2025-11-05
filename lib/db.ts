@@ -73,6 +73,9 @@ export async function initDatabase() {
         last_ordinal_count INTEGER DEFAULT 0,
         current_ordinal_count INTEGER DEFAULT 0,
         has_holder_role BOOLEAN DEFAULT false,
+        last_holder_check TIMESTAMPTZ,
+        last_daily_checkin TIMESTAMPTZ,
+        chosen_side TEXT CHECK (chosen_side IN ('good', 'evil')),
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )

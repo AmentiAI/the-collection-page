@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
           RANK() OVER (ORDER BY p.total_good_karma DESC) as rank
         FROM profiles p
         WHERE p.total_good_karma > 0
+          AND p.chosen_side = 'good'
         ORDER BY p.total_good_karma DESC
         LIMIT $1
       `
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
           RANK() OVER (ORDER BY p.total_bad_karma DESC) as rank
         FROM profiles p
         WHERE p.total_bad_karma > 0
+          AND p.chosen_side = 'evil'
         ORDER BY p.total_bad_karma DESC
         LIMIT $1
       `

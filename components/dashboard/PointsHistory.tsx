@@ -21,9 +21,10 @@ interface Profile {
 
 interface PointsHistoryProps {
   walletAddress: string | null
+  chosenSide: 'good' | 'evil'
 }
 
-export default function PointsHistory({ walletAddress }: PointsHistoryProps) {
+export default function PointsHistory({ walletAddress, chosenSide }: PointsHistoryProps) {
   const [karmaHistory, setKarmaHistory] = useState<KarmaPoint[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,7 +35,7 @@ export default function PointsHistory({ walletAddress }: PointsHistoryProps) {
     } else {
       setLoading(false)
     }
-  }, [walletAddress])
+  }, [walletAddress, chosenSide])
 
   const fetchHistory = async () => {
     if (!walletAddress) return
@@ -44,7 +45,11 @@ export default function PointsHistory({ walletAddress }: PointsHistoryProps) {
       const response = await fetch(`/api/karma?walletAddress=${encodeURIComponent(walletAddress)}`)
       const data = await response.json()
       
-      setKarmaHistory(data.karmaHistory || [])
+      // Filter karma history to only show entries for the chosen side
+      const allHistory = data.karmaHistory || []
+      const filteredHistory = allHistory.filter((point: KarmaPoint) => point.type === chosenSide)
+      
+      setKarmaHistory(filteredHistory)
       setProfile(data.profile || null)
     } catch (error) {
       console.error('Error fetching karma history:', error)
