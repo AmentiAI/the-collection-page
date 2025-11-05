@@ -51,7 +51,7 @@ function DashboardContent() {
   const { connected, address } = useLaserEyes()
   const blessedVideoRef = useRef<HTMLVideoElement>(null)
   const damnedVideoRef = useRef<HTMLVideoElement>(null)
-  const [userOrdinals, setUserOrdinals] = useState<MagicEdenToken[]>([])        
+  const [userOrdinals, setUserOrdinals] = useState<MagicEdenToken[]>([])
   const [loadingOrdinals, setLoadingOrdinals] = useState(false)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)      
   const [isVerifying, setIsVerifying] = useState(false)
@@ -62,6 +62,10 @@ function DashboardContent() {
   const [discordLinked, setDiscordLinked] = useState(false)
   const [discordUserId, setDiscordUserId] = useState<string | null>(null)
   const [loadingDiscord, setLoadingDiscord] = useState(false)
+  const [twitterLinked, setTwitterLinked] = useState(false)
+  const [twitterUserId, setTwitterUserId] = useState<string | null>(null)
+  const [twitterUsername, setTwitterUsername] = useState<string | null>(null)
+  const [loadingTwitter, setLoadingTwitter] = useState(false)
   const [myDamnedTab, setMyDamnedTab] = useState<'collection' | 'purchases' | 'lists' | 'sells'>('collection')
   const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
   const [listHistory, setListHistory] = useState<any[]>([])
@@ -70,7 +74,7 @@ function DashboardContent() {
   const [totalGoodKarma, setTotalGoodKarma] = useState<number>(0)
   const [totalBadKarma, setTotalBadKarma] = useState<number>(0)
   const [loadingKarma, setLoadingKarma] = useState(false)
-
+      
   // Helper function to convert satoshis to BTC
   const satoshisToBTC = (satoshis: number | string): string => {
     const sats = typeof satoshis === 'string' ? parseFloat(satoshis) : satoshis
@@ -114,7 +118,7 @@ function DashboardContent() {
         if (damnedVideoRef.current) {
           damnedVideoRef.current.play().catch(err => console.log('Damned video play failed:', err))
         }
-      } catch (error) {
+    } catch (error) {
         console.log('Video autoplay blocked:', error)
       }
     }
@@ -217,6 +221,23 @@ function DashboardContent() {
     }
   }, [address])
 
+  // Fetch Twitter link status
+  const checkTwitterStatus = useCallback(async () => {
+    if (!address) return
+    setLoadingTwitter(true)
+    try {
+      const response = await fetch(`/api/profile/twitter?walletAddress=${encodeURIComponent(address)}`)
+      const data = await response.json()
+      setTwitterLinked(data.linked || false)
+      setTwitterUserId(data.twitterUserId || null)
+      setTwitterUsername(data.twitterUsername || null)
+    } catch (error) {
+      console.error('Error checking Twitter status:', error)
+    } finally {
+      setLoadingTwitter(false)
+    }
+  }, [address])
+
   // Auto-create profile when wallet connects
   useEffect(() => {
     if (connected && address) {
@@ -237,15 +258,19 @@ function DashboardContent() {
       
       fetchUserOrdinals(address)
       checkDiscordStatus()
+      checkTwitterStatus()
       fetchKarmaTotals(address)
     } else {
       setUserOrdinals([])
       setDiscordLinked(false)
       setDiscordUserId(null)
+      setTwitterLinked(false)
+      setTwitterUserId(null)
+      setTwitterUsername(null)
       setTotalGoodKarma(0)
       setTotalBadKarma(0)
     }
-  }, [connected, address, fetchUserOrdinals, checkDiscordStatus, fetchKarmaTotals])
+  }, [connected, address, fetchUserOrdinals, checkDiscordStatus, checkTwitterStatus, fetchKarmaTotals])
 
   // Check Discord auth status from URL params
   useEffect(() => {
@@ -259,6 +284,18 @@ function DashboardContent() {
     }
   }, [address, checkDiscordStatus])
 
+  // Check Twitter auth status from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const authStatus = params.get('twitter_auth')
+    if (authStatus === 'success' && address) {
+      // Refresh Twitter status
+      checkTwitterStatus()
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard')
+    }
+  }, [address, checkTwitterStatus])
+
   // Handle Discord auth
   const handleDiscordAuth = () => {
     if (!address) {
@@ -268,13 +305,13 @@ function DashboardContent() {
     window.location.href = `/api/discord/auth?walletAddress=${encodeURIComponent(address)}`
   }
 
-  // Handle Twitter auth (placeholder for now)
+  // Handle Twitter auth
   const handleTwitterAuth = () => {
     if (!address) {
       alert('Please connect your wallet first')
       return
     }
-    alert('Twitter authentication coming soon!')
+    window.location.href = `/api/twitter/auth?walletAddress=${encodeURIComponent(address)}`
   }
 
   // Fetch activity history from Magic Eden
@@ -364,7 +401,7 @@ function DashboardContent() {
   useEffect(() => {
     if (connected && address && activeSection === 'my-damned' && myDamnedTab !== 'collection') {
       fetchActivityHistory(address)
-    }
+        }
   }, [connected, address, activeSection, myDamnedTab, fetchActivityHistory])
 
 
@@ -412,12 +449,12 @@ function DashboardContent() {
             </video>
             <div className="absolute inset-0 bg-gradient-to-l from-red-900/40 via-orange-900/20 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/40" />
-          </div>
+        </div>
 
           {/* Center Divider */}
           <div className="absolute left-1/2 top-0 w-1 h-full bg-gradient-to-b from-transparent via-[#ff0000]/50 to-transparent transform -translate-x-1/2" />
           <div className="absolute left-1/2 top-0 w-2 h-full bg-gradient-to-b from-transparent via-[#ff0000]/20 to-transparent transform -translate-x-1/2 blur-sm" />
-        </div>
+      </div>
 
         <Header 
           isHolder={isHolder} 
@@ -441,7 +478,7 @@ function DashboardContent() {
               <div className="absolute inset-0 pointer-events-none z-20 opacity-10" style={{
                 backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.05) 2px, rgba(255,0,0,0.05) 4px)'
               }} />
-              
+
               {/* Compact scoreboard container */}
               <div className="relative bg-gradient-to-br from-black via-red-950/30 to-black border-2 border-red-600/50 rounded-sm p-4 shadow-2xl overflow-hidden" style={{
                 boxShadow: 'inset 0 0 30px rgba(220, 38, 38, 0.2), 0 0 50px rgba(220, 38, 38, 0.4)'
@@ -454,7 +491,7 @@ function DashboardContent() {
                   `,
                   backgroundSize: '30px 30px'
                 }} />
-                
+
                 {/* Small corner brackets */}
                 <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
                 <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
@@ -486,13 +523,13 @@ function DashboardContent() {
                                 filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))'
                               }}>
                                 {totalGoodKarma.toLocaleString()}
-                              </div>
+          </div>
                             )}
-                          </div>
+        </div>
                         </div>
-                      </div>
-                    </div>
-                    
+          </div>
+        </div>
+
                     {/* Net Karma - Center (where page divides) */}
                     <div className="relative group">
                       <div className={`absolute -inset-0.5 rounded-sm opacity-50 group-hover:opacity-70 blur-sm transition duration-300 ${
@@ -518,12 +555,12 @@ function DashboardContent() {
                                 : 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.9))'
                             }}>
                               {totalGoodKarma - totalBadKarma >= 0 ? '+' : ''}{(totalGoodKarma - totalBadKarma).toLocaleString()}
-                            </div>
+          </div>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                    
+        </div>
+          </div>
+        </div>
+
                     {/* Bad Karma - Right */}
                     <div className="relative group">
                       <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-red-700 rounded-sm opacity-50 group-hover:opacity-75 blur-sm transition duration-300" style={{ boxShadow: '0 0 15px rgba(220, 38, 38, 0.6)' }} />
@@ -542,15 +579,15 @@ function DashboardContent() {
                                 filter: 'drop-shadow(0 0 8px rgba(220, 38, 38, 0.8))'
                               }}>
                                 {totalBadKarma.toLocaleString()}
-                              </div>
+          </div>
                             )}
-                          </div>
+        </div>
                           <span className="text-base md:text-lg" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.8)', filter: 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.6))' }}>⚡</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
+          </div>
+        </div>
+          </div>
+        </div>
+
                   {/* KARMA Header above the scoreboard */}
                   <div className="text-center mt-3">
                     <h2 className="text-lg md:text-xl font-black text-red-600 font-mono uppercase tracking-wider" style={{
@@ -559,9 +596,9 @@ function DashboardContent() {
                     }}>
                       KARMA
                     </h2>
-                  </div>
-                </div>
-              </div>
+          </div>
+        </div>
+      </div>
             </div>
           )}
 
@@ -636,8 +673,8 @@ function DashboardContent() {
                     <div className={`font-mono font-bold ${isHolder ? 'text-green-500' : 'text-red-500'}`}>
                       {isHolder ? '✓ Verified Holder' : '✗ Not a Holder'}
                     </div>
-                  </div>
-                  
+            </div>
+            
                   {/* Social Auth Section */}
                   <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
                     <div className="text-gray-400 text-sm font-mono uppercase mb-4">Social Accounts</div>
@@ -651,11 +688,11 @@ function DashboardContent() {
                             {discordLinked && discordUserId && (
                               <div className="text-gray-400 font-mono text-xs">
                                 Linked: {discordUserId}
-                              </div>
-                            )}
-                          </div>
+                  </div>
+                )}
+              </div>
                         </div>
-                        <button
+                    <button
                           onClick={handleDiscordAuth}
                           disabled={loadingDiscord}
                           className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
@@ -665,7 +702,7 @@ function DashboardContent() {
                           } ${loadingDiscord ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {loadingDiscord ? 'Loading...' : discordLinked ? '✓ Connected' : 'Connect Discord'}
-                        </button>
+                    </button>
                       </div>
                       
                       {/* Twitter Auth */}
@@ -674,15 +711,23 @@ function DashboardContent() {
                           <div className="text-2xl">🐦</div>
                           <div>
                             <div className="text-white font-mono text-sm">Twitter</div>
-                            <div className="text-gray-400 font-mono text-xs">Coming soon</div>
+                            {twitterLinked && twitterUsername && (
+                              <div className="text-gray-400 font-mono text-xs">
+                                @{twitterUsername}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <button
                           onClick={handleTwitterAuth}
-                          className="px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 bg-gray-600/80 border-gray-600 text-gray-300 cursor-not-allowed"
-                          disabled
+                          disabled={loadingTwitter}
+                          className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                            twitterLinked
+                              ? 'bg-blue-600/80 border-blue-600 text-white cursor-default'
+                              : 'bg-blue-600/80 border-blue-600 text-white hover:bg-blue-600 hover:border-blue-500'
+                          } ${loadingTwitter ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          Coming Soon
+                          {loadingTwitter ? 'Loading...' : twitterLinked ? '✓ Connected' : 'Connect Twitter'}
                         </button>
                       </div>
                     </div>
@@ -692,9 +737,9 @@ function DashboardContent() {
                 <div className="text-center py-12">
                   <div className="text-gray-400 font-mono text-lg mb-4">
                     Connect your wallet to view your profile
-                  </div>
-                </div>
-              )}
+                        </div>
+                      </div>
+                    )}
             </div>
           )}
 
@@ -718,10 +763,10 @@ function DashboardContent() {
                     <span className="text-green-500">✓ Holder</span>
                   ) : (
                     <span className="text-[#ff6b6b]">Not Holder</span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
+          </div>
           )}
 
           {/* My Collection Section */}
@@ -778,12 +823,12 @@ function DashboardContent() {
               {/* Collection Tab */}
               {myDamnedTab === 'collection' && (
                 <>
-                  {loadingOrdinals ? (
-                    <div className="text-center py-12">
+              {loadingOrdinals ? (
+                <div className="text-center py-12">
                       <div className="text-red-600 font-mono text-lg animate-pulse">Loading your ordinals...</div>
-                    </div>
-                  ) : userOrdinals.length === 0 ? (
-                    <div className="text-center py-12">
+                </div>
+              ) : userOrdinals.length === 0 ? (
+                <div className="text-center py-12">
                       <div className="text-gray-400 font-mono text-lg mb-2">No ordinals found in your wallet</div>
                       <a
                         href="https://magiceden.us/ordinals/marketplace/the-damned"
@@ -793,8 +838,8 @@ function DashboardContent() {
                       >
                         Browse The Damned Collection →
                       </a>
-                    </div>
-                  ) : (
+                </div>
+              ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {userOrdinals.map((token, index) => (
                     <div
@@ -806,18 +851,18 @@ function DashboardContent() {
                           // Try multiple image sources based on Magic Eden API structure
                           const imageUrl = token.contentURI || token.image || token.thumbnail || token.meta?.image
                           return imageUrl ? (
-                            <img
+                          <img
                               src={imageUrl}
                               alt={token.meta?.name || token.name || token.tokenId || `Ordinal ${index + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              onError={(e) => {
-                                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Crect fill='%23000'/%3E%3Ctext fill='%23ff0000' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace'%3ENO IMAGE%3C/text%3E%3C/svg%3E"
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-red-600 font-mono text-sm">
-                              NO IMAGE
-                            </div>
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            onError={(e) => {
+                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Crect fill='%23000'/%3E%3Ctext fill='%23ff0000' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace'%3ENO IMAGE%3C/text%3E%3C/svg%3E"
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-red-600 font-mono text-sm">
+                            NO IMAGE
+                          </div>
                           )
                         })()}
                         {(() => {
@@ -838,7 +883,7 @@ function DashboardContent() {
                           const traits = token.meta?.traits || token.traits
                           if (traits && Array.isArray(traits) && traits.length > 0) {
                             return (
-                              <div className="space-y-1">
+                          <div className="space-y-1">
                                 {traits.slice(0, 3).map((trait: any, idx: number) => {
                                   const key = trait.trait_type || trait.key || `Trait ${idx}`
                                   const value = trait.value || 'N/A'
@@ -854,11 +899,11 @@ function DashboardContent() {
                             return (
                               <div className="space-y-1">
                                 {Object.entries(traits).slice(0, 3).map(([key, value]: [string, any]) => (
-                                  <div key={key} className="text-xs text-gray-400 font-mono">
-                                    <span className="text-gray-500">{key}:</span> {value?.value || value || 'N/A'}
-                                  </div>
-                                ))}
+                              <div key={key} className="text-xs text-gray-400 font-mono">
+                                <span className="text-gray-500">{key}:</span> {value?.value || value || 'N/A'}
                               </div>
+                            ))}
+                          </div>
                             )
                           }
                           return null
@@ -922,13 +967,13 @@ function DashboardContent() {
                             >
                               View →
                             </a>
-                          </div>
-                        </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
+            </div>
+          )}
 
               {/* List History Tab */}
               {myDamnedTab === 'lists' && (
@@ -936,7 +981,7 @@ function DashboardContent() {
                   {loadingHistory ? (
                     <div className="text-center py-12">
                       <div className="text-red-600 font-mono text-lg animate-pulse">Loading list history...</div>
-                    </div>
+              </div>
                   ) : listHistory.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="text-gray-400 font-mono text-lg mb-2">No list history found</div>
@@ -960,12 +1005,12 @@ function DashboardContent() {
                                   {activity.listedPrice && (
                                     <div className="text-yellow-500 font-mono text-sm mt-1">
                                       Listed at: {satoshisToBTC(activity.listedPrice)} BTC
-                                    </div>
-                                  )}
+            </div>
+          )}
                                   <div className="text-gray-400 font-mono text-xs mt-1">
                                 {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'}
-                              </div>
-                            </div>
+        </div>
+      </div>
                             <a
                               href={`https://magiceden.us/ordinals/item-details/${activity.tokenId || activity.tokenInscriptionNumber}`}
                               target="_blank"
@@ -1006,11 +1051,11 @@ function DashboardContent() {
                                 <div className="text-green-500 font-mono text-sm mt-1">
                                   Sold for: {satoshisToBTC(activity.txValue)} BTC
                                 </div>
-                              )}
+      )}
                               {activity.newOwner && (
                                 <div className="text-gray-400 font-mono text-xs mt-1">
                                   Buyer: {activity.newOwner.slice(0, 8)}...{activity.newOwner.slice(-6)}
-                                </div>
+    </div>
                               )}
                               <div className="text-gray-400 font-mono text-xs mt-1">
                                 {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'}

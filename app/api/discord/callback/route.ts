@@ -3,9 +3,10 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
-const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/discord/callback`
+// Trim whitespace from env variables to prevent issues
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID?.trim()
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET?.trim()
+const DISCORD_REDIRECT_URI = (process.env.DISCORD_REDIRECT_URI?.trim() || `${process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'http://localhost:3000'}/api/discord/callback`)
 
 export async function GET(request: NextRequest) {
   try {

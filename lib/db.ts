@@ -48,6 +48,7 @@ export async function initDatabase() {
     await pool.query(`DROP TABLE IF EXISTS ordinal_sales CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS discord_users CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS twitter_users CASCADE`)
     
     // Drop main tables
     await pool.query(`DROP TABLE IF EXISTS profiles CASCADE`)
@@ -127,6 +128,27 @@ export async function initDatabase() {
 
     await pool.query(`
       CREATE INDEX idx_discord_users_profile_id ON discord_users(profile_id)
+    `)
+
+    // Create twitter_users table - simple Twitter info only (similar to discord_users)
+    await pool.query(`
+      CREATE TABLE twitter_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        twitter_user_id TEXT UNIQUE NOT NULL,
+        twitter_username TEXT,
+        profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        verified_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    
+    await pool.query(`
+      CREATE INDEX idx_twitter_users_twitter_id ON twitter_users(twitter_user_id)
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_twitter_users_profile_id ON twitter_users(profile_id)
     `)
 
     // Create ordinal_sales table to track sales and karma deductions
