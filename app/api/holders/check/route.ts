@@ -13,6 +13,7 @@ export async function GET() {
     const discordUsers = await pool.query(`
       SELECT du.discord_user_id, p.wallet_address, 
              COALESCE(p.last_ordinal_count, 0) as last_ordinal_count,
+             COALESCE(p.current_ordinal_count, 0) as current_ordinal_count,
              COALESCE(p.has_holder_role, false) as has_holder_role
       FROM discord_users du
       INNER JOIN profiles p ON du.profile_id = p.id
@@ -45,6 +46,10 @@ export async function GET() {
         const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
         const hasOrdinals = total > 0
         const previousCount = user.last_ordinal_count || 0
+        const currentCountInDb = user.current_ordinal_count || 0
+        
+        // Only proceed with karma adjustments if the ordinal count has actually changed
+        const ordinalCountChanged = total !== currentCountInDb
         
         // Detect if user bought new ordinals (count increased) - +10 karma per purchase
         if (total > previousCount && previousCount >= 0) {
@@ -109,41 +114,44 @@ export async function GET() {
         }
         
         // Calculate and update karma based on ordinal ownership (+5 points per ordinal)
-        const expectedKarma = total * 5
-        
-        // Get profile ID
-        const profileResult = await pool.query(
-          'SELECT id FROM profiles WHERE wallet_address = $1',
-          [user.wallet_address]
-        )
-        
-        if (profileResult.rows.length > 0) {
-          const profileId = profileResult.rows[0].id
+        // Only adjust if the ordinal count has actually changed
+        if (ordinalCountChanged) {
+          const expectedKarma = total * 5
           
-          // Get existing ordinal karma
-          const existingKarmaResult = await pool.query(`
-            SELECT COALESCE(SUM(points), 0) as total
-            FROM karma_points
-            WHERE profile_id = $1 AND reason = 'Ordinal ownership'
-          `, [profileId])
+          // Get profile ID
+          const profileResult = await pool.query(
+            'SELECT id FROM profiles WHERE wallet_address = $1',
+            [user.wallet_address]
+          )
           
-          const existingKarma = parseInt(existingKarmaResult.rows[0]?.total || '0')
-          const karmaDifference = expectedKarma - existingKarma
-          
-          // Update karma if there's a difference
-          if (karmaDifference !== 0) {
-            if (karmaDifference > 0) {
-              // Add karma points
-              await pool.query(`
-                INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-                VALUES ($1, $2, 'good', 'Ordinal ownership', 'system')
-              `, [profileId, karmaDifference])
-            } else {
-              // Remove karma points (if they sold ordinals)
-              await pool.query(`
-                INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-                VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
-              `, [profileId, karmaDifference])
+          if (profileResult.rows.length > 0) {
+            const profileId = profileResult.rows[0].id
+            
+            // Get existing ordinal karma
+            const existingKarmaResult = await pool.query(`
+              SELECT COALESCE(SUM(points), 0) as total
+              FROM karma_points
+              WHERE profile_id = $1 AND reason = 'Ordinal ownership'
+            `, [profileId])
+            
+            const existingKarma = parseInt(existingKarmaResult.rows[0]?.total || '0')
+            const karmaDifference = expectedKarma - existingKarma
+            
+            // Update karma if there's a difference
+            if (karmaDifference !== 0) {
+              if (karmaDifference > 0) {
+                // Add karma points
+                await pool.query(`
+                  INSERT INTO karma_points (profile_id, points, type, reason, given_by)
+                  VALUES ($1, $2, 'good', 'Ordinal ownership', 'system')
+                `, [profileId, karmaDifference])
+              } else {
+                // Remove karma points (if they sold ordinals)
+                await pool.query(`
+                  INSERT INTO karma_points (profile_id, points, type, reason, given_by)
+                  VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
+                `, [profileId, karmaDifference])
+              }
             }
           }
         }

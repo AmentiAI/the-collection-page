@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     
         // Get or create profile
     let profileResult = await pool.query(
-      'SELECT id, last_ordinal_count FROM profiles WHERE wallet_address = $1',
+      'SELECT id, last_ordinal_count, current_ordinal_count FROM profiles WHERE wallet_address = $1',
       [walletAddress]
     )
     
@@ -54,15 +54,19 @@ export async function POST(request: Request) {
         [walletAddress]
       )
       profileResult = await pool.query(
-        'SELECT id, last_ordinal_count FROM profiles WHERE wallet_address = $1',
+        'SELECT id, last_ordinal_count, current_ordinal_count FROM profiles WHERE wallet_address = $1',
         [walletAddress]
       )
     }
     
     const profileId = profileResult.rows[0].id
 
-    // Get previous ordinal count from profiles
+    // Get previous ordinal counts from profiles
     const previousCount = profileResult.rows[0].last_ordinal_count || 0
+    const currentCountInDb = profileResult.rows[0].current_ordinal_count || 0
+    
+    // Only proceed with karma adjustments if the ordinal count has actually changed
+    const ordinalCountChanged = ordinalCount !== currentCountInDb
     
     // Detect if user bought new ordinals (count increased) - +20 karma per purchase
     if (ordinalCount > previousCount && previousCount >= 0) {
@@ -87,30 +91,35 @@ export async function POST(request: Request) {
       WHERE wallet_address = $2
     `, [ordinalCount, walletAddress])
     
-    // Get existing ordinal karma (sum of all "Ordinal ownership" karma entries)
-    const existingKarmaResult = await pool.query(`
-      SELECT COALESCE(SUM(points), 0) as total
-      FROM karma_points
-      WHERE profile_id = $1 AND reason = 'Ordinal ownership'
-    `, [profileId])
+    let karmaDifference = 0
     
-    const existingKarma = parseInt(existingKarmaResult.rows[0]?.total || '0')
-    const karmaDifference = expectedKarma - existingKarma
-    
-    // If there's a difference, add or remove karma points
-    if (karmaDifference !== 0) {
-      if (karmaDifference > 0) {
-        // Add karma points
-        await pool.query(`
-          INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-          VALUES ($1, $2, 'good', 'Ordinal ownership', 'system')
-        `, [profileId, karmaDifference])
-      } else {
-        // Remove karma points (if they sold ordinals)
-        await pool.query(`
-          INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-          VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
-        `, [profileId, karmaDifference])
+    // Only adjust karma if the ordinal count has actually changed
+    if (ordinalCountChanged) {
+      // Get existing ordinal karma (sum of all "Ordinal ownership" karma entries)
+      const existingKarmaResult = await pool.query(`
+        SELECT COALESCE(SUM(points), 0) as total
+        FROM karma_points
+        WHERE profile_id = $1 AND reason = 'Ordinal ownership'
+      `, [profileId])
+      
+      const existingKarma = parseInt(existingKarmaResult.rows[0]?.total || '0')
+      karmaDifference = expectedKarma - existingKarma
+      
+      // If there's a difference, add or remove karma points
+      if (karmaDifference !== 0) {
+        if (karmaDifference > 0) {
+          // Add karma points
+          await pool.query(`
+            INSERT INTO karma_points (profile_id, points, type, reason, given_by)
+            VALUES ($1, $2, 'good', 'Ordinal ownership', 'system')
+          `, [profileId, karmaDifference])
+        } else {
+          // Remove karma points (if they sold ordinals)
+          await pool.query(`
+            INSERT INTO karma_points (profile_id, points, type, reason, given_by)
+            VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
+          `, [profileId, karmaDifference])
+        }
       }
     }
     
@@ -119,6 +128,7 @@ export async function POST(request: Request) {
       ordinalCount,
       karmaPoints: expectedKarma,
       karmaDifference,
+      ordinalCountChanged,
       message: `You have ${ordinalCount} ordinals, earning ${expectedKarma} karma points`
     })
   } catch (error) {
