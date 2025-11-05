@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
     // After reset, scan activities and recalculate karma
     // Do this synchronously to ensure it completes
     try {
-      // Import the scan functions directly
-      const { scanActivitiesForWallet } = await import('@/app/api/karma/scan-activities/route')
-      const { calculateOrdinalKarmaForWallet } = await import('@/app/api/karma/calculate-ordinal-karma/route')
+      // Import the scan functions from utility files
+      const { scanActivitiesForWallet } = await import('@/lib/activity-utils')
+      const { calculateOrdinalKarmaForWallet } = await import('@/lib/karma-utils')
       
       // 1. Scan activity history for purchases/creates
       const scanResult = await scanActivitiesForWallet(walletAddress, chosenSide, profileId, pool)

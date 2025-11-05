@@ -103,7 +103,7 @@ export default function Morality({ walletAddress, chosenSide }: MoralityProps) {
               className={`bg-black/60 backdrop-blur-sm border rounded-lg p-6 transition-all ${
                 task.isCompleted
                   ? 'border-gray-600/50 opacity-60'
-                  : activeTab === 'good'
+                  : chosenSide === 'good'
                   ? 'border-green-600/50 hover:border-green-600'
                   : 'border-red-600/50 hover:border-red-600'
               }`}
@@ -111,7 +111,7 @@ export default function Morality({ walletAddress, chosenSide }: MoralityProps) {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <h3 className="text-lg font-bold font-mono mb-2">
-                    <span className={activeTab === 'good' ? 'text-green-500' : 'text-red-500'}>
+                    <span className={chosenSide === 'good' ? 'text-green-500' : 'text-red-500'}>
                       {task.title}
                     </span>
                   </h3>
@@ -122,11 +122,11 @@ export default function Morality({ walletAddress, chosenSide }: MoralityProps) {
                   )}
                 </div>
                 <div className={`px-3 py-1 rounded font-mono font-bold text-sm ${
-                  activeTab === 'good'
+                  chosenSide === 'good'
                     ? 'bg-green-600/20 text-green-500 border border-green-600/50'
                     : 'bg-red-600/20 text-red-500 border border-red-600/50'
                 }`}>
-                  {activeTab === 'good' ? '+' : '-'}{Math.abs(task.points)}
+                  {chosenSide === 'good' ? '+' : '-'}{Math.abs(task.points)}
                 </div>
               </div>
 
@@ -148,7 +148,7 @@ export default function Morality({ walletAddress, chosenSide }: MoralityProps) {
                   className={`w-full px-4 py-2 rounded font-mono font-bold text-sm uppercase transition-all ${
                     completingTask === task.id
                       ? 'opacity-50 cursor-not-allowed'
-                      : activeTab === 'good'
+                      : chosenSide === 'good'
                       ? 'bg-green-600/80 hover:bg-green-600 text-white border border-green-600'
                       : 'bg-red-600/80 hover:bg-red-600 text-white border border-red-600'
                   }`}

@@ -220,7 +220,7 @@ export default function TestMagicEdenPage() {
             
             {!response && !loading && (
               <div className="text-gray-400 font-mono text-sm text-center py-12">
-                Click "Test Endpoint" to see results here
+                Click &quot;Test Endpoint&quot; to see results here
               </div>
             )}
 
