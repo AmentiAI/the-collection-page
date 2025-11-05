@@ -92,6 +92,13 @@ export async function GET(request: NextRequest) {
 
     const discordUser = await userResponse.json()
 
+    console.log('Discord user data received:', {
+      id: discordUser.id,
+      username: discordUser.username,
+      discriminator: discordUser.discriminator,
+      avatar: discordUser.avatar ? 'present' : 'null'
+    })
+
     // Link Discord account to wallet address if provided
     if (state && state !== 'no-wallet') {
       const walletAddress = state
@@ -114,6 +121,40 @@ export async function GET(request: NextRequest) {
           'SELECT id FROM profiles WHERE wallet_address = $1',
           [walletAddress]
         )
+      }
+
+      // Construct Discord avatar URL
+      let avatarUrl: string | null = null
+      if (discordUser.avatar) {
+        // User has a custom avatar
+        avatarUrl = `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=256`
+      } else {
+        // User has default avatar
+        // For legacy accounts: use discriminator % 5
+        // For new accounts: use user id % 5
+        let defaultAvatarIndex = 0
+        if (discordUser.discriminator && discordUser.discriminator !== '0') {
+          // Legacy account with discriminator
+          defaultAvatarIndex = parseInt(discordUser.discriminator) % 5
+        } else {
+          // New account without discriminator - use last digit of user id
+          defaultAvatarIndex = parseInt(discordUser.id.slice(-1)) % 5
+        }
+        avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`
+      }
+
+      // Extract username (Discord uses username field, or username + discriminator for legacy users)
+      const username = discordUser.username || null
+
+      // Update profile with avatar URL and username
+      if (profileResult.rows.length > 0) {
+        await pool.query(`
+          UPDATE profiles 
+          SET avatar_url = COALESCE($1, avatar_url),
+              username = COALESCE($2, username),
+              updated_at = NOW()
+          WHERE id = $3
+        `, [avatarUrl, username, profileResult.rows[0].id])
       }
 
       // Link Discord user to profile
