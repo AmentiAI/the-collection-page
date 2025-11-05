@@ -135,6 +135,13 @@ export default function Header({
         >
           🔥 GATES
         </Link>
+        <Link
+          href="/dashboard"
+          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wider px-3 py-1 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"                   
+          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}             
+        >
+          📊 DASHBOARD
+        </Link>
       </div>
       <div className="flex justify-center items-center gap-4 mt-2 flex-wrap">
         <p className="text-base text-[#ff6b6b] uppercase tracking-wide">Ordinals Collection</p>

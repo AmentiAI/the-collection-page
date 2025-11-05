@@ -74,11 +74,26 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     onHolderVerified?.(false)
   }
 
-  // Check if user is a holder when wallet connects
+  // Check if user is a holder when wallet connects and create profile
   useEffect(() => {
     console.log('🔄 useEffect triggered - connected:', connected, 'address:', address)
     if (connected && address) {
-      console.log('✅ Wallet connected, starting holder check...')
+      console.log('✅ Wallet connected, creating profile and starting holder check...')
+      
+      // Auto-create profile
+      fetch('/api/profile/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          paymentAddress: address // Initially same as wallet address
+        })
+      }).then(res => res.json()).then(data => {
+        console.log('✅ Profile created/updated:', data)
+      }).catch(err => {
+        console.error('Failed to create profile:', err)
+      })
+      
       checkHolderStatus()
     } else {
       console.log('❌ Wallet not connected or no address')
