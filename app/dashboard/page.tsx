@@ -58,7 +58,43 @@ function DashboardContent() {
   const [musicVolume, setMusicVolume] = useState(30)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
   const [startMusic, setStartMusic] = useState(false)
-  const [activeSection, setActiveSection] = useState<'my-damned' | 'leaderboard' | 'points-history' | 'morality'>('my-damned')                                  
+  const [activeSection, setActiveSection] = useState<'my-profile' | 'my-damned' | 'leaderboard' | 'points-history' | 'morality'>('my-profile')
+  const [discordLinked, setDiscordLinked] = useState(false)
+  const [discordUserId, setDiscordUserId] = useState<string | null>(null)
+  const [loadingDiscord, setLoadingDiscord] = useState(false)
+  const [myDamnedTab, setMyDamnedTab] = useState<'collection' | 'purchases' | 'lists' | 'sells'>('collection')
+  const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
+  const [listHistory, setListHistory] = useState<any[]>([])
+  const [sellHistory, setSellHistory] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [totalGoodKarma, setTotalGoodKarma] = useState<number>(0)
+  const [totalBadKarma, setTotalBadKarma] = useState<number>(0)
+  const [loadingKarma, setLoadingKarma] = useState(false)
+
+  // Helper function to convert satoshis to BTC
+  const satoshisToBTC = (satoshis: number | string): string => {
+    const sats = typeof satoshis === 'string' ? parseFloat(satoshis) : satoshis
+    const btc = sats / 100000000
+    return btc.toFixed(8).replace(/\.?0+$/, '') // Remove trailing zeros
+  }
+
+  // Fetch karma totals
+  const fetchKarmaTotals = useCallback(async (walletAddress: string) => {
+    if (!walletAddress) return
+    setLoadingKarma(true)
+    try {
+      const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(walletAddress)}`)
+      const profile = await response.json()
+      if (profile && !profile.error) {
+        setTotalGoodKarma(profile.total_good_karma || 0)
+        setTotalBadKarma(profile.total_bad_karma || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching karma totals:', error)
+    } finally {
+      setLoadingKarma(false)
+    }
+  }, [])                                  
 
   // Start music after a delay
   useEffect(() => {
@@ -165,6 +201,22 @@ function DashboardContent() {
     }
   }, [])
 
+  // Fetch Discord link status
+  const checkDiscordStatus = useCallback(async () => {
+    if (!address) return
+    setLoadingDiscord(true)
+    try {
+      const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(address)}`)
+      const data = await response.json()
+      setDiscordLinked(data.linked || false)
+      setDiscordUserId(data.discordUserId || null)
+    } catch (error) {
+      console.error('Error checking Discord status:', error)
+    } finally {
+      setLoadingDiscord(false)
+    }
+  }, [address])
+
   // Auto-create profile when wallet connects
   useEffect(() => {
     if (connected && address) {
@@ -176,15 +228,144 @@ function DashboardContent() {
           walletAddress: address,
           paymentAddress: address // Initially same as wallet address
         })
+      }).then(() => {
+        // Fetch karma totals after profile is created/updated
+        fetchKarmaTotals(address)
       }).catch(err => {
         console.error('Failed to create profile:', err)
       })
       
       fetchUserOrdinals(address)
+      checkDiscordStatus()
+      fetchKarmaTotals(address)
     } else {
       setUserOrdinals([])
+      setDiscordLinked(false)
+      setDiscordUserId(null)
+      setTotalGoodKarma(0)
+      setTotalBadKarma(0)
     }
-  }, [connected, address, fetchUserOrdinals])
+  }, [connected, address, fetchUserOrdinals, checkDiscordStatus, fetchKarmaTotals])
+
+  // Check Discord auth status from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const authStatus = params.get('discord_auth')
+    if (authStatus === 'success' && address) {
+      // Refresh Discord status
+      checkDiscordStatus()
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard')
+    }
+  }, [address, checkDiscordStatus])
+
+  // Handle Discord auth
+  const handleDiscordAuth = () => {
+    if (!address) {
+      alert('Please connect your wallet first')
+      return
+    }
+    window.location.href = `/api/discord/auth?walletAddress=${encodeURIComponent(address)}`
+  }
+
+  // Handle Twitter auth (placeholder for now)
+  const handleTwitterAuth = () => {
+    if (!address) {
+      alert('Please connect your wallet first')
+      return
+    }
+    alert('Twitter authentication coming soon!')
+  }
+
+  // Fetch activity history from Magic Eden
+  const fetchActivityHistory = useCallback(async (walletAddress: string) => {
+    if (!walletAddress) return
+    
+    setLoadingHistory(true)
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
+      
+      // Fetch all activity types in parallel
+      const [purchasesRes, listsRes, delistsRes, sellsRes] = await Promise.all([
+        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=buying_broadcasted&limit=100`),
+        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=list&limit=100`),
+        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=delist&limit=100`),
+        fetch(`/api/magic-eden/activities?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&kind=transfer&limit=100`)
+      ])
+
+      // Parse purchase history (buying_broadcasted)
+      if (purchasesRes.ok) {
+        const purchasesData = await purchasesRes.json()
+        // Filter where user is the new owner (bought something)
+        const purchases = (purchasesData.activities || []).filter((activity: any) => 
+          activity.newOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+          activity.kind === 'buying_broadcasted'
+        )
+        // Sort by date (newest first)
+        purchases.sort((a: any, b: any) => {
+          const dateA = new Date(a.createdAt || 0).getTime()
+          const dateB = new Date(b.createdAt || 0).getTime()
+          return dateB - dateA
+        })
+        setPurchaseHistory(purchases)
+      }
+
+      // Parse list history (list and delist)
+      let allLists: any[] = []
+      if (listsRes.ok) {
+        const listsData = await listsRes.json()
+        const lists = (listsData.activities || []).filter((activity: any) => 
+          activity.kind === 'list' &&
+          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
+        )
+        allLists.push(...lists)
+      }
+      if (delistsRes.ok) {
+        const delistsData = await delistsRes.json()
+        const delists = (delistsData.activities || []).filter((activity: any) => 
+          activity.kind === 'delist' &&
+          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase()
+        )
+        allLists.push(...delists)
+      }
+      // Sort by date (newest first)
+      allLists.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime()
+        const dateB = new Date(b.createdAt || 0).getTime()
+        return dateB - dateA
+      })
+      setListHistory(allLists)
+
+      // Parse sell history (transfers where user was the old owner)
+      if (sellsRes.ok) {
+        const sellsData = await sellsRes.json()
+        const sells = (sellsData.activities || []).filter((activity: any) => 
+          activity.kind === 'transfer' &&
+          activity.oldOwner?.toLowerCase() === walletAddress.toLowerCase() &&
+          activity.newOwner?.toLowerCase() !== walletAddress.toLowerCase() &&
+          activity.txValue && activity.txValue > 0 // Only actual sales with value
+        )
+        // Sort by date (newest first)
+        sells.sort((a: any, b: any) => {
+          const dateA = new Date(a.createdAt || 0).getTime()
+          const dateB = new Date(b.createdAt || 0).getTime()
+          return dateB - dateA
+        })
+        setSellHistory(sells)
+      }
+    } catch (error) {
+      console.error('Error fetching activity history:', error)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  // Fetch activity history when wallet connects or when switching to activity tabs
+  useEffect(() => {
+    if (connected && address && activeSection === 'my-damned' && myDamnedTab !== 'collection') {
+      fetchActivityHistory(address)
+    }
+  }, [connected, address, activeSection, myDamnedTab, fetchActivityHistory])
 
 
   // Calculate stats
@@ -253,20 +434,74 @@ function DashboardContent() {
         />
 
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-          {/* Dashboard Title */}
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-2">
-              <span className="bg-gradient-to-r from-red-600 via-orange-600 to-red-600 bg-clip-text text-transparent">
-                TRADING DASHBOARD
-              </span>
-            </h1>
-            <p className="text-[#ff6b6b] text-sm md:text-base font-mono uppercase tracking-wider">
-              Manage Your Collection
-            </p>
-          </div>
+          {/* Prominent Karma Display */}
+          {connected && address && (
+            <div className="mb-8 bg-gradient-to-r from-black/90 via-red-900/50 to-black/90 border-4 border-red-600 rounded-lg p-6 shadow-2xl relative overflow-hidden">
+              {/* Animated background glow */}
+              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 via-transparent to-red-600/20 animate-pulse" />
+              <div className="relative z-10">
+                <div className="text-center mb-4">
+                  <h2 className="text-3xl font-bold text-red-600 font-mono uppercase tracking-wider mb-2" style={{ textShadow: '0 0 20px rgba(255, 0, 0, 0.8)' }}>
+                    KARMA STATUS
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                  {/* Good Karma */}
+                  <div className="bg-black/80 border-4 border-green-500 rounded-lg p-6 transform hover:scale-105 transition-all duration-300 shadow-lg shadow-green-500/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-green-400 text-sm font-mono uppercase tracking-wider">Good Karma</div>
+                      <div className="text-4xl">✨</div>
+                    </div>
+                    {loadingKarma ? (
+                      <div className="text-green-400 font-mono text-sm animate-pulse">Loading...</div>
+                    ) : (
+                      <div className="text-5xl font-bold text-green-500 font-mono" style={{ textShadow: '0 0 15px rgba(34, 197, 94, 0.8)' }}>
+                        {totalGoodKarma.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Bad Karma */}
+                  <div className="bg-black/80 border-4 border-red-500 rounded-lg p-6 transform hover:scale-105 transition-all duration-300 shadow-lg shadow-red-500/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-red-400 text-sm font-mono uppercase tracking-wider">Bad Karma</div>
+                      <div className="text-4xl">⚡</div>
+                    </div>
+                    {loadingKarma ? (
+                      <div className="text-red-400 font-mono text-sm animate-pulse">Loading...</div>
+                    ) : (
+                      <div className="text-5xl font-bold text-red-500 font-mono" style={{ textShadow: '0 0 15px rgba(239, 68, 68, 0.8)' }}>
+                        {totalBadKarma.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Net Karma */}
+                <div className="mt-6 text-center">
+                  <div className="inline-block bg-black/80 border-2 border-yellow-500/50 rounded-lg px-6 py-3">
+                    <div className="text-yellow-400 text-xs font-mono uppercase tracking-wider mb-1">Net Karma</div>
+                    <div className={`text-3xl font-bold font-mono ${
+                      totalGoodKarma - totalBadKarma >= 0 ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      {totalGoodKarma - totalBadKarma >= 0 ? '+' : ''}{(totalGoodKarma - totalBadKarma).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Internal Navigation */}
           <div className="mb-8 flex flex-wrap gap-4 justify-center">
+            <button
+              onClick={() => setActiveSection('my-profile')}
+              className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                activeSection === 'my-profile'
+                  ? 'bg-red-600/80 border-red-600 text-white'
+                  : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
+              }`}
+            >
+              My Profile
+            </button>
             <button
               onClick={() => setActiveSection('my-damned')}
               className={`px-6 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
@@ -309,6 +544,85 @@ function DashboardContent() {
             </button>
           </div>
 
+          {/* My Profile Section */}
+          {activeSection === 'my-profile' && (
+            <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
+              <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
+                MY PROFILE
+              </h2>
+              {connected && address ? (
+                <div className="space-y-4">
+                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                    <div className="text-gray-400 text-sm font-mono uppercase mb-2">Wallet Address</div>
+                    <div className="text-white font-mono text-sm break-all">{address}</div>
+                  </div>
+                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                    <div className="text-gray-400 text-sm font-mono uppercase mb-2">Holder Status</div>
+                    <div className={`font-mono font-bold ${isHolder ? 'text-green-500' : 'text-red-500'}`}>
+                      {isHolder ? '✓ Verified Holder' : '✗ Not a Holder'}
+                    </div>
+                  </div>
+                  
+                  {/* Social Auth Section */}
+                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                    <div className="text-gray-400 text-sm font-mono uppercase mb-4">Social Accounts</div>
+                    <div className="space-y-3">
+                      {/* Discord Auth */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">💬</div>
+                          <div>
+                            <div className="text-white font-mono text-sm">Discord</div>
+                            {discordLinked && discordUserId && (
+                              <div className="text-gray-400 font-mono text-xs">
+                                Linked: {discordUserId}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleDiscordAuth}
+                          disabled={loadingDiscord}
+                          className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                            discordLinked
+                              ? 'bg-green-600/80 border-green-600 text-white cursor-default'
+                              : 'bg-red-600/80 border-red-600 text-white hover:bg-red-600 hover:border-red-500'
+                          } ${loadingDiscord ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {loadingDiscord ? 'Loading...' : discordLinked ? '✓ Connected' : 'Connect Discord'}
+                        </button>
+                      </div>
+                      
+                      {/* Twitter Auth */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">🐦</div>
+                          <div>
+                            <div className="text-white font-mono text-sm">Twitter</div>
+                            <div className="text-gray-400 font-mono text-xs">Coming soon</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleTwitterAuth}
+                          className="px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 bg-gray-600/80 border-gray-600 text-gray-300 cursor-not-allowed"
+                          disabled
+                        >
+                          Coming Soon
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 font-mono text-lg mb-4">
+                    Connect your wallet to view your profile
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats Cards */}
           {connected && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -339,26 +653,73 @@ function DashboardContent() {
           {activeSection === 'my-damned' && connected ? (
             <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
               <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
-                MY COLLECTION
+                MY DAMNED
               </h2>
               
-              {loadingOrdinals ? (
-                <div className="text-center py-12">
-                  <div className="text-red-600 font-mono text-lg animate-pulse">Loading your ordinals...</div>
-                </div>
-              ) : userOrdinals.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 font-mono text-lg mb-2">No ordinals found in your wallet</div>
-                  <a
-                    href="https://magiceden.us/ordinals/marketplace/the-damned"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-red-600 hover:text-red-500 font-mono underline"
-                  >
-                    Browse The Damned Collection →
-                  </a>
-                </div>
-              ) : (
+              {/* Tab Navigation */}
+              <div className="mb-6 flex flex-wrap gap-2 border-b border-red-600/30 pb-4">
+                <button
+                  onClick={() => setMyDamnedTab('collection')}
+                  className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase transition-all border-2 ${
+                    myDamnedTab === 'collection'
+                      ? 'bg-red-600/80 border-red-600 text-white'
+                      : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
+                  }`}
+                >
+                  Collection
+                </button>
+                <button
+                  onClick={() => setMyDamnedTab('purchases')}
+                  className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase transition-all border-2 ${
+                    myDamnedTab === 'purchases'
+                      ? 'bg-red-600/80 border-red-600 text-white'
+                      : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
+                  }`}
+                >
+                  Purchases ({purchaseHistory.length})
+                </button>
+                <button
+                  onClick={() => setMyDamnedTab('lists')}
+                  className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase transition-all border-2 ${
+                    myDamnedTab === 'lists'
+                      ? 'bg-red-600/80 border-red-600 text-white'
+                      : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
+                  }`}
+                >
+                  Lists ({listHistory.length})
+                </button>
+                <button
+                  onClick={() => setMyDamnedTab('sells')}
+                  className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase transition-all border-2 ${
+                    myDamnedTab === 'sells'
+                      ? 'bg-red-600/80 border-red-600 text-white'
+                      : 'bg-black/60 border-red-600/50 text-red-600 hover:bg-red-600/20'
+                  }`}
+                >
+                  Sells ({sellHistory.length})
+                </button>
+              </div>
+              
+              {/* Collection Tab */}
+              {myDamnedTab === 'collection' && (
+                <>
+                  {loadingOrdinals ? (
+                    <div className="text-center py-12">
+                      <div className="text-red-600 font-mono text-lg animate-pulse">Loading your ordinals...</div>
+                    </div>
+                  ) : userOrdinals.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 font-mono text-lg mb-2">No ordinals found in your wallet</div>
+                      <a
+                        href="https://magiceden.us/ordinals/marketplace/the-damned"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-600 hover:text-red-500 font-mono underline"
+                      >
+                        Browse The Damned Collection →
+                      </a>
+                    </div>
+                  ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {userOrdinals.map((token, index) => (
                     <div
@@ -444,6 +805,155 @@ function DashboardContent() {
                       </div>
                     </div>
                   ))}
+                </div>
+                  )}
+                </>
+              )}
+
+              {/* Purchase History Tab */}
+              {myDamnedTab === 'purchases' && (
+                <div>
+                  {loadingHistory ? (
+                    <div className="text-center py-12">
+                      <div className="text-red-600 font-mono text-lg animate-pulse">Loading purchase history...</div>
+                    </div>
+                  ) : purchaseHistory.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 font-mono text-lg mb-2">No purchase history found</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {purchaseHistory.map((activity, index) => (
+                        <div key={index} className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <div className="text-red-600 font-mono font-bold text-sm">
+                                Token: {activity.tokenId || activity.tokenInscriptionNumber || 'N/A'}
+                              </div>
+                              {activity.txValue && (
+                                <div className="text-green-500 font-mono text-sm mt-1">
+                                  Price: {satoshisToBTC(activity.txValue)} BTC
+                                </div>
+                              )}
+                              <div className="text-gray-400 font-mono text-xs mt-1">
+                                {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'}
+                              </div>
+                            </div>
+                            <a
+                              href={`https://magiceden.us/ordinals/item-details/${activity.tokenId || activity.tokenInscriptionNumber}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs font-mono font-bold transition-all"
+                            >
+                              View →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* List History Tab */}
+              {myDamnedTab === 'lists' && (
+                <div>
+                  {loadingHistory ? (
+                    <div className="text-center py-12">
+                      <div className="text-red-600 font-mono text-lg animate-pulse">Loading list history...</div>
+                    </div>
+                  ) : listHistory.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 font-mono text-lg mb-2">No list history found</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {listHistory.map((activity, index) => (
+                        <div key={index} className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                                  activity.kind === 'list' ? 'bg-green-600/80 text-white' : 'bg-red-600/80 text-white'
+                                }`}>
+                                  {activity.kind === 'list' ? 'LISTED' : 'DELISTED'}
+                                </span>
+                                <span className="text-red-600 font-mono font-bold text-sm">
+                                  Token: {activity.tokenId || activity.tokenInscriptionNumber || 'N/A'}
+                                                                    </span>
+                                  </div>
+                                  {activity.listedPrice && (
+                                    <div className="text-yellow-500 font-mono text-sm mt-1">
+                                      Listed at: {satoshisToBTC(activity.listedPrice)} BTC
+                                    </div>
+                                  )}
+                                  <div className="text-gray-400 font-mono text-xs mt-1">
+                                {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'}
+                              </div>
+                            </div>
+                            <a
+                              href={`https://magiceden.us/ordinals/item-details/${activity.tokenId || activity.tokenInscriptionNumber}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs font-mono font-bold transition-all"
+                            >
+                              View →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sell History Tab */}
+              {myDamnedTab === 'sells' && (
+                <div>
+                  {loadingHistory ? (
+                    <div className="text-center py-12">
+                      <div className="text-red-600 font-mono text-lg animate-pulse">Loading sell history...</div>
+                    </div>
+                  ) : sellHistory.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 font-mono text-lg mb-2">No sell history found</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {sellHistory.map((activity, index) => (
+                        <div key={index} className="bg-black/40 rounded-lg p-4 border border-red-600/30">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <div className="text-red-600 font-mono font-bold text-sm">
+                                Token: {activity.tokenId || activity.tokenInscriptionNumber || 'N/A'}
+                              </div>
+                              {activity.txValue && (
+                                <div className="text-green-500 font-mono text-sm mt-1">
+                                  Sold for: {satoshisToBTC(activity.txValue)} BTC
+                                </div>
+                              )}
+                              {activity.newOwner && (
+                                <div className="text-gray-400 font-mono text-xs mt-1">
+                                  Buyer: {activity.newOwner.slice(0, 8)}...{activity.newOwner.slice(-6)}
+                                </div>
+                              )}
+                              <div className="text-gray-400 font-mono text-xs mt-1">
+                                {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'}
+                              </div>
+                            </div>
+                            <a
+                              href={`https://magiceden.us/ordinals/item-details/${activity.tokenId || activity.tokenInscriptionNumber}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs font-mono font-bold transition-all"
+                            >
+                              View →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

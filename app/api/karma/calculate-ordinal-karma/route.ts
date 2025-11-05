@@ -42,9 +42,9 @@ export async function POST(request: Request) {
     const ordinalCount = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
     const expectedKarma = ordinalCount * 5
     
-    // Get or create profile
+        // Get or create profile
     let profileResult = await pool.query(
-      'SELECT id FROM profiles WHERE wallet_address = $1',
+      'SELECT id, last_ordinal_count FROM profiles WHERE wallet_address = $1',
       [walletAddress]
     )
     
@@ -54,24 +54,18 @@ export async function POST(request: Request) {
         [walletAddress]
       )
       profileResult = await pool.query(
-        'SELECT id FROM profiles WHERE wallet_address = $1',
+        'SELECT id, last_ordinal_count FROM profiles WHERE wallet_address = $1',
         [walletAddress]
       )
     }
     
     const profileId = profileResult.rows[0].id
-    
-    // Get previous ordinal count from discord_users (if exists) or calculate from karma
-    const discordUserResult = await pool.query(`
-      SELECT last_ordinal_count FROM discord_users WHERE wallet_address = $1
-    `, [walletAddress])
-    
-    const previousCount = discordUserResult.rows.length > 0 
-      ? (discordUserResult.rows[0].last_ordinal_count || 0)
-      : null
+
+    // Get previous ordinal count from profiles
+    const previousCount = profileResult.rows[0].last_ordinal_count || 0
     
     // Detect if user bought new ordinals (count increased) - +20 karma per purchase
-    if (previousCount !== null && ordinalCount > previousCount && previousCount >= 0) {
+    if (ordinalCount > previousCount && previousCount >= 0) {
       const purchasedCount = ordinalCount - previousCount
       const purchaseKarma = purchasedCount * 20
       
@@ -84,10 +78,12 @@ export async function POST(request: Request) {
       console.log(`Awarded ${purchaseKarma} karma to ${walletAddress} for purchasing ${purchasedCount} ordinal(s)`)
     }
     
-    // Update last_ordinal_count in discord_users if exists
+    // Update ordinal counts in profiles
     await pool.query(`
-      UPDATE discord_users 
-      SET last_ordinal_count = $1, updated_at = NOW()
+      UPDATE profiles 
+      SET last_ordinal_count = COALESCE(current_ordinal_count, 0),
+          current_ordinal_count = $1,
+          updated_at = NOW()
       WHERE wallet_address = $2
     `, [ordinalCount, walletAddress])
     

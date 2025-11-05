@@ -29,6 +29,11 @@ export async function POST(request: NextRequest) {
         'INSERT INTO profiles (wallet_address, payment_address) VALUES ($1, $1)',
         [walletAddress]
       )
+      // Re-fetch the profile
+      profileResult = await pool.query(
+        'SELECT id FROM profiles WHERE wallet_address = $1',
+        [walletAddress]
+      )
     }
     
     // Get current ordinal count
@@ -55,18 +60,26 @@ export async function POST(request: NextRequest) {
       console.error('Error fetching ordinal count:', error)
     }
     
-    // Insert or update discord_users link
+    // Update profile with ordinal count and holder role status
     await pool.query(`
-      INSERT INTO discord_users (discord_user_id, wallet_address, has_holder_role, last_ordinal_count, verified_at, updated_at)
-      VALUES ($1, $2, true, $3, NOW(), NOW())
+      UPDATE profiles 
+      SET current_ordinal_count = $1, 
+          last_ordinal_count = COALESCE(last_ordinal_count, 0),
+          has_holder_role = true,
+          updated_at = NOW()
+      WHERE wallet_address = $2
+    `, [ordinalCount, walletAddress])
+    
+    // Insert or update discord_users link (simple Discord info only - no ordinal counts or role status, no wallet_address)
+    await pool.query(`
+      INSERT INTO discord_users (discord_user_id, profile_id, verified_at, updated_at)
+      VALUES ($1, $2, NOW(), NOW())
       ON CONFLICT (discord_user_id) 
       DO UPDATE SET 
-        wallet_address = $2,
-        has_holder_role = true,
-        last_ordinal_count = COALESCE(EXCLUDED.last_ordinal_count, discord_users.last_ordinal_count, $3),
+        profile_id = $2,
         verified_at = NOW(),
         updated_at = NOW()
-    `, [discordUserId, walletAddress, ordinalCount])
+    `, [discordUserId, profileResult.rows[0].id])
     
     // Calculate karma based on ordinal ownership (+5 points per ordinal)
     if (ordinalCount > 0 && profileResult.rows.length > 0) {

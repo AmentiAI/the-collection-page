@@ -9,11 +9,12 @@ export async function GET() {
     const pool = getPool()
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     
-    // Get all Discord users with holder roles
+    // Get all Discord users linked to profiles with holder roles
     const discordUsers = await pool.query(`
-      SELECT discord_user_id, wallet_address
-      FROM discord_users
-      WHERE has_holder_role = true
+      SELECT du.discord_user_id, p.wallet_address
+      FROM discord_users du
+      INNER JOIN profiles p ON du.profile_id = p.id
+      WHERE COALESCE(p.has_holder_role, false) = true
     `)
     
     const salesDetected: Array<{ walletAddress: string; currentCount: number; previousCount: number }> = []

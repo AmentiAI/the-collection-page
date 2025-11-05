@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-// In-memory storage (use database in production with Redis/PostgreSQL)
-const verificationCodes = new Map()
 
 // Generate secure random code
 function generateCode(): string {
@@ -62,18 +60,21 @@ export async function POST(request: NextRequest) {
     
     // Generate verification code
     const code = generateCode()
-    const timestamp = Date.now()
+    const expiresAt = new Date(Date.now() + 600000) // 10 minutes from now
     
-    // Store code with address and timestamp
-    verificationCodes.set(code, { address, timestamp })
+    // Store code in database
+    const pool = getPool()
+    await pool.query(
+      `INSERT INTO verification_codes (code, wallet_address, expires_at)
+       VALUES ($1, $2, $3)`,
+      [code, address, expiresAt]
+    )
     
-    // Clean up old codes (older than 10 minutes)
-    const now = Date.now()
-    Array.from(verificationCodes.entries()).forEach(([key, value]) => {
-      if (now - value.timestamp > 600000) {
-        verificationCodes.delete(key)
-      }
-    })
+    // Clean up expired codes (older than 10 minutes)
+    await pool.query(
+      `DELETE FROM verification_codes 
+       WHERE expires_at < NOW() OR (is_used = true AND used_at < NOW() - INTERVAL '1 hour')`
+    )
     
     return NextResponse.json({ 
       verified: true, 
@@ -97,24 +98,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ valid: false, error: 'Code required' }, { status: 400 })
     }
     
-    const verification = verificationCodes.get(code)
+    const pool = getPool()
     
-    if (!verification) {
+    // Find the verification code
+    const result = await pool.query(
+      `SELECT code, wallet_address, expires_at, is_used 
+       FROM verification_codes 
+       WHERE code = $1`,
+      [code]
+    )
+    
+    if (result.rows.length === 0) {
       return NextResponse.json({ valid: false, message: 'Code not found' })
     }
     
-    // Check if code is expired (10 minutes)
-    if (Date.now() - verification.timestamp > 600000) {
-      verificationCodes.delete(code) // Clean up expired code
+    const verification = result.rows[0]
+    
+    // Check if code is already used
+    if (verification.is_used) {
+      return NextResponse.json({ valid: false, message: 'Code has already been used' })
+    }
+    
+    // Check if code is expired
+    if (new Date(verification.expires_at) < new Date()) {
+      // Mark as used/expired for cleanup
+      await pool.query(
+        `UPDATE verification_codes SET is_used = true, used_at = NOW() WHERE code = $1`,
+        [code]
+      )
       return NextResponse.json({ valid: false, message: 'Code expired' })
     }
     
-    // Code is valid - delete it so it can't be reused
-    verificationCodes.delete(code)
+    // Code is valid - mark as used so it can't be reused
+    await pool.query(
+      `UPDATE verification_codes SET is_used = true, used_at = NOW() WHERE code = $1`,
+      [code]
+    )
     
     return NextResponse.json({ 
       valid: true, 
-      address: verification.address 
+      address: verification.wallet_address 
     })
     
   } catch (error) {

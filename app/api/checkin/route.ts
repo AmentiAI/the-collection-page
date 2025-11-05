@@ -17,11 +17,13 @@ export async function POST(request: NextRequest) {
     
     const pool = getPool()
     
-    // Get Discord user record
-    const discordUserResult = await pool.query(
-      'SELECT wallet_address, last_checkin FROM discord_users WHERE discord_user_id = $1',
-      [discordUserId]
-    )
+    // Get Discord user record with profile
+    const discordUserResult = await pool.query(`
+      SELECT p.wallet_address, du.last_checkin, du.profile_id
+      FROM discord_users du
+      INNER JOIN profiles p ON du.profile_id = p.id
+      WHERE du.discord_user_id = $1
+    `, [discordUserId])
     
     if (discordUserResult.rows.length === 0) {
       return NextResponse.json(
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const { wallet_address, last_checkin } = discordUserResult.rows[0]
+    const { wallet_address, last_checkin, profile_id } = discordUserResult.rows[0]
     
     // Check if 24 hours have passed since last check-in
     const now = new Date()
@@ -53,26 +55,19 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Get profile ID
-    const profileResult = await pool.query(
-      'SELECT id FROM profiles WHERE wallet_address = $1',
-      [wallet_address]
-    )
-    
-    if (profileResult.rows.length === 0) {
+    // Profile ID already obtained from the join query above
+    if (!profile_id) {
       return NextResponse.json(
         { error: 'Profile not found' },
         { status: 404 }
       )
     }
     
-    const profileId = profileResult.rows[0].id
-    
     // Award +5 karma for check-in
     await pool.query(`
       INSERT INTO karma_points (profile_id, points, type, reason, given_by)
       VALUES ($1, 5, 'good', 'Daily check-in', 'system')
-    `, [profileId])
+    `, [profile_id])
     
     // Update last_checkin timestamp
     await pool.query(`

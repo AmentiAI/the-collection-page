@@ -39,50 +39,49 @@ export async function initDatabase() {
   const pool = getPool()
   
   try {
+    // Drop all tables first (in correct order to handle foreign key constraints)
+    console.log('🗑️ Dropping all existing tables...')
+    
+    // Drop dependent tables first
+    await pool.query(`DROP TABLE IF EXISTS user_task_completions CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS karma_points CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS ordinal_sales CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS discord_users CASCADE`)
+    
+    // Drop main tables
+    await pool.query(`DROP TABLE IF EXISTS profiles CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS karma_tasks CASCADE`)
+    
+    // Drop triggers and functions
+    await pool.query(`DROP TRIGGER IF EXISTS trigger_update_profile_karma ON karma_points`)
+    await pool.query(`DROP FUNCTION IF EXISTS update_profile_karma() CASCADE`)
+    
+    console.log('✅ All tables dropped successfully')
+    
     // Create profiles table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS profiles (
+      CREATE TABLE profiles (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         wallet_address TEXT UNIQUE NOT NULL,
         username TEXT,
         avatar_url TEXT,
+        payment_address TEXT,
         total_good_karma INTEGER DEFAULT 0,
         total_bad_karma INTEGER DEFAULT 0,
+        last_ordinal_count INTEGER DEFAULT 0,
+        current_ordinal_count INTEGER DEFAULT 0,
+        has_holder_role BOOLEAN DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
     
-    // Add payment_address column if it doesn't exist (for existing databases)
-    try {
-      const columnCheck = await pool.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='profiles' AND column_name='payment_address'
-      `)
-      
-      if (columnCheck.rows.length === 0) {
-        await pool.query(`
-          ALTER TABLE profiles ADD COLUMN payment_address TEXT
-        `)
-        
-        // Update existing rows
-        await pool.query(`
-          UPDATE profiles 
-          SET payment_address = wallet_address 
-          WHERE payment_address IS NULL
-        `)
-        
-        console.log('✅ Added payment_address column to profiles table')
-      }
-    } catch (error) {
-      console.error('Error adding payment_address column:', error)
-      // Continue anyway - migration endpoint can handle this
-    }
+
     
     // Create karma_points table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS karma_points (
+      CREATE TABLE karma_points (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
         points INTEGER NOT NULL,
@@ -95,79 +94,44 @@ export async function initDatabase() {
     
     // Create indexes
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_karma_points_profile_id ON karma_points(profile_id)
+      CREATE INDEX idx_karma_points_profile_id ON karma_points(profile_id)
     `)
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_karma_points_created_at ON karma_points(created_at DESC)
+      CREATE INDEX idx_karma_points_created_at ON karma_points(created_at DESC)
     `)
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_profiles_wallet_address ON profiles(wallet_address)
+      CREATE INDEX idx_profiles_wallet_address ON profiles(wallet_address)
     `)
 
-    // Create discord_users table to link Discord user IDs to wallet addresses
+    // Create discord_users table - simple Discord info only (no ordinal counts, no holder role status, no wallet_address)
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS discord_users (
+      CREATE TABLE discord_users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         discord_user_id TEXT UNIQUE NOT NULL,
-        wallet_address TEXT NOT NULL REFERENCES profiles(wallet_address) ON DELETE CASCADE,
+        profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         verified_at TIMESTAMPTZ DEFAULT NOW(),
         last_checked_at TIMESTAMPTZ,
-        has_holder_role BOOLEAN DEFAULT false,
-        last_ordinal_count INTEGER DEFAULT 0,
+        last_checkin TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
     
-    // Add last_ordinal_count column if it doesn't exist (for existing databases)
-    try {
-      const columnCheck = await pool.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name='discord_users' AND column_name='last_ordinal_count'
-      `)
-      
-      if (columnCheck.rows.length === 0) {
-        await pool.query(`
-          ALTER TABLE discord_users ADD COLUMN last_ordinal_count INTEGER DEFAULT 0
-        `)
-        console.log('✅ Added last_ordinal_count column to discord_users table')
-      }
-    } catch (error) {
-      console.error('Error adding last_ordinal_count column:', error)
-    }
 
-    // Add last_checkin column if it doesn't exist (for existing databases)
-    try {
-      const columnCheck = await pool.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name='discord_users' AND column_name='last_checkin'
-      `)
-      
-      if (columnCheck.rows.length === 0) {
-        await pool.query(`
-          ALTER TABLE discord_users ADD COLUMN last_checkin TIMESTAMPTZ
-        `)
-        console.log('✅ Added last_checkin column to discord_users table')
-      }
-    } catch (error) {
-      console.error('Error adding last_checkin column:', error)
-    }
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_discord_users_discord_id ON discord_users(discord_user_id)
+      CREATE INDEX idx_discord_users_discord_id ON discord_users(discord_user_id)
     `)
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_discord_users_wallet_address ON discord_users(wallet_address)
+      CREATE INDEX idx_discord_users_profile_id ON discord_users(profile_id)
     `)
 
     // Create ordinal_sales table to track sales and karma deductions
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS ordinal_sales (
+      CREATE TABLE ordinal_sales (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         wallet_address TEXT NOT NULL,
         inscription_id TEXT,
@@ -179,11 +143,36 @@ export async function initDatabase() {
     `)
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_ordinal_sales_wallet_address ON ordinal_sales(wallet_address)
+      CREATE INDEX idx_ordinal_sales_wallet_address ON ordinal_sales(wallet_address)
     `)
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_ordinal_sales_sold_at ON ordinal_sales(sold_at DESC)
+      CREATE INDEX idx_ordinal_sales_sold_at ON ordinal_sales(sold_at DESC)
+    `)
+
+    // Create verification_codes table for Discord wallet verification
+    await pool.query(`
+      CREATE TABLE verification_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code TEXT UNIQUE NOT NULL,
+        wallet_address TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        is_used BOOLEAN DEFAULT false
+      )
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_verification_codes_code ON verification_codes(code)
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_verification_codes_wallet_address ON verification_codes(wallet_address)
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_verification_codes_expires_at ON verification_codes(expires_at)
     `)
     
     // Create function to update profile karma totals
@@ -224,7 +213,7 @@ export async function initDatabase() {
     
     // Create karma_tasks table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS karma_tasks (
+      CREATE TABLE karma_tasks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
         description TEXT,
@@ -240,7 +229,7 @@ export async function initDatabase() {
     
     // Create user_task_completions table to track completed tasks
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS user_task_completions (
+      CREATE TABLE user_task_completions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
         task_id UUID REFERENCES karma_tasks(id) ON DELETE CASCADE,
@@ -254,15 +243,15 @@ export async function initDatabase() {
     
     // Create indexes for tasks
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_karma_tasks_type ON karma_tasks(type, is_active)
+      CREATE INDEX idx_karma_tasks_type ON karma_tasks(type, is_active)
     `)
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_user_task_completions_profile_id ON user_task_completions(profile_id)
+      CREATE INDEX idx_user_task_completions_profile_id ON user_task_completions(profile_id)
     `)
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_user_task_completions_task_id ON user_task_completions(task_id)
+      CREATE INDEX idx_user_task_completions_task_id ON user_task_completions(task_id)
     `)
     
     // Always remove all placeholder karma tasks (keep only Trial Win and Trial Loss)

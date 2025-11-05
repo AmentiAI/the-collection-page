@@ -9,11 +9,14 @@ export async function GET() {
     const pool = getPool()
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     
-    // Get all Discord users with holder roles
+    // Get all Discord users linked to profiles with holder roles and their ordinal counts
     const discordUsers = await pool.query(`
-      SELECT discord_user_id, wallet_address, has_holder_role, last_ordinal_count
-      FROM discord_users
-      WHERE has_holder_role = true
+      SELECT du.discord_user_id, p.wallet_address, 
+             COALESCE(p.last_ordinal_count, 0) as last_ordinal_count,
+             COALESCE(p.has_holder_role, false) as has_holder_role
+      FROM discord_users du
+      INNER JOIN profiles p ON du.profile_id = p.id
+      WHERE COALESCE(p.has_holder_role, false) = true
     `)
     
     const usersToRemoveRole: Array<{ discordUserId: string; walletAddress: string }> = []
@@ -152,19 +155,39 @@ export async function GET() {
             walletAddress: user.wallet_address
           })
           
-          // Update database
+          // Update database - remove holder role from profile
+          await pool.query(`
+            UPDATE profiles 
+            SET has_holder_role = false,
+                last_ordinal_count = 0, 
+                current_ordinal_count = 0, 
+                updated_at = NOW()
+            WHERE wallet_address = $1
+          `, [user.wallet_address])
+          
+          // Update discord_users last checked time
           await pool.query(`
             UPDATE discord_users 
-            SET has_holder_role = false, last_ordinal_count = 0, last_checked_at = NOW(), updated_at = NOW()
+            SET last_checked_at = NOW(), updated_at = NOW()
             WHERE discord_user_id = $1
           `, [user.discord_user_id])
         } else {
-          // Update last checked time and ordinal count
+          // Update profile - ensure holder role is true and update ordinal counts
+          await pool.query(`
+            UPDATE profiles 
+            SET has_holder_role = true,
+                last_ordinal_count = COALESCE(current_ordinal_count, 0), 
+                current_ordinal_count = $1, 
+                updated_at = NOW()
+            WHERE wallet_address = $2
+          `, [total, user.wallet_address])
+          
+          // Update last checked time in discord_users
           await pool.query(`
             UPDATE discord_users 
-            SET last_ordinal_count = $1, last_checked_at = NOW(), updated_at = NOW()
-            WHERE discord_user_id = $2
-          `, [total, user.discord_user_id])
+            SET last_checked_at = NOW(), updated_at = NOW()
+            WHERE discord_user_id = $1
+          `, [user.discord_user_id])
         }
       } catch (error) {
         console.error(`Error checking holder for ${user.wallet_address}:`, error)
