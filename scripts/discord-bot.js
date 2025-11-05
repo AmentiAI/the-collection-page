@@ -28,6 +28,16 @@ const verifyCommand = {
   ],
 };
 
+const checkHoldersCommand = {
+  name: 'checkholders',
+  description: 'Check all holders and remove roles from those who no longer have ordinals (Admin only)',
+};
+
+const checkinCommand = {
+  name: 'checkin',
+  description: 'Check in daily to receive +5 karma points (once every 24 hours)',
+};
+
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -37,7 +47,7 @@ async function registerCommands() {
 
     await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),                                                                             
-      { body: [verifyCommand] }
+      { body: [verifyCommand, checkHoldersCommand, checkinCommand] }
     );
 
     console.log('Successfully registered application commands.');
@@ -124,6 +134,27 @@ client.on(Events.InteractionCreate, async interaction => {
 
           try {
             await member.roles.add(role);
+            
+            // Link Discord user to wallet address in database
+            try {
+              const linkResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  discordUserId: interaction.user.id,
+                  walletAddress: data.address
+                })
+              });
+              
+              if (linkResponse.ok) {
+                console.log(`✅ Linked Discord user ${interaction.user.id} to wallet ${data.address}`);
+              } else {
+                console.error(`Failed to link Discord user: ${linkResponse.status}`);
+              }
+            } catch (linkError) {
+              console.error('Error linking Discord user:', linkError);
+            }
+            
             await interaction.editReply({
               content: `✅ **Verification successful!**\n\nYou've been verified as a holder of The Damned ordinals.\nYour address: \`${data.address}\`\n\nThe holder role has been assigned to you.`,
             });
@@ -156,7 +187,193 @@ client.on(Events.InteractionCreate, async interaction => {
       });
     }
   }
+  
+  // Handle checkholders command
+  if (interaction.commandName === 'checkholders') {
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('Administrator')) {
+      await interaction.reply({
+        content: '❌ **Permission Denied**\n\nYou must have Administrator permissions to use this command.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/holders/check`;
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        await interaction.editReply({
+          content: `❌ **Error**\n\nFailed to check holders: ${response.status}`,
+        });
+        return;
+      }
+      
+      const data = await response.json();
+      const role = interaction.guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+      
+      if (!role) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nHolder role not found.',
+        });
+        return;
+      }
+      
+      let removedCount = 0;
+      let errorCount = 0;
+      
+      // Remove roles from users who no longer have ordinals
+      for (const user of data.usersToRemoveRole || []) {
+        try {
+          const member = await interaction.guild.members.fetch(user.discordUserId);
+          if (member.roles.cache.has(role.id)) {
+            await member.roles.remove(role);
+            removedCount++;
+            console.log(`Removed holder role from ${member.user.tag} (${user.discordUserId})`);
+          }
+        } catch (error) {
+          console.error(`Error removing role from ${user.discordUserId}:`, error);
+          errorCount++;
+        }
+      }
+      
+      await interaction.editReply({
+        content: `✅ **Holder Check Complete**\n\n` +
+          `Checked: ${data.totalChecked} holders\n` +
+          `Removed roles: ${removedCount} users\n` +
+          `Errors: ${errorCount}\n\n` +
+          `Users who no longer have ordinals have been removed from the holder role.`,
+      });
+    } catch (error) {
+      console.error('Error checking holders:', error);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred: ${error.message}`,
+      });
+    }
+  }
+  
+  // Handle checkin command
+  if (interaction.commandName === 'checkin') {
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/checkin`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discordUserId: interaction.user.id
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        await interaction.editReply({
+          content: errorData.message || `❌ **Error**\n\nFailed to check in: ${response.status}`,
+        });
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        await interaction.editReply({
+          content: data.message || `✅ **Check-in Successful!**\n\nYou received **+${data.karmaAwarded} karma points** for checking in today.\n\nCome back in 24 hours to check in again!`,
+        });
+      } else {
+        // Cooldown message
+        const hoursRemaining = data.hoursRemaining || 0;
+        const nextCheckin = data.nextCheckin ? new Date(data.nextCheckin).toLocaleString() : '24 hours';
+        await interaction.editReply({
+          content: data.message || `⏰ **Check-in Cooldown**\n\nYou can check in again in ${hoursRemaining} hour(s).\n\nNext check-in available: ${nextCheckin}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error during check-in:', error);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred during check-in: ${error.message}`,
+      });
+    }
+  }
 });
+
+// Periodic job to check holders and remove roles (runs every hour)
+setInterval(async () => {
+  try {
+    console.log('🔄 Running periodic holder check...');
+    const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/holders/check`;
+    const response = await fetch(apiUrl);
+    
+    if (!response.ok) {
+      console.error('Failed to check holders:', response.status);
+      return;
+    }
+    
+    const data = await response.json();
+    
+    if (data.usersToRemoveRole && data.usersToRemoveRole.length > 0) {
+      const guild = client.guilds.cache.get(process.env.GUILD_ID);
+      if (!guild) {
+        console.error('Guild not found');
+        return;
+      }
+      
+      const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+      if (!role) {
+        console.error('Holder role not found');
+        return;
+      }
+      
+      // Remove roles from users who no longer have ordinals
+      for (const user of data.usersToRemoveRole) {
+        try {
+          const member = await guild.members.fetch(user.discordUserId);
+          if (member.roles.cache.has(role.id)) {
+            await member.roles.remove(role);
+            console.log(`✅ Removed holder role from ${member.user.tag} (${user.discordUserId}) - no longer has ordinals`);
+          }
+        } catch (error) {
+          console.error(`Error removing role from ${user.discordUserId}:`, error);
+        }
+      }
+      
+      console.log(`✅ Periodic check complete: Removed ${data.usersToRemoveRole.length} holder roles`);
+    } else {
+      console.log('✅ Periodic check complete: All holders still have ordinals');
+    }
+  } catch (error) {
+    console.error('Error in periodic holder check:', error);
+  }
+}, 3600000); // Run every hour (3600000 ms)
+
+// Periodic job to check for missed check-ins and apply -5 karma penalty (runs every 24 hours)
+setInterval(async () => {
+  try {
+    console.log('🔄 Running missed check-in penalty check...');
+    const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/checkin/penalty`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to check missed check-ins:', response.status);
+      return;
+    }
+    
+    const data = await response.json();
+    if (data.penaltiesApplied > 0) {
+      console.log(`✅ Missed check-in penalty check complete: Applied -5 karma to ${data.penaltiesApplied} user(s)`);
+    } else {
+      console.log('✅ Missed check-in penalty check complete: No penalties needed');
+    }
+  } catch (error) {
+    console.error('Error in missed check-in penalty check:', error);
+  }
+}, 86400000); // Run every 24 hours (86400000 ms)
 
 // Bot ready event
 client.once(Events.ClientReady, async () => {

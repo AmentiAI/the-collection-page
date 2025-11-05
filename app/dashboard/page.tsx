@@ -49,15 +49,16 @@ interface MagicEdenToken {
 
 function DashboardContent() {
   const { connected, address } = useLaserEyes()
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [userOrdinals, setUserOrdinals] = useState<MagicEdenToken[]>([])
+  const blessedVideoRef = useRef<HTMLVideoElement>(null)
+  const damnedVideoRef = useRef<HTMLVideoElement>(null)
+  const [userOrdinals, setUserOrdinals] = useState<MagicEdenToken[]>([])        
   const [loadingOrdinals, setLoadingOrdinals] = useState(false)
-  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)      
   const [isVerifying, setIsVerifying] = useState(false)
   const [musicVolume, setMusicVolume] = useState(30)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
   const [startMusic, setStartMusic] = useState(false)
-  const [activeSection, setActiveSection] = useState<'my-damned' | 'leaderboard' | 'points-history' | 'morality'>('my-damned')
+  const [activeSection, setActiveSection] = useState<'my-damned' | 'leaderboard' | 'points-history' | 'morality'>('my-damned')                                  
 
   // Start music after a delay
   useEffect(() => {
@@ -65,6 +66,23 @@ function DashboardContent() {
       setStartMusic(true)
     }, 2000)
     return () => clearTimeout(musicTimer)
+  }, [])
+
+  // Auto-play videos
+  useEffect(() => {
+    const playVideos = async () => {
+      try {
+        if (blessedVideoRef.current) {
+          blessedVideoRef.current.play().catch(err => console.log('Blessed video play failed:', err))
+        }
+        if (damnedVideoRef.current) {
+          damnedVideoRef.current.play().catch(err => console.log('Damned video play failed:', err))
+        }
+      } catch (error) {
+        console.log('Video autoplay blocked:', error)
+      }
+    }
+    playVideos()
   }, [])
 
   const handleHolderVerified = (holder: boolean, walletAddress?: string) => {
@@ -126,6 +144,20 @@ function DashboardContent() {
 
       console.log('✅ Parsed tokens count:', tokens.length)
       setUserOrdinals(tokens)
+      
+      // Calculate karma based on ordinal ownership (+5 points per ordinal)
+      // Purchase karma (+10 per ordinal) is awarded automatically when count increases are detected
+      if (tokens.length > 0) {
+        try {
+          await fetch('/api/karma/calculate-ordinal-karma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress })
+          })
+        } catch (error) {
+          console.error('Error calculating ordinal karma:', error)
+        }
+      }
     } catch (error) {
       console.error('Error fetching ordinals:', error)
     } finally {
@@ -154,99 +186,6 @@ function DashboardContent() {
     }
   }, [connected, address, fetchUserOrdinals])
 
-  // Particle canvas animation (embers)
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-    }
-    resizeCanvas()
-    window.addEventListener('resize', resizeCanvas)
-
-    class Particle {
-      x: number
-      y: number
-      vx: number
-      vy: number
-      life: number
-      maxLife: number
-      color: string
-      size: number
-
-      constructor(canvasWidth: number, canvasHeight: number) {
-        this.x = Math.random() * canvasWidth
-        this.y = canvasHeight + 10
-        this.vx = (Math.random() - 0.5) * 2
-        this.vy = -Math.random() * 6 - 3
-        this.life = 0
-        this.maxLife = Math.random() * 100 + 60
-        this.size = Math.random() * 2 + 1
-
-        const colors = [
-          'rgba(255, 140, 0, ',
-          'rgba(255, 165, 0, ',
-          'rgba(255, 69, 0, ',
-          'rgba(255, 200, 50, ',
-          'rgba(220, 20, 60, ',
-        ]
-        this.color = colors[Math.floor(Math.random() * colors.length)]
-      }
-
-      update() {
-        this.x += this.vx
-        this.y += this.vy
-        this.life++
-        this.vy *= 0.98
-        this.vx *= 0.99
-      }
-
-      draw(ctx: CanvasRenderingContext2D) {
-        const opacity = Math.max(0, 1 - this.life / this.maxLife)
-        ctx.fillStyle = this.color + opacity + ')'
-        ctx.fillRect(this.x, this.y, this.size, this.size)
-      }
-
-      isDead() {
-        return this.life >= this.maxLife
-      }
-    }
-
-    const particles: Particle[] = []
-    const maxParticles = 500
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      if (particles.length < maxParticles) {
-        for (let i = 0; i < 10; i++) {
-          particles.push(new Particle(canvas.width, canvas.height))
-        }
-      }
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update()
-        particles[i].draw(ctx)
-
-        if (particles[i].isDead()) {
-          particles.splice(i, 1)
-        }
-      }
-
-      requestAnimationFrame(animate)
-    }
-
-    animate()
-
-    return () => {
-      window.removeEventListener('resize', resizeCanvas)
-    }
-  }, [])
 
   // Calculate stats
   const totalOrdinals = userOrdinals.length
@@ -259,7 +198,46 @@ function DashboardContent() {
     <>
       <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <BloodCanvas />
-      <main className="min-h-screen relative overflow-x-hidden">
+      <main className="min-h-screen relative overflow-x-hidden bg-black">
+        {/* Background Videos */}
+        <div className="fixed inset-0 z-0">
+          {/* Blessed Side Background - Heaven Gate */}
+          <div className="absolute left-0 top-0 w-1/2 h-full overflow-hidden">
+            <video
+              ref={blessedVideoRef}
+              className="w-full h-full object-cover opacity-50"
+              loop
+              muted
+              playsInline
+              autoPlay
+            >
+              <source src={`/${encodeURIComponent('New folder (8)')}/Make_a_gate_202511041646_0jdzq.mp4`} type="video/mp4" />
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/40 via-blue-900/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/40" />
+          </div>
+
+          {/* Damned Side Background - Hell Gate */}
+          <div className="absolute right-0 top-0 w-1/2 h-full overflow-hidden">
+            <video
+              ref={damnedVideoRef}
+              className="w-full h-full object-cover opacity-50"
+              loop
+              muted
+              playsInline
+              autoPlay
+            >
+              <source src={`/${encodeURIComponent('New folder (8)')}/Make_a_gate_202511041646_j7tr4.mp4`} type="video/mp4" />
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-l from-red-900/40 via-orange-900/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/40" />
+          </div>
+
+          {/* Center Divider */}
+          <div className="absolute left-1/2 top-0 w-1 h-full bg-gradient-to-b from-transparent via-[#ff0000]/50 to-transparent transform -translate-x-1/2" />
+          <div className="absolute left-1/2 top-0 w-2 h-full bg-gradient-to-b from-transparent via-[#ff0000]/20 to-transparent transform -translate-x-1/2 blur-sm" />
+        </div>
+
         <Header 
           isHolder={isHolder} 
           isVerifying={isVerifying}
@@ -271,104 +249,9 @@ function DashboardContent() {
           onMusicVolumeChange={setMusicVolume}
           isMusicMuted={isMusicMuted}
           onMusicMutedChange={setIsMusicMuted}
+          showStakeButton={true}
         />
 
-        {/* Particle Canvas (Embers) */}
-        <canvas ref={canvasRef} className="absolute inset-0 z-5 pointer-events-none" />
-
-        {/* Running Characters */}
-        <div className="absolute inset-0 z-5 pointer-events-none overflow-hidden">
-          {/* Character 1 - Right to Left at 0s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across"
-            style={{ animationDelay: '0s', left: '100%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-              <img src="/damned-character-1.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-
-          {/* Character 2 - Right to Left at 2.5s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across"
-            style={{ animationDelay: '2.5s', left: '100%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-              <img src="/damned-character-2.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-
-          {/* Character 3 - Left to Right at 5s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across-reverse"
-            style={{ animationDelay: '5s', left: '-20%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-              <img
-                src="/damned-character-3.png"
-                alt=""
-                className="absolute top-0 left-0 w-full h-full object-contain"
-                style={{ transform: 'scaleX(-1)' }}
-              />
-            </div>
-          </div>
-
-          {/* Character 4 - Right to Left at 7.5s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across"
-            style={{ animationDelay: '7.5s', left: '100%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-              <img src="/damned-character-4.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-
-          {/* Character 6 - Left to Right at 10s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across-reverse"
-            style={{ animationDelay: '10s', left: '-20%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-              <img
-                src="/damned-character-6.png"
-                alt=""
-                className="absolute top-0 left-0 w-full h-full object-contain"
-                style={{ transform: 'scaleX(-1)' }}
-              />
-            </div>
-          </div>
-
-          {/* Character 7 - Left to Right at 12.5s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across-reverse"
-            style={{ animationDelay: '12.5s', left: '-20%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-              <img src="/damned-character-7.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-
-          {/* Character 8 - Left to Right at 2s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across-reverse"
-            style={{ animationDelay: '2s', left: '-20%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-              <img src="/damned-character-8.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-
-          {/* Character 9 - Left to Right at 12s */}
-          <div
-            className="absolute bottom-[-50px] w-32 h-64 md:w-40 md:h-72 animate-run-across-reverse"
-            style={{ animationDelay: '12s', left: '-20%' }}
-          >
-            <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-              <img src="/damned-character-9.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
-            </div>
-          </div>
-        </div>
-        
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
           {/* Dashboard Title */}
           <div className="mb-8 text-center">

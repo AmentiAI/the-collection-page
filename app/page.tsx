@@ -11,6 +11,7 @@ import Gallery from '@/components/Gallery'
 import BackgroundMusic from '@/components/BackgroundMusic'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
+import TraitRarityTracker from '@/components/TraitRarityTracker'
 import { Ordinal, Trait } from '@/types'
 
 // Only load LaserEyes provider after page is mounted
@@ -153,10 +154,10 @@ export default function Home() {
               isMusicMuted={isMusicMuted}
               onMusicMutedChange={setIsMusicMuted}
             />
-            <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
+                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">                                                                               
+              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-4 sm:gap-6 lg:gap-8">                                                               
                 <aside className="order-2 lg:order-1">
-                  <Filters 
+                  <Filters
                     ordinals={ordinals}
                     filters={filters}
                     onFilterChange={updateFilters}
@@ -164,12 +165,15 @@ export default function Home() {
                   />
                 </aside>
                 <main className="order-1 lg:order-2">
-                  <Gallery 
-                    ordinals={filteredOrdinals} 
-                    loading={loading} 
+                  <Gallery
+                    ordinals={filteredOrdinals}
+                    loading={loading}
                     onOrdinalClick={setSelectedOrdinal}
                   />
                 </main>
+                <aside className="order-3 lg:order-3">
+                  <TraitRarityTracker collectionSymbol="the-damned" />
+                </aside>
               </div>
             </div>
           </main>

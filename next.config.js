@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   experimental: {
-    serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react'],
+    serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react', 'pg'],                                            
   },
   webpack: (config, { isServer, dev }) => {
     // Exclude problematic packages from server-side bundle
@@ -18,10 +18,13 @@ const nextConfig = {
     
     config.resolve.fallback = {
       ...config.resolve.fallback,
-      fs: false,
-      net: false,
-      tls: false,
-      crypto: false,
+      // Only set these to false for client-side builds
+      ...(isServer ? {} : {
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      }),
     }
     
     // Fix webpack chunk loading issues in dev mode
