@@ -434,56 +434,131 @@ function DashboardContent() {
         />
 
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-          {/* Prominent Karma Display */}
+          {/* Compact Hellish Karma Scoreboard */}
           {connected && address && (
-            <div className="mb-8 bg-gradient-to-r from-black/90 via-red-900/50 to-black/90 border-4 border-red-600 rounded-lg p-6 shadow-2xl relative overflow-hidden">
-              {/* Animated background glow */}
-              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 via-transparent to-red-600/20 animate-pulse" />
-              <div className="relative z-10">
-                <div className="text-center mb-4">
-                  <h2 className="text-3xl font-bold text-red-600 font-mono uppercase tracking-wider mb-2" style={{ textShadow: '0 0 20px rgba(255, 0, 0, 0.8)' }}>
-                    KARMA STATUS
-                  </h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                  {/* Good Karma */}
-                  <div className="bg-black/80 border-4 border-green-500 rounded-lg p-6 transform hover:scale-105 transition-all duration-300 shadow-lg shadow-green-500/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-green-400 text-sm font-mono uppercase tracking-wider">Good Karma</div>
-                      <div className="text-4xl">✨</div>
-                    </div>
-                    {loadingKarma ? (
-                      <div className="text-green-400 font-mono text-sm animate-pulse">Loading...</div>
-                    ) : (
-                      <div className="text-5xl font-bold text-green-500 font-mono" style={{ textShadow: '0 0 15px rgba(34, 197, 94, 0.8)' }}>
-                        {totalGoodKarma.toLocaleString()}
+            <div className="mb-6 relative">
+              {/* Scanline overlay effect */}
+              <div className="absolute inset-0 pointer-events-none z-20 opacity-10" style={{
+                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.05) 2px, rgba(255,0,0,0.05) 4px)'
+              }} />
+              
+              {/* Compact scoreboard container */}
+              <div className="relative bg-gradient-to-br from-black via-red-950/30 to-black border-2 border-red-600/50 rounded-sm p-4 shadow-2xl overflow-hidden" style={{
+                boxShadow: 'inset 0 0 30px rgba(220, 38, 38, 0.2), 0 0 50px rgba(220, 38, 38, 0.4)'
+              }}>
+                {/* Hellish grid background */}
+                <div className="absolute inset-0 opacity-5" style={{
+                  backgroundImage: `
+                    linear-gradient(rgba(220,38,38,0.3) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(220,38,38,0.3) 1px, transparent 1px)
+                  `,
+                  backgroundSize: '30px 30px'
+                }} />
+                
+                {/* Small corner brackets */}
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
+                
+                {/* Hellish pulsing glow */}
+                <div className="absolute inset-0 bg-gradient-to-r from-red-900/15 via-orange-900/5 to-red-900/15 animate-pulse" />
+                
+                <div className="relative z-10">
+                  {/* Compact horizontal scoreboard with NET in center */}
+                  <div className="grid grid-cols-3 gap-2 md:gap-4 items-center max-w-4xl mx-auto">
+                    {/* Good Karma - Left */}
+                    <div className="relative group">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-sm opacity-50 group-hover:opacity-75 blur-sm transition duration-300" style={{ boxShadow: '0 0 15px rgba(34, 197, 94, 0.5)' }} />
+                      <div className="relative bg-black/95 border-2 border-green-500/80 rounded-sm px-3 py-2 md:px-4 md:py-2" style={{ 
+                        boxShadow: 'inset 0 0 15px rgba(34, 197, 94, 0.15), 0 0 25px rgba(34, 197, 94, 0.4)'
+                      }}>
+                        <div className="flex items-center gap-2 md:gap-3">
+                          <span className="text-base md:text-lg" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.8)', filter: 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.6))' }}>✦</span>
+                          <div>
+                            <div className="text-green-400 text-[10px] font-mono uppercase tracking-widest font-bold">GOOD</div>
+                            {loadingKarma ? (
+                              <div className="text-green-400 font-mono text-xs animate-pulse">...</div>
+                            ) : (
+                              <div className="text-xl md:text-2xl font-black text-green-400 font-mono" style={{
+                                textShadow: '0 0 15px rgba(34, 197, 94, 0.9), 0 0 30px rgba(34, 197, 94, 0.5), 0 1px 0 #000',
+                                fontVariantNumeric: 'tabular-nums',
+                                filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))'
+                              }}>
+                                {totalGoodKarma.toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  {/* Bad Karma */}
-                  <div className="bg-black/80 border-4 border-red-500 rounded-lg p-6 transform hover:scale-105 transition-all duration-300 shadow-lg shadow-red-500/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-red-400 text-sm font-mono uppercase tracking-wider">Bad Karma</div>
-                      <div className="text-4xl">⚡</div>
                     </div>
-                    {loadingKarma ? (
-                      <div className="text-red-400 font-mono text-sm animate-pulse">Loading...</div>
-                    ) : (
-                      <div className="text-5xl font-bold text-red-500 font-mono" style={{ textShadow: '0 0 15px rgba(239, 68, 68, 0.8)' }}>
-                        {totalBadKarma.toLocaleString()}
+                    
+                    {/* Net Karma - Center (where page divides) */}
+                    <div className="relative group">
+                      <div className={`absolute -inset-0.5 rounded-sm opacity-50 group-hover:opacity-70 blur-sm transition duration-300 ${
+                        totalGoodKarma - totalBadKarma >= 0 ? 'bg-gradient-to-r from-yellow-500 to-green-500' : 'bg-gradient-to-r from-yellow-600 to-red-600'
+                      }`} style={{ boxShadow: `0 0 20px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.6)' : 'rgba(220, 38, 38, 0.7)'}` }} />
+                      <div className={`relative bg-black/95 border-2 ${totalGoodKarma - totalBadKarma >= 0 ? 'border-yellow-500/80' : 'border-orange-600/80'} rounded-sm px-3 py-2 md:px-4 md:py-2 text-center`} style={{ 
+                        boxShadow: `inset 0 0 15px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.2)' : 'rgba(220, 38, 38, 0.25)'}, 0 0 25px ${totalGoodKarma - totalBadKarma >= 0 ? 'rgba(250, 204, 21, 0.5)' : 'rgba(220, 38, 38, 0.6)'}`
+                      }}>
+                        <div>
+                          <div className={`text-[9px] md:text-[10px] font-mono uppercase tracking-wider font-bold ${totalGoodKarma - totalBadKarma >= 0 ? 'text-yellow-400' : 'text-orange-400'}`}>NET</div>
+                          {loadingKarma ? (
+                            <div className={`font-mono text-xs animate-pulse ${totalGoodKarma - totalBadKarma >= 0 ? 'text-green-400' : 'text-red-400'}`}>...</div>
+                          ) : (
+                            <div className={`text-2xl md:text-3xl font-black font-mono ${
+                              totalGoodKarma - totalBadKarma >= 0 ? 'text-green-400' : 'text-red-500'
+                            }`} style={{
+                              textShadow: totalGoodKarma - totalBadKarma >= 0 
+                                ? '0 0 20px rgba(34, 197, 94, 1), 0 0 40px rgba(34, 197, 94, 0.6), 0 1px 0 #000'
+                                : '0 0 20px rgba(220, 38, 38, 1), 0 0 40px rgba(220, 38, 38, 0.7), 0 1px 0 #000',
+                              fontVariantNumeric: 'tabular-nums',
+                              filter: totalGoodKarma - totalBadKarma >= 0 
+                                ? 'drop-shadow(0 0 10px rgba(34, 197, 94, 0.8))'
+                                : 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.9))'
+                            }}>
+                              {totalGoodKarma - totalBadKarma >= 0 ? '+' : ''}{(totalGoodKarma - totalBadKarma).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-                {/* Net Karma */}
-                <div className="mt-6 text-center">
-                  <div className="inline-block bg-black/80 border-2 border-yellow-500/50 rounded-lg px-6 py-3">
-                    <div className="text-yellow-400 text-xs font-mono uppercase tracking-wider mb-1">Net Karma</div>
-                    <div className={`text-3xl font-bold font-mono ${
-                      totalGoodKarma - totalBadKarma >= 0 ? 'text-green-500' : 'text-red-500'
-                    }`}>
-                      {totalGoodKarma - totalBadKarma >= 0 ? '+' : ''}{(totalGoodKarma - totalBadKarma).toLocaleString()}
                     </div>
+                    
+                    {/* Bad Karma - Right */}
+                    <div className="relative group">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-red-700 rounded-sm opacity-50 group-hover:opacity-75 blur-sm transition duration-300" style={{ boxShadow: '0 0 15px rgba(220, 38, 38, 0.6)' }} />
+                      <div className="relative bg-black/95 border-2 border-red-600/80 rounded-sm px-3 py-2 md:px-4 md:py-2" style={{ 
+                        boxShadow: 'inset 0 0 15px rgba(220, 38, 38, 0.2), 0 0 25px rgba(220, 38, 38, 0.5)'
+                      }}>
+                        <div className="flex items-center gap-2 md:gap-3 justify-end">
+                          <div className="text-right">
+                            <div className="text-red-400 text-[10px] font-mono uppercase tracking-widest font-bold">BAD</div>
+                            {loadingKarma ? (
+                              <div className="text-red-400 font-mono text-xs animate-pulse">...</div>
+                            ) : (
+                              <div className="text-xl md:text-2xl font-black text-red-500 font-mono" style={{
+                                textShadow: '0 0 15px rgba(220, 38, 38, 1), 0 0 30px rgba(220, 38, 38, 0.6), 0 1px 0 #000',
+                                fontVariantNumeric: 'tabular-nums',
+                                filter: 'drop-shadow(0 0 8px rgba(220, 38, 38, 0.8))'
+                              }}>
+                                {totalBadKarma.toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-base md:text-lg" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.8)', filter: 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.6))' }}>⚡</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* KARMA Header above the scoreboard */}
+                  <div className="text-center mt-3">
+                    <h2 className="text-lg md:text-xl font-black text-red-600 font-mono uppercase tracking-wider" style={{
+                      textShadow: '0 0 20px rgba(220, 38, 38, 0.8), 0 0 40px rgba(220, 38, 38, 0.5), 0 1px 0 #000',
+                      filter: 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.6))'
+                    }}>
+                      KARMA
+                    </h2>
                   </div>
                 </div>
               </div>
