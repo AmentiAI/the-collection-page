@@ -16,13 +16,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Discord OAuth not configured' }, { status: 500 })
     }
 
+    // Ensure redirect URI is properly set (same logic as callback route)
+    const redirectUri = DISCORD_REDIRECT_URI
+    
+    console.log('Discord OAuth authorization:', {
+      hasClientId: !!DISCORD_CLIENT_ID,
+      redirectUri,
+      walletAddress: walletAddress || 'none'
+    })
+
     // Discord OAuth URL
     const discordAuthUrl = `https://discord.com/api/oauth2/authorize?` +
       `client_id=${DISCORD_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI)}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=identify&` +
       `state=${encodeURIComponent(state)}`
+
+    console.log('Redirecting to Discord OAuth:', discordAuthUrl.replace(DISCORD_CLIENT_SECRET || '', '***REDACTED***'))
 
     return NextResponse.redirect(discordAuthUrl)
   } catch (error) {

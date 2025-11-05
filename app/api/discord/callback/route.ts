@@ -23,27 +23,55 @@ export async function GET(request: NextRequest) {
     }
 
     if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+      console.error('Discord OAuth not configured - missing CLIENT_ID or CLIENT_SECRET')
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?discord_auth=not_configured`)
     }
 
+    // Ensure redirect URI is properly set
+    const redirectUri = DISCORD_REDIRECT_URI
+    
+    console.log('Discord OAuth token exchange:', {
+      hasClientId: !!DISCORD_CLIENT_ID,
+      hasClientSecret: !!DISCORD_CLIENT_SECRET,
+      redirectUri,
+      codeLength: code?.length || 0,
+      state
+    })
+
     // Exchange code for access token
+    const tokenBody = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri,
+    })
+
+    console.log('Token exchange body (sanitized):', {
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET ? '***REDACTED***' : 'MISSING',
+      grant_type: 'authorization_code',
+      code: code ? '***PRESENT***' : 'MISSING',
+      redirect_uri: redirectUri
+    })
+
     const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: DISCORD_REDIRECT_URI,
-      }),
+      body: tokenBody,
     })
 
     if (!tokenResponse.ok) {
-      console.error('Discord token exchange failed:', await tokenResponse.text())
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?discord_auth=token_error`)
+      const errorText = await tokenResponse.text()
+      console.error('Discord token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText,
+        redirectUriUsed: redirectUri
+      })
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?discord_auth=token_error&details=${encodeURIComponent(errorText.substring(0, 100))}`)
     }
 
     const tokenData = await tokenResponse.json()
