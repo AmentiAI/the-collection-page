@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 interface KarmaPoint {
   id: string
   points: number
-  type: 'good' | 'bad'
+  type: 'good' | 'evil'
   reason: string | null
   given_by: string | null
   created_at: string
@@ -44,7 +44,7 @@ export default function PointsHistory({ walletAddress, chosenSide }: PointsHisto
       
       // Filter karma history to only show entries for the chosen side
       const allHistory = data.karmaHistory || []
-      const historyType = chosenSide === 'evil' ? 'bad' : 'good'
+      const historyType = chosenSide === 'evil' ? 'evil' : 'good'
       const filteredHistory = allHistory.filter((point: KarmaPoint) => point.type === historyType)
       
       setKarmaHistory(filteredHistory)

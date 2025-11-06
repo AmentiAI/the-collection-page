@@ -944,23 +944,23 @@ function DashboardContent() {
                       {socialsComplete && (
                         <div className="mb-6 bg-black/30 border border-blue-600/30 rounded-lg px-4 py-3 text-xs md:text-sm text-gray-200 font-mono flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
                           <div className="flex flex-wrap items-center gap-4 md:flex-1">
-                            <div className="flex items-center gap-3">
-                              {profileAvatarUrl ? (
-                                <img src={profileAvatarUrl} alt="Discord avatar" className="w-7 h-7 rounded-full border border-green-500/60" />
-                              ) : (
-                                <span className="text-lg">💬</span>
-                              )}
-                              <div className="flex flex-col">
-                                <span className="text-green-400">Discord linked</span>
-                                {discordDisplayName && <span className="text-[10px] text-gray-400">{discordDisplayName}</span>}
-                              </div>
+                          <div className="flex items-center gap-3">
+                            {profileAvatarUrl ? (
+                              <img src={profileAvatarUrl} alt="Discord avatar" className="w-7 h-7 rounded-full border border-green-500/60" />
+                            ) : (
+                              <span className="text-lg">💬</span>
+                            )}
+                            <div className="flex flex-col">
+                              <span className="text-green-400">Discord linked</span>
+                              {discordDisplayName && <span className="text-[10px] text-gray-400">{discordDisplayName}</span>}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">🐦</span>
-                              <div className="flex flex-col">
-                                <span className="text-blue-400">Twitter linked</span>
-                                {twitterDisplayName && <span className="text-[10px] text-gray-400">{twitterDisplayName}</span>}
-                              </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">🐦</span>
+                            <div className="flex flex-col">
+                              <span className="text-blue-400">Twitter linked</span>
+                              {twitterDisplayName && <span className="text-[10px] text-gray-400">{twitterDisplayName}</span>}
+                            </div>
                             </div>
                           </div>
                           <div className="w-full md:flex-1 flex md:justify-end">
@@ -1104,38 +1104,38 @@ function DashboardContent() {
                           variant="blocking"
                         >
                           <div className="space-y-4">
-                            <div className="space-y-3">
-                              <div className="text-yellow-300 text-sm md:text-base font-mono">
-                                ⚠️ Lock in GOOD or EVIL to access quests, Discord tasks, and Duality.
+                              <div className="space-y-3">
+                                <div className="text-yellow-300 text-sm md:text-base font-mono">
+                                  ⚠️ Lock in GOOD or EVIL to access quests, Discord tasks, and Duality.
+                                </div>
+                                <div className="flex flex-col md:flex-row gap-3">
+                                  <button
+                                    onClick={() => handleResetKarma('good')}
+                                    disabled={loadingSide}
+                                    className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                      loadingSide
+                                        ? 'opacity-50 cursor-not-allowed bg-green-600/80 border-green-600 text-white'
+                                        : 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
+                                    }`}
+                                  >
+                                    {loadingSide ? 'Choosing...' : '✓ Choose Good'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleResetKarma('evil')}
+                                    disabled={loadingSide}
+                                    className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                      loadingSide
+                                        ? 'opacity-50 cursor-not-allowed bg-red-600/80 border-red-600 text-white'
+                                        : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
+                                    }`}
+                                  >
+                                    {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
+                                  </button>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Resetting later wipes karma history but keeps your profile and social links.
+                                </p>
                               </div>
-                              <div className="flex flex-col md:flex-row gap-3">
-                                <button
-                                  onClick={() => handleResetKarma('good')}
-                                  disabled={loadingSide}
-                                  className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                                    loadingSide
-                                      ? 'opacity-50 cursor-not-allowed bg-green-600/80 border-green-600 text-white'
-                                      : 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
-                                  }`}
-                                >
-                                  {loadingSide ? 'Choosing...' : '✓ Choose Good'}
-                                </button>
-                                <button
-                                  onClick={() => handleResetKarma('evil')}
-                                  disabled={loadingSide}
-                                  className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                                    loadingSide
-                                      ? 'opacity-50 cursor-not-allowed bg-red-600/80 border-red-600 text-white'
-                                      : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
-                                  }`}
-                                >
-                                  {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
-                                </button>
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                Resetting later wipes karma history but keeps your profile and social links.
-                              </p>
-                            </div>
                           </div>
                         </StepCard>
                       )}
