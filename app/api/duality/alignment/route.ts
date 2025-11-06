@@ -44,26 +44,42 @@ export async function POST(request: NextRequest) {
       [cycle.id, profile.id]
     )
 
-    let participant
+    let participant = participantRes.rows[0] ?? null
 
-    if (participantRes.rows.length === 0) {
-      const insertRes = await pool.query(
-        `INSERT INTO duality_participants (cycle_id, profile_id, alignment, karma_snapshot)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        [cycle.id, profile.id, alignment, netKarma]
-      )
-      participant = insertRes.rows[0]
-    } else {
-      participant = participantRes.rows[0]
-
-      if (participant.locked_at && cycle.status !== 'alignment' && participant.alignment !== alignment) {
-        return NextResponse.json(
-          { error: 'Alignment is locked for this cycle.' },
-          { status: 400 }
+    if (!participant) {
+      try {
+        const insertRes = await pool.query(
+          `INSERT INTO duality_participants (cycle_id, profile_id, alignment, karma_snapshot)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [cycle.id, profile.id, alignment, netKarma]
         )
-      }
+        participant = insertRes.rows[0]
+      } catch (error) {
+        if ((error as any)?.code !== '23505') {
+          throw error
+        }
 
+        const retryRes = await pool.query(
+          `SELECT * FROM duality_participants WHERE cycle_id = $1 AND profile_id = $2`,
+          [cycle.id, profile.id]
+        )
+        participant = retryRes.rows[0]
+      }
+    }
+
+    if (!participant) {
+      return NextResponse.json({ error: 'Failed to lock alignment.' }, { status: 500 })
+    }
+
+    if (participant.locked_at && cycle.status !== 'alignment' && participant.alignment !== alignment) {
+      return NextResponse.json(
+        { error: 'Alignment is locked for this cycle.' },
+        { status: 400 }
+      )
+    }
+
+    if (participant.alignment !== alignment || Number(participant.karma_snapshot) !== netKarma) {
       const updateRes = await pool.query(
         `UPDATE duality_participants
          SET alignment = $1,
