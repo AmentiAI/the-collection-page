@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, ReactNode } from 'react'
 import dynamicImport from 'next/dynamic'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
@@ -54,32 +54,70 @@ interface StepCardProps {
   title: string
   description?: string
   children: ReactNode
+  variant?: 'default' | 'compact' | 'blocking' | 'minimal'
 }
 
-const StepCard = ({ step, title, description, children }: StepCardProps) => (
-  <div className="bg-black/40 rounded-xl border border-red-600/40 p-5 md:p-6 shadow-lg space-y-3">
-    <div className="flex items-start gap-4">
-      <div className="w-12 h-12 rounded-full bg-red-700/60 border border-red-500 flex items-center justify-center font-mono text-lg font-bold text-white">
-        {step}
-      </div>
-      <div className="flex-1">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-          <h3 className="text-xl md:text-2xl font-black uppercase tracking-widest text-red-200">
-            {title}
-          </h3>
-          {description && (
-            <p className="text-xs md:text-sm text-gray-400 font-mono uppercase tracking-wide">
-              {description}
-            </p>
-          )}
+const StepCard = ({ step, title, description, children, variant = 'default' }: StepCardProps) => {
+  const containerClasses = {
+    default: 'bg-black/40 rounded-xl border border-red-600/40 p-5 md:p-6 shadow-lg space-y-3',
+    compact: 'bg-black/30 rounded-lg border border-red-600/20 p-4 md:p-4 shadow-sm space-y-2',
+    blocking: 'bg-red-950/70 rounded-2xl border-2 border-red-500/70 p-6 md:p-8 shadow-2xl space-y-4 ring-1 ring-red-500/40 backdrop-blur',
+    minimal: 'bg-black/20 rounded-lg border border-red-600/15 p-3 md:p-4 shadow-sm space-y-2'
+  } as const
+
+  const stepBadgeClasses = {
+    default: 'w-12 h-12 text-lg md:text-xl',
+    compact: 'w-9 h-9 text-sm',
+    blocking: 'w-14 h-14 text-xl md:text-2xl',
+    minimal: 'w-8 h-8 text-sm'
+  } as const
+
+  const titleClasses = {
+    default: 'text-xl md:text-2xl font-black uppercase tracking-widest text-red-200',
+    compact: 'text-lg font-extrabold uppercase tracking-widest text-red-200',
+    blocking: 'text-2xl md:text-3xl font-black uppercase tracking-[0.4em] text-red-100',
+    minimal: 'text-base md:text-lg font-bold uppercase tracking-[0.35em] text-red-200'
+  } as const
+
+  const descriptionClasses = {
+    default: 'text-xs md:text-sm text-gray-400 font-mono uppercase tracking-wide',
+    compact: 'text-[10px] md:text-xs text-gray-400 font-mono uppercase tracking-[0.35em]',
+    blocking: 'text-xs md:text-sm text-red-300 font-mono uppercase tracking-[0.5em]',
+    minimal: 'text-[10px] md:text-xs text-gray-500 font-mono uppercase tracking-[0.3em]'
+  } as const
+
+  const contentClasses = {
+    default: 'text-sm md:text-base text-gray-200 font-mono leading-relaxed',
+    compact: 'text-xs md:text-sm text-gray-300 font-mono leading-relaxed',
+    blocking: 'text-sm md:text-lg text-red-100 font-mono leading-relaxed',
+    minimal: 'text-xs md:text-sm text-gray-300 font-mono leading-relaxed'
+  } as const
+
+  return (
+    <div className={`${containerClasses[variant]} transition-all duration-300`}>
+      <div className="flex items-start gap-4">
+        <div className={`rounded-full bg-red-700/60 border border-red-500 flex items-center justify-center font-mono font-bold text-white ${stepBadgeClasses[variant]}`}>
+          {step}
         </div>
-        <div className="text-sm md:text-base text-gray-200 font-mono leading-relaxed">
-          {children}
+        <div className="flex-1 space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <h3 className={titleClasses[variant]}>
+              {title}
+            </h3>
+            {description && (
+              <p className={descriptionClasses[variant]}>
+                {description}
+              </p>
+            )}
+          </div>
+          <div className={contentClasses[variant]}>
+            {children}
+          </div>
         </div>
       </div>
     </div>
-  </div>
-)
+  )
+}
 
 function DashboardContent() {
   const { connected, address } = useLaserEyes()
@@ -101,6 +139,8 @@ function DashboardContent() {
   const [twitterUserId, setTwitterUserId] = useState<string | null>(null)
   const [twitterUsername, setTwitterUsername] = useState<string | null>(null)
   const [loadingTwitter, setLoadingTwitter] = useState(false)
+  const [profileUsername, setProfileUsername] = useState<string | null>(null)
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null)
   const [myDamnedTab, setMyDamnedTab] = useState<'collection' | 'purchases' | 'lists' | 'sells'>('collection')
   const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
   const [listHistory, setListHistory] = useState<any[]>([])
@@ -140,6 +180,8 @@ function DashboardContent() {
         setTotalGoodKarma(profile.total_good_karma || 0)
         setTotalBadKarma(profile.total_bad_karma || 0)
         setChosenSide(profile.chosen_side || null)
+        setProfileUsername(profile.username || null)
+        setProfileAvatarUrl(profile.avatar_url || null)
       }
     } catch (error) {
       console.error('Error fetching karma totals:', error)
@@ -395,6 +437,8 @@ function DashboardContent() {
       setTotalBadKarma(0)
       setCheckInStatus(null)
       setChosenSide(null)
+      setProfileUsername(null)
+      setProfileAvatarUrl(null)
       karmaCalculatedRef.current.clear() // Reset when wallet disconnects
     }
   }, [connected, address, fetchUserOrdinals, checkDiscordStatus, checkTwitterStatus, fetchKarmaTotals, fetchCheckInStatus, fetchChosenSide])
@@ -517,6 +561,48 @@ function DashboardContent() {
     
     return () => clearInterval(interval)
   }, [checkInStatus, address, fetchCheckInStatus])
+
+  const getCheckInStatusMessage = useCallback(() => {
+    if (!checkInStatus) return 'Fetching status…'
+    if (checkInStatus.canCheckIn) {
+      return chosenSide === 'good' ? '+5 good karma available now' : '-5 evil karma available now'
+    }
+    if (checkInStatus.nextCheckin) {
+      const diffMs = new Date(checkInStatus.nextCheckin).getTime() - Date.now()
+      if (diffMs <= 0) return 'Available shortly'
+      const hours = Math.floor(diffMs / (1000 * 60 * 60))
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+      if (hours <= 0) return `${Math.max(minutes, 1)}m remaining`
+      return minutes > 0 ? `${hours}h ${minutes}m remaining` : `${hours}h remaining`
+    }
+    if (checkInCountdown > 0) {
+      return `${checkInCountdown}h remaining`
+    }
+    return 'Cooldown active'
+  }, [checkInStatus, checkInCountdown, chosenSide])
+
+  const checkInLastStamp = useMemo(() => {
+    if (!checkInStatus?.lastCheckin) return null
+    const lastDate = new Date(checkInStatus.lastCheckin)
+    if (Number.isNaN(lastDate.getTime())) return null
+    return lastDate.toLocaleString()
+  }, [checkInStatus])
+
+  const checkInReady = Boolean(checkInStatus?.canCheckIn)
+
+  const discordDisplayName = useMemo(() => {
+    if (!discordLinked) return null
+    if (profileUsername) return profileUsername
+    if (discordUserId) return discordUserId
+    return null
+  }, [discordLinked, profileUsername, discordUserId])
+
+  const twitterDisplayName = useMemo(() => {
+    if (!twitterLinked) return null
+    if (twitterUsername) return `@${twitterUsername}`
+    if (twitterUserId) return twitterUserId
+    return null
+  }, [twitterLinked, twitterUsername, twitterUserId])
 
   // Fetch activity history from Magic Eden
   // Note: Must NOT include collectionSymbol in query - filter client-side instead
@@ -709,96 +795,85 @@ function DashboardContent() {
 
         {connected && address && (
           <div className="container mx-auto px-4 pt-6 relative z-10 max-w-7xl">
-            <DualityStatus walletAddress={address} profileSide={chosenSide} mode="compact" />
+            <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+              <div className="bg-black/60 border border-red-600/40 rounded-xl p-4 md:p-6 shadow-lg">
+                <DualityStatus walletAddress={address} profileSide={chosenSide} mode="compact" />
+              </div>
+              <div className="flex flex-col gap-4">
+                <div className="bg-black/60 border border-red-600/30 rounded-xl p-4 md:p-5 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] md:text-xs uppercase text-gray-400 tracking-[0.45em]">Karma Score</span>
+                    {loadingKarma && (
+                      <span className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em] animate-pulse">Syncing…</span>
+                    )}
+                  </div>
+                  {chosenSide ? (
+                    <div className="mt-3 space-y-4">
+                      <div className="flex items-baseline justify-between">
+                        <div className={`text-3xl md:text-4xl font-black font-mono ${chosenSide === 'good' ? 'text-green-400' : 'text-red-400'}`}>
+                          {loadingKarma ? '…' : (chosenSide === 'good' ? totalGoodKarma : totalBadKarma).toLocaleString()}
+                        </div>
+                        <div className="text-xs uppercase font-mono text-gray-500 tracking-[0.4em]">
+                          {chosenSide === 'good' ? 'GOOD' : 'EVIL'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span>Good</span>
+                          <span className="text-green-400">{totalGoodKarma.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span>Evil</span>
+                          <span className="text-red-400">{totalBadKarma.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-gray-400 font-mono">
+                      Choose a morality side to start tracking your karma totals.
+                    </p>
+                  )}
+                </div>
+
+                {chosenSide && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!checkInReady || checkingIn || !chosenSide) return
+                      handleDailyCheckIn(chosenSide)
+                    }}
+                    disabled={!checkInReady || checkingIn}
+                    className={`rounded-xl border-2 px-4 py-4 md:px-5 md:py-5 text-left font-mono transition-all duration-200 shadow-md ${
+                      checkInReady
+                        ? 'bg-green-500 text-black border-green-400 hover:bg-green-400 hover:border-green-300 shadow-[0_0_20px_rgba(34,197,94,0.35)]'
+                        : 'bg-gray-900/70 text-gray-400 border-gray-700 cursor-not-allowed'
+                    } ${checkingIn ? 'opacity-75' : ''}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-2xl ${checkInReady ? 'text-black' : 'text-gray-500'}`}>✓</span>
+                        <span className="text-xs md:text-sm uppercase tracking-[0.4em]">Daily Check-In</span>
+                      </div>
+                      <span className="text-[10px] uppercase tracking-[0.3em]">
+                        {checkInReady ? (checkingIn ? 'Processing…' : 'Ready') : 'Cooldown'}
+                      </span>
+                    </div>
+                    <div className={`mt-3 text-xs md:text-sm tracking-normal ${checkInReady ? 'text-black/80' : 'text-gray-400'}`}>
+                      {getCheckInStatusMessage()}
+                    </div>
+                    {checkInLastStamp && (
+                      <div className={`mt-2 text-[10px] tracking-normal ${checkInReady ? 'text-black/60' : 'text-gray-500'}`}>
+                        Last check-in {checkInLastStamp}
+                      </div>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-          {/* Compact Hellish Karma Scoreboard */}
-          {connected && address && (
-            <div className="mb-6 relative">
-              {/* Scanline overlay effect */}
-              <div className="absolute inset-0 pointer-events-none z-20 opacity-10" style={{
-                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.05) 2px, rgba(255,0,0,0.05) 4px)'
-              }} />
-
-              {/* Compact scoreboard container */}
-              {chosenSide && (
-              <div className="relative bg-gradient-to-br from-black via-red-950/30 to-black border-2 border-red-600/50 rounded-sm p-4 shadow-2xl overflow-hidden" style={{
-                boxShadow: 'inset 0 0 30px rgba(220, 38, 38, 0.2), 0 0 50px rgba(220, 38, 38, 0.4)'
-              }}>
-                {/* Hellish grid background */}
-                <div className="absolute inset-0 opacity-5" style={{
-                  backgroundImage: `
-                    linear-gradient(rgba(220,38,38,0.3) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(220,38,38,0.3) 1px, transparent 1px)
-                  `,
-                  backgroundSize: '30px 30px'
-                }} />
-
-                {/* Small corner brackets */}
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-red-600/70" style={{ boxShadow: '0 0 6px rgba(220, 38, 38, 0.6)' }} />
-                
-                {/* Hellish pulsing glow */}
-                <div className="absolute inset-0 bg-gradient-to-r from-red-900/15 via-orange-900/5 to-red-900/15 animate-pulse" />
-                
-                <div className="relative z-10">
-                  {/* Compact horizontal scoreboard - show only chosen side karma */}
-                  <div className="flex justify-center items-center max-w-4xl mx-auto">
-                    <div className="relative group">
-                      <div className={`absolute -inset-0.5 rounded-sm opacity-50 group-hover:opacity-70 blur-sm transition duration-300 ${
-                        chosenSide === 'good' ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-red-600 to-red-700'
-                      }`} style={{ boxShadow: chosenSide === 'good' ? '0 0 20px rgba(34, 197, 94, 0.6)' : '0 0 20px rgba(220, 38, 38, 0.7)' }} />
-                      <div className={`relative bg-black/95 border-2 ${chosenSide === 'good' ? 'border-green-500/80' : 'border-red-600/80'} rounded-sm px-6 py-3 md:px-8 md:py-4 text-center`} style={{ 
-                        boxShadow: chosenSide === 'good'
-                          ? 'inset 0 0 15px rgba(34, 197, 94, 0.2), 0 0 25px rgba(34, 197, 94, 0.5)'
-                          : 'inset 0 0 15px rgba(220, 38, 38, 0.2), 0 0 25px rgba(220, 38, 38, 0.6)'
-                      }}>
-                        <div>
-                          <div className={`text-[10px] md:text-xs font-mono uppercase tracking-widest font-bold ${chosenSide === 'good' ? 'text-green-400' : 'text-red-400'}`}>
-                            {chosenSide === 'good' ? 'GOOD KARMA' : 'EVIL KARMA'}
-                          </div>
-                          {loadingKarma ? (
-                            <div className={`font-mono text-xs animate-pulse mt-2 ${chosenSide === 'good' ? 'text-green-400' : 'text-red-400'}`}>...</div>
-                          ) : (
-                            <div className={`text-3xl md:text-4xl font-black font-mono mt-2 ${
-                              chosenSide === 'good' ? 'text-green-400' : 'text-red-500'
-                            }`} style={{
-                              textShadow: chosenSide === 'good'
-                                ? '0 0 20px rgba(34, 197, 94, 1), 0 0 40px rgba(34, 197, 94, 0.6), 0 1px 0 #000'
-                                : '0 0 20px rgba(220, 38, 38, 1), 0 0 40px rgba(220, 38, 38, 0.7), 0 1px 0 #000',
-                              fontVariantNumeric: 'tabular-nums',
-                              filter: chosenSide === 'good'
-                                ? 'drop-shadow(0 0 10px rgba(34, 197, 94, 0.8))'
-                                : 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.9))'
-                            }}>
-                              {(chosenSide === 'good' ? totalGoodKarma : totalBadKarma).toLocaleString()}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* KARMA Header above the scoreboard */}
-                  <div className="text-center mt-3">
-                    <h2 className="text-lg md:text-xl font-black text-red-600 font-mono uppercase tracking-wider" style={{
-                      textShadow: '0 0 20px rgba(220, 38, 38, 0.8), 0 0 40px rgba(220, 38, 38, 0.5), 0 1px 0 #000',
-                      filter: 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.6))'
-                    }}>
-                      {chosenSide === 'good' ? 'GOOD KARMA' : 'EVIL KARMA'}
-                    </h2>
-                    </div>
-                  </div>
-                </div>
-           
-              )}
-            </div>
-          )}
-
           {/* Internal Navigation */}
           <div className="mb-8 flex flex-wrap gap-4 justify-center">
             <button
@@ -860,185 +935,222 @@ function DashboardContent() {
                 MY PROFILE
               </h2>
               <div className="space-y-6">
-                <StepCard
-                  step={1}
-                  title="Connect Your Wallet"
-                  description="LaserEyes verification unlocks everything"
-                >
-                  {connected && address ? (
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-gray-400 text-xs uppercase">Wallet Address</div>
-                        <div className="text-white text-sm break-all">{address}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400 text-xs uppercase">Holder Status</div>
-                        <div className={`font-mono font-bold ${isHolder ? 'text-green-500' : 'text-red-500'}`}>
-                          {isHolder ? '✓ Verified Holder' : '✗ Not a Holder'}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400">
-                      Hit the connect button in the header to sync your wallet. Verification runs automatically once connected.
-                    </div>
-                  )}
-                </StepCard>
+                {(() => {
+                  const walletComplete = Boolean(connected && address)
+                  const socialsComplete = walletComplete && discordLinked && twitterLinked
 
-                <StepCard
-                  step={2}
-                  title="Link Discord & Twitter"
-                  description="Social auth proves you belong to the cult"
-                >
-                  {connected ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">💬</span>
-                          <div>
-                            <div className="text-white text-sm font-bold">Discord</div>
-                            {discordLinked && discordUserId && (
-                              <div className="text-gray-400 text-xs">Linked: {discordUserId}</div>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleDiscordAuth}
-                          disabled={loadingDiscord}
-                          className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                            discordLinked
-                              ? 'bg-green-600/80 border-green-600 text-white cursor-default'
-                              : 'bg-red-600/80 border-red-600 text-white hover:bg-red-600 hover:border-red-500'
-                          } ${loadingDiscord ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {loadingDiscord ? 'Loading...' : discordLinked ? '✓ Connected' : 'Connect Discord'}
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">🐦</span>
-                          <div>
-                            <div className="text-white text-sm font-bold">Twitter</div>
-                            {twitterLinked && twitterUsername && (
-                              <div className="text-gray-400 text-xs">@{twitterUsername}</div>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleTwitterAuth}
-                          disabled={loadingTwitter}
-                          className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                            twitterLinked
-                              ? 'bg-blue-600/80 border-blue-600 text-white cursor-default'
-                              : 'bg-blue-600/80 border-blue-600 text-white hover:bg-blue-600 hover:border-blue-500'
-                          } ${loadingTwitter ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {loadingTwitter ? 'Loading...' : twitterLinked ? '✓ Connected' : 'Connect Twitter'}
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        Both accounts are required before you can complete Discord tasks or claim leaderboard spots.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400">Connect your wallet first to unlock social authentication.</div>
-                  )}
-                </StepCard>
-
-                <StepCard
-                  step={3}
-                  title="Choose Your Side"
-                  description="Pick once, reset if you dare"
-                >
-                  {connected ? (
-                    <div className="space-y-4">
-                      {chosenSide === null ? (
-                        <div className="space-y-3">
-                          <div className="text-yellow-500 text-sm">⚠️ You must choose a side to access quests, Discord tasks, and Duality.</div>
-                          <div className="flex flex-col md:flex-row gap-3">
-                            <button
-                              onClick={() => handleResetKarma('good')}
-                              disabled={loadingSide}
-                              className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                                loadingSide
-                                  ? 'opacity-50 cursor-not-allowed bg-green-600/80 border-green-600 text-white'
-                                  : 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
-                              }`}
-                            >
-                              {loadingSide ? 'Choosing...' : '✓ Choose Good'}
-                            </button>
-                            <button
-                              onClick={() => handleResetKarma('evil')}
-                              disabled={loadingSide}
-                              className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                                loadingSide
-                                  ? 'opacity-50 cursor-not-allowed bg-red-600/80 border-red-600 text-white'
-                                  : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
-                              }`}
-                            >
-                              {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
-                            </button>
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            Resetting later wipes karma history but keeps your profile and social links.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className={`font-mono font-bold text-lg ${chosenSide === 'good' ? 'text-green-500' : 'text-red-500'}`}>
-                            {chosenSide === 'good' ? '✓ You ride with the GOOD — all systems synced.' : '✗ You pledged to EVIL — all systems synced.'}
-                          </div>
-                          <button
-                            onClick={() => setShowResetConfirm(true)}
-                            disabled={loadingSide}
-                            className="w-full px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 bg-yellow-600/80 border-yellow-600 text-white hover:bg-yellow-600 hover:border-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {loadingSide ? 'Resetting...' : 'Reset & Change Side'}
-                          </button>
-                          {showResetConfirm && (
-                            <div className="bg-black/60 rounded-lg p-4 border border-yellow-600/50">
-                              <div className="text-yellow-500 text-sm mb-3">
-                                ⚠️ This will wipe all karma points and history. Are you sure?
+                  return (
+                    <>
+                      {socialsComplete && (
+                        <div className="mb-6 bg-black/30 border border-blue-600/30 rounded-lg px-4 py-3 text-xs md:text-sm text-gray-200 font-mono flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+                          <div className="flex flex-wrap items-center gap-4 md:flex-1">
+                            <div className="flex items-center gap-3">
+                              {profileAvatarUrl ? (
+                                <img src={profileAvatarUrl} alt="Discord avatar" className="w-7 h-7 rounded-full border border-green-500/60" />
+                              ) : (
+                                <span className="text-lg">💬</span>
+                              )}
+                              <div className="flex flex-col">
+                                <span className="text-green-400">Discord linked</span>
+                                {discordDisplayName && <span className="text-[10px] text-gray-400">{discordDisplayName}</span>}
                               </div>
-                              <div className="flex flex-col md:flex-row gap-2">
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">🐦</span>
+                              <div className="flex flex-col">
+                                <span className="text-blue-400">Twitter linked</span>
+                                {twitterDisplayName && <span className="text-[10px] text-gray-400">{twitterDisplayName}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-full md:flex-1 flex md:justify-end">
+                            {chosenSide ? (
+                              <div className="flex flex-col md:items-end gap-3 w-full">
+                                <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-3 w-full">
+                                  <span
+                                    className={`text-xs md:text-sm font-bold uppercase tracking-[0.3em] ${
+                                      chosenSide === 'good' ? 'text-green-400' : 'text-red-400'
+                                    }`}
+                                  >
+                                    Chosen Side: {chosenSide.toUpperCase()}
+                                  </span>
+                                  <button
+                                    onClick={() => setShowResetConfirm(true)}
+                                    disabled={loadingSide}
+                                    className="px-3 py-1 rounded-md font-mono text-[11px] md:text-xs uppercase border border-yellow-500 text-yellow-400 hover:bg-yellow-500/20 disabled:opacity-50"
+                                  >
+                                    {loadingSide ? 'Resetting…' : 'Reset'}
+                                  </button>
+                                </div>
+                                {showResetConfirm && (
+                                  <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 text-[11px] text-yellow-300 bg-black/50 border border-yellow-600/40 rounded-md px-3 py-2">
+                                    <span>Reset alignment?</span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleResetKarma('good')}
+                                        disabled={loadingSide}
+                                        className="px-2 py-1 rounded border border-green-500 text-green-400 hover:bg-green-500/20 disabled:opacity-50"
+                                      >
+                                        Good
+                                      </button>
+                                      <button
+                                        onClick={() => handleResetKarma('evil')}
+                                        disabled={loadingSide}
+                                        className="px-2 py-1 rounded border border-red-500 text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                                      >
+                                        Evil
+                                      </button>
+                                      <button
+                                        onClick={() => setShowResetConfirm(false)}
+                                        className="px-2 py-1 rounded border border-gray-500 text-gray-400 hover:bg-gray-500/20"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] md:text-xs text-gray-400 md:text-right">
+                                Choose your side below to unlock quests.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!walletComplete && (
+                        <StepCard
+                          step={1}
+                          title="Connect Your Wallet"
+                          description="LaserEyes verification unlocks everything"
+                          variant="blocking"
+                        >
+                          <div className="space-y-4">
+                            <div className="text-lg md:text-xl font-mono font-bold text-red-100">
+                              Connect your wallet to unlock the dashboard.
+                            </div>
+                            <p className="text-sm md:text-base text-red-200/80">
+                              Hit the connect button in the header. We auto-verify holder status the second LaserEyes links you in.
+                            </p>
+                          </div>
+                        </StepCard>
+                      )}
+
+                      {walletComplete && !socialsComplete && (
+                        <StepCard
+                          step={2}
+                          title="Link Discord & Twitter"
+                          description="Social auth proves you belong to the cult"
+                          variant="blocking"
+                        >
+                          <div className="space-y-5">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">💬</span>
+                                <div>
+                                  <div className="text-white text-base font-bold">Discord</div>
+                                  {discordLinked && discordUserId && (
+                                    <div className="text-red-100/80 text-xs">Linked: {discordUserId}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={handleDiscordAuth}
+                                disabled={loadingDiscord}
+                                className={`px-5 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                  discordLinked
+                                    ? 'bg-green-600/80 border-green-600 text-white cursor-default'
+                                    : 'bg-red-600/80 border-red-600 text-white hover:bg-red-600 hover:border-red-500'
+                                } ${loadingDiscord ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {loadingDiscord ? 'Loading...' : discordLinked ? '✓ Connected' : 'Connect Discord'}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">🐦</span>
+                                <div>
+                                  <div className="text-white text-base font-bold">Twitter</div>
+                                  {twitterLinked && twitterUsername && (
+                                    <div className="text-red-100/80 text-xs">@{twitterUsername}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={handleTwitterAuth}
+                                disabled={loadingTwitter}
+                                className={`px-5 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                  twitterLinked
+                                    ? 'bg-blue-600/80 border-blue-600 text-white cursor-default'
+                                    : 'bg-blue-600/80 border-blue-600 text-white hover:bg-blue-600 hover:border-blue-500'
+                                } ${loadingTwitter ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {loadingTwitter ? 'Loading...' : twitterLinked ? '✓ Connected' : 'Connect Twitter'}
+                              </button>
+                            </div>
+                            <p className="text-xs md:text-sm text-red-200/80">
+                              Both logins are mandatory before karma quests, Discord tasks, or leaderboard slots unlock.
+                            </p>
+                          </div>
+                        </StepCard>
+                      )}
+
+                      {walletComplete && socialsComplete && chosenSide === null && (
+                        <StepCard
+                          step={3}
+                          title="Choose Your Side"
+                          description="Pick once, reset if you dare"
+                          variant="blocking"
+                        >
+                          <div className="space-y-4">
+                            <div className="space-y-3">
+                              <div className="text-yellow-300 text-sm md:text-base font-mono">
+                                ⚠️ Lock in GOOD or EVIL to access quests, Discord tasks, and Duality.
+                              </div>
+                              <div className="flex flex-col md:flex-row gap-3">
                                 <button
                                   onClick={() => handleResetKarma('good')}
                                   disabled={loadingSide}
-                                  className="flex-1 px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-green-600/80 border-green-600 text-white hover:bg-green-600 disabled:opacity-50"
+                                  className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                    loadingSide
+                                      ? 'opacity-50 cursor-not-allowed bg-green-600/80 border-green-600 text-white'
+                                      : 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
+                                  }`}
                                 >
-                                  Choose Good
+                                  {loadingSide ? 'Choosing...' : '✓ Choose Good'}
                                 </button>
                                 <button
                                   onClick={() => handleResetKarma('evil')}
                                   disabled={loadingSide}
-                                  className="flex-1 px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-red-600/80 border-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                  className={`flex-1 px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                                    loadingSide
+                                      ? 'opacity-50 cursor-not-allowed bg-red-600/80 border-red-600 text-white'
+                                      : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
+                                  }`}
                                 >
-                                  Choose Evil
-                                </button>
-                                <button
-                                  onClick={() => setShowResetConfirm(false)}
-                                  className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase bg-gray-600/80 border-gray-600 text-white hover:bg-gray-600"
-                                >
-                                  Cancel
+                                  {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
                                 </button>
                               </div>
+                              <p className="text-xs text-gray-500">
+                                Resetting later wipes karma history but keeps your profile and social links.
+                              </p>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        </StepCard>
                       )}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400">Connect your wallet to lock in a side.</div>
-                  )}
-                </StepCard>
+                    </>
+                  )
+                })()}
 
                 {connected && chosenSide && (
                   <StepCard
                     step={4}
                     title="Discord Holder Tasks"
                     description="Complete these checkpoints to stay verified"
+                    variant="compact"
                   >
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {!discordLinked && (
                         <div className="text-sm text-yellow-400 font-mono">
                           Link Discord above to mark these tasks complete. Review the checklist here so you know what the bot expects.
@@ -1063,9 +1175,10 @@ function DashboardContent() {
                     step={5}
                     title="Morality Quest Board"
                     description="Earn karma through good or evil deeds"
+                    variant="compact"
                   >
-                    <div className="space-y-4">
-                      <Morality walletAddress={address} chosenSide={chosenSide} limit={6} />
+                    <div className="space-y-3">
+                      <Morality walletAddress={address} chosenSide={chosenSide} limit={4} compact />
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => setActiveSection('morality')}
@@ -1091,53 +1204,6 @@ function DashboardContent() {
                     description="Weekly pairing, fate meter, and trials"
                   >
                     <DualityStatus walletAddress={address} profileSide={chosenSide} />
-                  </StepCard>
-                )}
-
-                {connected && chosenSide && (
-                  <StepCard
-                    step={7}
-                    title="Daily Check-In"
-                    description="Tap in once every 24 hours for karma"
-                  >
-                    <div className="space-y-3">
-                      {checkInStatus === null ? (
-                        <div className="text-gray-500 text-sm">Loading check-in status...</div>
-                      ) : checkInStatus.canCheckIn ? (
-                        <div className="space-y-3">
-                          <div className="text-green-500 text-sm">✓ Ready to check in!</div>
-                          <button
-                            onClick={() => handleDailyCheckIn(chosenSide)}
-                            disabled={checkingIn}
-                            className={`w-full px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                              checkingIn
-                                ? 'opacity-50 cursor-not-allowed'
-                                : chosenSide === 'good'
-                                  ? 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
-                                  : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
-                            }`}
-                          >
-                            {checkingIn ? 'Checking in...' : chosenSide === 'good' ? '✓ Check in for Good (+5)' : '✗ Check in for Evil (-5)'}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="text-red-500 text-sm">
-                            ⏰ Cooldown: {checkInCountdown > 0 ? `${checkInCountdown} hour${checkInCountdown !== 1 ? 's' : ''} remaining` : 'Calculating...'}
-                          </div>
-                          {checkInStatus.nextCheckin && (
-                            <div className="text-gray-400 text-xs">
-                              Next check-in: {new Date(checkInStatus.nextCheckin).toLocaleString()}
-                            </div>
-                          )}
-                          {checkInStatus.lastCheckin && (
-                            <div className="text-gray-500 text-xs">
-                              Last check-in: {new Date(checkInStatus.lastCheckin).toLocaleString()}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
                   </StepCard>
                 )}
               </div>
