@@ -35,6 +35,8 @@ const DUALITY_BASE_URL =
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_EVENT_TYPES = ['Blessing', 'Temptation', 'Fate Roll'];
 const trialMessageCache = new Map();
+const PAIRING_WINDOW_MINUTES = Number(process.env.DUALITY_PAIRING_WINDOW_MINUTES || 60);
+const PAIRING_COOLDOWN_MINUTES = Number(process.env.DUALITY_PAIRING_COOLDOWN_MINUTES || 60);
 
 // Slash command handler
 client.commands = new Collection();
@@ -117,19 +119,22 @@ async function fetchDualityStatus() {
 }
 
 async function handleDualityWeeklyCycle(client) {
-  const status = await fetchDualityStatus();
+  let status = await fetchDualityStatus();
   if (!status || !status.cycle) {
     console.log('[Duality] No active cycle detected.');
     return;
   }
 
+  const updated = await managePairingSessions(status, client);
+  if (updated) {
+    status = (await fetchDualityStatus()) || status;
+  }
+
   const cycle = status.cycle;
-  if (cycle.status === 'alignment') {
-    await maybeGeneratePairings(status, client);
+  if (cycle.status === 'trial') {
+    await processTrials(status, client);
   } else if (cycle.status === 'active') {
     await processDailyEvents(status, client);
-  } else if (cycle.status === 'trial') {
-    await processTrials(status, client);
   }
 }
 
@@ -137,12 +142,28 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function getCycleDay(weekStart) {
-  if (!weekStart) return null;
-  const start = new Date(`${weekStart}T00:00:00Z`).getTime();
-  if (Number.isNaN(start)) return null;
-  const diff = Math.floor((Date.now() - start) / DAY_MS);
-  return diff + 1; // Day 1 == alignment day
+function normalizeDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'string') {
+    const direct = new Date(value);
+    if (!Number.isNaN(direct.getTime())) return direct;
+    const isoGuess = new Date(`${value}T00:00:00Z`);
+    return Number.isNaN(isoGuess.getTime()) ? null : isoGuess;
+  }
+  return null;
+}
+
+function getCycleDay(weekStart, fallbackDate) {
+  const startDate = normalizeDate(weekStart) || normalizeDate(fallbackDate);
+  if (!startDate) return null;
+  const diff = Math.floor((Date.now() - startDate.getTime()) / DAY_MS);
+  const day = diff + 1; // Day 1 == alignment day
+  return day < 1 ? 1 : day;
 }
 
 function ensureArray(value) {
@@ -469,39 +490,62 @@ Votes — ⚪️ ${votesAbsolve} / 🔴 ${votesCondemn}`
   trialMessageCache.delete(trial.id);
 }
 
-async function maybeGeneratePairings(status, client) {
-  if (!status || !status.participants || !status.cycle || status.cycle.status !== 'alignment') return;
+async function managePairingSessions(status, client) {
+  if (!status || !status.cycle) return false;
+  const participants = ensureArray(status.participants);
+  const pairs = ensureArray(status.pairs);
+  let updated = false;
+  const now = Date.now();
 
-  const participants = status.participants;
-  const goodCount = participants.filter((p) => p.alignment === 'good').length;
-  const evilCount = participants.filter((p) => p.alignment === 'evil').length;
+  for (const pair of pairs || []) {
+    if (!pair || pair.status !== 'active' || !pair.windowEnd) continue;
+    const windowEnd = new Date(pair.windowEnd).getTime();
+    if (Number.isNaN(windowEnd) || windowEnd > now) continue;
 
-  if (goodCount === 0 || evilCount === 0) {
-    console.log('[Duality] Waiting for both alignments to have participants before pairing.');
-    return;
+    const cooldown = pair.cooldownMinutes || PAIRING_COOLDOWN_MINUTES;
+    const res = await apiFetch(`/api/duality/pairings/${pair.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'completed', cooldownMinutes: cooldown }),
+    });
+
+    if (!res.ok) {
+      console.error('[Duality] Failed to complete expired pairing:', res.status, res.data);
+    } else {
+      console.log(`[Duality] Pairing ${pair.id} window expired. Released partners with ${cooldown}m cooldown.`);
+      updated = true;
+    }
   }
 
-  if (goodCount !== evilCount) {
-    console.log('[Duality] Alignment counts imbalanced. Skipping automatic pairings.');
-    return;
+  const readyGood = participants.filter((p) =>
+    p.alignment === 'good' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  );
+  const readyEvil = participants.filter((p) =>
+    p.alignment === 'evil' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  );
+
+  if (readyGood.length && readyEvil.length) {
+    const res = await apiFetch('/api/duality/pairings', {
+      method: 'POST',
+      body: JSON.stringify({ windowMinutes: PAIRING_WINDOW_MINUTES, cooldownMinutes: PAIRING_COOLDOWN_MINUTES }),
+    });
+
+    if (!res.ok) {
+      console.error('[Duality] Automatic pairing attempt failed:', res.status, res.data);
+      await notifyAdmins(client, `⚠️ Duality pairing failed: ${res.data?.error || 'Unknown error'}`);
+    } else if (res.data?.pairs?.length) {
+      console.log(`[Duality] Created ${res.data.pairs.length} pairing session(s).`);
+      await announcePairings(res.data.pairs, participants, client);
+      updated = true;
+    }
   }
 
-  console.log('[Duality] Alignment phase balanced. Requesting automatic pairings…');
-  const res = await apiFetch('/api/duality/pairings', { method: 'POST' });
-  if (!res.ok) {
-    console.error('[Duality] Failed to generate pairings:', res.status, res.data);
-    await notifyAdmins(client, `⚠️ Duality pairing failed: ${res.data?.error || 'Unknown error'}`);
-    return;
-  }
-
-  console.log('[Duality] Pairings generated. Announcing matches…');
-  await announcePairings(res.data?.pairs || [], participants, client);
+  return updated;
 }
 
 async function processDailyEvents(status, client) {
   if (!status || !status.cycle || status.cycle.status !== 'active') return;
 
-  const cycleDay = getCycleDay(status.cycle.weekStart);
+  const cycleDay = getCycleDay(status.cycle.weekStart, status.cycle.createdAt);
   if (cycleDay === null) {
     console.log('[Duality] Unable to determine cycle day.');
     return;
@@ -518,111 +562,24 @@ async function processDailyEvents(status, client) {
     return;
   }
 
-  const participants = ensureArray(status.participants);
-  const participantMap = new Map();
-  for (const participant of participants) {
-    participantMap.set(participant.id, participant);
-  }
-
   const pairs = ensureArray(status.pairs);
   if (!pairs.length) return;
 
-  const events = ensureArray(status.events);
-  status.events = events;
-
   for (const pair of pairs) {
-    if (!pair || !pair.id) continue;
+    if (!pair || pair.status !== 'active') continue;
 
-    const alreadyLogged = events.some(
-      (event) => event && event.pairId === pair.id && event.cycleDay === cycleDay
-    );
-    if (alreadyLogged) {
-      continue;
-    }
-
-    const good = participantMap.get(pair.goodParticipantId);
-    const evil = participantMap.get(pair.evilParticipantId);
-    if (!good || !evil) continue;
-
-    const outcome = generateDailyEventOutcome(pair, good, evil, cycleDay);
-    if (!outcome) continue;
-
-    const payload = { ...outcome.payload };
-    if (payload.metadata && Object.keys(payload.metadata).length === 0) {
-      delete payload.metadata;
-    }
+    const outcome = DAILY_EVENT_TYPES[Math.floor(Math.random() * DAILY_EVENT_TYPES.length)];
+    const embed = new EmbedBuilder()
+      .setTitle('🎲 Duality Event Triggered')
+      .setDescription(`${outcome} hits the fate meter!`)
+      .addFields({ name: 'Pair', value: pair.id })
+      .setColor(0x1abc9c)
+      .setTimestamp(new Date());
 
     try {
-      const res = await apiFetch('/api/duality/events', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        console.error('[Duality] Failed to record event:', res.status, res.data);
-        await notifyAdmins(
-          client,
-          `⚠️ Failed to record ${outcome.payload.eventType} for pair ${pair.id}: ${
-            res.data?.error || 'Unknown error'
-          }`
-        );
-        continue;
-      }
-
-      if (outcome.globalEffect) {
-        const effectPayload = {};
-        if (outcome.globalEffect.effect) {
-          effectPayload.activeEffect = outcome.globalEffect.effect;
-        } else {
-          effectPayload.activeEffect = null;
-          effectPayload.clearEffectExpiry = true;
-        }
-
-        if (
-          outcome.globalEffect.durationHours &&
-          outcome.globalEffect.durationHours > 0
-        ) {
-          effectPayload.effectDurationHours = outcome.globalEffect.durationHours;
-        }
-
-        const effectRes = await apiFetch('/api/duality/cycle', {
-          method: 'PATCH',
-          body: JSON.stringify(effectPayload),
-        });
-
-        if (!effectRes.ok) {
-          console.error('[Duality] Failed to apply global effect:', effectRes.status, effectRes.data);
-        }
-      }
-
-      const content = outcome.mentions.length ? outcome.mentions.join(' ') : undefined;
-      try {
-        await channel.send({ content, embeds: [outcome.embed] });
-      } catch (error) {
-        console.error('[Duality] Failed to send daily event embed:', error);
-      }
-
-      events.push({
-        id: res.data?.event?.id || `${pair.id}-${cycleDay}`,
-        pairId: pair.id,
-        cycleDay,
-        eventType: outcome.payload.eventType,
-      });
-
-      if (outcome.adminNote) {
-        await notifyAdmins(client, outcome.adminNote);
-      }
-
-      // Update local fate meter to reflect adjustments in subsequent events
-      if (typeof outcome.payload.fateMeter === 'number') {
-        pair.fateMeter = outcome.payload.fateMeter;
-      }
-
-      console.log(
-        `[Duality] Logged ${outcome.payload.eventType} for day ${cycleDay} (pair ${pair.id}).`
-      );
+      await channel.send({ embeds: [embed] });
     } catch (error) {
-      console.error('[Duality] Error processing daily event:', error);
+      console.error('[Duality] Failed to post daily event:', error);
     }
   }
 }
@@ -680,9 +637,13 @@ async function announcePairings(pairs, participants, client) {
     const evil = participantMap.get(pair.evilParticipantId);
     if (!good || !evil) continue;
 
+    const windowEnd = pair.windowEnd ? new Date(pair.windowEnd) : null;
+    const windowEndText = windowEnd ? `<t:${Math.floor(windowEnd.getTime() / 1000)}:R>` : `${PAIRING_WINDOW_MINUTES} minutes`;
+    const cooldownText = `${pair.cooldownMinutes ?? PAIRING_COOLDOWN_MINUTES} minutes`;
+
     const embed = new EmbedBuilder()
-      .setTitle('🔗 New Duality Pairing')
-      .setDescription('Fate binds opposite forces for this cycle.')
+      .setTitle('🔗 New Duality Pairing Window')
+      .setDescription('Opposing holders have been paired for the next challenge slot.')
       .addFields(
         {
           name: 'Good Holder',
@@ -693,17 +654,39 @@ async function announcePairings(pairs, participants, client) {
           name: 'Evil Holder',
           value: formatParticipant(evil),
           inline: true,
+        },
+        {
+          name: 'Window Ends',
+          value: windowEndText,
+          inline: true,
+        },
+        {
+          name: 'Cooldown',
+          value: cooldownText,
+          inline: true,
         }
       )
       .addFields({ name: 'Shared Fate Meter', value: `${pair.fateMeter ?? 50}/100`, inline: false })
       .setColor(0x9b59b6)
       .setTimestamp(new Date());
 
+    const mentions = [];
+    if (good.discordUserId) mentions.push(`<@${good.discordUserId}>`);
+    if (evil.discordUserId) mentions.push(`<@${evil.discordUserId}>`);
+
     try {
-      await channel.send({ embeds: [embed] });
+      if (mentions.length) {
+        await channel.send({ content: `${mentions.join(' + ')} — your pairing window is LIVE!`, embeds: [embed] });
+      } else {
+        await channel.send({ embeds: [embed] });
+      }
     } catch (error) {
       console.error('[Duality] Failed to announce pairing:', error);
     }
+
+    const dmMessage = `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.`;
+    await dmUser(client, good.discordUserId, dmMessage);
+    await dmUser(client, evil.discordUserId, dmMessage);
   }
 }
 
@@ -739,6 +722,18 @@ async function getChannel(client, channelId) {
   } catch (error) {
     console.error(`[Duality] Failed to fetch channel ${channelId}:`, error);
     return null;
+  }
+}
+
+async function dmUser(client, discordUserId, content) {
+  if (!discordUserId || !content) return;
+  try {
+    const user = await client.users.fetch(discordUserId);
+    if (user) {
+      await user.send(content);
+    }
+  } catch (error) {
+    console.warn(`[Duality] Unable to DM ${discordUserId}:`, error?.message || error);
   }
 }
 

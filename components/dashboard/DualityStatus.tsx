@@ -10,6 +10,7 @@ interface DualityCycle {
   status: 'alignment' | 'active' | 'trial' | 'completed' | 'pending'
   activeEffect?: string | null
   effectExpiresAt?: string | null
+  createdAt?: string | null
 }
 
 interface DualityParticipant {
@@ -23,6 +24,9 @@ interface DualityParticipant {
   questCompleted: boolean
   eligibleForTrial: boolean
   lockedAt?: string | null
+  readyForPairing?: boolean
+  nextAvailableAt?: string | null
+  currentPairId?: string | null
 }
 
 interface DualityPartnerInfo {
@@ -39,6 +43,17 @@ interface DualityEvent {
   karmaDeltaEvil?: number
   occurredAt: string
   metadata?: Record<string, any> | null
+}
+
+interface DualityPair {
+  id: string
+  status: 'active' | 'completed' | 'cancelled'
+  windowStart?: string | null
+  windowEnd?: string | null
+  cooldownMinutes?: number | null
+  fateMeter?: number | null
+  goodParticipantId?: string
+  evilParticipantId?: string
 }
 
 interface DualityTrial {
@@ -71,6 +86,7 @@ const formatDuration = (ms: number) => {
 interface DualityStatusProps {
   walletAddress: string | null
   profileSide?: 'good' | 'evil' | null
+  mode?: 'full' | 'compact'
 }
 
 const ALIGNMENT_DESCRIPTIONS = {
@@ -86,22 +102,26 @@ const ALIGNMENT_DESCRIPTIONS = {
   }
 }
 
-export default function DualityStatus({ walletAddress, profileSide }: DualityStatusProps) {
+export default function DualityStatus({ walletAddress, profileSide, mode = 'full' }: DualityStatusProps) {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [submittingAlignment, setSubmittingAlignment] = useState(false)
+  const [joiningQueue, setJoiningQueue] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [data, setData] = useState<{
     cycle: DualityCycle | null
     participant: DualityParticipant | null
     partner: DualityPartnerInfo | null
+    pair: DualityPair | null
     events: DualityEvent[]
     trial: DualityTrial | null
-  }>({ cycle: null, participant: null, partner: null, events: [], trial: null })
+  }>({ cycle: null, participant: null, partner: null, pair: null, events: [], trial: null })
+
+  const isCompact = mode === 'compact'
 
   const fetchStatus = useCallback(async () => {
     if (!walletAddress) {
-      setData({ cycle: null, participant: null, partner: null, events: [], trial: null })
+      setData({ cycle: null, participant: null, partner: null, pair: null, events: [], trial: null })
       setLoading(false)
       return
     }
@@ -113,21 +133,22 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
 
       if (!response.ok) {
         toast.error(result.error || 'Failed to load Duality status')
-        setData({ cycle: null, participant: null, partner: null, events: [], trial: null })
+        setData({ cycle: null, participant: null, partner: null, pair: null, events: [], trial: null })
         return
       }
 
       setData({
-        cycle: result.cycle,
-        participant: result.participant,
-        partner: result.partner,
+        cycle: result.cycle || null,
+        participant: result.participant || null,
+        partner: result.partner || null,
+        pair: result.pair || null,
         events: result.events || [],
         trial: result.trial || null
       })
     } catch (error) {
       console.error('Duality status fetch error:', error)
       toast.error('Failed to load Duality status')
-      setData({ cycle: null, participant: null, partner: null, events: [], trial: null })
+      setData({ cycle: null, participant: null, partner: null, pair: null, events: [], trial: null })
     } finally {
       setLoading(false)
     }
@@ -172,17 +193,58 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
     }
   }, [walletAddress, profileSide, toast, fetchStatus])
 
-  const autoAlignAttemptedRef = useRef(false)
+  const handleJoinQueue = useCallback(async (leave = false) => {
+    if (!walletAddress) {
+      toast.warning('Connect your wallet to join pairings')
+      return
+    }
 
-  useEffect(() => {
-    autoAlignAttemptedRef.current = false
-  }, [profileSide, data.cycle?.id])
+    if (!profileSide) {
+      toast.warning('Choose a side in My Profile before joining pairings')
+      return
+    }
+
+    if (joiningQueue) return
+
+    setJoiningQueue(true)
+    try {
+      const response = await fetch('/api/duality/pairings/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, action: leave ? 'leave' : undefined })
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to update pairing queue')
+        return
+      }
+
+      toast.success(leave ? 'Removed from pairing queue' : 'Queued for next pairing window')
+      await fetchStatus()
+    } catch (error) {
+      console.error('Pairing queue error:', error)
+      toast.error('Failed to update pairing queue')
+    } finally {
+      setJoiningQueue(false)
+    }
+  }, [walletAddress, profileSide, joiningQueue, fetchStatus, toast])
+
+  const autoAlignAttemptedRef = useRef(false)
 
   const cycle = data.cycle
   const participant = data.participant
   const partner = data.partner
-  const events = data.events
-  const trial = data.trial
+  const pair = data.pair
+
+  const cycleDay = useMemo(() => {
+    if (!cycle?.weekStart && !cycle?.createdAt) return null
+    const source = cycle.weekStart ?? cycle.createdAt
+    const baseDate = new Date(source)
+    if (Number.isNaN(baseDate.getTime())) return null
+    const diff = Math.floor((Date.now() - baseDate.getTime()) / (24 * 60 * 60 * 1000))
+    return Math.max(diff + 1, 1)
+  }, [cycle?.weekStart, cycle?.createdAt])
 
   useEffect(() => {
     if (!walletAddress || !profileSide || !cycle || cycle.status !== 'alignment') return
@@ -194,7 +256,7 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
       console.error('Auto alignment error:', error)
       autoAlignAttemptedRef.current = false
     })
-  }, [walletAddress, profileSide, cycle?.id, cycle?.status, participant?.alignment, submittingAlignment, handleAlignment])
+  }, [walletAddress, profileSide, cycle, participant, submittingAlignment, handleAlignment])
 
   const partnerName = useMemo(() => {
     if (!partner) return null
@@ -203,44 +265,109 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
     return null
   }, [partner])
 
+  const partnerImage = useMemo(() => (
+    partner?.walletAddress
+      ? `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(partner.walletAddress)}`
+      : null
+  ), [partner?.walletAddress])
+
+  const activePair = pair && pair.status === 'active'
+  const pairWindowEnd = activePair && pair?.windowEnd ? new Date(pair.windowEnd) : null
+  const pairWindowRemainingMs = pairWindowEnd ? Math.max(pairWindowEnd.getTime() - now, 0) : 0
+  const cooldownRemainingMs = !activePair && participant?.nextAvailableAt
+    ? Math.max(new Date(participant.nextAvailableAt).getTime() - now, 0)
+    : 0
+  const queueReady = !!participant?.readyForPairing
+  const canJoinQueue = Boolean(profileSide && !activePair && !queueReady && cooldownRemainingMs === 0)
+  const canLeaveQueue = Boolean(queueReady && !activePair)
+
+  const actionItems = useMemo(() => {
+    const items: string[] = []
+    if (!cycle) return items
+
+    if (!profileSide) {
+      items.push('Choose a side in My Profile to join the Duality cycle.')
+      return items
+    }
+
+    if (!participant) {
+      items.push('Lock your alignment on the dashboard to join the pairing queue.')
+    }
+
+    if (cycleDay) {
+      items.push(`You are on Day ${cycleDay} of this week.`)
+    }
+
+    if (activePair && pairWindowRemainingMs) {
+      items.push(`Current pairing window ends in ${formatDuration(pairWindowRemainingMs)}.`)
+    }
+
+    if (!activePair && queueReady) {
+      items.push('Waiting for the next hourly pairing draw.')
+    }
+
+    if (!activePair && !queueReady && cooldownRemainingMs === 0) {
+      items.push('Join the next pairing slot when you are ready.')
+    }
+
+    if (cooldownRemainingMs > 0) {
+      items.push(`Cooldown remaining: ${formatDuration(cooldownRemainingMs)}.`)
+    }
+
+    switch (cycle.status) {
+      case 'alignment':
+        items.push('Watch #duality-events for pairing announcements.')
+        items.push('Make sure your teammate is linked in Discord once pairs drop.')
+        break
+      case 'active':
+        items.push('Check #duality-events each day for Blessing/Temptation cards.')
+        items.push('Complete your side’s quests for bonus karma points.')
+        if (partnerName) {
+          items.push(`Coordinate with ${partnerName} to manage your shared fate meter.`)
+        }
+        break
+      case 'trial':
+        items.push('Vote ⚪️/🔴 on any active trials in #duality-trials before the timer ends.')
+        if (participant?.eligibleForTrial) {
+          items.push('Earn quest credit to stay safe from the Trial of Karma.')
+        }
+        break
+      default:
+        break
+    }
+
+    return items
+  }, [cycle, profileSide, participant, cycleDay, activePair, pairWindowRemainingMs, cooldownRemainingMs, queueReady, partnerName])
+
+  const renderInfoCard = (message: string) => (
+    <div className={`${isCompact ? 'bg-black/60 border border-blue-600/40 rounded-lg p-4 text-center' : 'bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center'}`}>
+      <div className="text-blue-300 font-mono text-sm">{message}</div>
+    </div>
+  )
+
   if (!walletAddress) {
-    return (
-      <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center">
-        <div className="text-blue-300 font-mono text-sm">
-          Connect your wallet to join the Duality weekly cycle.
-        </div>
-      </div>
-    )
+    return renderInfoCard('Connect your wallet to join the Duality cycle.')
   }
 
   if (loading) {
-    return (
-      <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center">
-        <div className="text-blue-400 font-mono text-sm animate-pulse">Loading Duality status…</div>
-      </div>
-    )
+    return renderInfoCard('Loading Duality status…')
   }
 
   if (!cycle) {
-    return (
-      <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center">
-        <div className="text-blue-300 font-mono text-sm">
-          Duality Protocol is currently idle. Await the next weekly cycle.
-        </div>
-      </div>
-    )
+    return renderInfoCard('Duality Protocol is currently idle. Await the next weekly cycle.')
   }
 
-  const cycleTitle = `Week ${cycle.weekStart} → ${cycle.weekEnd}`
-  const alignmentInfo = participant ? ALIGNMENT_DESCRIPTIONS[participant.alignment] : null
-  const profileAlignmentInfo = profileSide ? ALIGNMENT_DESCRIPTIONS[profileSide] : null
-  const trialStartsIn = trial ? new Date(trial.scheduledAt).getTime() - now : null
-  const trialEndsIn = trial ? new Date(trial.voteEndsAt).getTime() - now : null
+  const renderPairingPanel = (compact: boolean) => {
+    const containerClass = compact
+      ? 'bg-black/60 border border-blue-600/40 rounded-lg p-4 space-y-3'
+      : 'bg-black/60 border border-blue-600/40 rounded-lg p-6 space-y-4'
 
-  return (
-    <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-blue-200 font-mono text-sm uppercase tracking-wide">Duality Protocol</div>
+    const header = (
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div>
+          <div className="text-xs uppercase text-blue-300 font-mono">Duality Pairing</div>
+          <div className="text-sm text-gray-200 font-mono">Week {cycle.weekStart} → {cycle.weekEnd}</div>
+        </div>
         <span
           className={`px-3 py-1 text-xs font-mono uppercase rounded border ${
             cycle.status === 'alignment'
@@ -252,10 +379,138 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
               : 'border-gray-500/60 text-gray-300'
           }`}
         >
-          {cycle.status}
+          {cycle.status.toUpperCase()}
         </span>
-        <div className="text-xs text-gray-400 font-mono">{cycleTitle}</div>
+        {cycleDay && (
+          <div className="text-xs text-gray-300 font-mono">Day {cycleDay}</div>
+        )}
       </div>
+    )
+
+    const body = (() => {
+      if (!participant) {
+        return (
+          <div className="text-sm text-gray-400 font-mono">
+            Lock your alignment to join the next pairing window.
+          </div>
+        )
+      }
+
+      if (activePair) {
+        return (
+          <div className="flex items-center gap-3">
+            {partnerImage && (
+              <img
+                src={partnerImage}
+                alt="Partner avatar"
+                className="w-12 h-12 rounded-full border border-blue-500/50"
+              />
+            )}
+            <div className="flex-1">
+              <div className="text-sm text-white font-mono font-semibold">
+                {partnerName || 'Partner TBD'}
+              </div>
+              <div className="text-xs text-gray-400 font-mono">
+                Pairing window ends in {formatDuration(pairWindowRemainingMs)}
+              </div>
+              <div className="text-xs text-gray-500 font-mono">
+                Fate meter {pair?.fateMeter ?? 50}/100
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      if (queueReady) {
+        return (
+          <div className="text-sm text-yellow-300 font-mono">
+            Waiting for the next hourly pairing draw…
+          </div>
+        )
+      }
+
+      if (cooldownRemainingMs > 0) {
+        return (
+          <div className="text-sm text-gray-400 font-mono">
+            Cooldown ends in {formatDuration(cooldownRemainingMs)}.
+          </div>
+        )
+      }
+
+      return (
+        <div className="text-sm text-gray-300 font-mono">
+          Join the next pairing slot to match with an opposing holder.
+        </div>
+      )
+    })()
+
+    const buttons = (
+      <div className="flex flex-wrap gap-2">
+        {canJoinQueue && (
+          <button
+            onClick={() => handleJoinQueue(false)}
+            disabled={joiningQueue}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs uppercase disabled:opacity-50"
+          >
+            {joiningQueue ? 'Joining…' : 'Join Next Pairing Slot'}
+          </button>
+        )}
+        {canLeaveQueue && (
+          <button
+            onClick={() => handleJoinQueue(true)}
+            disabled={joiningQueue}
+            className="px-4 py-2 border border-gray-600 text-gray-300 rounded text-xs uppercase hover:bg-gray-700/30 disabled:opacity-50"
+          >
+            {joiningQueue ? 'Updating…' : 'Leave Queue'}
+          </button>
+        )}
+        {!participant && profileSide && (
+          <button
+            onClick={() => handleAlignment(profileSide)}
+            disabled={submittingAlignment}
+            className="px-4 py-2 border border-green-600 text-green-400 rounded text-xs uppercase hover:bg-green-700/20 disabled:opacity-50"
+          >
+            {submittingAlignment ? 'Locking…' : 'Lock Alignment'}
+          </button>
+        )}
+      </div>
+    )
+
+    return (
+      <div className={containerClass}>
+        {header}
+        {body}
+        {buttons}
+      </div>
+    )
+  }
+
+  if (isCompact) {
+    return renderPairingPanel(true)
+  }
+
+  const alignmentInfo = participant ? ALIGNMENT_DESCRIPTIONS[participant.alignment] : null
+  const trial = data.trial
+  const events = data.events
+  const pairingsPanel = renderPairingPanel(false)
+
+  const trialStartsIn = trial ? new Date(trial.scheduledAt).getTime() - now : null
+  const trialEndsIn = trial ? new Date(trial.voteEndsAt).getTime() - now : null
+
+  return (
+    <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 space-y-6">
+      {pairingsPanel}
+
+      {actionItems.length > 0 && (
+        <div className="bg-blue-900/10 border border-blue-600/30 rounded-lg p-4">
+          <div className="text-xs uppercase text-blue-300 font-mono mb-2">Your Next Steps</div>
+          <ul className="list-disc list-inside text-xs text-gray-200 font-mono space-y-1">
+            {actionItems.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {cycle.activeEffect && (
         <div className="bg-blue-900/20 border border-cyan-500/40 rounded-lg p-4 text-sm text-cyan-200 font-mono">
@@ -298,41 +553,6 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
           {trial.verdict && trial.status === 'resolved' && (
             <div className="text-xs text-purple-200 mt-2">
               Verdict: {trial.verdict}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!participant && cycle.status === 'alignment' && (
-        <div className="space-y-4">
-          {profileSide ? (
-            <>
-              <div className="text-sm text-gray-300 font-mono">
-                Your Duality alignment follows your morality choice. We’ll lock you in as{' '}
-                <span className="font-bold text-white">{profileAlignmentInfo?.title}</span> for this cycle.
-              </div>
-              <button
-                onClick={() => handleAlignment(profileSide)}
-                disabled={submittingAlignment}
-                className={`w-full flex flex-col items-start bg-black/50 border rounded-lg p-4 transition ${
-                  profileSide === 'good'
-                    ? 'border-green-600/50 hover:border-green-500 hover:bg-green-900/5'
-                    : 'border-red-600/50 hover:border-red-500 hover:bg-red-900/5'
-                } ${submittingAlignment ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <div className="text-2xl mb-2">{profileAlignmentInfo?.emoji}</div>
-                <div className="text-lg font-mono text-white">{profileAlignmentInfo?.title}</div>
-                <div className="text-xs text-gray-400 font-mono mt-2">
-                  {profileAlignmentInfo?.description}
-                </div>
-                <div className="mt-3 text-xs text-gray-500 font-mono uppercase">
-                  {submittingAlignment ? 'Locking alignment…' : 'Lock alignment for this cycle'}
-                </div>
-              </button>
-            </>
-          ) : (
-            <div className="text-sm text-yellow-300 font-mono">
-              Choose a morality side in your profile first, then you’ll be auto-enrolled here.
             </div>
           )}
         </div>

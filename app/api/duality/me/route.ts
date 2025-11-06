@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
        JOIN profiles gp ON g.profile_id = gp.id
        JOIN profiles ep ON e.profile_id = ep.id
        WHERE pr.cycle_id = $1 AND ($2 = pr.good_participant_id OR $2 = pr.evil_participant_id)
+       ORDER BY (pr.status = 'active') DESC, pr.created_at DESC
        LIMIT 1`,
       [cycleRow.id, participantRow.id]
     )

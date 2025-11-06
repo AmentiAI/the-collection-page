@@ -707,6 +707,12 @@ function DashboardContent() {
           onMusicMutedChange={setIsMusicMuted}
         />
 
+        {connected && address && (
+          <div className="container mx-auto px-4 pt-6 relative z-10 max-w-7xl">
+            <DualityStatus walletAddress={address} profileSide={chosenSide} mode="compact" />
+          </div>
+        )}
+
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
           {/* Compact Hellish Karma Scoreboard */}
           {connected && address && (

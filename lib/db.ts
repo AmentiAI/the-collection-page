@@ -310,6 +310,9 @@ export async function initDatabase() {
         quest_completed BOOLEAN DEFAULT false,
         eligible_for_trial BOOLEAN DEFAULT false,
         locked_at TIMESTAMPTZ,
+        ready_for_pairing BOOLEAN DEFAULT false,
+        next_available_at TIMESTAMPTZ,
+        current_pair_id UUID,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(cycle_id, profile_id)
@@ -324,9 +327,12 @@ export async function initDatabase() {
         evil_participant_id UUID REFERENCES duality_participants(id) ON DELETE CASCADE,
         fate_meter INTEGER DEFAULT 50,
         status TEXT DEFAULT 'active',
+        window_start TIMESTAMPTZ DEFAULT NOW(),
+        window_end TIMESTAMPTZ,
+        cooldown_minutes INTEGER DEFAULT 60,
+        completed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(cycle_id, good_participant_id, evil_participant_id)
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
 
@@ -502,49 +508,65 @@ export async function initDatabase() {
     ]
     
     // Ensure all automated tasks exist
-    for (const task of automatedTasks) {
-      const taskCheck = await pool.query(
-        "SELECT id FROM karma_tasks WHERE title = $1 AND type = $2",
-        [task.title, task.type]
-      )
-      
-      if (taskCheck.rows.length === 0) {
-        await pool.query(`
-          INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform, created_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'system')
-        `, [
-          task.title,
-          task.description,
-          task.type,
-          task.points,
-          task.category,
-          task.is_active,
-          task.proof_required ?? false,
-          task.required_platform
-        ])
-      } else {
-        // Update if exists
-        await pool.query(`
-          UPDATE karma_tasks 
-          SET description = $1, points = $2, category = $3, is_active = $4, proof_required = $5, required_platform = $6
-          WHERE title = $7 AND type = $8
-        `, [
-          task.description,
-          task.points,
-          task.category,
-          task.is_active,
-          task.proof_required ?? false,
-          task.required_platform,
-          task.title,
-          task.type
-        ])
-      }
-    }
+  for (const task of automatedTasks) {
+    const taskCheck = await pool.query(
+      "SELECT id FROM karma_tasks WHERE title = $1 AND type = $2",
+      [task.title, task.type]
+    )
     
-    console.log('✅ Database tables initialized successfully')
-  } catch (error) {
-    console.error('❌ Error initializing database:', error)
-    throw error
+    if (taskCheck.rows.length === 0) {
+      await pool.query(`
+        INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'system')
+      `, [
+        task.title,
+        task.description,
+        task.type,
+        task.points,
+        task.category,
+        task.is_active,
+        task.proof_required ?? false,
+        task.required_platform
+      ])
+    } else {
+      // Update if exists
+      await pool.query(`
+        UPDATE karma_tasks 
+        SET description = $1, points = $2, category = $3, is_active = $4, proof_required = $5, required_platform = $6
+        WHERE title = $7 AND type = $8
+      `, [
+        task.description,
+        task.points,
+        task.category,
+        task.is_active,
+        task.proof_required ?? false,
+        task.required_platform,
+        task.title,
+        task.type
+      ])
+    }
   }
+
+  // Seed initial Duality cycle so automation can run immediately
+  const now = new Date()
+  const utcDay = now.getUTCDay()
+  const diff = utcDay === 0 ? -6 : 1 - utcDay // start cycle on Monday UTC
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff))
+  const weekEnd = new Date(weekStart)
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6)
+
+  await pool.query(
+    `INSERT INTO duality_cycles (week_start, week_end, status)
+     VALUES ($1, $2, 'alignment')`,
+    [weekStart.toISOString().slice(0, 10), weekEnd.toISOString().slice(0, 10)]
+  )
+
+  console.log('✅ Seeded initial Duality cycle in alignment phase')
+
+  console.log('✅ Database tables initialized successfully')
+} catch (error) {
+  console.error('❌ Error initializing database:', error)
+  throw error
+}
 }
 
