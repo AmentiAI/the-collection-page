@@ -1146,52 +1146,27 @@ function DashboardContent() {
                 {connected && chosenSide && (
                   <StepCard
                     step={4}
-                    title="Discord Holder Tasks"
-                    description="Complete these checkpoints to stay verified"
+                    title="Morality Tasks"
+                    description="Track quests from the Morality tab"
                     variant="compact"
                   >
-                    <div className="space-y-3">
-                      {!discordLinked && (
-                        <div className="text-sm text-yellow-400 font-mono">
-                          Link Discord above to mark these tasks complete. Review the checklist here so you know what the bot expects.
-                        </div>
-                      )}
-                      <Morality
-                        walletAddress={address}
-                        chosenSide={chosenSide}
-                        filterPlatforms={['discord']}
-                        compact
-                        disabled={!discordLinked}
-                      />
-                      <p className="text-xs text-gray-500">
-                        Finish these Discord-specific tasks to keep the Holder role. Completions sync instantly with your karma log.
+                    <div className="space-y-3 text-sm font-mono text-gray-300">
+                      <p>
+                        Discord checkpoints and the full quest board now live on the Morality tab. Head there whenever you need to
+                        submit proof or monitor new drops.
                       </p>
-                    </div>
-                  </StepCard>
-                )}
-
-                {connected && chosenSide && (
-                  <StepCard
-                    step={5}
-                    title="Morality Quest Board"
-                    description="Earn karma through good or evil deeds"
-                    variant="compact"
-                  >
-                    <div className="space-y-3">
-                      <Morality walletAddress={address} chosenSide={chosenSide} limit={4} compact />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
                         <button
                           onClick={() => setActiveSection('morality')}
                           className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase border-2 border-red-600 text-red-400 hover:bg-red-600/20 transition"
                         >
-                          View full quest board →
+                          Open Morality Tab
                         </button>
-                        <button
-                          onClick={() => setActiveSection('my-damned')}
-                          className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase border-2 border-red-600 text-red-400 hover:bg-red-600/20 transition"
-                        >
-                          View Ordinal activity →
-                        </button>
+                        {!discordLinked && (
+                          <span className="text-[11px] text-yellow-300">
+                            Link Discord above first so holder tasks can sync.
+                          </span>
+                        )}
                       </div>
                     </div>
                   </StepCard>
@@ -1199,7 +1174,7 @@ function DashboardContent() {
 
                 {connected && (
                   <StepCard
-                    step={connected && chosenSide ? 6 : 4}
+                    step={connected && chosenSide ? 5 : 4}
                     title="Duality Protocol Status"
                     description="Weekly pairing, fate meter, and trials"
                   >
