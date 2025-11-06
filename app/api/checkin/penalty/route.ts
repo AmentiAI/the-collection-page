@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
             // Deduct -5 karma for missing check-in
             await pool.query(`
               INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-              VALUES ($1, -5, 'bad', 'Missed daily check-in', 'system')
+              VALUES ($1, -5, 'evil', 'Missed daily check-in', 'system')
             `, [user.profile_id])
             
             penaltyCount++

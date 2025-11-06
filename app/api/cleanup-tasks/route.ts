@@ -41,31 +41,31 @@ export async function GET() {
     )
     if (trialWinCheck.rows.length === 0) {
       await pool.query(`
-        INSERT INTO karma_tasks (title, description, type, points, category, is_active)
-        VALUES ('Trial Win', 'Win a trial or challenge', 'good', 10, 'Trial', true)
+        INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform)
+        VALUES ('Trial Win', 'Win a trial or challenge', 'good', 10, 'Trial', true, false, NULL)
       `)
     } else {
       await pool.query(`
         UPDATE karma_tasks 
-        SET description = 'Win a trial or challenge', points = 10, category = 'Trial', is_active = true
+        SET description = 'Win a trial or challenge', points = 10, category = 'Trial', is_active = true, proof_required = false, required_platform = NULL
         WHERE title = 'Trial Win' AND type = 'good'
       `)
     }
     
     // Ensure Trial Loss exists
     const trialLossCheck = await pool.query(
-      "SELECT id FROM karma_tasks WHERE title = 'Trial Loss' AND type = 'bad'"
+      "SELECT id FROM karma_tasks WHERE title = 'Trial Loss' AND type = 'evil'"
     )
     if (trialLossCheck.rows.length === 0) {
       await pool.query(`
-        INSERT INTO karma_tasks (title, description, type, points, category, is_active)
-        VALUES ('Trial Loss', 'Lose a trial or challenge', 'bad', -10, 'Trial', true)
+        INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform)
+        VALUES ('Trial Loss', 'Lose a trial or challenge', 'evil', -10, 'Trial', true, false, NULL)
       `)
     } else {
       await pool.query(`
         UPDATE karma_tasks 
-        SET description = 'Lose a trial or challenge', points = -10, category = 'Trial', is_active = true
-        WHERE title = 'Trial Loss' AND type = 'bad'
+        SET description = 'Lose a trial or challenge', points = -10, category = 'Trial', is_active = true, proof_required = false, required_platform = NULL
+        WHERE title = 'Trial Loss' AND type = 'evil'
       `)
     }
     

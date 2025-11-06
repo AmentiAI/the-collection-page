@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const type = searchParams.get('type') || 'good' // 'good' or 'bad'
+    const type = searchParams.get('type') || 'good' // 'good' or 'evil'
     const limit = parseInt(searchParams.get('limit') || '50')
     
     const pool = getPool()

@@ -36,22 +36,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(existing.rows[0])
     }
     
-    // Create new profile - handle both with and without payment_address column
+    // Create or update profile in a single UPSERT to avoid race conditions
     let result
     try {
       result = await pool.query(
-        `INSERT INTO profiles (wallet_address, payment_address) 
-         VALUES ($1, $2) 
+        `INSERT INTO profiles (wallet_address, payment_address)
+         VALUES ($1, $2)
+         ON CONFLICT (wallet_address) DO UPDATE
+         SET payment_address = EXCLUDED.payment_address,
+             updated_at = NOW()
          RETURNING *`,
         [walletAddress, paymentAddress || walletAddress]
       )
     } catch (error: any) {
-      // If payment_address column doesn't exist, create without it
+      // Fallback if payment_address column is missing
       if (error.message && error.message.includes('payment_address')) {
-        console.warn('payment_address column not found, creating profile without it')
+        console.warn('payment_address column not found, upserting profile without it')
         result = await pool.query(
-          `INSERT INTO profiles (wallet_address) 
-           VALUES ($1) 
+          `INSERT INTO profiles (wallet_address)
+           VALUES ($1)
+           ON CONFLICT (wallet_address) DO UPDATE
+           SET updated_at = NOW()
            RETURNING *`,
           [walletAddress]
         )
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest) {
         throw error
       }
     }
-    
+
     return NextResponse.json(result.rows[0])
   } catch (error) {
     console.error('Profile creation error:', error)

@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import dynamicImport from 'next/dynamic'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
@@ -10,6 +10,7 @@ import BackgroundMusic from '@/components/BackgroundMusic'
 import Leaderboard from '@/components/dashboard/Leaderboard'
 import PointsHistory from '@/components/dashboard/PointsHistory'
 import Morality from '@/components/dashboard/Morality'
+import DualityStatus from '@/components/dashboard/DualityStatus'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 
@@ -47,6 +48,38 @@ interface MagicEdenToken {
   price?: number
   [key: string]: any
 }
+
+interface StepCardProps {
+  step: number
+  title: string
+  description?: string
+  children: ReactNode
+}
+
+const StepCard = ({ step, title, description, children }: StepCardProps) => (
+  <div className="bg-black/40 rounded-xl border border-red-600/40 p-5 md:p-6 shadow-lg space-y-3">
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-full bg-red-700/60 border border-red-500 flex items-center justify-center font-mono text-lg font-bold text-white">
+        {step}
+      </div>
+      <div className="flex-1">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+          <h3 className="text-xl md:text-2xl font-black uppercase tracking-widest text-red-200">
+            {title}
+          </h3>
+          {description && (
+            <p className="text-xs md:text-sm text-gray-400 font-mono uppercase tracking-wide">
+              {description}
+            </p>
+          )}
+        </div>
+        <div className="text-sm md:text-base text-gray-200 font-mono leading-relaxed">
+          {children}
+        </div>
+      </div>
+    </div>
+  </div>
+)
 
 function DashboardContent() {
   const { connected, address } = useLaserEyes()
@@ -672,7 +705,6 @@ function DashboardContent() {
           onMusicVolumeChange={setMusicVolume}
           isMusicMuted={isMusicMuted}
           onMusicMutedChange={setIsMusicMuted}
-          showStakeButton={true}
         />
 
         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
@@ -821,37 +853,50 @@ function DashboardContent() {
               <h2 className="text-2xl font-bold text-red-600 mb-6 font-mono border-b border-red-600/30 pb-2">
                 MY PROFILE
               </h2>
-              {connected && address ? (
-                <div className="space-y-4">
-                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
-                    <div className="text-gray-400 text-sm font-mono uppercase mb-2">Wallet Address</div>
-                    <div className="text-white font-mono text-sm break-all">{address}</div>
-                  </div>
-                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
-                    <div className="text-gray-400 text-sm font-mono uppercase mb-2">Holder Status</div>
-                    <div className={`font-mono font-bold ${isHolder ? 'text-green-500' : 'text-red-500'}`}>
-                      {isHolder ? '✓ Verified Holder' : '✗ Not a Holder'}
-                    </div>
-            </div>
-            
-                  {/* Social Auth Section */}
-                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
-                    <div className="text-gray-400 text-sm font-mono uppercase mb-4">Social Accounts</div>
+              <div className="space-y-6">
+                <StepCard
+                  step={1}
+                  title="Connect Your Wallet"
+                  description="LaserEyes verification unlocks everything"
+                >
+                  {connected && address ? (
                     <div className="space-y-3">
-                      {/* Discord Auth */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">💬</div>
-                          <div>
-                            <div className="text-white font-mono text-sm">Discord</div>
-                            {discordLinked && discordUserId && (
-                              <div className="text-gray-400 font-mono text-xs">
-                                Linked: {discordUserId}
-                  </div>
-                )}
-              </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase">Wallet Address</div>
+                        <div className="text-white text-sm break-all">{address}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase">Holder Status</div>
+                        <div className={`font-mono font-bold ${isHolder ? 'text-green-500' : 'text-red-500'}`}>
+                          {isHolder ? '✓ Verified Holder' : '✗ Not a Holder'}
                         </div>
-                    <button
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-400">
+                      Hit the connect button in the header to sync your wallet. Verification runs automatically once connected.
+                    </div>
+                  )}
+                </StepCard>
+
+                <StepCard
+                  step={2}
+                  title="Link Discord & Twitter"
+                  description="Social auth proves you belong to the cult"
+                >
+                  {connected ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">💬</span>
+                          <div>
+                            <div className="text-white text-sm font-bold">Discord</div>
+                            {discordLinked && discordUserId && (
+                              <div className="text-gray-400 text-xs">Linked: {discordUserId}</div>
+                            )}
+                          </div>
+                        </div>
+                        <button
                           onClick={handleDiscordAuth}
                           disabled={loadingDiscord}
                           className={`px-4 py-2 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
@@ -861,19 +906,15 @@ function DashboardContent() {
                           } ${loadingDiscord ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {loadingDiscord ? 'Loading...' : discordLinked ? '✓ Connected' : 'Connect Discord'}
-                    </button>
+                        </button>
                       </div>
-                      
-                      {/* Twitter Auth */}
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <div className="text-2xl">🐦</div>
+                          <span className="text-2xl">🐦</span>
                           <div>
-                            <div className="text-white font-mono text-sm">Twitter</div>
+                            <div className="text-white text-sm font-bold">Twitter</div>
                             {twitterLinked && twitterUsername && (
-                              <div className="text-gray-400 font-mono text-xs">
-                                @{twitterUsername}
-                              </div>
+                              <div className="text-gray-400 text-xs">@{twitterUsername}</div>
                             )}
                           </div>
                         </div>
@@ -889,17 +930,26 @@ function DashboardContent() {
                           {loadingTwitter ? 'Loading...' : twitterLinked ? '✓ Connected' : 'Connect Twitter'}
                         </button>
                       </div>
+                      <p className="text-xs text-gray-500">
+                        Both accounts are required before you can complete Discord tasks or claim leaderboard spots.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-sm text-gray-400">Connect your wallet first to unlock social authentication.</div>
+                  )}
+                </StepCard>
 
-                  {/* Chosen Side Section */}
-                  <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
-                    <div className="text-gray-400 text-sm font-mono uppercase mb-4">Chosen Side</div>
-                    <div className="space-y-3">
+                <StepCard
+                  step={3}
+                  title="Choose Your Side"
+                  description="Pick once, reset if you dare"
+                >
+                  {connected ? (
+                    <div className="space-y-4">
                       {chosenSide === null ? (
                         <div className="space-y-3">
-                          <div className="text-yellow-500 font-mono text-sm">⚠️ You must choose a side to participate</div>
-                          <div className="flex gap-3">
+                          <div className="text-yellow-500 text-sm">⚠️ You must choose a side to access quests, Discord tasks, and Duality.</div>
+                          <div className="flex flex-col md:flex-row gap-3">
                             <button
                               onClick={() => handleResetKarma('good')}
                               disabled={loadingSide}
@@ -923,14 +973,14 @@ function DashboardContent() {
                               {loadingSide ? 'Choosing...' : '✗ Choose Evil'}
                             </button>
                           </div>
-                          <div className="text-gray-500 font-mono text-xs">
-                            ⚠️ This will reset all karma points and history. Your profile and social accounts will be preserved.
-                          </div>
+                          <p className="text-xs text-gray-500">
+                            Resetting later wipes karma history but keeps your profile and social links.
+                          </p>
                         </div>
                       ) : (
                         <div className="space-y-3">
                           <div className={`font-mono font-bold text-lg ${chosenSide === 'good' ? 'text-green-500' : 'text-red-500'}`}>
-                            {chosenSide === 'good' ? '✓ Good Side' : '✗ Evil Side'}
+                            {chosenSide === 'good' ? '✓ You ride with the GOOD — all systems synced.' : '✗ You pledged to EVIL — all systems synced.'}
                           </div>
                           <button
                             onClick={() => setShowResetConfirm(true)}
@@ -941,10 +991,10 @@ function DashboardContent() {
                           </button>
                           {showResetConfirm && (
                             <div className="bg-black/60 rounded-lg p-4 border border-yellow-600/50">
-                              <div className="text-yellow-500 font-mono text-sm mb-3">
+                              <div className="text-yellow-500 text-sm mb-3">
                                 ⚠️ This will wipe all karma points and history. Are you sure?
                               </div>
-                              <div className="flex gap-3">
+                              <div className="flex flex-col md:flex-row gap-2">
                                 <button
                                   onClick={() => handleResetKarma('good')}
                                   disabled={loadingSide}
@@ -971,60 +1021,120 @@ function DashboardContent() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-sm text-gray-400">Connect your wallet to lock in a side.</div>
+                  )}
+                </StepCard>
 
-                  {/* Daily Check-in Section */}
-                  {chosenSide && (
-                    <div className="bg-black/40 rounded-lg p-4 border border-red-600/30">
-                      <div className="text-gray-400 text-sm font-mono uppercase mb-4">Daily Check-in</div>
-                      <div className="space-y-3">
-                        {checkInStatus === null ? (
-                          <div className="text-gray-500 font-mono text-sm">Loading check-in status...</div>
-                        ) : checkInStatus.canCheckIn ? (
-                          <div className="space-y-3">
-                            <div className="text-green-500 font-mono text-sm">✓ Ready to check in!</div>
-                            <button
-                              onClick={() => handleDailyCheckIn(chosenSide)}
-                              disabled={checkingIn}
-                              className={`w-full px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
-                                checkingIn
-                                  ? 'opacity-50 cursor-not-allowed'
-                                  : chosenSide === 'good'
-                                    ? 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
-                                    : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
-                              }`}
-                            >
-                              {checkingIn ? 'Checking in...' : chosenSide === 'good' ? '✓ Check in for Good (+5)' : '✗ Check in for Evil (-5)'}
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="text-red-500 font-mono text-sm">
-                              ⏰ Cooldown: {checkInCountdown > 0 ? `${checkInCountdown} hour${checkInCountdown !== 1 ? 's' : ''} remaining` : 'Calculating...'}
-                            </div>
-                            {checkInStatus.nextCheckin && (
-                              <div className="text-gray-400 font-mono text-xs">
-                                Next check-in: {new Date(checkInStatus.nextCheckin).toLocaleString()}
-                              </div>
-                            )}
-                            {checkInStatus.lastCheckin && (
-                              <div className="text-gray-500 font-mono text-xs">
-                                Last check-in: {new Date(checkInStatus.lastCheckin).toLocaleString()}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                {connected && chosenSide && (
+                  <StepCard
+                    step={4}
+                    title="Discord Holder Tasks"
+                    description="Complete these checkpoints to stay verified"
+                  >
+                    <div className="space-y-4">
+                      {!discordLinked && (
+                        <div className="text-sm text-yellow-400 font-mono">
+                          Link Discord above to mark these tasks complete. Review the checklist here so you know what the bot expects.
+                        </div>
+                      )}
+                      <Morality
+                        walletAddress={address}
+                        chosenSide={chosenSide}
+                        filterPlatforms={['discord']}
+                        compact
+                        disabled={!discordLinked}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Finish these Discord-specific tasks to keep the Holder role. Completions sync instantly with your karma log.
+                      </p>
+                    </div>
+                  </StepCard>
+                )}
+
+                {connected && chosenSide && (
+                  <StepCard
+                    step={5}
+                    title="Morality Quest Board"
+                    description="Earn karma through good or evil deeds"
+                  >
+                    <div className="space-y-4">
+                      <Morality walletAddress={address} chosenSide={chosenSide} limit={6} />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setActiveSection('morality')}
+                          className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase border-2 border-red-600 text-red-400 hover:bg-red-600/20 transition"
+                        >
+                          View full quest board →
+                        </button>
+                        <button
+                          onClick={() => setActiveSection('my-damned')}
+                          className="px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase border-2 border-red-600 text-red-400 hover:bg-red-600/20 transition"
+                        >
+                          View Ordinal activity →
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 font-mono text-lg mb-4">
-                    Connect your wallet to view your profile
+                  </StepCard>
+                )}
+
+                {connected && (
+                  <StepCard
+                    step={connected && chosenSide ? 6 : 4}
+                    title="Duality Protocol Status"
+                    description="Weekly pairing, fate meter, and trials"
+                  >
+                    <DualityStatus walletAddress={address} profileSide={chosenSide} />
+                  </StepCard>
+                )}
+
+                {connected && chosenSide && (
+                  <StepCard
+                    step={7}
+                    title="Daily Check-In"
+                    description="Tap in once every 24 hours for karma"
+                  >
+                    <div className="space-y-3">
+                      {checkInStatus === null ? (
+                        <div className="text-gray-500 text-sm">Loading check-in status...</div>
+                      ) : checkInStatus.canCheckIn ? (
+                        <div className="space-y-3">
+                          <div className="text-green-500 text-sm">✓ Ready to check in!</div>
+                          <button
+                            onClick={() => handleDailyCheckIn(chosenSide)}
+                            disabled={checkingIn}
+                            className={`w-full px-4 py-3 rounded-lg font-mono font-bold text-sm uppercase transition-all border-2 ${
+                              checkingIn
+                                ? 'opacity-50 cursor-not-allowed'
+                                : chosenSide === 'good'
+                                  ? 'bg-green-600/80 border-green-600 text-white hover:bg-green-600 hover:border-green-500'
+                                  : 'bg-red-600/80 border-red-600 text-white hover:bg-red-700 hover:border-red-500'
+                            }`}
+                          >
+                            {checkingIn ? 'Checking in...' : chosenSide === 'good' ? '✓ Check in for Good (+5)' : '✗ Check in for Evil (-5)'}
+                          </button>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="text-red-500 text-sm">
+                            ⏰ Cooldown: {checkInCountdown > 0 ? `${checkInCountdown} hour${checkInCountdown !== 1 ? 's' : ''} remaining` : 'Calculating...'}
+                          </div>
+                          {checkInStatus.nextCheckin && (
+                            <div className="text-gray-400 text-xs">
+                              Next check-in: {new Date(checkInStatus.nextCheckin).toLocaleString()}
+                            </div>
+                          )}
+                          {checkInStatus.lastCheckin && (
+                            <div className="text-gray-500 text-xs">
+                              Last check-in: {new Date(checkInStatus.lastCheckin).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </StepCard>
+                )}
+              </div>
             </div>
           )}
 

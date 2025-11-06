@@ -111,7 +111,7 @@ export async function GET(request: Request) {
                 // Deduct karma
                 await pool.query(`
                   INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-                  VALUES ($1, -20, 'bad', 'Sold The Damned ordinal', 'system')
+                  VALUES ($1, -20, 'evil', 'Sold The Damned ordinal', 'system')
                 `, [profile.id])
               }
             }
@@ -138,7 +138,7 @@ export async function GET(request: Request) {
             } else {
               await pool.query(`
                 INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-                VALUES ($1, $2, 'bad', 'Ordinal ownership adjustment', 'system')
+                VALUES ($1, $2, 'evil', 'Ordinal ownership adjustment', 'system')
               `, [profile.id, karmaDifference])
             }
           }

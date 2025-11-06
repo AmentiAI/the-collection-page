@@ -45,6 +45,11 @@ export async function POST(request: NextRequest) {
     }
     
     const task = taskResult.rows[0]
+    const proofRequired = !!task.proof_required
+    
+    if (proofRequired && (!proof || typeof proof !== 'string')) {
+      return NextResponse.json({ error: 'Proof is required for this task' }, { status: 400 })
+    }
     
     // Check if already completed
     const existingCompletion = await pool.query(
@@ -61,11 +66,11 @@ export async function POST(request: NextRequest) {
       `INSERT INTO user_task_completions (profile_id, task_id, proof)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [profileId, taskId, proof || null]
+      [profileId, taskId, proofRequired ? proof : proof || null]
     )
     
     // Award karma points
-    const pointsValue = task.type === 'bad' ? -Math.abs(task.points) : Math.abs(task.points)
+    const pointsValue = task.type === 'evil' ? -Math.abs(task.points) : Math.abs(task.points)
     
     const karmaResult = await pool.query(
       `INSERT INTO karma_points (profile_id, points, type, reason, given_by)
@@ -88,7 +93,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       completion: completionResult.rows[0],
-      karmaAwarded: task.points,
+      karmaAwarded: pointsValue,
       profile: updatedProfile.rows[0]
     })
   } catch (error) {

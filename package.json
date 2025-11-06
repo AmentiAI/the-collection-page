@@ -15,6 +15,7 @@
     "@omnisat/lasereyes-react": "^0.0.78",
     "@supabase/supabase-js": "^2.79.0",
     "@types/pg": "^8.15.6",
+    "@vercel/blob": "^2.0.0",
     "discord.js": "^14.24.2",
     "dotenv": "^17.2.3",
     "next": "14.0.4",

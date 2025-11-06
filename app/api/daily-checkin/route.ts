@@ -69,14 +69,52 @@ export async function POST(request: NextRequest) {
     
     // Award karma based on type
     const karmaPoints = type === 'good' ? 5 : -5
-    const karmaType = type === 'good' ? 'good' : 'bad'
+    const karmaType = type === 'good' ? 'good' : 'evil'
     const reason = type === 'good' ? 'Daily check-in (Good)' : 'Daily check-in (Evil)'
     
-    // Award karma
-    await pool.query(`
+    // Award karma (capture inserted row for task linkage)
+    const karmaInsertResult = await pool.query(`
       INSERT INTO karma_points (profile_id, points, type, reason, given_by)
       VALUES ($1, $2, $3, $4, 'system')
+      RETURNING id
     `, [profileId, karmaPoints, karmaType, reason])
+
+    const karmaPointId = karmaInsertResult.rows[0]?.id || null
+    
+    // If there is a Daily Check-in task for this side, mark it as completed without awarding extra karma
+    if (karmaPointId) {
+      const taskResult = await pool.query(`
+        SELECT id FROM karma_tasks
+        WHERE title = 'Daily Check-in'
+          AND type = $1
+          AND is_active = true
+        LIMIT 1
+      `, [karmaType])
+
+      if (taskResult.rows.length > 0) {
+        const taskId = taskResult.rows[0].id
+
+        const existingCompletion = await pool.query(`
+          SELECT id, karma_points_id
+          FROM user_task_completions
+          WHERE profile_id = $1 AND task_id = $2
+        `, [profileId, taskId])
+
+        if (existingCompletion.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO user_task_completions (profile_id, task_id, proof, karma_points_id)
+            VALUES ($1, $2, NULL, $3)
+          `, [profileId, taskId, karmaPointId])
+        } else if (!existingCompletion.rows[0].karma_points_id) {
+          // Ensure existing completion points to the latest karma entry
+          await pool.query(`
+            UPDATE user_task_completions
+            SET karma_points_id = $1
+            WHERE id = $2
+          `, [karmaPointId, existingCompletion.rows[0].id])
+        }
+      }
+    }
     
     // Update last_daily_checkin timestamp using server time
     await pool.query(`

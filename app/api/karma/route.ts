@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (type !== 'good' && type !== 'bad') {
+    if (type !== 'good' && type !== 'evil') {
       return NextResponse.json(
-        { error: 'type must be "good" or "bad"' },
+        { error: 'type must be "good" or "evil"' },
         { status: 400 }
       )
     }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const profileId = profileResult.rows[0].id
     
     // Add karma points (negative for bad karma)
-    const pointsValue = type === 'bad' ? -Math.abs(points) : Math.abs(points)
+    const pointsValue = type === 'evil' ? -Math.abs(points) : Math.abs(points)
     
     const result = await pool.query(
       `INSERT INTO karma_points (profile_id, points, type, reason, given_by)

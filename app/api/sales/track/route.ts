@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       // Deduct karma points
       await pool.query(`
         INSERT INTO karma_points (profile_id, points, type, reason, given_by)
-        VALUES ($1, $2, 'bad', 'Sold The Damned ordinal', 'system')
+        VALUES ($1, $2, 'evil', 'Sold The Damned ordinal', 'system')
       `, [profileId, karmaPoints])
     }
     

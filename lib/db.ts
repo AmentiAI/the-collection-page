@@ -44,6 +44,10 @@ export async function initDatabase() {
     
     // Drop dependent tables first
     await pool.query(`DROP TABLE IF EXISTS user_task_completions CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS duality_events CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS duality_trials CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS duality_pairs CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS duality_participants CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS karma_points CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS ordinal_sales CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
@@ -51,6 +55,7 @@ export async function initDatabase() {
     await pool.query(`DROP TABLE IF EXISTS twitter_users CASCADE`)
     
     // Drop main tables
+    await pool.query(`DROP TABLE IF EXISTS duality_cycles CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS profiles CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS karma_tasks CASCADE`)
     
@@ -81,15 +86,13 @@ export async function initDatabase() {
       )
     `)
     
-
-    
     // Create karma_points table
     await pool.query(`
       CREATE TABLE karma_points (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
         points INTEGER NOT NULL,
-        type TEXT NOT NULL CHECK (type IN ('good', 'bad')),
+        type TEXT NOT NULL CHECK (type IN ('good', 'evil')),
         reason TEXT,
         given_by TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
@@ -218,7 +221,7 @@ export async function initDatabase() {
           SET total_bad_karma = (
             SELECT COALESCE(SUM(ABS(points)), 0) 
             FROM karma_points 
-            WHERE profile_id = NEW.profile_id AND type = 'bad'
+            WHERE profile_id = NEW.profile_id AND type = 'evil'
           )
           WHERE id = NEW.profile_id;
         END IF;
@@ -242,10 +245,12 @@ export async function initDatabase() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
         description TEXT,
-        type TEXT NOT NULL CHECK (type IN ('good', 'bad')),
+        type TEXT NOT NULL CHECK (type IN ('good', 'evil')),
         points INTEGER NOT NULL,
         category TEXT,
         is_active BOOLEAN DEFAULT true,
+        proof_required BOOLEAN DEFAULT false,
+        required_platform TEXT,
         created_by TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -278,6 +283,90 @@ export async function initDatabase() {
     await pool.query(`
       CREATE INDEX idx_user_task_completions_task_id ON user_task_completions(task_id)
     `)
+    
+    // Duality protocol tables
+    await pool.query(`
+      CREATE TABLE duality_cycles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        week_start DATE NOT NULL,
+        week_end DATE NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'alignment', 'active', 'trial', 'completed')),
+        active_effect TEXT,
+        effect_expires_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    await pool.query(`
+      CREATE TABLE duality_participants (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cycle_id UUID REFERENCES duality_cycles(id) ON DELETE CASCADE,
+        profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+        alignment TEXT NOT NULL CHECK (alignment IN ('good', 'evil')),
+        fate_meter INTEGER DEFAULT 50,
+        karma_snapshot INTEGER,
+        participation_count INTEGER DEFAULT 0,
+        quest_completed BOOLEAN DEFAULT false,
+        eligible_for_trial BOOLEAN DEFAULT false,
+        locked_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(cycle_id, profile_id)
+      )
+    `)
+
+    await pool.query(`
+      CREATE TABLE duality_pairs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cycle_id UUID REFERENCES duality_cycles(id) ON DELETE CASCADE,
+        good_participant_id UUID REFERENCES duality_participants(id) ON DELETE CASCADE,
+        evil_participant_id UUID REFERENCES duality_participants(id) ON DELETE CASCADE,
+        fate_meter INTEGER DEFAULT 50,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(cycle_id, good_participant_id, evil_participant_id)
+      )
+    `)
+
+    await pool.query(`
+      CREATE TABLE duality_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cycle_id UUID REFERENCES duality_cycles(id) ON DELETE CASCADE,
+        pair_id UUID REFERENCES duality_pairs(id) ON DELETE CASCADE,
+        participant_id UUID REFERENCES duality_participants(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        cycle_day INTEGER,
+        result TEXT,
+        karma_delta_good INTEGER DEFAULT 0,
+        karma_delta_evil INTEGER DEFAULT 0,
+        metadata JSONB,
+        occurred_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    await pool.query(`
+      CREATE TABLE duality_trials (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cycle_id UUID REFERENCES duality_cycles(id) ON DELETE CASCADE,
+        participant_id UUID REFERENCES duality_participants(id) ON DELETE CASCADE,
+        scheduled_at TIMESTAMPTZ NOT NULL,
+        vote_ends_at TIMESTAMPTZ NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('scheduled', 'voting', 'resolved', 'cancelled')),
+        verdict TEXT,
+        votes_absolve INTEGER DEFAULT 0,
+        votes_condemn INTEGER DEFAULT 0,
+        metadata JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    await pool.query(`CREATE INDEX idx_duality_participants_cycle ON duality_participants(cycle_id, alignment)`)
+    await pool.query(`CREATE INDEX idx_duality_pairs_cycle ON duality_pairs(cycle_id)`)
+    await pool.query(`CREATE INDEX idx_duality_events_pair ON duality_events(pair_id)`)
+    await pool.query(`CREATE INDEX idx_duality_trials_cycle ON duality_trials(cycle_id)`)
     
     // Always remove all placeholder karma tasks (keep only Trial Win and Trial Loss)
     const placeholderTasks = [
@@ -318,33 +407,33 @@ export async function initDatabase() {
     )
     if (trialWinCheck.rows.length === 0) {
       await pool.query(`
-        INSERT INTO karma_tasks (title, description, type, points, category, is_active)
-        VALUES ('Trial Win', 'Win a trial or challenge', 'good', 10, 'Trial', true)
+        INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform)
+        VALUES ('Trial Win', 'Win a trial or challenge', 'good', 10, 'Trial', true, false, NULL)
       `)
     } else {
       // Update if exists
       await pool.query(`
         UPDATE karma_tasks 
-        SET description = 'Win a trial or challenge', points = 10, category = 'Trial', is_active = true
+        SET description = 'Win a trial or challenge', points = 10, category = 'Trial', is_active = true, proof_required = false, required_platform = NULL
         WHERE title = 'Trial Win' AND type = 'good'
       `)
     }
     
-    // Ensure Trial Loss exists as first bad karma task
+    // Ensure Trial Loss exists as first evil karma task
     const trialLossCheck = await pool.query(
-      "SELECT id FROM karma_tasks WHERE title = 'Trial Loss' AND type = 'bad'"
+      "SELECT id FROM karma_tasks WHERE title = 'Trial Loss' AND type = 'evil'"
     )
     if (trialLossCheck.rows.length === 0) {
       await pool.query(`
-        INSERT INTO karma_tasks (title, description, type, points, category, is_active)
-        VALUES ('Trial Loss', 'Lose a trial or challenge', 'bad', -10, 'Trial', true)
+        INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform)
+        VALUES ('Trial Loss', 'Lose a trial or challenge', 'evil', -10, 'Trial', true, false, NULL)
       `)
     } else {
       // Update if exists
       await pool.query(`
         UPDATE karma_tasks 
-        SET description = 'Lose a trial or challenge', points = -10, category = 'Trial', is_active = true
-        WHERE title = 'Trial Loss' AND type = 'bad'
+        SET description = 'Lose a trial or challenge', points = -10, category = 'Trial', is_active = true, proof_required = false, required_platform = NULL
+        WHERE title = 'Trial Loss' AND type = 'evil'
       `)
     }
     
@@ -356,7 +445,19 @@ export async function initDatabase() {
         type: 'good',
         points: 5,
         category: 'Automated',
-        is_active: true
+        is_active: true,
+        proof_required: false,
+        required_platform: null
+      },
+      {
+        title: 'Daily Check-in',
+        description: 'Check in daily using /checkin command in Discord (once every 24 hours)',
+        type: 'evil',
+        points: -5,
+        category: 'Automated',
+        is_active: true,
+        proof_required: false,
+        required_platform: null
       },
       {
         title: 'Purchased The Damned Ordinal',
@@ -364,7 +465,9 @@ export async function initDatabase() {
         type: 'good',
         points: 20,
         category: 'Automated',
-        is_active: true
+        is_active: true,
+        proof_required: false,
+        required_platform: null
       },
       {
         title: 'Ordinal Ownership',
@@ -372,23 +475,29 @@ export async function initDatabase() {
         type: 'good',
         points: 5,
         category: 'Automated',
-        is_active: true
+        is_active: true,
+        proof_required: false,
+        required_platform: null
       },
       {
         title: 'Sold The Damned Ordinal',
         description: 'Sell a The Damned ordinal',
-        type: 'bad',
+        type: 'evil',
         points: -20,
         category: 'Automated',
-        is_active: true
+        is_active: true,
+        proof_required: false,
+        required_platform: null
       },
       {
         title: 'Missed Daily Check-in',
         description: 'Did not check in within 24 hours',
-        type: 'bad',
+        type: 'evil',
         points: -5,
         category: 'Automated',
-        is_active: true
+        is_active: true,
+        proof_required: false,
+        required_platform: null
       }
     ]
     
@@ -401,16 +510,34 @@ export async function initDatabase() {
       
       if (taskCheck.rows.length === 0) {
         await pool.query(`
-          INSERT INTO karma_tasks (title, description, type, points, category, is_active, created_by)
-          VALUES ($1, $2, $3, $4, $5, $6, 'system')
-        `, [task.title, task.description, task.type, task.points, task.category, task.is_active])
+          INSERT INTO karma_tasks (title, description, type, points, category, is_active, proof_required, required_platform, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'system')
+        `, [
+          task.title,
+          task.description,
+          task.type,
+          task.points,
+          task.category,
+          task.is_active,
+          task.proof_required ?? false,
+          task.required_platform
+        ])
       } else {
         // Update if exists
         await pool.query(`
           UPDATE karma_tasks 
-          SET description = $1, points = $2, category = $3, is_active = $4
-          WHERE title = $5 AND type = $6
-        `, [task.description, task.points, task.category, task.is_active, task.title, task.type])
+          SET description = $1, points = $2, category = $3, is_active = $4, proof_required = $5, required_platform = $6
+          WHERE title = $7 AND type = $8
+        `, [
+          task.description,
+          task.points,
+          task.category,
+          task.is_active,
+          task.proof_required ?? false,
+          task.required_platform,
+          task.title,
+          task.type
+        ])
       }
     }
     

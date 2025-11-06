@@ -21,7 +21,6 @@ interface HeaderProps {
   onMusicVolumeChange?: (volume: number) => void
   isMusicMuted?: boolean
   onMusicMutedChange?: (muted: boolean) => void
-  showStakeButton?: boolean
 }
 
 export default function Header({ 
@@ -34,8 +33,7 @@ export default function Header({
   musicVolume = 30,
   onMusicVolumeChange,
   isMusicMuted = false,
-  onMusicMutedChange,
-  showStakeButton = false
+  onMusicMutedChange
 }: HeaderProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
@@ -133,18 +131,10 @@ export default function Header({
         <Link
           href="/gatesofthedamned"
           className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wider px-3 py-1 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"                   
-          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}             
+          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}              
         >
           🔥 GATES
         </Link>
-        {showStakeButton && (
-          <button
-            className="text-[#00ff00] hover:text-[#00ff88] transition-colors duration-200 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wider px-3 py-1 border-2 border-[#00ff00] rounded hover:bg-[#00ff00]/20 animate-pulse"                   
-            style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
-          >
-            ⚡ STAKE NOW
-          </button>
-        )}
                                  
       </div>
       <div className="flex justify-center items-center gap-4 mt-2 flex-wrap">

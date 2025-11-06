@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface KarmaPoint {
   id: string
@@ -29,17 +29,14 @@ export default function PointsHistory({ walletAddress, chosenSide }: PointsHisto
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (walletAddress) {
-      fetchHistory()
-    } else {
+  const fetchHistory = useCallback(async () => {
+    if (!walletAddress) {
+      setKarmaHistory([])
+      setProfile(null)
       setLoading(false)
+      return
     }
-  }, [walletAddress, chosenSide])
 
-  const fetchHistory = async () => {
-    if (!walletAddress) return
-    
     setLoading(true)
     try {
       const response = await fetch(`/api/karma?walletAddress=${encodeURIComponent(walletAddress)}`)
@@ -47,7 +44,8 @@ export default function PointsHistory({ walletAddress, chosenSide }: PointsHisto
       
       // Filter karma history to only show entries for the chosen side
       const allHistory = data.karmaHistory || []
-      const filteredHistory = allHistory.filter((point: KarmaPoint) => point.type === chosenSide)
+      const historyType = chosenSide === 'evil' ? 'bad' : 'good'
+      const filteredHistory = allHistory.filter((point: KarmaPoint) => point.type === historyType)
       
       setKarmaHistory(filteredHistory)
       setProfile(data.profile || null)
@@ -56,7 +54,11 @@ export default function PointsHistory({ walletAddress, chosenSide }: PointsHisto
     } finally {
       setLoading(false)
     }
-  }
+  }, [walletAddress, chosenSide])
+
+  useEffect(() => {
+    fetchHistory()
+  }, [fetchHistory])
 
   if (!walletAddress) {
     return (

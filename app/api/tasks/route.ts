@@ -7,18 +7,28 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const type = searchParams.get('type') // 'good' or 'bad'
+    const type = searchParams.get('type') // 'good' or 'evil'
     const includeCompleted = searchParams.get('includeCompleted') === 'true'
+    const includeInactive = searchParams.get('includeInactive') === 'true'
     const walletAddress = searchParams.get('walletAddress')
     
     const pool = getPool()
     
-    let query = 'SELECT * FROM karma_tasks WHERE is_active = true'
+    let query = 'SELECT * FROM karma_tasks'
     const params: any[] = []
+    const conditions: string[] = []
     
-    if (type && (type === 'good' || type === 'bad')) {
-      query += ` AND type = $${params.length + 1}`
+    if (!includeInactive) {
+      conditions.push('is_active = true')
+    }
+    
+    if (type && (type === 'good' || type === 'evil')) {
+      conditions.push(`type = $${params.length + 1}`)
       params.push(type)
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
     }
     
     query += ' ORDER BY points DESC, created_at DESC'
@@ -63,7 +73,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, description, type, points, category, createdBy } = body
+    const { title, description, type, points, category, createdBy, proofRequired, requiredPlatform } = body
     
     if (!title || !type || !points) {
       return NextResponse.json(
@@ -72,19 +82,28 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (type !== 'good' && type !== 'bad') {
+    if (type !== 'good' && type !== 'evil') {
       return NextResponse.json(
-        { error: 'type must be "good" or "bad"' },
+        { error: 'type must be "good" or "evil"' },
         { status: 400 }
       )
     }
     
     const pool = getPool()
     const result = await pool.query(
-      `INSERT INTO karma_tasks (title, description, type, points, category, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO karma_tasks (title, description, type, points, category, proof_required, required_platform, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [title, description || null, type, points, category || null, createdBy || null]
+      [
+        title,
+        description || null,
+        type,
+        points,
+        category || null,
+        proofRequired ?? false,
+        requiredPlatform ?? null,
+        createdBy || null
+      ]
     )
     
     return NextResponse.json(result.rows[0])
@@ -94,6 +113,108 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
+  }
+}
+
+// Update task (admin function)
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { id, title, description, type, points, category, isActive, proofRequired, requiredPlatform } = body
+    
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
+    
+    const pool = getPool()
+    
+    // Build dynamic update query based on provided fields
+    const fields: string[] = []
+    const values: any[] = []
+    let index = 1
+    
+    if (title !== undefined) {
+      fields.push(`title = $${index++}`)
+      values.push(title)
+    }
+    if (description !== undefined) {
+      fields.push(`description = $${index++}`)
+      values.push(description)
+    }
+    if (type !== undefined) {
+      if (type !== 'good' && type !== 'evil') {
+        return NextResponse.json({ error: 'type must be "good" or "evil"' }, { status: 400 })
+      }
+      fields.push(`type = $${index++}`)
+      values.push(type)
+    }
+    if (points !== undefined) {
+      fields.push(`points = $${index++}`)
+      values.push(points)
+    }
+    if (category !== undefined) {
+      fields.push(`category = $${index++}`)
+      values.push(category)
+    }
+    if (isActive !== undefined) {
+      fields.push(`is_active = $${index++}`)
+      values.push(isActive)
+    }
+    if (proofRequired !== undefined) {
+      fields.push(`proof_required = $${index++}`)
+      values.push(!!proofRequired)
+    }
+    if (requiredPlatform !== undefined) {
+      fields.push(`required_platform = $${index++}`)
+      values.push(requiredPlatform)
+    }
+    
+    if (fields.length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
+    
+    fields.push(`updated_at = NOW()`)
+    
+    values.push(id)
+    
+    const query = `UPDATE karma_tasks SET ${fields.join(', ')} WHERE id = $${index} RETURNING *`
+    const result = await pool.query(query, values)
+    
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+    
+    return NextResponse.json(result.rows[0])
+  } catch (error) {
+    console.error('Task update error:', error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+  }
+}
+
+// Delete task (admin function)
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
+    
+    const pool = getPool()
+    const result = await pool.query(
+      'DELETE FROM karma_tasks WHERE id = $1 RETURNING *',
+      [id]
+    )
+    
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+    
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Task deletion error:', error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
 

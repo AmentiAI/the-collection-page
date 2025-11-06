@@ -210,7 +210,7 @@ export async function calculateOrdinalKarmaForWallet(walletAddress: string, pool
           }
         } else {
           // Remove karma points (if they sold ordinals) - use opposite of chosen side
-          const oppositeSide = chosenSide === 'good' ? 'bad' : 'good'
+          const oppositeSide = chosenSide === 'good' ? 'evil' : 'good'
           await pool.query(`
             INSERT INTO karma_points (profile_id, points, type, reason, given_by)
             VALUES ($1, $2, $3, 'Ordinal ownership adjustment', 'system')

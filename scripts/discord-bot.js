@@ -1,4 +1,14 @@
-const { Client, GatewayIntentBits, Events, Collection, REST, Routes, ApplicationCommandOptionType } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  Events,
+  Collection,
+  REST,
+  Routes,
+  ApplicationCommandOptionType,
+  EmbedBuilder,
+} = require('discord.js');
+const fetch = require('node-fetch');
 require('dotenv').config({ path: '.env.local' });
 
 const client = new Client({
@@ -11,6 +21,20 @@ const client = new Client({
 });
 
 const VERIFY_API_URL = process.env.NEXT_PUBLIC_VERIFY_API_URL || 'https://thedamned.xyz/api/verify';
+const HOLDERS_CHANNEL_ID = process.env.HOLDERS_CHANNEL_ID;
+const HOLDER_ROLE_ID = process.env.HOLDER_ROLE_ID;
+const BOT_STATUS_CHANNEL_ID = process.env.BOT_STATUS_CHANNEL_ID;
+const ADMIN_WEBHOOK_URL = process.env.ADMIN_WEBHOOK_URL;
+const DUALITY_TRIAL_CHANNEL_ID = process.env.DUALITY_TRIAL_CHANNEL_ID;
+const DUALITY_EVENTS_CHANNEL_ID = process.env.DUALITY_EVENTS_CHANNEL_ID;
+const DUALITY_PARTICIPANT_ROLE_ID = process.env.DUALITY_PARTICIPANT_ROLE_ID;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+const DUALITY_BASE_URL =
+  process.env.DUALITY_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DAILY_EVENT_TYPES = ['Blessing', 'Temptation', 'Fate Roll'];
+const trialMessageCache = new Map();
 
 // Slash command handler
 client.commands = new Collection();
@@ -41,6 +65,28 @@ const checkinCommand = {
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
+async function apiFetch(endpoint, options = {}) {
+  const url = `${DUALITY_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (ADMIN_TOKEN) {
+    headers['x-admin-token'] = ADMIN_TOKEN;
+  }
+
+  const response = await fetch(url, { ...options, headers });
+  const text = await response.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (error) {
+    json = null;
+  }
+  return { ok: response.ok, status: response.status, data: json };
+}
+
 async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
@@ -54,6 +100,676 @@ async function registerCommands() {
   } catch (error) {
     console.error('Error registering commands:', error);
   }
+}
+
+async function fetchDualityStatus() {
+  try {
+    const res = await apiFetch('/api/duality/cycle');
+    if (!res.ok) {
+      console.error('[Duality] Failed to fetch cycle status:', res.status, res.data);
+      return null;
+    }
+    return res.data;
+  } catch (error) {
+    console.error('[Duality] Error fetching cycle status:', error);
+    return null;
+  }
+}
+
+async function handleDualityWeeklyCycle(client) {
+  const status = await fetchDualityStatus();
+  if (!status || !status.cycle) {
+    console.log('[Duality] No active cycle detected.');
+    return;
+  }
+
+  const cycle = status.cycle;
+  if (cycle.status === 'alignment') {
+    await maybeGeneratePairings(status, client);
+  } else if (cycle.status === 'active') {
+    await processDailyEvents(status, client);
+  } else if (cycle.status === 'trial') {
+    await processTrials(status, client);
+  }
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getCycleDay(weekStart) {
+  if (!weekStart) return null;
+  const start = new Date(`${weekStart}T00:00:00Z`).getTime();
+  if (Number.isNaN(start)) return null;
+  const diff = Math.floor((Date.now() - start) / DAY_MS);
+  return diff + 1; // Day 1 == alignment day
+}
+
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function chooseRandom(arr) {
+  if (!arr.length) return null;
+  const index = Math.floor(Math.random() * arr.length);
+  return arr[index];
+}
+
+function formatKarmaDelta(good, evil) {
+  const fmt = (label, value) =>
+    `${label}: ${value > 0 ? '+' : ''}${value}`;
+  return [fmt('Good', good), fmt('Evil', evil)].join('  |  ');
+}
+
+function generateDailyEventOutcome(pair, good, evil, cycleDay) {
+  const eventType = chooseRandom(DAILY_EVENT_TYPES);
+  if (!eventType) return null;
+
+  const mentions = [];
+  if (good.discordUserId) mentions.push(`<@${good.discordUserId}>`);
+  if (evil.discordUserId) mentions.push(`<@${evil.discordUserId}>`);
+
+  const currentFate = typeof pair.fateMeter === 'number' ? pair.fateMeter : 50;
+
+  let embedTitle = '';
+  let description = '';
+  let resultText = '';
+  let karmaDeltaGood = 0;
+  let karmaDeltaEvil = 0;
+  let fateMeter = null;
+  let metadata = {};
+  let embedColor = 0x3498db;
+  let globalEffect = null;
+  let adminNote;
+
+  switch (eventType) {
+    case 'Blessing': {
+      embedTitle = `🕊️ Blessing — Day ${cycleDay}`;
+      description = 'Sacred verses echo between the pair, urging cooperation.';
+      resultText = 'Blessing complete: the good side gains +10 karma.';
+      karmaDeltaGood = 10;
+      fateMeter = clamp(currentFate + 8, 0, 100);
+      embedColor = 0x2ecc71;
+      break;
+    }
+    case 'Temptation': {
+      const success = Math.random() < 0.5;
+      metadata = { success };
+      embedTitle = `😈 Temptation — Day ${cycleDay}`;
+      if (success) {
+        description = 'The evil holder whispers forbidden deals into the ether.';
+        resultText = 'Temptation succeeds: Evil gains +15 karma, Good loses 5.';
+        karmaDeltaEvil = 15;
+        karmaDeltaGood = -5;
+        fateMeter = clamp(currentFate - 12, 0, 100);
+        embedColor = 0xe74c3c;
+      } else {
+        description = 'The scheme collapses and virtue rebounds.';
+        resultText = 'Temptation backfires: Good gains +5 karma, Evil loses 10.';
+        karmaDeltaGood = 5;
+        karmaDeltaEvil = -10;
+        fateMeter = clamp(currentFate + 8, 0, 100);
+        embedColor = 0x9b59b6;
+      }
+      break;
+    }
+    case 'Fate Roll': {
+      const roll = Math.floor(Math.random() * 100) + 1;
+      metadata = { roll };
+      embedTitle = `🎲 Fate Roll — Day ${cycleDay}`;
+      description = 'The Wheel of Duality spins for both holders.';
+      embedColor = 0x2980b9;
+
+      if (roll <= 10) {
+        resultText = `Fate roll: ${roll}. Dark Surge! Evil deeds earn double karma for 12 hours.`;
+        globalEffect = { effect: 'Dark Surge – Evil karma x2 (12h)', durationHours: 12 };
+      } else if (roll <= 20) {
+        resultText = `Fate roll: ${roll}. Mercy Hour! Good deeds earn double karma for 12 hours.`;
+        globalEffect = { effect: 'Mercy Hour – Good karma x2 (12h)', durationHours: 12 };
+      } else if (roll <= 80) {
+        resultText = `Fate roll: ${roll}. Equilibrium holds — no global effect.`;
+        globalEffect = { effect: null, durationHours: 0 };
+      } else if (roll <= 90) {
+        resultText = `Fate roll: ${roll}. Mischief Winds blow! Encourage holders to roleplay swapped morals for 6 hours.`;
+        globalEffect = { effect: 'Mischief Winds – Temporary side swap', durationHours: 6 };
+      } else {
+        resultText = `Fate roll: ${roll}. Karmic Eclipse! Moderators should consider reshuffling pairings.`;
+        globalEffect = { effect: 'Karmic Eclipse – Pairings reshuffled', durationHours: 0 };
+        adminNote = '⚠️ Karmic Eclipse rolled — consider reshuffling Duality pairings manually.';
+      }
+      break;
+    }
+    default:
+      return null;
+  }
+
+  const payload = {
+    pairId: pair.id,
+    cycleDay,
+    eventType,
+    result: resultText,
+    karmaDeltaGood,
+    karmaDeltaEvil,
+    metadata,
+  };
+
+  if (eventType === 'Temptation' && evil?.id) {
+    payload.participantId = evil.id;
+  }
+
+  if (fateMeter !== null) {
+    payload.fateMeter = fateMeter;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(embedTitle)
+    .setDescription(`${description}\n\n${resultText}`)
+    .setColor(embedColor)
+    .addFields(
+      { name: 'Good Holder', value: formatParticipant(good), inline: true },
+      { name: 'Evil Holder', value: formatParticipant(evil), inline: true }
+    )
+    .setFooter({ text: `Cycle Day ${cycleDay}` })
+    .setTimestamp(new Date());
+
+  if (karmaDeltaGood !== 0 || karmaDeltaEvil !== 0) {
+    embed.addFields({ name: 'Karma Shift', value: formatKarmaDelta(karmaDeltaGood, karmaDeltaEvil), inline: false });
+  }
+
+  if (globalEffect && globalEffect.effect) {
+    embed.addFields({ name: 'Global Effect', value: globalEffect.effect, inline: false });
+  }
+
+  return {
+    payload,
+    embed,
+    mentions,
+    globalEffect,
+    adminNote,
+  };
+}
+
+async function startTrialVoting(trial, channel, client, metadata = {}) {
+  const memberTag = trial.username || trial.walletAddress || trial.id.slice(0, 6);
+  const mention = trial.discordUserId ? `<@${trial.discordUserId}>` : memberTag;
+
+  const embed = new EmbedBuilder()
+    .setTitle('⚖️ Trial of Karma')
+    .setDescription(
+      `${mention} has invoked the Jury of Peers.
+React with ⚪️ to absolve or 🔴 to condemn.`
+    )
+    .addFields(
+      { name: 'Status', value: 'Voting in progress', inline: true },
+      { name: 'Alignment', value: trial.alignment, inline: true },
+      {
+        name: 'Vote Window',
+        value: `Starts: ${new Date(trial.scheduledAt).toLocaleString()}
+Ends: ${new Date(trial.voteEndsAt).toLocaleString()}`,
+        inline: false,
+      }
+    )
+    .setColor(0x8e44ad)
+    .setTimestamp(new Date());
+
+  try {
+    const message = await channel.send({ content: mention, embeds: [embed] });
+    await message.react('⚪️');
+    await message.react('🔴');
+
+    trialMessageCache.set(trial.id, { channelId: channel.id, messageId: message.id });
+
+    const updatedMetadata = {
+      ...metadata,
+      discord_message_id: message.id,
+      discord_channel_id: channel.id,
+    };
+
+    const res = await apiFetch('/api/duality/trials', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        trialId: trial.id,
+        status: 'voting',
+        metadata: updatedMetadata,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error('[Duality] Failed to update trial status to voting:', res.status, res.data);
+    }
+
+    if (trial.discordUserId) {
+      try {
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        const member = await guild.members.fetch(trial.discordUserId);
+        await member.send(
+          `⚖️ **Trial of Karma**
+Voting has begun for your trial.
+Ends at: ${new Date(trial.voteEndsAt).toLocaleString()}
+React in ${channel.toString()} with ⚪️ or 🔴 to rally support.`
+        );
+      } catch (dmError) {
+        console.warn('[Duality] Unable to DM trial participant:', dmError.message);
+      }
+    }
+  } catch (error) {
+    console.error('[Duality] Failed to start trial voting:', error);
+    await notifyAdmins(client, `⚠️ Failed to start trial voting for ${trial.id}: ${error.message}`);
+  }
+}
+
+async function finalizeTrialVoting(trial, channel, client, metadata = {}) {
+  const cache = trialMessageCache.get(trial.id) || metadata;
+  let message;
+
+  try {
+    const targetChannel = cache.discord_channel_id
+      ? await getChannel(client, cache.discord_channel_id)
+      : channel;
+
+    if (!targetChannel) {
+      console.warn('[Duality] Cannot finalize trial — channel missing.');
+      return;
+    }
+
+    if (cache.messageId || cache.discord_message_id) {
+      message = await targetChannel.messages.fetch(cache.messageId || cache.discord_message_id);
+    }
+  } catch (error) {
+    console.error('[Duality] Unable to fetch trial message:', error);
+  }
+
+  let votesAbsolve = 0;
+  let votesCondemn = 0;
+
+  if (message) {
+    const reactions = message.reactions.cache;
+    const absolveReaction = reactions.find((r) => r.emoji.name === '⚪️' || r.emoji.name === '⚪');
+    const condemnReaction = reactions.find((r) => r.emoji.name === '🔴');
+
+    if (absolveReaction) {
+      votesAbsolve = Math.max(0, (absolveReaction.count || 0) - 1);
+    }
+    if (condemnReaction) {
+      votesCondemn = Math.max(0, (condemnReaction.count || 0) - 1);
+    }
+  }
+
+  const verdict = votesAbsolve >= votesCondemn ? 'absolve' : 'condemn';
+  const verdictText = verdict === 'absolve' ? 'Majority absolved the holder.' : 'Majority condemned the holder.';
+
+  const updatedMetadata = {
+    ...(metadata || {}),
+    discord_message_id: (cache.messageId || cache.discord_message_id || message?.id) ?? undefined,
+    discord_channel_id: (cache.channelId || cache.discord_channel_id || channel.id) ?? undefined,
+  };
+
+  try {
+    const res = await apiFetch('/api/duality/trials', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        trialId: trial.id,
+        status: 'resolved',
+        verdict,
+        votesAbsolve,
+        votesCondemn,
+        metadata: updatedMetadata,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error('[Duality] Failed to finalize trial:', res.status, res.data);
+    }
+  } catch (error) {
+    console.error('[Duality] Trial finalize API error:', error);
+  }
+
+  try {
+    await apiFetch(`/api/duality/trials/${trial.id}/votes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        counts: { votesAbsolve, votesCondemn },
+        metadata: updatedMetadata,
+      }),
+    });
+  } catch (error) {
+    console.error('[Duality] Failed to persist vote counts:', error);
+  }
+
+  const summaryEmbed = new EmbedBuilder()
+    .setTitle('⚖️ Trial Resolved')
+    .setDescription(
+      `${trial.username || trial.walletAddress || trial.id.slice(0, 6)} — ${verdict.toUpperCase()}
+${verdictText}`
+    )
+    .addFields({ name: 'Votes', value: `⚪️ ${votesAbsolve}  |  🔴 ${votesCondemn}` })
+    .setColor(verdict === 'absolve' ? 0x2ecc71 : 0xe74c3c)
+    .setTimestamp(new Date());
+
+  try {
+    await channel.send({ embeds: [summaryEmbed] });
+  } catch (error) {
+    console.error('[Duality] Failed to post trial summary:', error);
+  }
+
+  if (trial.discordUserId) {
+    try {
+      const guild = await client.guilds.fetch(process.env.GUILD_ID);
+      const member = await guild.members.fetch(trial.discordUserId);
+      await member.send(
+        `⚖️ **Trial Resolved**
+Verdict: ${verdict.toUpperCase()}
+Votes — ⚪️ ${votesAbsolve} / 🔴 ${votesCondemn}`
+      );
+    } catch (dmError) {
+      console.warn('[Duality] Unable to DM verdict to participant:', dmError.message);
+    }
+  }
+
+  trialMessageCache.delete(trial.id);
+}
+
+async function maybeGeneratePairings(status, client) {
+  if (!status || !status.participants || !status.cycle || status.cycle.status !== 'alignment') return;
+
+  const participants = status.participants;
+  const goodCount = participants.filter((p) => p.alignment === 'good').length;
+  const evilCount = participants.filter((p) => p.alignment === 'evil').length;
+
+  if (goodCount === 0 || evilCount === 0) {
+    console.log('[Duality] Waiting for both alignments to have participants before pairing.');
+    return;
+  }
+
+  if (goodCount !== evilCount) {
+    console.log('[Duality] Alignment counts imbalanced. Skipping automatic pairings.');
+    return;
+  }
+
+  console.log('[Duality] Alignment phase balanced. Requesting automatic pairings…');
+  const res = await apiFetch('/api/duality/pairings', { method: 'POST' });
+  if (!res.ok) {
+    console.error('[Duality] Failed to generate pairings:', res.status, res.data);
+    await notifyAdmins(client, `⚠️ Duality pairing failed: ${res.data?.error || 'Unknown error'}`);
+    return;
+  }
+
+  console.log('[Duality] Pairings generated. Announcing matches…');
+  await announcePairings(res.data?.pairs || [], participants, client);
+}
+
+async function processDailyEvents(status, client) {
+  if (!status || !status.cycle || status.cycle.status !== 'active') return;
+
+  const cycleDay = getCycleDay(status.cycle.weekStart);
+  if (cycleDay === null) {
+    console.log('[Duality] Unable to determine cycle day.');
+    return;
+  }
+
+  // Focus daily events on days 2-5 (after alignment, before trials)
+  if (cycleDay < 2 || cycleDay > 5) {
+    return;
+  }
+
+  const channel = await getChannel(client, DUALITY_EVENTS_CHANNEL_ID || HOLDERS_CHANNEL_ID);
+  if (!channel) {
+    console.log('[Duality] Event channel unavailable.');
+    return;
+  }
+
+  const participants = ensureArray(status.participants);
+  const participantMap = new Map();
+  for (const participant of participants) {
+    participantMap.set(participant.id, participant);
+  }
+
+  const pairs = ensureArray(status.pairs);
+  if (!pairs.length) return;
+
+  const events = ensureArray(status.events);
+  status.events = events;
+
+  for (const pair of pairs) {
+    if (!pair || !pair.id) continue;
+
+    const alreadyLogged = events.some(
+      (event) => event && event.pairId === pair.id && event.cycleDay === cycleDay
+    );
+    if (alreadyLogged) {
+      continue;
+    }
+
+    const good = participantMap.get(pair.goodParticipantId);
+    const evil = participantMap.get(pair.evilParticipantId);
+    if (!good || !evil) continue;
+
+    const outcome = generateDailyEventOutcome(pair, good, evil, cycleDay);
+    if (!outcome) continue;
+
+    const payload = { ...outcome.payload };
+    if (payload.metadata && Object.keys(payload.metadata).length === 0) {
+      delete payload.metadata;
+    }
+
+    try {
+      const res = await apiFetch('/api/duality/events', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        console.error('[Duality] Failed to record event:', res.status, res.data);
+        await notifyAdmins(
+          client,
+          `⚠️ Failed to record ${outcome.payload.eventType} for pair ${pair.id}: ${
+            res.data?.error || 'Unknown error'
+          }`
+        );
+        continue;
+      }
+
+      if (outcome.globalEffect) {
+        const effectPayload = {};
+        if (outcome.globalEffect.effect) {
+          effectPayload.activeEffect = outcome.globalEffect.effect;
+        } else {
+          effectPayload.activeEffect = null;
+          effectPayload.clearEffectExpiry = true;
+        }
+
+        if (
+          outcome.globalEffect.durationHours &&
+          outcome.globalEffect.durationHours > 0
+        ) {
+          effectPayload.effectDurationHours = outcome.globalEffect.durationHours;
+        }
+
+        const effectRes = await apiFetch('/api/duality/cycle', {
+          method: 'PATCH',
+          body: JSON.stringify(effectPayload),
+        });
+
+        if (!effectRes.ok) {
+          console.error('[Duality] Failed to apply global effect:', effectRes.status, effectRes.data);
+        }
+      }
+
+      const content = outcome.mentions.length ? outcome.mentions.join(' ') : undefined;
+      try {
+        await channel.send({ content, embeds: [outcome.embed] });
+      } catch (error) {
+        console.error('[Duality] Failed to send daily event embed:', error);
+      }
+
+      events.push({
+        id: res.data?.event?.id || `${pair.id}-${cycleDay}`,
+        pairId: pair.id,
+        cycleDay,
+        eventType: outcome.payload.eventType,
+      });
+
+      if (outcome.adminNote) {
+        await notifyAdmins(client, outcome.adminNote);
+      }
+
+      // Update local fate meter to reflect adjustments in subsequent events
+      if (typeof outcome.payload.fateMeter === 'number') {
+        pair.fateMeter = outcome.payload.fateMeter;
+      }
+
+      console.log(
+        `[Duality] Logged ${outcome.payload.eventType} for day ${cycleDay} (pair ${pair.id}).`
+      );
+    } catch (error) {
+      console.error('[Duality] Error processing daily event:', error);
+    }
+  }
+}
+
+async function processTrials(status, client) {
+  if (!status || !status.cycle) return;
+  const trials = ensureArray(status.trials);
+  if (!trials.length) return;
+
+  const channel = await getChannel(client, DUALITY_TRIAL_CHANNEL_ID || HOLDERS_CHANNEL_ID);
+  if (!channel) {
+    console.log('[Duality] Trial channel unavailable.');
+    return;
+  }
+
+  const now = Date.now();
+
+  for (const trial of trials) {
+    if (!trial || !trial.id) continue;
+    const scheduledAt = new Date(trial.scheduledAt).getTime();
+    const voteEndsAt = new Date(trial.voteEndsAt).getTime();
+    const metadata = trial.metadata || {};
+
+    if (
+      trial.status === 'scheduled' &&
+      !Number.isNaN(scheduledAt) &&
+      scheduledAt <= now
+    ) {
+      await startTrialVoting(trial, channel, client, metadata);
+    } else if (
+      trial.status === 'voting' &&
+      !Number.isNaN(voteEndsAt) &&
+      voteEndsAt <= now
+    ) {
+      await finalizeTrialVoting(trial, channel, client, metadata);
+    }
+  }
+}
+
+async function announcePairings(pairs, participants, client) {
+  if (!pairs || pairs.length === 0) return;
+  const channel = await getChannel(client, DUALITY_EVENTS_CHANNEL_ID || HOLDERS_CHANNEL_ID);
+  if (!channel) {
+    console.log('[Duality] Cannot announce pairings—channel missing.');
+    return;
+  }
+
+  const participantMap = new Map();
+  for (const participant of participants || []) {
+    participantMap.set(participant.id, participant);
+  }
+
+  for (const pair of pairs) {
+    const good = participantMap.get(pair.goodParticipantId);
+    const evil = participantMap.get(pair.evilParticipantId);
+    if (!good || !evil) continue;
+
+    const embed = new EmbedBuilder()
+      .setTitle('🔗 New Duality Pairing')
+      .setDescription('Fate binds opposite forces for this cycle.')
+      .addFields(
+        {
+          name: 'Good Holder',
+          value: formatParticipant(good),
+          inline: true,
+        },
+        {
+          name: 'Evil Holder',
+          value: formatParticipant(evil),
+          inline: true,
+        }
+      )
+      .addFields({ name: 'Shared Fate Meter', value: `${pair.fateMeter ?? 50}/100`, inline: false })
+      .setColor(0x9b59b6)
+      .setTimestamp(new Date());
+
+    try {
+      await channel.send({ embeds: [embed] });
+    } catch (error) {
+      console.error('[Duality] Failed to announce pairing:', error);
+    }
+  }
+}
+
+async function notifyAdmins(client, message) {
+  if (ADMIN_WEBHOOK_URL) {
+    try {
+      await fetch(ADMIN_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: message }),
+      });
+      return;
+    } catch (error) {
+      console.error('[Duality] Failed to notify admins via webhook:', error);
+    }
+  }
+
+  const channel = await getChannel(client, BOT_STATUS_CHANNEL_ID);
+  if (channel) {
+    try {
+      await channel.send(message);
+    } catch (error) {
+      console.error('[Duality] Failed to notify admins via channel:', error);
+    }
+  }
+}
+
+async function getChannel(client, channelId) {
+  if (!channelId) return null;
+  try {
+    const channel = client.channels.cache.get(channelId) || (await client.channels.fetch(channelId));
+    return channel;
+  } catch (error) {
+    console.error(`[Duality] Failed to fetch channel ${channelId}:`, error);
+    return null;
+  }
+}
+
+function formatParticipant(participant) {
+  if (!participant) return 'Unknown';
+
+  const parts = [];
+  if (participant.discordUserId) {
+    parts.push(`<@${participant.discordUserId}>`);
+  }
+
+  if (participant.username) {
+    parts.push(participant.username);
+  } else if (participant.walletAddress) {
+    const addr = participant.walletAddress;
+    parts.push(`${addr.slice(0, 6)}…${addr.slice(-4)}`);
+  }
+
+  const karmaValue =
+    participant.netKarma !== undefined && participant.netKarma !== null
+      ? participant.netKarma
+      : participant.karmaSnapshot;
+  if (karmaValue !== undefined && karmaValue !== null) {
+    parts.push(`Karma: ${karmaValue}`);
+  }
+
+  if (parts.length === 0) {
+    return participant.id || 'Unknown';
+  }
+
+  return parts.join(' • ');
 }
 
 // Handle slash commands
@@ -304,18 +1020,18 @@ client.on(Events.InteractionCreate, async interaction => {
 setInterval(async () => {
   try {
     console.log('🔄 Running periodic holder role check...');
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
-    if (!guild) {
-      console.error('Guild not found');
-      return;
-    }
-    
-    const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-    if (!role) {
-      console.error('Holder role not found');
-      return;
-    }
-    
+      const guild = client.guilds.cache.get(process.env.GUILD_ID);
+      if (!guild) {
+        console.error('Guild not found');
+        return;
+      }
+      
+      const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+      if (!role) {
+        console.error('Holder role not found');
+        return;
+      }
+      
     // Get Discord IDs that should have role removed (0 ordinals)
     const removeResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=remove`
@@ -406,6 +1122,16 @@ setInterval(async () => {
   }
 }, 86400000); // Run every 24 hours (86400000 ms)
 
+// Duality protocol automation (placeholder cadence every 15 minutes)
+setInterval(async () => {
+  try {
+    console.log('[Duality] Scheduled automation tick...');
+    await handleDualityWeeklyCycle(client);
+  } catch (error) {
+    console.error('[Duality] Automation tick error:', error);
+  }
+}, 900000); // 15 minutes
+
 // Bot ready event
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Discord bot is ready! Logged in as ${client.user.tag}`);
@@ -415,6 +1141,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`Client ID: ${process.env.CLIENT_ID}`);
   console.log(`Holder Role ID: ${process.env.HOLDER_ROLE_ID}`);
   await registerCommands();
+  await handleDualityWeeklyCycle(client);
 });
 
 // Error handling
