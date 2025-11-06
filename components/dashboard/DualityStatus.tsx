@@ -178,7 +178,11 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
     autoAlignAttemptedRef.current = false
   }, [profileSide, data.cycle?.id])
 
-  const { cycle, participant, partner, events, trial } = data
+  const cycle = data.cycle
+  const participant = data.participant
+  const partner = data.partner
+  const events = data.events
+  const trial = data.trial
 
   useEffect(() => {
     if (!walletAddress || !profileSide || !cycle || cycle.status !== 'alignment') return
@@ -193,11 +197,11 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
   }, [walletAddress, profileSide, cycle?.id, cycle?.status, participant?.alignment, submittingAlignment, handleAlignment])
 
   const partnerName = useMemo(() => {
-    if (!data.partner) return null
-    if (data.partner.username) return data.partner.username
-    if (data.partner.walletAddress) return `${data.partner.walletAddress.slice(0, 6)}…${data.partner.walletAddress.slice(-4)}`
+    if (!partner) return null
+    if (partner.username) return partner.username
+    if (partner.walletAddress) return `${partner.walletAddress.slice(0, 6)}…${partner.walletAddress.slice(-4)}`
     return null
-  }, [data.partner])
+  }, [partner])
 
   if (!walletAddress) {
     return (
@@ -217,7 +221,7 @@ export default function DualityStatus({ walletAddress, profileSide }: DualitySta
     )
   }
 
-  if (!data.cycle) {
+  if (!cycle) {
     return (
       <div className="bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center">
         <div className="text-blue-300 font-mono text-sm">
