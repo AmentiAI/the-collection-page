@@ -822,7 +822,7 @@ function SpeedupPageContent() {
         ? 'border-sky-400/70 bg-sky-500/20 shadow-[0_22px_44px_-22px_rgba(56,189,248,0.65)]'
         : meta.accent
 
-    return (
+  return (
       <button
         key={strategy}
         type="button"
@@ -936,19 +936,19 @@ function SpeedupPageContent() {
         <section className="grid gap-10 lg:grid-cols-[3fr,2fr]">
           <div className="rounded-3xl border border-sky-500/10 bg-[#050b1d]/80 p-8 shadow-[0_35px_90px_-45px_rgba(56,189,248,0.45)] backdrop-blur">
             <div className="space-y-5">
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="txid" className="text-xs font-semibold uppercase tracking-[0.45em] text-slate-400">
                   Transaction Id
-                </Label>
+              </Label>
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <Input
-                    id="txid"
+                <Input
+                  id="txid"
                     placeholder="Ex. 38f2... (64 characters)"
-                    value={txid}
-                    onChange={(e) => setTxid(e.target.value.trim())}
+                  value={txid}
+                  onChange={(e) => setTxid(e.target.value.trim())}
                     className="w-full rounded-2xl border border-sky-500/30 bg-slate-900/60 font-mono text-sm text-sky-100 placeholder:text-slate-500 focus:border-sky-400 focus:ring-sky-400"
-                    disabled={loading || broadcasting}
-                  />
+                  disabled={loading || broadcasting}
+                />
                 <Button
                   onClick={fetchTransaction}
                   disabled={loading || broadcasting || !isConnected || !txid || !holderAllowed}
@@ -963,11 +963,11 @@ function SpeedupPageContent() {
                     <>Check</>
                   )}
                 </Button>
-                </div>
-                <p className="text-xs text-slate-500">Ideal for reveal txs or single-output sends.</p>
               </div>
+                <p className="text-xs text-slate-500">Ideal for reveal txs or single-output sends.</p>
+            </div>
 
-              {!isConnected && (
+            {!isConnected && (
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <p>Connect your wallet to plan a bump.</p>
@@ -986,14 +986,14 @@ function SpeedupPageContent() {
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <p>{holderMessage}</p>
                 </div>
-              )}
+            )}
 
-              {error && (
+            {error && (
                 <div className="flex items-start gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <p>{error}</p>
                 </div>
-              )}
+            )}
 
               {successInfo && (
                 <div className="rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-8 text-center text-emerald-50 shadow-[0_45px_120px_-80px_rgba(52,211,153,0.8)] sm:p-10">
@@ -1034,50 +1034,50 @@ function SpeedupPageContent() {
                   >
                     Launch another speedup
                   </Button>
-                </div>
-              )}
+              </div>
+            )}
 
               {parsedTx && !successInfo && (
                 <div className="space-y-4 pt-2">
                   <div className="rounded-2xl border border-sky-400/20 bg-slate-900/40 p-4 text-xs text-slate-300">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold uppercase tracking-[0.35em] text-slate-500">Snapshot</p>
-                      <a
-                        href={`https://mempool.space/tx/${parsedTx.txid}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <a
+                      href={`https://mempool.space/tx/${parsedTx.txid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-200 hover:text-sky-100"
-                      >
+                    >
                         View <ArrowUpRight className="h-3 w-3" />
-                      </a>
-                    </div>
+                    </a>
+                  </div>
                     <div className="mt-3 grid gap-3 text-[11px] uppercase tracking-[0.2em] text-slate-400 sm:grid-cols-4">
                       <div className="flex flex-col gap-1">
                         <span className="text-slate-500">State</span>
                         <span className="text-slate-200 font-medium">
                           {parsedTx.status === 'confirmed' ? 'Confirmed' : 'Stuck' }
                         </span>
-                      </div>
+                </div>
                       <div className="flex flex-col gap-1">
                         <span className="text-slate-500">Fee rate</span>
                         <span className="text-rose-300 font-semibold text-lg normal-case tracking-normal">
                           {formatRate(parsedTx.feeRate)} <span className="text-[11px] text-slate-400 uppercase tracking-[0.2em]">sat/vB</span>
                         </span>
-                      </div>
+                            </div>
                       <div className="flex flex-col gap-1">
                         <span className="text-slate-500">Size</span>
                         <span className="text-slate-200">{parsedTx.vsize ? `${parsedTx.vsize} vB` : '--'}</span>
-                      </div>
+                            </div>
                       <div className="flex flex-col gap-1">
                         <span className="text-slate-500">Paid</span>
                         <span className="text-slate-200">{parsedTx.fee} sats</span>
-                      </div>
-                    </div>
+                              </div>
+                          </div>
                     {parsedTx.userOutput && (
                       <p className="mt-3 text-[11px] text-sky-200 uppercase tracking-[0.2em]">
                         Your output: {parsedTx.userOutput.value} sats
                       </p>
-                    )}
+                      )}
                   </div>
 
                 {analysis && parsedTx.status === 'unconfirmed' && (
@@ -1085,7 +1085,7 @@ function SpeedupPageContent() {
                     <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Strategy picker</p>
                     <div className="grid gap-2 md:grid-cols-3">
                       {(['rbf', 'cpfp', 'hybrid'] as SpeedupStrategy[]).map((strategy) => renderStrategyCard(strategy))}
-                    </div>
+                          </div>
                     {analysis.recommended !== 'none' && (
                       <p className="text-[11px] text-slate-400">
                         Tip: {analysis.recommended === 'rbf' ? 'RBF should cover the jump.' : analysis.recommended === 'cpfp' ? 'Pure CPFP has enough room.' : 'Hybrid CPFP needed—tap an extra UTXO.'}
@@ -1098,46 +1098,46 @@ function SpeedupPageContent() {
                     <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                       <Info className="h-4 w-4 flex-shrink-0" />
                       <p>This transaction is already confirmed. No CPFP speedup is required.</p>
-                    </div>
-                  )}
+                      </div>
+                )}
 
-                  {parsedTx.userOutput && parsedTx.status === 'unconfirmed' && estimate && (
+                {parsedTx.userOutput && parsedTx.status === 'unconfirmed' && estimate && (
                     <div className="space-y-6">
                       <div className="rounded-2xl border border-sky-400/20 bg-slate-900/50 p-6">
                         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                          <div className="space-y-3">
+                    <div className="space-y-3">
                             <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Target combined fee rate</p>
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                               <div className="flex items-center gap-2 rounded-2xl border border-sky-500/30 bg-slate-950/60 px-4 py-2">
-                                <Input
-                                  type="number"
-                                  value={customFeeRate}
-                                  onChange={(e) => {
-                                    const newRate = parseFloat(e.target.value)
-                                    setCustomFeeRate(newRate)
-                                    void updateEstimate(newRate)
-                                  }}
+                          <Input
+                            type="number"
+                            value={customFeeRate}
+                            onChange={(e) => {
+                              const newRate = parseFloat(e.target.value)
+                              setCustomFeeRate(newRate)
+                              void updateEstimate(newRate)
+                            }}
                                   className="w-28 border-none bg-transparent text-lg font-semibold text-sky-100 focus-visible:ring-0"
-                                  min="0.1"
-                                  step="0.05"
-                                />
+                            min="0.1"
+                            step="0.05"
+                          />
                                 <span className="text-sm text-slate-400">sat/vB</span>
-                              </div>
+                        </div>
                               <div className="flex flex-wrap gap-2">
-                                {[1, 2, 5, 10, 25, 50].map((rate) => (
+                          {[1, 2, 5, 10, 25, 50].map((rate) => (
                                   <button
-                                    key={rate}
+                              key={rate}
                                     type="button"
-                                    onClick={() => {
-                                      setCustomFeeRate(rate)
-                                      void updateEstimate(rate)
-                                    }}
+                              onClick={() => {
+                                setCustomFeeRate(rate)
+                                void updateEstimate(rate)
+                              }}
                                     className="rounded-full border border-slate-600/30 bg-slate-900/60 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-sky-400/50 hover:text-sky-200"
-                                  >
-                                    {rate}
+                            >
+                              {rate}
                                   </button>
-                                ))}
-                              </div>
+                          ))}
+                        </div>
                             </div>
                           </div>
                           <p className="text-xs text-slate-400">
@@ -1146,9 +1146,9 @@ function SpeedupPageContent() {
                               : Number.isFinite(parsedTx.feeRate)
                                 ? `Try ~${formatRate((parsedTx.feeRate ?? 0) + 0.2)} sat/vB for a mid bump.`
                                 : 'Set a higher fee than the original send.'}
-                          </p>
-                        </div>
+                        </p>
                       </div>
+                    </div>
 
                       <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-6 text-sm text-emerald-100">
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1157,13 +1157,13 @@ function SpeedupPageContent() {
                             <p className="mt-2 text-3xl font-semibold text-emerald-100">
                               {formatRate(estimate.recommendedCombinedFeeRate)} <span className="text-base text-emerald-200">sat/vB</span>
                             </p>
-                          </div>
+                        </div>
                           <div className="rounded-2xl border border-emerald-300/40 bg-black/20 px-4 py-3 text-xs">
                             {parsedTx.userOutput && parsedTx.userOutput.value < estimate.recommendedChildFee + 330
                               ? 'Hybrid mode: pairs your reveal output with a spare UTXO.'
                               : 'Parent + child confirm together at this new tier.'}
                           </div>
-                        </div>
+                          </div>
                         <div className="mt-6 grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <p className="text-xs uppercase tracking-[0.35em] text-emerald-200">Parent contribution</p>
@@ -1178,8 +1178,8 @@ function SpeedupPageContent() {
                         <div className="mt-4 flex flex-col gap-2 text-xs text-emerald-200 sm:flex-row sm:items-center sm:justify-between">
                           <span className="font-semibold text-emerald-100">Total additional cost: {estimate.recommendedChildFee} sats</span>
                           <span>You&rsquo;ll receive back: {estimate.userReceives} sats</span>
-                        </div>
                       </div>
+                    </div>
 
                     <Button
                       onClick={() => void executeSpeedup()}
@@ -1206,16 +1206,16 @@ function SpeedupPageContent() {
                       )}
                     </Button>
                     </div>
-                  )}
+                )}
 
-                  {!parsedTx.userOutput && parsedTx.status === 'unconfirmed' && (
+                {!parsedTx.userOutput && parsedTx.status === 'unconfirmed' && (
                     <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                       <AlertCircle className="h-4 w-4 flex-shrink-0" />
                       <p>No spendable output found for this wallet. Confirm the connected address matches the transaction recipient.</p>
                     </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
+            )}
             </div>
           </div>
 

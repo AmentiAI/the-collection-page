@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     const unspentWalletOutputs = outputs.filter((output) => output.belongsToWallet && !output.spent)
     if (unspentWalletOutputs.length > 0) {
       const primary = unspentWalletOutputs[0]
-      userOutput = {
+        userOutput = {
         index: primary.index,
         address: primary.address,
         value: primary.value
