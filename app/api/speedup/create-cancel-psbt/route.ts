@@ -92,7 +92,18 @@ export async function POST(request: NextRequest) {
     const parentTransaction = bitcoin.Transaction.fromHex(parentTxHex)
 
     const currentFee: number = txDetails.fee
-    const vsize: number = txDetails.vsize
+
+    let vsize: number = txDetails.vsize
+    if (!Number.isFinite(vsize) || vsize <= 0) {
+      const fallbackWeight = Number.isFinite(txDetails.weight) ? txDetails.weight : null
+      if (fallbackWeight && fallbackWeight > 0) {
+        vsize = Math.ceil(fallbackWeight / 4)
+      }
+    }
+
+    if (!Number.isFinite(vsize) || vsize <= 0) {
+      return NextResponse.json({ success: false, error: 'Unable to determine transaction size for replacement.' }, { status: 400 })
+    }
     const requiredTotalFee = Math.ceil(vsize * targetFeeRate)
     const feeDelta = requiredTotalFee - currentFee
 
@@ -102,7 +113,15 @@ export async function POST(request: NextRequest) {
 
     const originalInputTotal = txDetails.vin.reduce((sum: number, vin: any) => sum + (vin.prevout?.value ?? 0), 0)
     const newFee = currentFee + feeDelta
+    if (!Number.isFinite(newFee) || newFee <= 0) {
+      return NextResponse.json({ success: false, error: 'Computed fee is invalid.' }, { status: 400 })
+    }
+
     const returnValue = originalInputTotal - newFee
+
+    if (!Number.isFinite(returnValue)) {
+      return NextResponse.json({ success: false, error: 'Computed output value is invalid.' }, { status: 400 })
+    }
 
     if (returnValue < MIN_OUTPUT_VALUE) {
       return NextResponse.json({ success: false, error: 'Insufficient funds to pay the higher fee.' }, { status: 400 })
@@ -123,24 +142,29 @@ export async function POST(request: NextRequest) {
       const prevTransaction = bitcoin.Transaction.fromHex(prevTxHex)
       const prevOutput = prevTransaction.outs[prevVout]
 
+      const prevValue = Number(prevOutput.value)
+      if (!Number.isFinite(prevValue) || prevValue <= 0) {
+        throw new Error(`Previous output value is invalid for ${prevTxid}:${prevVout}`)
+      }
+
       psbt.addInput({
         hash: prevTxid,
         index: prevVout,
         sequence: 0xfffffffd,
         witnessUtxo: {
           script: prevOutput.script,
-          value: BigInt(prevOutput.value)
+          value: BigInt(prevValue)
         }
       })
 
       const address = input.prevout?.scriptpubkey_address ?? ''
-      addInputSigningInfo(psbt, i, address, normalizedPaymentKey, normalizedTaprootKey, Number(prevOutput.value))
+      addInputSigningInfo(psbt, i, address, normalizedPaymentKey, normalizedTaprootKey, prevValue)
     }
 
     const returnScript = bitcoin.address.toOutputScript(returnAddress, bitcoin.networks.bitcoin)
     psbt.addOutput({
       script: Buffer.from(returnScript),
-      value: BigInt(returnValue)
+      value: BigInt(Math.trunc(returnValue))
     })
 
     return NextResponse.json({

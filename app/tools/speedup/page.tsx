@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense, useCallback } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,11 @@ const STRATEGY_COPY: Record<SpeedupStrategy, { title: string; blurb: string; acc
     accent: 'border-emerald-400/30 bg-emerald-500/10'
   }
 }
+
+const TOOL_LINKS = [
+  { name: 'Transaction Speedup', href: '/tools/speedup' },
+  { name: 'Cancel Transaction', href: '/tools/cancel' }
+]
 
 const formatRate = (value: number | null | undefined, digits = 2) =>
   typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '--'
@@ -154,6 +160,10 @@ function SpeedupPageContent() {
   const [customFeeRate, setCustomFeeRate] = useState<number>(5)
   const [broadcasting, setBroadcasting] = useState(false)
   const [successInfo, setSuccessInfo] = useState<{ txid: string; type: 'rbf' | 'cpfp' } | null>(null)
+  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>('unknown')
+  const [holderMessage, setHolderMessage] = useState<string | null>(null)
+
+  const holderAllowed = holderStatus === 'holder'
 
   const deriveStrategy = useCallback(
     (tx: ParsedTransaction, estimateResult: CpfpEstimate | null, targetRate: number): StrategyAssessment => {
@@ -369,6 +379,53 @@ function SpeedupPageContent() {
     }
   }, [customFeeRate, parsedTx, recalculateEstimate])
 
+  useEffect(() => {
+    if (!isConnected || (!currentAddress && !paymentAddress)) {
+      setHolderStatus('unknown')
+      setHolderMessage(null)
+      return
+    }
+
+    const address = paymentAddress || currentAddress
+    if (!address) return
+
+    let cancelled = false
+    setHolderStatus('checking')
+    setHolderMessage(null)
+
+    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(text || `Magic Eden check failed (${res.status})`)
+        }
+        return res.json()
+      })
+      .then((data) => {
+        if (cancelled) return
+        let total = 0
+        if (typeof data.total === 'number') total = data.total
+        else if (Array.isArray(data.tokens)) total = data.tokens.length
+        else if (Array.isArray(data)) total = data.length
+        else if (typeof data.count === 'number') total = data.count
+        const isHolderWallet = total > 0
+        setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
+        if (!isHolderWallet) {
+          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Holder check failed:', err)
+        setHolderStatus('error')
+        setHolderMessage('Unable to verify holder status. Please retry shortly.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isConnected, currentAddress, paymentAddress])
+
   const fetchTransactionWithTxid = useCallback(
     async (transactionId: string) => {
       if (!transactionId || transactionId.length !== 64) {
@@ -381,6 +438,13 @@ function SpeedupPageContent() {
         const errorMsg = 'Please connect your wallet first'
         setError(errorMsg)
         toast.error(errorMsg)
+        return
+      }
+
+      if (!holderAllowed) {
+        const msg = 'Only verified holders can use this tool.'
+        setError(msg)
+        toast.error(msg)
         return
       }
 
@@ -424,7 +488,7 @@ function SpeedupPageContent() {
         setLoading(false)
       }
     },
-    [currentAddress, paymentAddress, toast]
+    [currentAddress, paymentAddress, toast, holderAllowed]
   )
 
   const fetchTransaction = async () => {
@@ -464,6 +528,11 @@ function SpeedupPageContent() {
 
     if (!client) {
       setError('Wallet client unavailable. Please reconnect and try again.')
+      return
+    }
+
+    if (!holderAllowed) {
+      setError('Only verified holders can use this tool.')
       return
     }
 
@@ -625,6 +694,11 @@ function SpeedupPageContent() {
       return
     }
 
+    if (!holderAllowed) {
+      setError('Only verified holders can use this tool.')
+      return
+    }
+
     const validation = await revalidateTransaction()
     if (!validation.ok) {
       return
@@ -675,6 +749,10 @@ function SpeedupPageContent() {
   }
 
   const executeSpeedup = async () => {
+    if (!holderAllowed) {
+      setError('Only verified holders can use this tool.')
+      return
+    }
     if (!selectedStrategy) {
       setError('Select a strategy before continuing.')
       return
@@ -793,6 +871,33 @@ function SpeedupPageContent() {
       </div>
 
       <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <Link
+            href="/tools"
+            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition hover:text-sky-200"
+          >
+            <ArrowRight className="h-3 w-3 rotate-180" /> Back to Pools
+          </Link>
+          <div className="flex flex-wrap gap-2">
+            {TOOL_LINKS.map((tool) => {
+              const isActive = tool.href === '/tools/speedup'
+              return (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  className={`rounded-full border px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                    isActive
+                      ? 'border-sky-400/60 bg-sky-500/20 text-sky-200'
+                      : 'border-slate-600/40 bg-black/40 text-slate-500 hover:border-sky-400/40 hover:text-sky-200'
+                  }`}
+                >
+                  {tool.name}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
         <section className="rounded-3xl border border-sky-500/20 bg-gradient-to-br from-[#04122d]/80 via-[#081022]/60 to-[#120a1f]/70 p-10 shadow-[0_45px_120px_-40px_rgba(56,189,248,0.6)] backdrop-blur">
           <div className="grid gap-8 lg:grid-cols-[2fr,1fr] lg:items-center">
             <div className="space-y-6">
@@ -846,7 +951,7 @@ function SpeedupPageContent() {
                   />
                 <Button
                   onClick={fetchTransaction}
-                  disabled={loading || broadcasting || !isConnected || !txid}
+                  disabled={loading || broadcasting || !isConnected || !txid || !holderAllowed}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 py-2 text-base font-semibold text-slate-950 shadow-[0_12px_30px_-12px_rgba(56,189,248,0.8)] transition-transform hover:scale-[1.015] hover:shadow-[0_18px_40px_-20px_rgba(56,189,248,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
                 >
                   {loading ? (
@@ -866,6 +971,20 @@ function SpeedupPageContent() {
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <p>Connect your wallet to plan a bump.</p>
+                </div>
+              )}
+
+              {isConnected && holderStatus === 'checking' && (
+                <div className="flex items-start gap-3 rounded-2xl border border-blue-400/30 bg-blue-500/10 p-4 text-sm text-blue-100">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p>Verifying holder status…</p>
+                </div>
+              )}
+
+              {isConnected && holderStatus !== 'checking' && holderStatus !== 'holder' && holderMessage && (
+                <div className="flex items-start gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <p>{holderMessage}</p>
                 </div>
               )}
 
@@ -1064,7 +1183,7 @@ function SpeedupPageContent() {
 
                     <Button
                       onClick={() => void executeSpeedup()}
-                      disabled={broadcasting || !selectedStrategy}
+                      disabled={broadcasting || !selectedStrategy || !holderAllowed}
                       className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 py-4 text-lg font-semibold text-slate-950 shadow-[0_18px_40px_-20px_rgba(59,130,246,0.85)] transition hover:scale-[1.015] hover:shadow-[0_22px_48px_-22px_rgba(59,130,246,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
                     >
                       {broadcasting ? (
