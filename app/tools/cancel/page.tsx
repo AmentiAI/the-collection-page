@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Undo2, ShieldCheck, AlertCircle, ArrowRight, ArrowUpRight } from 'lucide-react'
+import BackgroundMusic from '@/components/BackgroundMusic'
 
 // Metadata defined in parent layout since this page is client-side only
 
@@ -67,6 +68,14 @@ export default function CancelTransactionPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [startMusic, setStartMusic] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(30)
+  const [isMusicMuted, setIsMusicMuted] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStartMusic(true), 500)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-slate-100">
@@ -80,7 +89,12 @@ export default function CancelTransactionPage() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
+        musicVolume={musicVolume}
+        onMusicVolumeChange={setMusicVolume}
+        isMusicMuted={isMusicMuted}
+        onMusicMutedChange={setIsMusicMuted}
       />
+      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-sky-400" /></div>}>
         <CancelTransactionContent initialHolder={isHolder} />
       </Suspense>
