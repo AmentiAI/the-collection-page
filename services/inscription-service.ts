@@ -45,7 +45,7 @@ export class InscriptionService {
       const blocked = this.getBlockedRareSatUtxos(address)
       blocked.add(utxoId)
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, JSON.stringify([...blocked]))
+        window.localStorage.setItem(key, JSON.stringify(Array.from(blocked)))
       }
     } catch (error) {
       console.warn('Failed to block rare sat UTXO in localStorage:', error)
@@ -127,7 +127,7 @@ export class InscriptionService {
       if (typeof window === 'undefined') return
       const key = `excluded_utxos_${address}`
       const excluded = this.getExcludedUtxos(address)
-      const updated = [...new Set([...excluded, ...utxoOutpoints])]
+      const updated = Array.from(new Set([...excluded, ...utxoOutpoints]))
       window.localStorage.setItem(key, JSON.stringify(updated))
     } catch (error) {
       console.warn('Failed to add excluded UTXOs to localStorage:', error)
@@ -335,7 +335,7 @@ export function analyzeSatRanges(utxo: RareSatUtxo) {
     commonSats,
     lastRareSatRange,
     needsSplitting: totalRareSats > 1,
-    types: [...new Set(utxo.sats.flatMap((sat) => sat.types))]
+    types: Array.from(new Set(utxo.sats.flatMap((sat) => sat.types)))
   }
 }
 
