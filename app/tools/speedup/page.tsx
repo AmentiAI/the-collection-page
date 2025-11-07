@@ -116,10 +116,24 @@ interface CpfpEstimate {
   userReceives: number
 }
 
-export default function SpeedupPage() {
+function SpeedupPage() {
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
+
   return (
     <LaserEyesWrapper>
-      <Header />
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={connected}
+        onHolderVerified={(holder) => {
+          setIsHolder(holder)
+          setIsVerifying(false)
+        }}
+        onVerifyingStart={() => setIsVerifying(true)}
+        onConnectedChange={setConnected}
+      />
       <Suspense
         fallback={
           <div className="flex min-h-screen items-center justify-center bg-[#03040e]">
@@ -1270,4 +1284,6 @@ function SpeedupPageContent() {
     </div>
   )
 }
+
+export default SpeedupPage
 

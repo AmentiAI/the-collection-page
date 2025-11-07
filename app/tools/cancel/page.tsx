@@ -55,9 +55,23 @@ const TOOL_LINKS = [
 ]
 
 export default function CancelTransactionPage() {
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-slate-100">
-      <Header />
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={connected}
+        onHolderVerified={(holder) => {
+          setIsHolder(holder)
+          setIsVerifying(false)
+        }}
+        onVerifyingStart={() => setIsVerifying(true)}
+        onConnectedChange={setConnected}
+      />
       <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-sky-400" /></div>}>
         <CancelTransactionContent />
       </Suspense>
