@@ -20,6 +20,19 @@ export async function POST(request: NextRequest) {
       taprootPublicKey,
       preserveAnchorValue = true
     } = await request.json()
+
+    const normalizeKey = (key?: string | { type: string; data: number[] } | Uint8Array) => {
+      if (!key) return undefined
+      if (typeof key === 'string') return key
+      if (key instanceof Uint8Array) return Buffer.from(key).toString('hex')
+      if (typeof key === 'object' && Array.isArray((key as any).data)) {
+        return Buffer.from((key as any).data).toString('hex')
+      }
+      return undefined
+    }
+
+    const normalizedPaymentKey = normalizeKey(paymentPublicKey)
+    const normalizedTaprootKey = normalizeKey(taprootPublicKey)
     
     console.log(`🔨 Creating Hybrid CPFP PSBT:`)
     console.log(`   Parent TX: ${parentTxid}`)
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
     })
     
     // Add signing info for parent output (usually taproot ordinals address)
-    addInputSigningInfo(psbt, 0, outputAddress, paymentPublicKey, taprootPublicKey, Number(outputValue))
+    addInputSigningInfo(psbt, 0, outputAddress, normalizedPaymentKey, normalizedTaprootKey, Number(outputValue))
     
     console.log(`✅ Added input #1 from parent TX (${outputValue} sats)`)
     
@@ -133,7 +146,7 @@ export async function POST(request: NextRequest) {
         })
         
         // Add signing info for wallet UTXO (from payment address - could be P2SH, P2WPKH, or P2TR)
-        addInputSigningInfo(psbt, i + 1, userAddress, paymentPublicKey, taprootPublicKey, Number(utxo.value))
+        addInputSigningInfo(psbt, i + 1, userAddress, normalizedPaymentKey, normalizedTaprootKey, Number(utxo.value))
         
         console.log(`✅ Added input #${i + 2} from wallet UTXO (${utxo.value} sats)`)
       }

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Zap, Waves } from 'lucide-react'
+import { Zap, Waves, Undo2 } from 'lucide-react'
 import Header from '@/components/Header'
 
 export const metadata = {
@@ -13,6 +13,12 @@ const pools = [
     description: 'Accelerate stuck reveals or wallet transactions by crafting a CPFP boost.',
     href: '/tools/speedup',
     icon: Zap
+  },
+  {
+    name: 'Cancel Transaction',
+    description: 'RBF an opt-in send back to your payment wallet when miners ignore it.',
+    href: '/tools/cancel',
+    icon: Undo2
   }
 ]
 
