@@ -63,10 +63,10 @@ export default function ToolsLandingContent() {
               <Waves className="h-4 w-4" /> Pools of the Damned
             </div>
             <h1 className="text-4xl font-black uppercase tracking-[0.55em] text-blue-200 md:text-5xl">
-              Holder Utility Vaults
+              Pools of the Damned
             </h1>
             <p className="mx-auto max-w-2xl text-sm text-zinc-400 md:text-base">
-              Verified wallets can dive straight into live accelerators while we finish forging the next rituals.
+              Tools forged for verified holders. Speed up transactions now; more infernal utilities surface soon.
             </p>
             {connected && isHolder && (
               <p className="text-xs uppercase tracking-[0.4em] text-emerald-300">Access granted — The Damned recognize you.</p>
