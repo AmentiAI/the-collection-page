@@ -77,6 +77,8 @@ const STRATEGY_COPY: Record<SpeedupStrategy, { title: string; blurb: string; acc
 const formatRate = (value: number | null | undefined, digits = 2) =>
   typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '--'
 
+const PRESERVE_ANCHOR_THRESHOLD = 600
+
 type RevalidateResult =
   | { ok: true; transaction: ParsedTransaction; estimate: CpfpEstimate | null }
   | { ok: false }
@@ -410,10 +412,10 @@ function SpeedupPageContent() {
         }
 
         setParsedTx(data.transaction)
-      setEstimate(data.estimate)
+        setEstimate(data.estimate)
 
-      const boostedRate = Math.max(0.1, Math.ceil(data.transaction.feeRate * 1.5 * 100) / 100)
-      setCustomFeeRate(boostedRate)
+        const boostedRate = Math.max(0.1, Math.ceil(data.transaction.feeRate * 1.5 * 100) / 100)
+        setCustomFeeRate(boostedRate)
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to fetch transaction'
         setError(errorMsg)
@@ -432,6 +434,7 @@ function SpeedupPageContent() {
   const updateEstimate = async (newFeeRate: number) => {
     if (!parsedTx || !currentAddress || !Number.isFinite(newFeeRate)) return
     try {
+      const preserveAnchorValue = parsedTx.userOutput ? parsedTx.userOutput.value <= PRESERVE_ANCHOR_THRESHOLD : false
       const response = await fetch('/api/speedup/estimate-cpfp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -440,7 +443,8 @@ function SpeedupPageContent() {
           parentFee: parsedTx.fee,
           parentSize: parsedTx.vsize,
           outputValue: parsedTx.userOutput!.value,
-          targetCombinedFeeRate: newFeeRate
+          targetCombinedFeeRate: newFeeRate,
+          preserveAnchorValue
         })
       })
       const data = await response.json()

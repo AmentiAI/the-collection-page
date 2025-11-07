@@ -57,7 +57,17 @@ export function addInputSigningInfo(
       return
     }
 
-    const internalKey = Buffer.from(taprootPublicKey, 'hex')
+    let keyBuffer = Buffer.from(taprootPublicKey, 'hex')
+    if (keyBuffer.length === 33 && (keyBuffer[0] === 0x02 || keyBuffer[0] === 0x03)) {
+      keyBuffer = keyBuffer.subarray(1)
+    }
+
+    if (keyBuffer.length !== 32) {
+      console.warn('Unexpected taproot key length for address', address)
+      return
+    }
+
+    const internalKey = keyBuffer
     if (!psbt.data.inputs[inputIndex].tapInternalKey) {
       psbt.updateInput(inputIndex, {
         tapInternalKey: internalKey
