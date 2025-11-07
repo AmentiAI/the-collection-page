@@ -73,13 +73,17 @@ export default function CancelTransactionPage() {
         onConnectedChange={setConnected}
       />
       <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-sky-400" /></div>}>
-        <CancelTransactionContent />
+        <CancelTransactionContent initialHolder={isHolder} />
       </Suspense>
     </div>
   )
 }
 
-function CancelTransactionContent() {
+interface CancelTransactionContentProps {
+  initialHolder?: boolean
+}
+
+function CancelTransactionContent({ initialHolder }: CancelTransactionContentProps) {
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{ paymentAddress: string; paymentPublicKey: string; publicKey: string }>
   const { paymentAddress, paymentPublicKey, publicKey } = laserEyes
@@ -93,7 +97,9 @@ function CancelTransactionContent() {
   const [error, setError] = useState<string | null>(null)
   const [broadcasting, setBroadcasting] = useState(false)
   const [successTxid, setSuccessTxid] = useState<string | null>(null)
-  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>('unknown')
+  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>(
+    initialHolder ? 'holder' : 'unknown'
+  )
   const [holderMessage, setHolderMessage] = useState<string | null>(null)
 
   const holderAllowed = holderStatus === 'holder'
@@ -175,7 +181,13 @@ function CancelTransactionContent() {
 
   useEffect(() => {
     if (!isConnected || (!currentAddress && !paymentAddress)) {
-      setHolderStatus('unknown')
+      setHolderStatus(initialHolder ? 'holder' : 'unknown')
+      setHolderMessage(null)
+      return
+    }
+
+    if (initialHolder) {
+      setHolderStatus('holder')
       setHolderMessage(null)
       return
     }
@@ -218,7 +230,7 @@ function CancelTransactionContent() {
     return () => {
       cancelled = true
     }
-  }, [isConnected, currentAddress, paymentAddress])
+  }, [isConnected, currentAddress, paymentAddress, initialHolder])
 
   const fetchTransaction = async () => {
     await fetchTransactionWithTxid(txid)
