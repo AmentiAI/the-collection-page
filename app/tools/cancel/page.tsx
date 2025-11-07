@@ -54,6 +54,15 @@ const TOOL_LINKS = [
   { name: 'Cancel Transaction', href: '/tools/cancel' }
 ]
 
+const QUICK_RATE_PRESETS = [2, 3, 5, 10]
+
+const suggestFeeRate = (baseline: number) => {
+  const base = Number.isFinite(baseline) && baseline > 0 ? baseline : 1
+  const ramp = base < 2 ? 1.5 : base * 0.75
+  const suggested = base + ramp
+  return Math.max(2, Math.ceil(suggested * 100) / 100)
+}
+
 export default function CancelTransactionPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -152,7 +161,7 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
         setParsedTx(data.transaction)
 
         const baselineRate = data.transaction.feeRate || 1
-        const bumpedRate = Math.max(1, Math.ceil(baselineRate * 1.4 * 100) / 100)
+        const bumpedRate = suggestFeeRate(baselineRate)
         setTargetRate(bumpedRate)
 
         if (!data.transaction.optInRbf) {
@@ -347,7 +356,10 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
     }
 
     if (newTotalFee <= currentFee) {
-      setError('Increase the fee rate above the original to broadcast a cancellation.')
+      const bumpHint = suggestFeeRate(currentTx.feeRate)
+      const msg = `Raise the target fee rate above ${currentTx.feeRate.toFixed(2)} sat/vB. Try ${bumpHint.toFixed(2)} sat/vB or higher.`
+      setError(msg)
+      toast.error(msg)
       return
     }
 
@@ -381,6 +393,13 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
     } catch (err) {
       console.error('Cancel TX error:', err)
       const message = err instanceof Error ? err.message : 'Failed to cancel transaction'
+      if (message.toLowerCase().includes('fee rate does not exceed')) {
+        const bumpHint = suggestFeeRate(currentTx.feeRate)
+        const friendly = `Fee rate too low. Set at least ${bumpHint.toFixed(2)} sat/vB and try again.`
+        setError(friendly)
+        toast.error(friendly)
+        return
+      }
       setError(message)
       toast.error(message)
     } finally {
@@ -555,6 +574,21 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
                       step="0.01"
                     />
                     <span className="text-sm text-zinc-400">sat/vB</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+                    {QUICK_RATE_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setTargetRate(preset)}
+                        className="rounded-full border border-purple-500/30 px-3 py-1 font-semibold uppercase tracking-[0.2em] text-purple-200 transition hover:border-purple-400/60 hover:text-purple-100"
+                      >
+                        {preset.toFixed(2)}
+                      </button>
+                    ))}
+                    <span className="ml-auto text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                      Suggested: {suggestFeeRate(parsedTx.feeRate).toFixed(2)} sat/vB
+                    </span>
                   </div>
                   <p className="text-[11px] text-zinc-500">
                     Must be greater than the original {formatRate(parsedTx.feeRate)} sat/vB to replace the transaction.
