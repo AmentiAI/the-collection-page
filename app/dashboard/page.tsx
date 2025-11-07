@@ -1575,7 +1575,7 @@ function DashboardContent() {
               {chosenSide ? (
                 <>
                   <p className="text-gray-400 font-mono text-sm mb-6">
-                    Complete tasks to earn {chosenSide === 'good' ? 'good' : 'bad'} karma. All tasks are tracked and verified.
+                    Complete tasks to earn {chosenSide === 'good' ? 'good' : 'evil'} karma. All tasks are tracked and verified.
                   </p>
                   <Morality walletAddress={address} chosenSide={chosenSide} />
                 </>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { ToastProvider } from '@/components/Toast'
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,9 @@ export default function RootLayout({
       </head>
       <body style={{ backgroundColor: '#0a0a0a', margin: 0, padding: 0, minHeight: '100vh' }}>
         <ToastProvider>
-          {children}
+          <LaserEyesWrapper>
+            {children}
+          </LaserEyesWrapper>
         </ToastProvider>
       </body>
     </html>

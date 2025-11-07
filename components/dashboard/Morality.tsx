@@ -7,7 +7,7 @@ interface KarmaTask {
   id: string
   title: string
   description: string | null
-  type: 'good' | 'bad'
+  type: 'good' | 'evil'
   points: number
   category: string | null
   isCompleted?: boolean
@@ -43,7 +43,7 @@ export default function Morality({ walletAddress, chosenSide, filterPlatforms, l
     try {
       const includeCompleted = walletAddress ? 'true' : 'false'
       const walletParam = walletAddress ? `&walletAddress=${encodeURIComponent(walletAddress)}` : ''
-      const taskType = chosenSide === 'evil' ? 'bad' : 'good'
+      const taskType = chosenSide === 'evil' ? 'evil' : 'good'
       
       // Only fetch tasks for the chosen side
       const response = await fetch(`/api/tasks?type=${taskType}&includeCompleted=${includeCompleted}${walletParam}`)
@@ -102,7 +102,7 @@ export default function Morality({ walletAddress, chosenSide, filterPlatforms, l
 
       // Refresh tasks to show completion
       await fetchTasks()
-      toast.success(`Task completed! You earned ${Math.abs(data.karmaAwarded)} ${data.karmaAwarded > 0 ? 'good' : 'bad'} karma points!`)
+      toast.success(`Task completed! You earned ${Math.abs(data.karmaAwarded)} ${data.karmaAwarded > 0 ? 'good' : 'evil'} karma points!`)
     } catch (error) {
       console.error('Error completing task:', error)
       toast.error('Failed to complete task')

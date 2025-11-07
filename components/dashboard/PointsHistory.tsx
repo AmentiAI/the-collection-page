@@ -80,8 +80,8 @@ export default function PointsHistory({ walletAddress, chosenSide }: PointsHisto
             <div className="text-3xl font-bold text-green-500 font-mono">{profile.total_good_karma}</div>
           </div>
           <div className="bg-black/60 backdrop-blur-sm border border-red-600/50 rounded-lg p-6">
-            <div className="text-gray-400 text-sm font-mono uppercase mb-2">Bad Karma</div>
-            <div className="text-3xl font-bold text-red-500 font-mono">{profile.total_bad_karma}</div>
+            <div className="text-gray-400 text-sm font-mono uppercase mb-2">Evil Karma</div>
+            <div className="text-3xl font-bold text-red-500 font-mono">-{profile.total_bad_karma}</div>
           </div>
           <div className="bg-black/60 backdrop-blur-sm border border-orange-600/50 rounded-lg p-6">
             <div className="text-gray-400 text-sm font-mono uppercase mb-2">Net Karma</div>
