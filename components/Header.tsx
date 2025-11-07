@@ -59,7 +59,7 @@ export default function Header({
   return (
     <header className="relative z-20 text-center py-3 px-4 bg-gradient-to-b from-[rgba(139,0,0,0.9)] to-[rgba(0,0,0,0.9)] border-b-[3px] border-[#8B0000] shadow-[0_4px_20px_rgba(139,0,0,0.5)]">
       <div className="flex justify-center items-center gap-2 sm:gap-4 flex-wrap">
-        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-widest mb-1">
+        <Link href="/" className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-widest mb-1 inline-flex">
           {title.split('').map((letter, index) => (
             <span
               key={index}
@@ -69,7 +69,7 @@ export default function Header({
               {letter === ' ' ? '\u00A0' : letter}
             </span>
           ))}
-        </h1>
+        </Link>
         <a 
           href="https://x.com/The__Damned__" 
           target="_blank" 
