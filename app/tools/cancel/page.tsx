@@ -12,10 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Undo2, ShieldCheck, AlertCircle, ArrowRight, ArrowUpRight } from 'lucide-react'
 
-export const metadata = {
-  title: 'Cancel Transaction | The Damned',
-  description: 'RBF opt-in transactions back to your wallet when miners ignore them.'
-}
+// Metadata defined in parent layout since this page is client-side only
 
 type RevalidateResult =
   | { ok: true; payload: ParsedTransaction }
