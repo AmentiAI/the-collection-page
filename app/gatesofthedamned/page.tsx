@@ -83,7 +83,7 @@ export default function GatesOfTheDamnedPage() {
   }, [volume, isMuted])
 
   useEffect(() => {
-    const targetDate = new Date('2025-11-07T20:00:00Z').getTime()
+    const targetDate = new Date('2025-11-10T20:00:00Z').getTime()
 
     const updateCountdown = () => {
       const now = new Date().getTime()
