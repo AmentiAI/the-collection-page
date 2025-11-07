@@ -1245,52 +1245,7 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
             </div>
           </div>
 
-          <aside className="space-y-6">
-            <div className="rounded-3xl border border-slate-500/10 bg-black/40 p-6 backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-400">Your CPFP journey</h2>
-              <ol className="mt-6 space-y-4 text-sm text-slate-300">
-                <li className="flex gap-3">
-                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/15 text-xs font-semibold text-sky-200">1</span>
-                  <div>
-                    <p className="font-semibold text-slate-100">Scan the parent</p>
-                    <p className="text-slate-400">We pull mempool data + your spendable output.</p>
-                  </div>
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/15 text-xs font-semibold text-sky-200">2</span>
-                  <div>
-                    <p className="font-semibold text-slate-100">Assemble the bump</p>
-                    <p className="text-slate-400">We build the PSBT, borrowing extra UTXOs if needed.</p>
-                  </div>
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/15 text-xs font-semibold text-sky-200">3</span>
-                  <div>
-                    <p className="font-semibold text-slate-100">Sign and fire</p>
-                    <p className="text-slate-400">Approve in-wallet and we broadcast instantly.</p>
-                  </div>
-                </li>
-              </ol>
-            </div>
-
-            <div className="rounded-3xl border border-sky-400/10 bg-slate-900/50 p-6 text-sm text-slate-300 backdrop-blur">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-400">Tips for smooth clears</h3>
-              <ul className="mt-6 space-y-3">
-                <li className="flex gap-3">
-                  <Sparkles className="mt-1 h-4 w-4 flex-shrink-0 text-sky-300" />
-                  <span>Keep one spare UTXO unfrozen for hybrid bumps.</span>
-                </li>
-                <li className="flex gap-3">
-                  <ShieldCheck className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-300" />
-                  <span>After confirmation, clear exclusions in <code className="rounded bg-black/40 px-1.5 py-0.5">InscriptionService</code>.</span>
-                </li>
-                <li className="flex gap-3">
-                  <Info className="mt-1 h-4 w-4 flex-shrink-0 text-slate-300" />
-                  <span>Skip confirmed parents; focus bumps on lagging mempool tiers.</span>
-                </li>
-              </ul>
-            </div>
-          </aside>
+          <aside className="space-y-6" />
         </section>
       </div>
     </div>
