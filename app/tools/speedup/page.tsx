@@ -141,13 +141,17 @@ function SpeedupPage() {
           </div>
         }
       >
-        <SpeedupPageContent />
+        <SpeedupPageContent initialHolder={isHolder} />
       </Suspense>
     </LaserEyesWrapper>
   )
 }
 
-function SpeedupPageContent() {
+interface SpeedupPageContentProps {
+  initialHolder?: boolean
+}
+
+function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{
     paymentAddress: string
@@ -174,7 +178,9 @@ function SpeedupPageContent() {
   const [customFeeRate, setCustomFeeRate] = useState<number>(5)
   const [broadcasting, setBroadcasting] = useState(false)
   const [successInfo, setSuccessInfo] = useState<{ txid: string; type: 'rbf' | 'cpfp' } | null>(null)
-  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>('unknown')
+  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>(
+    initialHolder ? 'holder' : 'unknown'
+  )
   const [holderMessage, setHolderMessage] = useState<string | null>(null)
 
   const holderAllowed = holderStatus === 'holder'
@@ -395,7 +401,13 @@ function SpeedupPageContent() {
 
   useEffect(() => {
     if (!isConnected || (!currentAddress && !paymentAddress)) {
-      setHolderStatus('unknown')
+      setHolderStatus(initialHolder ? 'holder' : 'unknown')
+      setHolderMessage(null)
+      return
+    }
+
+    if (initialHolder) {
+      setHolderStatus('holder')
       setHolderMessage(null)
       return
     }
@@ -438,7 +450,7 @@ function SpeedupPageContent() {
     return () => {
       cancelled = true
     }
-  }, [isConnected, currentAddress, paymentAddress])
+  }, [isConnected, currentAddress, paymentAddress, initialHolder])
 
   const fetchTransactionWithTxid = useCallback(
     async (transactionId: string) => {
