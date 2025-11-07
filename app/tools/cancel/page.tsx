@@ -98,63 +98,6 @@ function CancelTransactionContent() {
 
   const holderAllowed = holderStatus === 'holder'
 
-  useEffect(() => {
-    const urlTxid = searchParams.get('txid')
-    if (urlTxid && urlTxid.length === 64) {
-      setTxid(urlTxid)
-      if (isConnected && currentAddress && !parsedTx && !loading) {
-        void fetchTransactionWithTxid(urlTxid)
-      }
-    }
-  }, [searchParams, isConnected, currentAddress, parsedTx, loading])
-
-  useEffect(() => {
-    if (!isConnected || (!currentAddress && !paymentAddress)) {
-      setHolderStatus('unknown')
-      setHolderMessage(null)
-      return
-    }
-
-    const address = paymentAddress || currentAddress
-    if (!address) return
-
-    let cancelled = false
-    setHolderStatus('checking')
-    setHolderMessage(null)
-
-    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text()
-          throw new Error(text || `Magic Eden check failed (${res.status})`)
-        }
-        return res.json()
-      })
-      .then((data) => {
-        if (cancelled) return
-        let total = 0
-        if (typeof data.total === 'number') total = data.total
-        else if (Array.isArray(data.tokens)) total = data.tokens.length
-        else if (Array.isArray(data)) total = data.length
-        else if (typeof data.count === 'number') total = data.count
-        const isHolderWallet = total > 0
-        setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
-        if (!isHolderWallet) {
-          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error('Holder check failed:', err)
-        setHolderStatus('error')
-        setHolderMessage('Unable to verify holder status. Please retry shortly.')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [isConnected, currentAddress, paymentAddress])
-
   const fetchTransactionWithTxid = useCallback(
     async (transactionId: string) => {
       if (!transactionId || transactionId.length !== 64) {
@@ -219,6 +162,63 @@ function CancelTransactionContent() {
     },
     [currentAddress, paymentAddress, toast, holderAllowed]
   )
+
+  useEffect(() => {
+    const urlTxid = searchParams.get('txid')
+    if (urlTxid && urlTxid.length === 64) {
+      setTxid(urlTxid)
+      if (isConnected && currentAddress && !parsedTx && !loading) {
+        void fetchTransactionWithTxid(urlTxid)
+      }
+    }
+  }, [searchParams, isConnected, currentAddress, parsedTx, loading, fetchTransactionWithTxid])
+
+  useEffect(() => {
+    if (!isConnected || (!currentAddress && !paymentAddress)) {
+      setHolderStatus('unknown')
+      setHolderMessage(null)
+      return
+    }
+
+    const address = paymentAddress || currentAddress
+    if (!address) return
+
+    let cancelled = false
+    setHolderStatus('checking')
+    setHolderMessage(null)
+
+    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(text || `Magic Eden check failed (${res.status})`)
+        }
+        return res.json()
+      })
+      .then((data) => {
+        if (cancelled) return
+        let total = 0
+        if (typeof data.total === 'number') total = data.total
+        else if (Array.isArray(data.tokens)) total = data.tokens.length
+        else if (Array.isArray(data)) total = data.length
+        else if (typeof data.count === 'number') total = data.count
+        const isHolderWallet = total > 0
+        setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
+        if (!isHolderWallet) {
+          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Holder check failed:', err)
+        setHolderStatus('error')
+        setHolderMessage('Unable to verify holder status. Please retry shortly.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isConnected, currentAddress, paymentAddress])
 
   const fetchTransaction = async () => {
     await fetchTransactionWithTxid(txid)
