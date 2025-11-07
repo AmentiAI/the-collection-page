@@ -52,14 +52,15 @@ export async function POST(request: NextRequest) {
     
     // Calculate change: total inputs - inscription output - fee
     const MIN_SIMPLE_OUTPUT = 546
+    const enforcedChildFee = preserveAnchorValue ? Math.max(childFee, 330) : childFee
     let inscriptionOutput = outputValue
     if (!preserveAnchorValue) {
-      const reducedAmount = outputValue - childFee
+      const reducedAmount = outputValue - enforcedChildFee
       if (reducedAmount < MIN_SIMPLE_OUTPUT) {
         return NextResponse.json(
           {
             success: false,
-            error: `Child fee ${childFee} sats is too high for your output (${outputValue} sats). Keep at least ${MIN_SIMPLE_OUTPUT} sats or add additional funds.`
+            error: `Child fee ${enforcedChildFee} sats is too high for your output (${outputValue} sats). Keep at least ${MIN_SIMPLE_OUTPUT} sats or add additional funds.`
           },
           { status: 400 }
         )
@@ -67,13 +68,13 @@ export async function POST(request: NextRequest) {
       inscriptionOutput = reducedAmount
     }
 
-    let changeAmount = totalInputValue - inscriptionOutput - childFee
-    let actualFee = childFee
+    let changeAmount = totalInputValue - inscriptionOutput - enforcedChildFee
+    let actualFee = enforcedChildFee
     
     if (changeAmount < 0) {
       return NextResponse.json({
         success: false,
-        error: `Need ${Math.abs(changeAmount)} more sats. Total inputs (${totalInputValue} sats) - inscription (${inscriptionOutput} sats) - fee (${childFee} sats) = ${changeAmount} sats.`
+        error: `Need ${Math.abs(changeAmount)} more sats. Total inputs (${totalInputValue} sats) - inscription (${inscriptionOutput} sats) - fee (${enforcedChildFee} sats) = ${changeAmount} sats.`
       }, { status: 400 })
     }
     

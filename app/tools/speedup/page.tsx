@@ -473,6 +473,7 @@ function SpeedupPageContent() {
     }
 
     const currentTx = validation.transaction
+    const shouldPreserveAnchor = currentTx.userOutput ? currentTx.userOutput.value <= PRESERVE_ANCHOR_THRESHOLD : false
     const fallbackEstimate = recalculateEstimate(currentTx, customFeeRate)
     const baseEstimate = validation.estimate ?? estimate ?? fallbackEstimate
     const currentEstimate = baseEstimate ?? fallbackEstimate
@@ -502,8 +503,9 @@ function SpeedupPageContent() {
       const combinedFeeRate = Number.isFinite(currentEstimate.recommendedCombinedFeeRate)
         ? currentEstimate.recommendedCombinedFeeRate
         : fallbackEstimate.recommendedCombinedFeeRate
-      const childFeeNeeded = Math.max(330, Math.ceil(childFeeCandidate))
-      const anchorReserve = mode === 'hybrid' ? 330 : MIN_SIMPLE_CPFP_VALUE
+      const minimumChildFee = shouldPreserveAnchor ? 330 : 1
+      const childFeeNeeded = Math.max(minimumChildFee, Math.ceil(childFeeCandidate))
+      const anchorReserve = shouldPreserveAnchor ? parentOutputValue : MIN_SIMPLE_CPFP_VALUE
       const parentContribution = Math.max(0, parentOutputValue - anchorReserve)
       const shortfall = Math.max(0, childFeeNeeded - parentContribution)
 
@@ -517,11 +519,11 @@ function SpeedupPageContent() {
         const utxoResponse = await fetch('/api/speedup/fetch-utxos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              address: paymentAddress,
-              excludedUtxos: excludedUtxoOutpoints,
-              targetFeeRate: combinedFeeRate
-            })
+          body: JSON.stringify({
+            address: paymentAddress,
+            excludedUtxos: excludedUtxoOutpoints,
+            targetFeeRate: combinedFeeRate
+          })
         })
 
         if (!utxoResponse.ok) {
@@ -546,7 +548,7 @@ function SpeedupPageContent() {
           additionalUtxos.push({ txid: utxo.txid, vout: utxo.vout, value: utxo.value })
           gathered += utxo.value
 
-            const additionalFee = additionalUtxos.length * 68 * combinedFeeRate
+          const additionalFee = additionalUtxos.length * 68 * combinedFeeRate
           if (gathered >= shortfall + additionalFee) {
             break
           }
@@ -570,7 +572,7 @@ function SpeedupPageContent() {
           additionalUtxos: additionalUtxos.length > 0 ? additionalUtxos : undefined,
           paymentPublicKey,
           taprootPublicKey: publicKey,
-          preserveAnchorValue: mode === 'hybrid'
+          preserveAnchorValue: shouldPreserveAnchor
         })
       })
 
@@ -842,20 +844,20 @@ function SpeedupPageContent() {
                     className="w-full rounded-2xl border border-sky-500/30 bg-slate-900/60 font-mono text-sm text-sky-100 placeholder:text-slate-500 focus:border-sky-400 focus:ring-sky-400"
                     disabled={loading || broadcasting}
                   />
-                  <Button
-                    onClick={fetchTransaction}
-                    disabled={loading || broadcasting || !isConnected || !txid}
-                    className="inline-flex min-w-[160px] items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 py-2 text-base font-semibold text-slate-950 shadow-[0_12px_30px_-12px_rgba(56,189,248,0.8)] transition-transform hover:scale-[1.015] hover:shadow-[0_18px_40px_-20px_rgba(56,189,248,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Analyzing
-                      </>
-                    ) : (
-                      <>Analyze</>
-                    )}
-                  </Button>
+                <Button
+                  onClick={fetchTransaction}
+                  disabled={loading || broadcasting || !isConnected || !txid}
+                  className="inline-flex min-w-[160px] items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 py-2 text-base font-semibold text-slate-950 shadow-[0_12px_30px_-12px_rgba(56,189,248,0.8)] transition-transform hover:scale-[1.015] hover:shadow-[0_18px_40px_-20px_rgba(56,189,248,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Checking
+                    </>
+                  ) : (
+                    <>Check</>
+                  )}
+                </Button>
                 </div>
                 <p className="text-xs text-slate-500">Ideal for reveal txs or single-output sends.</p>
               </div>

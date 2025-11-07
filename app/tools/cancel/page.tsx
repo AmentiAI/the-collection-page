@@ -331,10 +331,10 @@ function CancelTransactionContent() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analyzing
+                      Checking
                     </>
                   ) : (
-                    <>Analyze</>
+                    <>Check</>
                   )}
                 </Button>
               </div>
