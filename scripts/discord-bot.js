@@ -7,6 +7,7 @@ const {
   Routes,
   ApplicationCommandOptionType,
   EmbedBuilder,
+  AttachmentBuilder,
 } = require('discord.js');
 const fetch = require('node-fetch');
 require('dotenv').config({ path: '.env.local' });
@@ -31,6 +32,32 @@ const DUALITY_PARTICIPANT_ROLE_ID = process.env.DUALITY_PARTICIPANT_ROLE_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const DUALITY_BASE_URL =
   process.env.DUALITY_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+const LUMINEX_API_URL = process.env.LUMINEX_API_URL || 'https://api.luminex.io/spark';
+const LUMINEX_CHART_API_URL = process.env.LUMINEX_CHART_API_URL || 'https://api.luminex.io';
+const parsedLuminexInterval = Number(process.env.LUMINEX_POLL_INTERVAL_MS || 5 * 60 * 1000);
+const LUMINEX_POLL_INTERVAL_MS = Number.isFinite(parsedLuminexInterval)
+  ? Math.max(60_000, parsedLuminexInterval)
+  : 5 * 60 * 1000;
+const LUMINEX_ALLOWED_CHANNEL_ID =
+  process.env.LUMINEX_CHANNEL_ID ||
+  process.env.LUMINEX_ALLOWED_CHANNEL_ID ||
+  process.env.DISCORD_LUMINEX_CHANNEL_ID ||
+  null;
+const LUMINEX_COMMANDS_ENABLED = process.env.ENABLE_LUMINEX_COMMANDS !== 'false';
+const parsedLuminexPageSize = Number(process.env.LUMINEX_FETCH_PAGE_SIZE || 100);
+const LUMINEX_PAGE_SIZE = Number.isFinite(parsedLuminexPageSize) && parsedLuminexPageSize > 0
+  ? Math.min(Math.max(parsedLuminexPageSize, 25), 250)
+  : 100;
+const QUICKCHART_ENDPOINT = process.env.QUICKCHART_ENDPOINT || 'https://quickchart.io/chart';
+const LUMINEX_USER_AGENT =
+  process.env.LUMINEX_USER_AGENT || 'TheDamnedBot/1.0 (+https://thedamned.xyz)';
+const LUMINEX_COMMAND_NAMES = new Set(['price', 'holders', 'swaps', 'chart', 'info', 'tokens']);
+const DEFAULT_TOKEN_LIST_LIMIT = Number.isFinite(Number(process.env.LUMINEX_TOKENS_LIMIT))
+  ? Math.max(1, Math.min(50, Number(process.env.LUMINEX_TOKENS_LIMIT)))
+  : 10;
+let luminexSyncInProgress = false;
+let luminexLastSync = 0;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_EVENT_TYPES = ['Blessing', 'Temptation', 'Fate Roll'];
@@ -64,6 +91,121 @@ const checkinCommand = {
   description: 'Check in daily to receive +5 karma points (once every 24 hours)',
 };
 
+const priceCommand = {
+  name: 'price',
+  description: 'Get price information for a Luminex token',
+  options: [
+    {
+      name: 'token',
+      type: ApplicationCommandOptionType.String,
+      description: 'Token name, ticker, or symbol',
+      required: true,
+    },
+  ],
+};
+
+const holdersCommand = {
+  name: 'holders',
+  description: 'View top holders for a Luminex token',
+  options: [
+    {
+      name: 'token',
+      type: ApplicationCommandOptionType.String,
+      description: 'Token name, ticker, or symbol',
+      required: true,
+    },
+    {
+      name: 'limit',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Number of holders to display (default 10, max 25)',
+      required: false,
+      min_value: 1,
+      max_value: 25,
+    },
+  ],
+};
+
+const swapsCommand = {
+  name: 'swaps',
+  description: 'View recent swap activity for a Luminex token',
+  options: [
+    {
+      name: 'token',
+      type: ApplicationCommandOptionType.String,
+      description: 'Token name, ticker, or symbol',
+      required: true,
+    },
+    {
+      name: 'limit',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Number of swaps to show (default 10, max 25)',
+      required: false,
+      min_value: 1,
+      max_value: 25,
+    },
+  ],
+};
+
+const chartCommand = {
+  name: 'chart',
+  description: 'Generate a price chart for a Luminex token',
+  options: [
+    {
+      name: 'token',
+      type: ApplicationCommandOptionType.String,
+      description: 'Token name, ticker, or symbol',
+      required: true,
+    },
+    {
+      name: 'timeframe',
+      type: ApplicationCommandOptionType.String,
+      description: 'Chart timeframe',
+      required: false,
+      choices: [
+        { name: '1 Hour (5m candles)', value: '1h' },
+        { name: '6 Hours (15m candles)', value: '6h' },
+        { name: '24 Hours (15m candles)', value: '24h' },
+        { name: '7 Days (1h candles)', value: '7d' },
+      ],
+    },
+  ],
+};
+
+const infoCommand = {
+  name: 'info',
+  description: 'Show a comprehensive summary for a Luminex token',
+  options: [
+    {
+      name: 'token',
+      type: ApplicationCommandOptionType.String,
+      description: 'Token name, ticker, or symbol',
+      required: true,
+    },
+  ],
+};
+
+const tokensCommand = {
+  name: 'tokens',
+  description: 'List top Luminex tokens from the shared database',
+  options: [
+    {
+      name: 'limit',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Number of tokens to show (default 10, max 50)',
+      required: false,
+      min_value: 1,
+      max_value: 50,
+    },
+    {
+      name: 'offset',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Offset for pagination (default 0)',
+      required: false,
+      min_value: 0,
+    },
+  ],
+};
+
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -93,9 +235,21 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
+    const commands = [verifyCommand, checkHoldersCommand, checkinCommand];
+    if (LUMINEX_COMMANDS_ENABLED) {
+      commands.push(
+        priceCommand,
+        holdersCommand,
+        swapsCommand,
+        chartCommand,
+        infoCommand,
+        tokensCommand
+      );
+    }
+
     await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),                                                                             
-      { body: [verifyCommand, checkHoldersCommand, checkinCommand] }
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      { body: commands }
     );
 
     console.log('Successfully registered application commands.');
@@ -767,9 +921,968 @@ function formatParticipant(participant) {
   return parts.join(' • ');
 }
 
+const LUMINEX_TIMEFRAMES = {
+  '1h': { label: '1 Hour', resolution: 5, hours: 1 },
+  '6h': { label: '6 Hours', resolution: 15, hours: 6 },
+  '24h': { label: '24 Hours', resolution: 15, hours: 24 },
+  '7d': { label: '7 Days', resolution: 60, hours: 24 * 7 },
+};
+
+const luminexDelay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function isLuminexCommand(commandName) {
+  return LUMINEX_COMMAND_NAMES.has(commandName);
+}
+
+function isAllowedLuminexChannel(channelId) {
+  if (!LUMINEX_ALLOWED_CHANNEL_ID) return true;
+  return channelId === LUMINEX_ALLOWED_CHANNEL_ID;
+}
+
+function getTimeframeConfig(value) {
+  return LUMINEX_TIMEFRAMES[value] || LUMINEX_TIMEFRAMES['24h'];
+}
+
+function formatLuminexPrice(priceStr) {
+  if (priceStr === null || priceStr === undefined) return 'N/A';
+  const price = Number(priceStr);
+  if (!Number.isFinite(price)) return 'N/A';
+  if (price === 0) return '$0';
+  if (price < 0.0001) {
+    return `$${price.toExponential(4)}`;
+  }
+  return `$${price.toLocaleString(undefined, {
+    maximumFractionDigits: 8,
+    minimumFractionDigits: price >= 1 ? 2 : 4,
+  })}`;
+}
+
+function formatCurrency(value) {
+  if (value === null || value === undefined) return 'N/A';
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return 'N/A';
+  if (Math.abs(num) >= 1_000_000_000) {
+    return `$${(num / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (Math.abs(num) >= 1_000_000) {
+    return `$${(num / 1_000_000).toFixed(2)}M`;
+  }
+  if (Math.abs(num) >= 1_000) {
+    return `$${(num / 1_000).toFixed(2)}K`;
+  }
+  return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+function formatPercentChange(value) {
+  if (value === null || value === undefined) return 'N/A';
+  const percent = Number(value);
+  if (!Number.isFinite(percent)) return 'N/A';
+  const emoji = percent >= 0 ? '🟢' : '🔴';
+  return `${emoji} ${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
+}
+
+function formatRelativeTime(date) {
+  if (!date) return 'N/A';
+  const ts = new Date(date).getTime();
+  if (Number.isNaN(ts)) return 'N/A';
+  return `<t:${Math.floor(ts / 1000)}:R>`;
+}
+
+function getTokenDisplayName(token) {
+  if (!token) return 'Unknown token';
+  return token.ticker || token.symbol || token.name || token.token_identifier || 'Unknown token';
+}
+
+function mapLuminexApiToken(token) {
+  if (!token) return null;
+
+  let poolLpPubkey = token.pool_lp_pubkey;
+  let poolAddress = token.pool_address;
+
+  if (!poolLpPubkey && token.pools) {
+    if (Array.isArray(token.pools) && token.pools.length > 0) {
+      poolLpPubkey = token.pools[0]?.lp_pubkey || token.pools[0]?.pubkey;
+      poolAddress = token.pools[0]?.address;
+    } else if (token.pools.lp_pubkey) {
+      poolLpPubkey = token.pools.lp_pubkey;
+      poolAddress = token.pools.address;
+    }
+  }
+
+  return {
+    pubkey: token.pubkey || token.token_identifier || token.token_address,
+    token_identifier: token.token_identifier || token.token_address,
+    token_address: token.token_address || token.token_identifier,
+    name: token.name,
+    ticker: token.ticker || token.symbol || token.name,
+    symbol: token.symbol || token.ticker || token.name,
+    decimals: token.decimals,
+    icon_url: token.icon_url,
+    holder_count: token.holder_count,
+    total_supply: token.total_supply,
+    max_supply: token.max_supply,
+    is_freezable: token.is_freezable,
+    pool_lp_pubkey: poolLpPubkey,
+    pool_address: poolAddress,
+    price_usd: token.price_usd || token.agg_price_usd,
+    agg_volume_24h_usd: token.agg_volume_24h_usd,
+    agg_liquidity_usd: token.agg_liquidity_usd,
+    agg_price_change_24h_pct: token.agg_price_change_24h_pct,
+  };
+}
+
+async function fetchJsonWithTimeout(url, { headers = {}, timeout = 15000, method = 'GET' } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'User-Agent': LUMINEX_USER_AGENT,
+        'Accept': 'application/json',
+        ...headers,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+    }
+
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchBuffer(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = options.timeout || 20000;
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'User-Agent': LUMINEX_USER_AGENT,
+        'Accept': options.accept || 'image/png',
+        ...(options.headers || {}),
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchAllLuminexTokens() {
+  const collected = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = `${LUMINEX_API_URL}/tokens-with-pools?offset=${offset}&limit=${LUMINEX_PAGE_SIZE}&sort_by=agg_volume_24h_usd&order=desc`;
+
+    try {
+      const data = await fetchJsonWithTimeout(url, { timeout: 20000 });
+      const tokens = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
+
+      if (!tokens.length) {
+        hasMore = false;
+        break;
+      }
+
+      collected.push(...tokens);
+
+      if (tokens.length < LUMINEX_PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        offset += LUMINEX_PAGE_SIZE;
+        await luminexDelay(300);
+      }
+    } catch (error) {
+      console.error('[Luminex] Token fetch error:', error.message);
+      if (/403/.test(error.message)) {
+        console.error('[Luminex] Received 403 from API. Will retry on next sync.');
+      }
+      hasMore = false;
+    }
+  }
+
+  return collected;
+}
+
+async function syncLuminexTokens(force = false) {
+  if (!LUMINEX_COMMANDS_ENABLED) return;
+  if (luminexSyncInProgress) return;
+
+  const now = Date.now();
+  if (!force && now - luminexLastSync < LUMINEX_POLL_INTERVAL_MS) {
+    return;
+  }
+
+  luminexSyncInProgress = true;
+
+  try {
+    console.log('[Luminex] Syncing tokens from Luminex API...');
+    const tokens = await fetchAllLuminexTokens();
+    if (!tokens.length) {
+      console.log('[Luminex] No tokens received from API.');
+      return;
+    }
+
+    const mapped = tokens
+      .map(mapLuminexApiToken)
+      .filter(token => token && token.pubkey && token.name && token.ticker);
+
+    if (!mapped.length) {
+      console.log('[Luminex] No tokens ready for upsert after normalization.');
+      return;
+    }
+
+    const res = await apiFetch('/api/luminex/tokens', {
+      method: 'POST',
+      body: JSON.stringify({ tokens: mapped }),
+    });
+
+    if (!res.ok) {
+      console.error('[Luminex] Failed to upsert tokens:', res.status, res.data);
+      return;
+    }
+
+    console.log(
+      `[Luminex] Upserted tokens — inserted: ${res.data?.inserted ?? 0}, updated: ${res.data?.updated ?? 0}`
+    );
+    luminexLastSync = Date.now();
+  } catch (error) {
+    console.error('[Luminex] Token sync error:', error);
+  } finally {
+    luminexSyncInProgress = false;
+  }
+}
+
+async function getStoredLuminexToken(searchTerm) {
+  const query = searchTerm?.trim();
+  if (!query) return null;
+
+  const res = await apiFetch(`/api/luminex/tokens?search=${encodeURIComponent(query)}`);
+  if (!res.ok) {
+    console.error('[Luminex] Token search failed:', res.status, res.data);
+    return null;
+  }
+
+  const tokens = Array.isArray(res.data?.tokens) ? res.data.tokens : [];
+  return tokens[0] || null;
+}
+
+async function listStoredLuminexTokens(limit = DEFAULT_TOKEN_LIST_LIMIT, offset = 0) {
+  const res = await apiFetch(
+    `/api/luminex/tokens?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+  );
+  if (!res.ok) {
+    console.error('[Luminex] Token list fetch failed:', res.status, res.data);
+    return { tokens: [], total: 0 };
+  }
+
+  const tokens = Array.isArray(res.data?.tokens) ? res.data.tokens : [];
+  const total = typeof res.data?.total === 'number' ? res.data.total : tokens.length;
+  return { tokens, total };
+}
+
+async function fetchTokenDetailsFromLuminex(token) {
+  if (!token) return null;
+
+  const results = {
+    comments: null,
+    priceChanges: null,
+    swaps: null,
+    holders: null,
+  };
+
+  const poolLpPubkey = token.pool_lp_pubkey;
+  const tokenIdentifier = token.token_identifier;
+
+  if (poolLpPubkey) {
+    try {
+      const commentsRes = await fetchJsonWithTimeout(
+        `${LUMINEX_API_URL}/spark-comments?pool_lp_pubkey=${encodeURIComponent(poolLpPubkey)}&limit=20&offset=0`,
+        { timeout: 15000 }
+      );
+      results.comments = Array.isArray(commentsRes?.data) ? commentsRes.data : [];
+    } catch (error) {
+      console.warn('[Luminex] Comments fetch failed:', error.message);
+    }
+
+    try {
+      const swapsRes = await fetchJsonWithTimeout(
+        `${LUMINEX_API_URL}/spark/swaps?poolLpPubkey=${encodeURIComponent(poolLpPubkey)}&limit=10`,
+        { timeout: 15000 }
+      );
+      results.swaps = Array.isArray(swapsRes?.data) ? swapsRes.data : [];
+    } catch (error) {
+      console.warn('[Luminex] Swaps fetch failed:', error.message);
+    }
+  }
+
+  if (tokenIdentifier) {
+    try {
+      const priceChangesRes = await fetchJsonWithTimeout(
+        `${LUMINEX_API_URL}/pools/${encodeURIComponent(tokenIdentifier)}/price-changes`,
+        { timeout: 15000 }
+      );
+      results.priceChanges = priceChangesRes;
+    } catch (error) {
+      console.warn('[Luminex] Price change fetch failed:', error.message);
+    }
+
+    try {
+      const holdersRes = await fetchJsonWithTimeout(
+        `${LUMINEX_API_URL}/spark/holders?tokenIdentifier=${encodeURIComponent(tokenIdentifier)}&limit=100`,
+        { timeout: 15000 }
+      );
+      results.holders = Array.isArray(holdersRes?.data) ? holdersRes.data : [];
+    } catch (error) {
+      console.warn('[Luminex] Holders fetch failed:', error.message);
+    }
+  }
+
+  return results;
+}
+
+async function fetchLuminexChartData(tokenIdentifier, resolution, hours) {
+  if (!tokenIdentifier) throw new Error('Token identifier required for chart data');
+
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - hours * 3600;
+  const to = now;
+  const countback = Math.ceil((hours * 3600) / (resolution * 60));
+
+  const url = `${LUMINEX_CHART_API_URL}/tv/chart/history?symbol=${encodeURIComponent(
+    tokenIdentifier
+  )}&resolution=${encodeURIComponent(resolution)}&from=${encodeURIComponent(
+    from
+  )}&to=${encodeURIComponent(to)}&countback=${encodeURIComponent(countback)}`;
+
+  const data = await fetchJsonWithTimeout(url, { timeout: 20000 });
+  if (!data || data.s !== 'ok' || !Array.isArray(data.t) || data.t.length === 0) {
+    throw new Error(data?.s ? `Chart API returned status: ${data.s}` : 'No chart data');
+  }
+
+  return data;
+}
+
+function buildChartConfig(chartData, tokenName, timeframeLabel, currentPrice) {
+  const timestamps = chartData.t || [];
+  const closes = chartData.c || [];
+
+  const labels = timestamps.map(ts => {
+    const date = new Date(ts * 1000);
+    return date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  const firstPrice = closes[0];
+  const lastPrice = closes[closes.length - 1];
+  const isUp = Number(lastPrice) >= Number(firstPrice);
+  const chartColor = isUp ? '#00ff88' : '#ff4444';
+
+  return {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: `${tokenName} (${timeframeLabel})`,
+          data: closes,
+          borderColor: chartColor,
+          backgroundColor: `${chartColor}33`,
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+        },
+      ],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        title: {
+          display: true,
+          text: `${tokenName} Price (${timeframeLabel})${currentPrice ? ` — ${formatLuminexPrice(currentPrice)}` : ''}`,
+          color: '#ffffff',
+          font: { size: 16, weight: 'bold' },
+        },
+        tooltip: {
+          callbacks: {
+            label: context => `Price: ${formatLuminexPrice(context.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#888888', maxTicksLimit: 10 },
+          grid: { color: '#333333' },
+        },
+        y: {
+          ticks: {
+            color: '#888888',
+            callback(value) {
+              const num = Number(value);
+              if (!Number.isFinite(num)) return value;
+              if (Math.abs(num) < 0.0001) return num.toExponential(2);
+              if (Math.abs(num) >= 1) return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+              return num.toFixed(6);
+            },
+          },
+          grid: { color: '#333333' },
+        },
+      },
+      backgroundColor: '#1e1e1e',
+    },
+  };
+}
+
+async function generateChartAttachment(token, chartData, timeframe) {
+  const tokenName = getTokenDisplayName(token);
+  const config = buildChartConfig(chartData, tokenName, timeframe.label, token.price_usd);
+
+  const buffer = await fetchBuffer(QUICKCHART_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      width: 800,
+      height: 400,
+      backgroundColor: '#1e1e1e',
+      format: 'png',
+      devicePixelRatio: 2,
+      chart: config,
+    }),
+  });
+
+  const fileName = `${tokenName.replace(/\s+/g, '_')}_${timeframe.label.replace(/\s+/g, '')}_chart.png`;
+
+  return new AttachmentBuilder(buffer, {
+    name: fileName,
+    description: `Price chart for ${tokenName} (${timeframe.label})`,
+  });
+}
+
+function createPriceEmbed(token, detailsData = null) {
+  const embed = new EmbedBuilder()
+    .setTitle(`${getTokenDisplayName(token)} Price Info`)
+    .setColor(0x00ae86)
+    .setTimestamp(new Date());
+
+  if (token.icon_url) {
+    embed.setThumbnail(token.icon_url);
+  }
+
+  const fields = [
+    { name: 'Price (USD)', value: formatLuminexPrice(token.price_usd), inline: true },
+    { name: '24h Volume', value: formatCurrency(token.agg_volume_24h_usd), inline: true },
+    { name: 'Liquidity', value: formatCurrency(token.agg_liquidity_usd), inline: true },
+  ];
+
+  if (detailsData?.priceChanges) {
+    const pc = detailsData.priceChanges;
+    const timeframeKeys = ['5m', '15m', '1h', '6h', '24h'];
+
+    const changeFields = timeframeKeys
+      .map(key => {
+        const value = pc[key]?.changePercent;
+        if (value === null || value === undefined) return null;
+        return {
+          name: key.toUpperCase(),
+          value: formatPercentChange(Number(value)),
+          inline: true,
+        };
+      })
+      .filter(Boolean);
+
+    if (changeFields.length) {
+      fields.push({ name: '\u200b', value: '\u200b', inline: false });
+      fields.push({ name: '📊 Price Changes', value: '\u200b', inline: false });
+      fields.push(...changeFields);
+    }
+
+    if (pc.lastTradeTimestamp) {
+      fields.push({
+        name: 'Last Trade',
+        value: formatRelativeTime(pc.lastTradeTimestamp),
+        inline: false,
+      });
+    }
+  } else if (token.agg_price_change_24h_pct !== null && token.agg_price_change_24h_pct !== undefined) {
+    const change = Number(token.agg_price_change_24h_pct) * 100;
+    fields.push({
+      name: '24h Change',
+      value: formatPercentChange(change),
+      inline: true,
+    });
+  }
+
+  if (token.holder_count) {
+    fields.push({ name: 'Holders', value: Number(token.holder_count).toLocaleString(), inline: true });
+  }
+
+  if (token.total_supply) {
+    fields.push({ name: 'Total Supply', value: String(token.total_supply), inline: true });
+  }
+
+  embed.addFields(fields);
+
+  if (token.pool_lp_pubkey) {
+    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
+  }
+
+  if (detailsData?.comments && detailsData.comments.length > 0) {
+    const topComment = detailsData.comments[0];
+    embed.addFields({
+      name: '💬 Latest Comment',
+      value: `**${topComment.user_profile?.username || 'Anonymous'}**: ${
+        topComment.content.length > 200 ? `${topComment.content.substring(0, 200)}…` : topComment.content
+      }`,
+      inline: false,
+    });
+  }
+
+  if (detailsData?.swaps && detailsData.swaps.length > 0) {
+    const recentSwaps = detailsData.swaps.slice(0, 5);
+    const summary = recentSwaps.reduce(
+      (acc, swap) => {
+        if (swap.swap_type === 'buy') acc.buy += 1;
+        else acc.sell += 1;
+        return acc;
+      },
+      { buy: 0, sell: 0 }
+    );
+
+    const lines = recentSwaps.map(swap => {
+      const isBuy = swap.swap_type === 'buy';
+      const emoji = isBuy ? '🟢' : '🔴';
+      const swapTime = new Date(swap.swap_timestamp);
+      return `${emoji} ${isBuy ? 'BUY' : 'SELL'} ${formatLuminexPrice(
+        swap.exec_price_a_in_b
+      )} — ${formatRelativeTime(swapTime)}`;
+    });
+
+    embed.addFields({
+      name: '📈 Recent Activity',
+      value: `**${summary.buy} buys | ${summary.sell} sells** in last ${recentSwaps.length} swaps\n${lines.join('\n')}`,
+      inline: false,
+    });
+  }
+
+  return embed;
+}
+
+function createHoldersEmbed(token, holders = [], limit = 10) {
+  if (!holders || holders.length === 0) {
+    return new EmbedBuilder()
+      .setTitle(`📊 Holders: ${getTokenDisplayName(token)}`)
+      .setDescription('No holder data available')
+      .setColor(0xffa500);
+  }
+
+  const nonPoolHolders = holders
+    .filter(holder => !holder.is_pool)
+    .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
+    .slice(0, limit);
+
+  const poolHolders = holders.filter(holder => holder.is_pool);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📊 Top Holders: ${getTokenDisplayName(token)}`)
+    .setColor(0x00ff00);
+
+  if (token.icon_url) {
+    embed.setThumbnail(token.icon_url);
+  }
+
+  const totalSupply = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
+
+  if (nonPoolHolders.length > 0) {
+    const holderLines = nonPoolHolders.map((holder, index) => {
+      const balance = Number(holder.balance || 0);
+      const percentage = totalSupply > 0 ? ((balance / totalSupply) * 100).toFixed(2) : '0.00';
+      const address = holder.address || holder.pubkey || 'Unknown';
+      const shortAddress =
+        address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 6)}` : address;
+
+      return `${index + 1}. **${shortAddress}** — ${balance.toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+      })} (${percentage}%)`;
+    });
+
+    embed.addFields({
+      name: `Top ${nonPoolHolders.length} Holders`,
+      value: holderLines.join('\n'),
+      inline: false,
+    });
+  }
+
+  if (poolHolders.length > 0) {
+    const poolBalance = poolHolders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
+    const poolPercentage = totalSupply > 0 ? ((poolBalance / totalSupply) * 100).toFixed(2) : '0.00';
+    embed.addFields({
+      name: '💰 Liquidity Pool',
+      value: `${poolBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} (${poolPercentage}%)`,
+      inline: true,
+    });
+  }
+
+  embed.addFields({
+    name: '📈 Statistics',
+    value: `**Total Holders:** ${holders.length.toLocaleString()}\n**Total Supply:** ${totalSupply.toLocaleString(
+      undefined,
+      { maximumFractionDigits: 2 }
+    )}`,
+    inline: true,
+  });
+
+  if (token.pool_lp_pubkey) {
+    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
+  }
+
+  return embed;
+}
+
+function createSwapsEmbed(token, swaps = [], limit = 10) {
+  if (!swaps || swaps.length === 0) {
+    return new EmbedBuilder()
+      .setTitle(`🔄 Swaps: ${getTokenDisplayName(token)}`)
+      .setDescription('No recent swap activity')
+      .setColor(0xffa500);
+  }
+
+  const displaySwaps = swaps.slice(0, limit);
+  const buyCount = swaps.filter(swap => swap.swap_type === 'buy').length;
+  const sellCount = swaps.filter(swap => swap.swap_type === 'sell').length;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🔄 Recent Swaps: ${getTokenDisplayName(token)}`)
+    .setDescription(`**${buyCount} buys | ${sellCount} sells** in last ${swaps.length} swaps`)
+    .setColor(0x00ff00);
+
+  if (token.icon_url) {
+    embed.setThumbnail(token.icon_url);
+  }
+
+  const swapLines = displaySwaps.map((swap, index) => {
+    const isBuy = swap.swap_type === 'buy';
+    const emoji = isBuy ? '🟢' : '🔴';
+    const swapTime = new Date(swap.swap_timestamp);
+    const assetAAmount = Number(swap.asset_a_amount || 0);
+    const assetBAmount = Number(swap.asset_b_amount || 0);
+
+    return `${index + 1}. ${emoji} **${isBuy ? 'BUY' : 'SELL'}**\n   Price: ${formatLuminexPrice(
+      swap.exec_price_a_in_b
+    )}\n   Amount: ${assetAAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} tokens for ${assetBAmount.toFixed(
+      8
+    )} BTC\n   ${formatRelativeTime(swapTime)}`;
+  });
+
+  embed.addFields({
+    name: `Last ${displaySwaps.length} Swaps`,
+    value: swapLines.join('\n\n'),
+    inline: false,
+  });
+
+  if (token.pool_lp_pubkey) {
+    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
+  }
+
+  return embed;
+}
+
+function buildTokenListEmbed(tokens, total, offset, limit) {
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Top Tokens by Volume')
+    .setDescription(`Showing ${tokens.length} of ${total} tokens`)
+    .setColor(0x00ae86)
+    .setTimestamp(new Date());
+
+  const lines = tokens.map((token, index) => {
+    const rank = offset + index + 1;
+    const symbol = getTokenDisplayName(token);
+    const price = formatLuminexPrice(token.price_usd);
+    const volume = formatCurrency(token.agg_volume_24h_usd);
+
+    let changeStr = 'N/A';
+    if (token.agg_price_change_24h_pct !== null && token.agg_price_change_24h_pct !== undefined) {
+      const change = Number(token.agg_price_change_24h_pct) * 100;
+      changeStr = formatPercentChange(change);
+    }
+
+    return `${rank}. **${symbol}**\n   Price: ${price} | Volume: ${volume} | ${changeStr}`;
+  });
+
+  embed.addFields({
+    name: `Rank ${offset + 1}-${offset + tokens.length}`,
+    value: lines.join('\n\n'),
+    inline: false,
+  });
+
+  embed.setFooter({
+    text: `Use /tokens limit:${limit} offset:${offset + limit} for next page`,
+  });
+
+  return embed;
+}
+
+async function handleLuminexInteraction(interaction) {
+  if (!LUMINEX_COMMANDS_ENABLED) {
+    await interaction.reply({
+      content: '❌ Luminex commands are currently disabled on this bot.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isAllowedLuminexChannel(interaction.channelId)) {
+    await interaction.reply({
+      content: `❌ Luminex commands are restricted to <#${LUMINEX_ALLOWED_CHANNEL_ID}>.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const commandName = interaction.commandName;
+
+  if (commandName === 'tokens') {
+    await interaction.deferReply();
+
+    const limit = interaction.options.getInteger('limit') || DEFAULT_TOKEN_LIST_LIMIT;
+    const offset = interaction.options.getInteger('offset') || 0;
+
+    try {
+      const { tokens, total } = await listStoredLuminexTokens(limit, offset);
+
+      if (!tokens.length) {
+        await interaction.editReply({
+          content:
+            total === 0
+              ? '❌ No Luminex token data available yet. The bot will sync shortly.'
+              : `❌ No tokens found at offset ${offset}. Try a lower offset or run /tokens again in a few minutes.`,
+        });
+        return;
+      }
+
+      const embed = buildTokenListEmbed(tokens, total, offset, limit);
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('[Luminex] /tokens error:', error);
+      await interaction.editReply({
+        content: `❌ Error fetching token list: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+    return;
+  }
+
+  const tokenQuery = interaction.options.getString('token', true);
+  await interaction.deferReply();
+
+  let token = await getStoredLuminexToken(tokenQuery);
+
+  if (!token) {
+    await syncLuminexTokens(true);
+    token = await getStoredLuminexToken(tokenQuery);
+  }
+
+  if (!token) {
+    await interaction.editReply({
+      content: `❌ Token "${tokenQuery}" not found in the shared database. Try another name or wait for the next sync.`,
+    });
+    return;
+  }
+
+  try {
+    const details = await fetchTokenDetailsFromLuminex(token);
+
+    if (commandName === 'price') {
+      const embed = createPriceEmbed(token, details);
+      const replyOptions = { embeds: [embed] };
+
+      if (token.token_identifier) {
+        try {
+          const timeframe = getTimeframeConfig('24h');
+          const chartData = await fetchLuminexChartData(
+            token.token_identifier,
+            timeframe.resolution,
+            timeframe.hours
+          );
+          const attachment = await generateChartAttachment(token, chartData, timeframe);
+          embed.setImage(`attachment://${attachment.name}`);
+          replyOptions.files = [attachment];
+        } catch (chartError) {
+          console.warn('[Luminex] Price chart generation failed:', chartError.message);
+        }
+      }
+
+      await interaction.editReply(replyOptions);
+      return;
+    }
+
+    if (commandName === 'holders') {
+      const limit = interaction.options.getInteger('limit') || 10;
+      const embed = createHoldersEmbed(token, details?.holders || [], limit);
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    if (commandName === 'swaps') {
+      const limit = interaction.options.getInteger('limit') || 10;
+      const embed = createSwapsEmbed(token, details?.swaps || [], limit);
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    if (commandName === 'chart') {
+      if (!token.token_identifier) {
+        await interaction.editReply({
+          content: `❌ Token identifier not available for "${tokenQuery}".`,
+        });
+        return;
+      }
+
+      const timeframeValue = interaction.options.getString('timeframe') || '24h';
+      const timeframe = getTimeframeConfig(timeframeValue);
+
+      try {
+        const chartData = await fetchLuminexChartData(
+          token.token_identifier,
+          timeframe.resolution,
+          timeframe.hours
+        );
+        const attachment = await generateChartAttachment(token, chartData, timeframe);
+
+        const embed = new EmbedBuilder()
+          .setTitle(`📈 Price Chart: ${getTokenDisplayName(token)}`)
+          .setDescription(`Timeframe: ${timeframe.label}`)
+          .setColor(0x00ff00)
+          .setImage(`attachment://${attachment.name}`)
+          .setTimestamp(new Date());
+
+        if (token.icon_url) {
+          embed.setThumbnail(token.icon_url);
+        }
+
+        await interaction.editReply({
+          embeds: [embed],
+          files: [attachment],
+        });
+      } catch (chartError) {
+        console.error('[Luminex] /chart error:', chartError);
+        await interaction.editReply({
+          content: `❌ Error generating chart: ${chartError instanceof Error ? chartError.message : 'Unknown error'}`,
+        });
+      }
+      return;
+    }
+
+    if (commandName === 'info') {
+      const embed = createPriceEmbed(token, details);
+
+      if (details?.holders && details.holders.length > 0) {
+        const topHolders = details.holders
+          .filter(holder => !holder.is_pool)
+          .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
+          .slice(0, 5);
+
+        if (topHolders.length > 0) {
+          const holderLines = topHolders.map((holder, index) => {
+            const balance = Number(holder.balance || 0);
+            const address = holder.address || holder.pubkey || 'Unknown';
+            const shortAddress =
+              address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 6)}` : address;
+            return `${index + 1}. ${shortAddress}: ${balance.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}`;
+          });
+
+          embed.addFields({
+            name: '🏆 Top 5 Holders',
+            value: holderLines.join('\n'),
+            inline: false,
+          });
+        }
+      }
+
+      const replyOptions = { embeds: [embed] };
+
+      if (token.token_identifier) {
+        try {
+          const timeframe = getTimeframeConfig('24h');
+          const chartData = await fetchLuminexChartData(
+            token.token_identifier,
+            timeframe.resolution,
+            timeframe.hours
+          );
+          const attachment = await generateChartAttachment(token, chartData, timeframe);
+          embed.setImage(`attachment://${attachment.name}`);
+          replyOptions.files = [attachment];
+        } catch (chartError) {
+          console.warn('[Luminex] Info chart generation failed:', chartError.message);
+        }
+      }
+
+      await interaction.editReply(replyOptions);
+      return;
+    }
+  } catch (error) {
+    console.error(`[Luminex] /${commandName} error:`, error);
+    await interaction.editReply({
+      content: `❌ Error handling /${commandName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    });
+  }
+}
+
+
 // Handle slash commands
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
+
+  if (isLuminexCommand(interaction.commandName)) {
+    try {
+      await handleLuminexInteraction(interaction);
+    } catch (error) {
+      console.error('[Luminex] Interaction handler error:', error);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
+          content: `❌ Error handling command: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        }).catch(() => {});
+      } else {
+        await interaction.reply({
+          content: `❌ Error handling command: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          ephemeral: true,
+        }).catch(() => {});
+      }
+    }
+    return;
+  }
 
   if (interaction.commandName === 'verify') {
     const code = interaction.options.getString('code');
@@ -1012,6 +2125,16 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 // Periodic job to check holders and manage roles (runs every hour)
+if (LUMINEX_COMMANDS_ENABLED) {
+  setInterval(async () => {
+    try {
+      await syncLuminexTokens();
+    } catch (error) {
+      console.error('[Luminex] Scheduled token sync error:', error);
+    }
+  }, LUMINEX_POLL_INTERVAL_MS);
+}
+
 setInterval(async () => {
   try {
     console.log('🔄 Running periodic holder role check...');
@@ -1136,6 +2259,9 @@ client.once(Events.ClientReady, async () => {
   console.log(`Client ID: ${process.env.CLIENT_ID}`);
   console.log(`Holder Role ID: ${process.env.HOLDER_ROLE_ID}`);
   await registerCommands();
+  if (LUMINEX_COMMANDS_ENABLED) {
+    await syncLuminexTokens(true);
+  }
   await handleDualityWeeklyCycle(client);
 });
 
