@@ -80,7 +80,7 @@ export default function ToolsLandingContent() {
               Pools of the Damned
             </h1>
             <p className="mx-auto max-w-2xl text-sm text-zinc-400 md:text-base">
-              Tools forged for verified holders. Speed up transactions now; more infernal utilities surface soon.
+              Choose a live pool to accelerate your transaction, or watch for the next ritual to unlock.
             </p>
             {connected && isHolder && (
               <p className="text-xs uppercase tracking-[0.4em] text-emerald-300">Access granted — The Damned recognize you.</p>
