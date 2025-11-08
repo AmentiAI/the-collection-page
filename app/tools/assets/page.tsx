@@ -1303,7 +1303,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 className="bg-red-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500"
                 disabled={!ordinalAssets?.inscriptions?.length}
               >
-                Select Inscriptions ({tabCounts.inscriptions})
+                Inscriptions ({tabCounts.inscriptions})
               </Button>
               <Button
                 type="button"
@@ -1311,7 +1311,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 className="bg-emerald-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-emerald-500"
                 disabled={!paymentAssets?.spendable?.length}
               >
-                Payment UTXOs ({tabCounts.spendable})
+                Pay UTXOs ({tabCounts.spendable})
               </Button>
               <Button
                 type="button"
