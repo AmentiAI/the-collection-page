@@ -78,6 +78,7 @@ const AVERAGE_TAPROOT_INPUT_VBYTES = 68
 const AVERAGE_OUTPUT_VBYTES = 43
 const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
+const MAX_INSCRIPTION_SELECTION = 20
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -422,6 +423,13 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       if (exists) {
         delete next[asset.outpoint]
       } else {
+        if (asset.category === 'inscriptions') {
+          const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
+          if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
+            toast.error(`Limit ${MAX_INSCRIPTION_SELECTION} inscriptions per transfer. Remove one before adding another.`)
+            return current
+          }
+        }
         next[asset.outpoint] = asset
       }
       setDestinationMap((prev) => {
@@ -439,7 +447,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       })
       return next
     })
-  }, [])
+  }, [toast])
 
   const updateDestination = useCallback((outpoint: string, key: 'address' | 'amount', value: string) => {
     setDestinationMap((prev) => {
