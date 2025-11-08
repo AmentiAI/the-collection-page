@@ -74,11 +74,12 @@ const truncateMiddle = (value: string, size = 12) => {
 
 const DUST_THRESHOLD = 546
 const MEMPOOL_API_BASE = (process.env.NEXT_PUBLIC_MEMPOOL_API_URL || 'https://mempool.space/api').replace(/\/+$/, '')
-const AVERAGE_TAPROOT_INPUT_VBYTES = 68
+const AVERAGE_TAPROOT_INPUT_VBYTES = 58
 const AVERAGE_OUTPUT_VBYTES = 43
 const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
 const MAX_INSCRIPTION_SELECTION = 20
+const MIN_PAYMENT_INPUT_SATS = 600
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -423,6 +424,10 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       if (exists) {
         delete next[asset.outpoint]
       } else {
+        if (asset.category === 'spendable' && asset.value <= MIN_PAYMENT_INPUT_SATS) {
+          toast.error('Payment inputs must be larger than 600 sats. Pick a bigger UTXO.')
+          return current
+        }
         if (asset.category === 'inscriptions') {
           const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
           if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
@@ -502,19 +507,6 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const hasPendingSelected = pendingSelectedCount > 0
   const baseReadyForTransfer = hasTransferableAssets && requiredOutputsSatisfied && parsedOutputDrafts.length > 0
   const readyForTransfer = baseReadyForTransfer && !hasPendingSelected && pendingSelectedStatus !== 'checking'
-
-  const tabCounts = useMemo(
-    () => ({
-      inscriptions: ordinalAssets?.inscriptions.length ?? 0,
-      runes: ordinalAssets?.runes.length ?? 0,
-      alkanes: ordinalAssets?.alkanes.length ?? 0,
-      spendable: paymentAssets?.spendable.length ?? 0,
-    }),
-    [ordinalAssets, paymentAssets],
-  )
-
-  const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
-  const paymentUtxoCount = tabCounts.spendable
 
   const ordHeights = useMemo(
     () => ({
@@ -730,7 +722,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const spendableSorted = useMemo(() => {
     return [...(paymentAssets?.spendable ?? [])]
-      .filter((utxo) => utxo.value > DUST_THRESHOLD)
+      .filter((utxo) => utxo.value > MIN_PAYMENT_INPUT_SATS)
       .sort((a, b) => b.value - a.value)
   }, [paymentAssets?.spendable])
 
@@ -1140,8 +1132,21 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const spendableModalList = useMemo(() => {
     const list = paymentAssets?.spendable ?? []
-    return [...list].sort((a, b) => b.value - a.value)
+    return [...list].filter((utxo) => utxo.value > MIN_PAYMENT_INPUT_SATS).sort((a, b) => b.value - a.value)
   }, [paymentAssets?.spendable])
+
+  const tabCounts = useMemo(
+    () => ({
+      inscriptions: ordinalAssets?.inscriptions.length ?? 0,
+      runes: ordinalAssets?.runes.length ?? 0,
+      alkanes: ordinalAssets?.alkanes.length ?? 0,
+      spendable: spendableModalList.length,
+    }),
+    [ordinalAssets, spendableModalList],
+  )
+
+  const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
+  const paymentUtxoCount = tabCounts.spendable
 
   const pickerLists = useMemo(() => {
     return {
