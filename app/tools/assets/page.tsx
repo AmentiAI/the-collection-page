@@ -213,6 +213,7 @@ interface AssetsPageContentProps {
 }
 
 function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
+  const holderAllowed = isHolder === true
   const toast = useToast()
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{
@@ -390,18 +391,28 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   )
 
   useEffect(() => {
+    if (!holderAllowed) {
+      return
+    }
     if (ordinalAddress && ordinalAddress !== lastFetchedRef.current.ordinal) {
       fetchAssets(ordinalAddress, 'ordinal')
     }
-  }, [ordinalAddress, fetchAssets])
+  }, [ordinalAddress, fetchAssets, holderAllowed])
 
   useEffect(() => {
+    if (!holderAllowed) {
+      return
+    }
     if (paymentAddress && paymentAddress !== lastFetchedRef.current.payment) {
       fetchAssets(paymentAddress, 'payment')
     }
-  }, [paymentAddress, fetchAssets])
+  }, [paymentAddress, fetchAssets, holderAllowed])
 
   const handleRefresh = useCallback(() => {
+    if (!holderAllowed) {
+      toast.error('Holder access required to sync assets.')
+      return
+    }
     const promises: Promise<void>[] = []
 
     if (ordinalAddress) {
@@ -415,7 +426,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       return
     }
     void Promise.allSettled(promises)
-  }, [fetchAssets, ordinalAddress, paymentAddress])
+  }, [fetchAssets, holderAllowed, ordinalAddress, paymentAddress, toast])
 
   const toggleSelection = useCallback((asset: SelectedAsset) => {
     setSelectedMap((current) => {
@@ -1118,9 +1129,13 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     (ordinalAssets?.pending.length ?? 0) + (paymentAssets?.pending.length ?? 0)
 
   const openPicker = useCallback((type: AssetTabKey) => {
+    if (!holderAllowed) {
+      toast.error('Holder access required to manage assets.')
+      return
+    }
     setPickerType(type)
     setPickerPage((prev) => ({ ...prev, [type]: 0 }))
-  }, [])
+  }, [holderAllowed, toast])
 
   const closePicker = useCallback(() => {
     setPickerType(null)
@@ -1147,6 +1162,27 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
   const paymentUtxoCount = tabCounts.spendable
+
+  if (!holderAllowed) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-black via-stone-950 to-black px-4 py-20 text-zinc-200 md:px-8">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            Holder Access Only
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Asset Manager Locked</h1>
+          <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+            Connect your wallet and complete holder verification in the header to unlock the asset manager tools. Only
+            verified holders can stage and transfer inscriptions from this interface.
+          </p>
+          <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
+            Use the Verify Holder control in the header to confirm access.
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   const pickerLists = useMemo(() => {
     return {
@@ -1376,11 +1412,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               <span className="rounded-full border border-red-400/30 bg-red-900/40 px-2 py-0.5 text-red-100">
                 {formatBtc(totalSelectedValue)}
               </span>
-              {pendingSelectedStatus === 'checking' && (
-                <span className="rounded-full border border-amber-400/40 bg-amber-900/30 px-2 py-0.5 text-amber-200">
-                  Verifying mempool…
-                </span>
-              )}
+            
               {hasPendingSelected && (
                 <span className="rounded-full border border-amber-500/60 bg-amber-900/40 px-2 py-0.5 text-amber-100">
                   Pending inputs {pendingSelectedCount}
