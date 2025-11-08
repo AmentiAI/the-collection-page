@@ -10,6 +10,8 @@
     "bot": "node scripts/discord-bot.js"
   },
   "dependencies": {
+    "@buildonspark/spark-sdk": "^0.3.9",
+    "@flashnet/sdk": "^0.3.37",
     "@omnisat/lasereyes": "^0.0.161",
     "@omnisat/lasereyes-core": "^0.0.83",
     "@omnisat/lasereyes-react": "^0.0.78",

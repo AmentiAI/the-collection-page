@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPool } from '@/lib/db'
 import {
-  bulkUpsertLuminexTokens,
-  countLuminexTokens,
-  ensureLuminexTables,
-  listLuminexTokens,
-  searchLuminexTokens
-} from '@/lib/luminex'
+  ensureFlashnetTables,
+  listFlashnetPools,
+  searchFlashnetPools,
+  countFlashnetPools,
+  upsertFlashnetPools,
+  attachStoredMetadataToPools,
+  getFlashnetClient,
+  enrichPoolsWithMetadata,
+} from '@/lib/flashnet'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,38 +34,40 @@ export async function GET(request: NextRequest) {
     limit = Math.min(Math.max(1, limit), 200)
     offset = Math.max(0, offset)
 
-    const pool = getPool()
-    await ensureLuminexTables(pool)
+    await ensureFlashnetTables()
 
     if (search) {
-      const tokens = await searchLuminexTokens(pool, search, limit)
+      const rawPools = await searchFlashnetPools(search, limit)
+      const pools = await attachStoredMetadataToPools(rawPools)
       return NextResponse.json({
         success: true,
-        tokens,
-        count: tokens.length,
-        total: tokens.length
+        pools,
+        count: pools.length,
+        total: pools.length,
       })
     }
 
-    const [tokens, total] = await Promise.all([
-      listLuminexTokens(pool, { limit, offset }),
-      countLuminexTokens(pool)
+    const [rawPools, total] = await Promise.all([
+      listFlashnetPools({ limit, offset }),
+      countFlashnetPools(),
     ])
+
+    const pools = await attachStoredMetadataToPools(rawPools)
 
     return NextResponse.json({
       success: true,
-      tokens,
-      count: tokens.length,
-      total
+      pools,
+      count: pools.length,
+      total,
     })
   } catch (error) {
-    console.error('Luminex tokens GET error:', error)
+    console.error('Flashnet pools GET error:', error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -78,32 +82,38 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const tokens = Array.isArray(body?.tokens) ? body.tokens : []
+    const pools = Array.isArray(body?.pools) ? body.pools : []
 
-    if (!tokens.length) {
+    if (!pools.length) {
       return NextResponse.json(
-        { success: false, error: 'No tokens provided' },
-        { status: 400 }
+        { success: false, error: 'No pools provided' },
+        { status: 400 },
       )
     }
 
-    const pool = getPool()
-    await ensureLuminexTables(pool)
+    await ensureFlashnetTables()
+    const result = await upsertFlashnetPools(pools)
 
-    const result = await bulkUpsertLuminexTokens(pool, tokens)
+    try {
+      const client = await getFlashnetClient()
+      await enrichPoolsWithMetadata(client, result.records)
+    } catch (error) {
+      console.warn('[Flashnet] Metadata enrichment skipped:', (error as Error).message ?? error)
+    }
 
     return NextResponse.json({
       success: true,
-      ...result
+      inserted: result.inserted,
+      updated: result.updated,
     })
   } catch (error) {
-    console.error('Luminex tokens POST error:', error)
+    console.error('Flashnet pools POST error:', error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

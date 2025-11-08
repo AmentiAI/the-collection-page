@@ -53,7 +53,8 @@ export async function initDatabase() {
     await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS discord_users CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS twitter_users CASCADE`)
-    await pool.query(`DROP TABLE IF EXISTS luminex_tokens CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS flashnet_pools CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS flashnet_token_metadata CASCADE`)
     
     // Drop main tables
     await pool.query(`DROP TABLE IF EXISTS duality_cycles CASCADE`)
@@ -160,44 +161,67 @@ export async function initDatabase() {
 
     // Create Luminex tokens table
     await pool.query(`
-      CREATE TABLE luminex_tokens (
+      CREATE TABLE flashnet_pools (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        pubkey TEXT UNIQUE NOT NULL,
-        token_identifier TEXT,
-        token_address TEXT,
-        name TEXT NOT NULL,
-        ticker TEXT NOT NULL,
-        symbol TEXT,
-        decimals INTEGER,
-        icon_url TEXT,
-        holder_count INTEGER,
-        total_supply TEXT,
-        max_supply TEXT,
-        is_freezable BOOLEAN DEFAULT false,
-        pool_lp_pubkey TEXT,
-        pool_address TEXT,
-        price_usd NUMERIC,
-        agg_volume_24h_usd NUMERIC,
-        agg_liquidity_usd NUMERIC,
-        agg_price_change_24h_pct NUMERIC,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        lp_public_key TEXT UNIQUE NOT NULL,
+        network TEXT,
+        host_name TEXT,
+        host_namespace TEXT,
+        curve_type TEXT,
+        asset_a_address TEXT NOT NULL,
+        asset_b_address TEXT NOT NULL,
+        asset_a_name TEXT,
+        asset_b_name TEXT,
+        asset_a_symbol TEXT,
+        asset_b_symbol TEXT,
+        asset_a_decimals INTEGER,
+        asset_b_decimals INTEGER,
+        asset_a_reserve NUMERIC,
+        asset_b_reserve NUMERIC,
+        tvl_asset_b NUMERIC,
+        volume_24h_asset_b NUMERIC,
+        price_change_percent_24h NUMERIC,
+        current_price_a_in_b NUMERIC,
+        lp_fee_bps INTEGER,
+        host_fee_bps INTEGER,
+        created_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ,
+        last_synced_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_ticker ON luminex_tokens((LOWER(ticker)))
+      CREATE INDEX idx_flashnet_pools_lp ON flashnet_pools(lp_public_key)
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_symbol ON luminex_tokens((LOWER(symbol)))
+      CREATE INDEX idx_flashnet_pools_asset_a ON flashnet_pools((LOWER(asset_a_address)))
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_name ON luminex_tokens((LOWER(name)))
+      CREATE INDEX idx_flashnet_pools_asset_b ON flashnet_pools((LOWER(asset_b_address)))
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_pool_lp ON luminex_tokens(pool_lp_pubkey)
+      CREATE INDEX idx_flashnet_pools_host ON flashnet_pools((LOWER(host_name)))
+    `)
+
+    await pool.query(`
+      CREATE TABLE flashnet_token_metadata (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token_identifier TEXT UNIQUE NOT NULL,
+        token_address TEXT,
+        name TEXT,
+        ticker TEXT,
+        decimals INTEGER,
+        max_supply NUMERIC,
+        icon_url TEXT,
+        last_synced_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_flashnet_token_metadata_identifier ON flashnet_token_metadata(token_identifier)
     `)
 
     // Create ordinal_sales table to track sales and karma deductions

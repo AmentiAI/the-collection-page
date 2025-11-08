@@ -42,6 +42,13 @@ const nextConfig = {
       }
     }
     
+    config.ignoreWarnings = config.ignoreWarnings || []
+    config.ignoreWarnings.push(warning =>
+      typeof warning?.message === 'string' &&
+      warning.message.includes('require function is used in a way in which dependencies cannot be statically extracted') &&
+      warning.module?.resource?.includes('require-in-the-middle')
+    )
+    
     return config
   },
 }

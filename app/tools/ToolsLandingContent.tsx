@@ -8,6 +8,12 @@ import BackgroundMusic from '@/components/BackgroundMusic'
 
 const liveTools = [
   {
+    name: 'Assets Terminal',
+    description: 'Catalog inscriptions, runes, and cardinal UTXOs, then stage them for multi-input PSBT builds.',
+    href: '/tools/assets',
+    icon: Package
+  },
+  {
     name: 'Transaction Speedup',
     description: 'Accelerate stuck reveals or wallet transactions by crafting a CPFP boost.',
     href: '/tools/speedup',
