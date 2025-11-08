@@ -1318,7 +1318,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 onClick={() => openPicker('spendable')}
                 className="bg-emerald-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-emerald-500"
                 disabled={!paymentAssets?.spendable?.length}
-              >
+              > 
                 Pay UTXOs ({tabCounts.spendable})
               </Button>
               <Button
@@ -1425,36 +1425,6 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             </div>
           ) : (
             <>
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-black/35 p-4 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200/80">
-                <div className="flex items-center justify-between">
-                  <span>Payment Funding</span>
-                  <span className="text-red-100">
-                    {fundingTotalSats != null ? formatSats(fundingTotalSats) : 'Awaiting plan'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Gas Cost</span>
-                  <span className="text-red-100">
-                    {fundingFeeSats != null ? formatSats(fundingFeeSats) : '—'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Change Back</span>
-                  <span className="text-red-100">
-                    {displayedFundingPlan ? formatSats(fundingChangeSats) : '—'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Change Destination</span>
-                  <span className="text-red-100">
-                    {displayedFundingPlan ? fundingChangeDestination : 'Awaiting plan'}
-                  </span>
-                </div>
-                {fundingNote && (
-                  <div className={`rounded-lg border ${fundingNoteSeverity} bg-black/50 p-2 text-[10px]`}>{fundingNote}</div>
-                )}
-              </div>
-
               {selectedAssets.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-sm text-red-200/70">
                   Select inscriptions, enter destination wallets, and press Transfer. The payment wallet will handle fees
