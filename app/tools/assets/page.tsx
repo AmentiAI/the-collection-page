@@ -1163,27 +1163,6 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
   const paymentUtxoCount = tabCounts.spendable
 
-  if (!holderAllowed) {
-    return (
-      <main className="min-h-screen bg-gradient-to-b from-black via-stone-950 to-black px-4 py-20 text-zinc-200 md:px-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-            Holder Access Only
-          </div>
-          <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Asset Manager Locked</h1>
-          <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
-            Connect your wallet and complete holder verification in the header to unlock the asset manager tools. Only
-            verified holders can stage and transfer inscriptions from this interface.
-          </p>
-          <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
-            Use the Verify Holder control in the header to confirm access.
-          </div>
-        </div>
-      </main>
-    )
-  }
-
   const pickerLists = useMemo(() => {
     return {
       inscriptions: ordinalAssets?.inscriptions ?? [],
@@ -1244,6 +1223,27 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     },
     [toggleSelection],
   )
+
+  if (!holderAllowed) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-black via-stone-950 to-black px-4 py-20 text-zinc-200 md:px-8">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            Holder Access Only
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Asset Manager Locked</h1>
+          <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+            Connect your wallet and complete holder verification in the header to unlock the asset manager tools. Only
+            verified holders can stage and transfer inscriptions from this interface.
+          </p>
+          <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
+            Use the Verify Holder control in the header to confirm access.
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   const displayedFundingPlan = planPreview.status === 'ready' ? planPreview.plan : undefined
   const fundingTotalSats = displayedFundingPlan
