@@ -138,6 +138,103 @@ html {
   animation: tilt-run 0.6s ease-in-out infinite;
 }
 
+@keyframes abyss-walk-fall {
+  0% {
+    top: 8%;
+    left: -30%;
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+  35% {
+    top: 8%;
+    left: -18%;
+    transform: rotate(-2deg);
+    opacity: 1;
+  }
+  55% {
+    top: 8%;
+    left: 2%;
+    transform: rotate(-4deg);
+    opacity: 1;
+  }
+  70% {
+    top: 8%;
+    left: 36%;
+    transform: rotate(-6deg);
+    opacity: 1;
+  }
+  76% {
+    top: 8%;
+    left: 62%;
+    transform: rotate(4deg);
+    opacity: 1;
+  }
+  80% {
+    top: 22%;
+    left: 68%;
+    transform: rotate(26deg);
+    opacity: 0.95;
+  }
+  84% {
+    top: 46%;
+    left: calc(72% + var(--fall-drift, 0%));
+    transform: rotate(48deg);
+    opacity: 0.75;
+  }
+  88% {
+    top: 70%;
+    left: calc(72% + var(--fall-drift, 0%));
+    transform: rotate(68deg);
+    opacity: 0.45;
+  }
+  92% {
+    top: 100%;
+    left: calc(72% + var(--fall-drift, 0%));
+    transform: rotate(78deg);
+    opacity: 0.2;
+  }
+  100% {
+    top: 110%;
+    left: calc(72% + var(--pile-offset, 0%));
+    transform: rotate(84deg);
+    opacity: 0;
+  }
+}
+
+.abyss-character {
+  --pile-offset: 0%;
+  --fall-drift: 0%;
+  --duration: 11s;
+  --delay: 0s;
+  position: absolute;
+  top: 8%;
+  left: -30%;
+  width: clamp(6rem, 8vw, 9rem);
+  height: clamp(10rem, 14vw, 16rem);
+  animation: abyss-walk-fall var(--duration) cubic-bezier(0.48, 0.01, 0.52, 1) infinite;
+  animation-delay: var(--delay);
+  pointer-events: none;
+  transform-origin: center;
+  will-change: top, left, transform;
+}
+
+.abyss-character-inner {
+  width: 100%;
+  height: 100%;
+}
+
+.abyss-character-inner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.abyss-character--flipped .abyss-character-inner img {
+  transform: scaleX(-1);
+}
+
 /* Peeking animations for dashboard - from bottom */
 @keyframes peek-from-bottom-left {
   0% {

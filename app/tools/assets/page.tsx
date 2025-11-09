@@ -745,15 +745,15 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       const assets = Object.values(selectedMap)
 
       if (cancelled) {
-        return
-      }
+      return
+    }
 
       if (!assets.length) {
         setPendingSelectedMap({})
         setPendingSelectedStatus('idle')
         setPendingSelectedError(null)
-        return
-      }
+      return
+    }
 
       setPendingSelectedStatus('checking')
       setPendingSelectedError(null)
@@ -779,7 +779,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             const payload = await response.json()
             const confirmed = Boolean(payload?.status?.confirmed)
             return { txid, pending: !confirmed, error: null }
-          } catch (error) {
+    } catch (error) {
             console.error(`Failed to inspect transaction ${txid}`, error)
             const message = error instanceof Error ? error.message : 'Unknown mempool status error'
             return { txid, pending: true, error: message }
@@ -1359,7 +1359,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 onClick={() => openPicker('spendable')}
                 className="bg-emerald-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-emerald-500"
                 disabled={!paymentAssets?.spendable?.length}
-              > 
+              >
                 Pay UTXOs ({tabCounts.spendable})
               </Button>
               <Button
@@ -1695,7 +1695,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               {hasPendingSelected && (
                 <div className="rounded-lg border border-amber-500/50 bg-amber-900/30 p-3 text-xs uppercase tracking-[0.3em] text-amber-100">
                   Pending inputs detected. Wait for confirmation or remove the highlighted UTXOs before transferring.
-                </div>
+              </div>
               )}
               {pendingSelectedStatus === 'error' && pendingSelectedError && (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-900/20 p-3 text-xs uppercase tracking-[0.3em] text-amber-100">
@@ -1705,7 +1705,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             </div>
               {transferError && (
                 <div className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-xs text-red-200">{transferError}</div>
-              )}
+          )}
             </>
           )}
 
