@@ -38,10 +38,10 @@ const walkers: Walker[] = [
 
 const BASE_LEFT_PERCENT = 72
 const BASE_TOP_PERCENT = 110
-const HORIZONTAL_JITTER_PERCENT = 18
+const HORIZONTAL_JITTER_PERCENT = 20
 const HORIZONTAL_JITTER_FALLOFF_STEP = 20
 const HORIZONTAL_JITTER_REDUCTION = 0.5
-const MIN_HORIZONTAL_JITTER_PERCENT = 8
+const MIN_HORIZONTAL_JITTER_PERCENT = 1
 const VERTICAL_STEP_PERCENT = 0.5
 const ROTATION_VARIANCE_DEGREES = 30
 
@@ -459,7 +459,7 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
       />
 
       {/* Ember Canvas */}
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10" />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-40" />
 
       {/* Characters marching and falling */}
       <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
