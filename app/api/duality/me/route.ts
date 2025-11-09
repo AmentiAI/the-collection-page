@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { ensureDualitySchema } from '@/lib/duality'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const pool = getPool()
+    await ensureDualitySchema(pool)
 
     const profileRes = await pool.query(
       `SELECT id, wallet_address, username, total_good_karma, total_bad_karma
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
       `SELECT pr.*, 
               g.id AS good_participant_id,
               e.id AS evil_participant_id,
+              g.alignment AS good_alignment,
+              e.alignment AS evil_alignment,
               gp.wallet_address AS good_wallet,
               gp.username AS good_username,
               ep.wallet_address AS evil_wallet,
@@ -91,15 +95,19 @@ export async function GET(request: NextRequest) {
 
     if (pairRes.rows.length > 0) {
       const pairRow = pairRes.rows[0]
+      const sameAlignment = pairRow.good_alignment === pairRow.evil_alignment
       pair = {
         ...toCamel(pairRow),
         goodParticipantId: pairRow.good_participant_id,
-        evilParticipantId: pairRow.evil_participant_id
+        evilParticipantId: pairRow.evil_participant_id,
+        sameAlignment,
+        alignment: sameAlignment ? pairRow.good_alignment : null
       }
 
       const isGood = pairRow.good_participant_id === participantRow.id
+      const partnerAlignment = isGood ? pairRow.evil_alignment : pairRow.good_alignment
       partner = {
-        alignment: isGood ? 'evil' : 'good',
+        alignment: partnerAlignment || (isGood ? 'evil' : 'good'),
         walletAddress: isGood ? pairRow.evil_wallet : pairRow.good_wallet,
         username: isGood ? pairRow.evil_username : pairRow.good_username
       }

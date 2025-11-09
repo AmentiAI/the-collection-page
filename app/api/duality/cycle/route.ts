@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { ensureDualitySchema } from '@/lib/duality'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ function toCamel(row: any) {
 export async function GET() {
   try {
     const pool = getPool()
+    await ensureDualitySchema(pool)
     const cycleRes = await pool.query(`
       SELECT *
       FROM duality_cycles

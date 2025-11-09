@@ -54,6 +54,14 @@ interface DualityPair {
   fateMeter?: number | null
   goodParticipantId?: string
   evilParticipantId?: string
+  sameAlignment?: boolean
+  alignment?: 'good' | 'evil' | null
+  goodCheckinAt?: string | null
+  evilCheckinAt?: string | null
+  rewardStatus?: string | null
+  rewardProcessedAt?: string | null
+  rewardPointsGood?: number | null
+  rewardPointsEvil?: number | null
 }
 
 interface DualityTrial {
@@ -107,6 +115,7 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
   const [loading, setLoading] = useState(true)
   const [submittingAlignment, setSubmittingAlignment] = useState(false)
   const [joiningQueue, setJoiningQueue] = useState(false)
+  const [checkingIn, setCheckingIn] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [data, setData] = useState<{
     cycle: DualityCycle | null
@@ -236,6 +245,17 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
   const participant = data.participant
   const partner = data.partner
   const pair = data.pair
+  const isGoodSlot = participant && pair ? pair.goodParticipantId === participant.id : false
+  const userCheckinAt = pair
+    ? isGoodSlot
+      ? pair.goodCheckinAt
+      : pair?.evilCheckinAt
+    : null
+  const partnerCheckinAt = pair
+    ? isGoodSlot
+      ? pair.evilCheckinAt
+      : pair?.goodCheckinAt
+    : null
 
   const cycleDay = useMemo(() => {
     if (!cycle?.weekStart && !cycle?.createdAt) return null
@@ -298,8 +318,25 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
       items.push(`You are on Day ${cycleDay} of this week.`)
     }
 
+    const sameAlignmentPair = Boolean(pair?.sameAlignment)
+    const pairAlignment = sameAlignmentPair
+      ? pair?.alignment ?? participant?.alignment ?? partner?.alignment ?? null
+      : null
+
     if (activePair && pairWindowRemainingMs) {
       items.push(`Current pairing window ends in ${formatDuration(pairWindowRemainingMs)}.`)
+      if (sameAlignmentPair) {
+        items.push(
+          `Same-side pairing active — both holders are ${pairAlignment ? pairAlignment.toUpperCase() : 'aligned'}; coordinate via #duality-events and be sure both of you hit Duality Check-In.`
+        )
+      }
+      if (!userCheckinAt) {
+        items.push('Use the Duality Check-In button below before the window ends to earn your karma.')
+      } else if (!partnerCheckinAt) {
+        items.push('Check-in recorded — waiting for your partner to finish.')
+      } else {
+        items.push('Both check-ins recorded. Cooldown will begin automatically.')
+      }
     }
 
     if (!activePair && queueReady) {
@@ -337,7 +374,83 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
     }
 
     return items
-  }, [cycle, profileSide, participant, cycleDay, activePair, pairWindowRemainingMs, cooldownRemainingMs, queueReady, partnerName])
+  }, [
+    cycle,
+    profileSide,
+    participant,
+    pair,
+    partner,
+    cycleDay,
+    activePair,
+    pairWindowRemainingMs,
+    cooldownRemainingMs,
+    queueReady,
+    partnerName,
+    userCheckinAt,
+    partnerCheckinAt
+  ])
+
+  const handleDualityCheckIn = useCallback(async () => {
+    if (!walletAddress) {
+      toast.warning('Connect your wallet to check in.')
+      return
+    }
+
+    if (!pair || !participant || !activePair) {
+      toast.warning('No active pairing window to check in for.')
+      return
+    }
+
+    if (!pairWindowEnd || pairWindowRemainingMs <= 0) {
+      toast.warning('The pairing window has already ended.')
+      return
+    }
+
+    if (userCheckinAt) {
+      toast.info('You already checked in for this window.')
+      return
+    }
+
+    setCheckingIn(true)
+    try {
+      const response = await fetch('/api/duality/pairings/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress }),
+      })
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to record Duality check-in.')
+        return
+      }
+
+      if (result.alreadyCheckedIn) {
+        toast.info('You already checked in for this window.')
+      } else if (result.bothCheckedIn) {
+        toast.success('Both check-ins recorded. Karma rewards applied!')
+      } else {
+        toast.success('Check-in recorded. Ping your partner to finish!')
+      }
+
+      await fetchStatus()
+    } catch (error) {
+      console.error('Duality check-in error:', error)
+      toast.error('Failed to record Duality check-in.')
+    } finally {
+      setCheckingIn(false)
+    }
+  }, [
+    walletAddress,
+    pair,
+    participant,
+    activePair,
+    pairWindowEnd,
+    pairWindowRemainingMs,
+    userCheckinAt,
+    toast,
+    fetchStatus,
+  ])
 
   const renderInfoCard = (message: string) => (
     <div className={`${isCompact ? 'bg-black/60 border border-blue-600/40 rounded-lg p-4 text-center' : 'bg-black/60 border border-blue-600/40 rounded-lg p-6 text-center'}`}>
@@ -361,6 +474,11 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
     const containerClass = compact
       ? 'bg-black/60 border border-blue-600/40 rounded-lg p-4 space-y-3'
       : 'bg-black/60 border border-blue-600/40 rounded-lg p-6 space-y-4'
+
+    const sameAlignmentPair = Boolean(pair?.sameAlignment)
+    const pairAlignment = sameAlignmentPair
+      ? pair?.alignment ?? participant?.alignment ?? partner?.alignment ?? null
+      : null
 
     const header = (
       <div className="flex flex-wrap items-center gap-3 justify-between">
@@ -416,6 +534,36 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
               <div className="text-xs text-gray-500 font-mono">
                 Fate meter {pair?.fateMeter ?? 50}/100
               </div>
+              {sameAlignmentPair && (
+                <div className="text-xs text-amber-300 font-mono mt-1">
+                  Same-side window: both holders are {pairAlignment ? pairAlignment.toUpperCase() : 'aligned the same way'}.
+                  Coordinate together and use the Duality Check-In button before the timer ends.
+                </div>
+              )}
+              <div className="mt-2 space-y-1">
+                <div
+                  className={`text-xs font-mono ${
+                    userCheckinAt ? 'text-emerald-300' : 'text-yellow-300'
+                  }`}
+                >
+                  {userCheckinAt
+                    ? `You checked in at ${new Date(userCheckinAt).toLocaleTimeString()}`
+                    : 'You have not checked in yet.'}
+                </div>
+                <div
+                  className={`text-xs font-mono ${
+                    partnerCheckinAt ? 'text-emerald-300' : 'text-gray-400'
+                  }`}
+                >
+                  {partnerName
+                    ? partnerCheckinAt
+                      ? `${partnerName} checked in at ${new Date(partnerCheckinAt).toLocaleTimeString()}`
+                      : `${partnerName} has not checked in yet.`
+                    : partnerCheckinAt
+                    ? `Partner checked in at ${new Date(partnerCheckinAt).toLocaleTimeString()}`
+                    : 'Partner has not checked in yet.'}
+                </div>
+              </div>
             </div>
           </div>
         )
@@ -439,13 +587,30 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
 
       return (
         <div className="text-sm text-gray-300 font-mono">
-          Join the next pairing slot to match with an opposing holder.
+          Join the next pairing slot to match with another ready holder.
         </div>
       )
     })()
 
     const buttons = (
       <div className="flex flex-wrap gap-2">
+        {activePair && !userCheckinAt && (
+          <button
+            onClick={() => handleDualityCheckIn()}
+            disabled={checkingIn}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs uppercase disabled:opacity-50"
+          >
+            {checkingIn ? 'Checking in…' : 'Duality Check-In'}
+          </button>
+        )}
+        {activePair && userCheckinAt && (
+          <button
+            disabled
+            className="px-4 py-2 border border-emerald-500 text-emerald-200 rounded text-xs uppercase opacity-60 cursor-default"
+          >
+            Checked In
+          </button>
+        )}
         {canJoinQueue && (
           <button
             onClick={() => handleJoinQueue(false)}

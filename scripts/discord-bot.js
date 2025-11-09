@@ -92,6 +92,11 @@ const checkinCommand = {
   description: 'Check in daily to receive +5 karma points (once every 24 hours)',
 };
 
+const dualityCommand = {
+  name: 'duality',
+  description: 'Check in to your active Duality pairing window',
+};
+
 const priceCommand = {
   name: 'price',
   description: 'Get price information for a Flashnet pool',
@@ -169,7 +174,7 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
-    const commands = [verifyCommand, checkHoldersCommand, checkinCommand];
+    const commands = [verifyCommand, checkHoldersCommand, checkinCommand, dualityCommand];
     if (FLASHNET_COMMANDS_ENABLED) {
       commands.push(priceCommand, infoCommand, tokensCommand);
     }
@@ -584,15 +589,19 @@ async function managePairingSessions(status, client) {
     if (Number.isNaN(windowEnd) || windowEnd > now) continue;
 
     const cooldown = pair.cooldownMinutes || PAIRING_COOLDOWN_MINUTES;
+    const bothCheckedIn = Boolean(pair.goodCheckinAt && pair.evilCheckinAt);
+    const targetStatus = bothCheckedIn ? 'completed' : 'expired';
     const res = await apiFetch(`/api/duality/pairings/${pair.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'completed', cooldownMinutes: cooldown }),
+      body: JSON.stringify({ status: targetStatus, cooldownMinutes: cooldown }),
     });
 
     if (!res.ok) {
       console.error('[Duality] Failed to complete expired pairing:', res.status, res.data);
     } else {
-      console.log(`[Duality] Pairing ${pair.id} window expired. Released partners with ${cooldown}m cooldown.`);
+      console.log(
+        `[Duality] Pairing ${pair.id} window finished as ${targetStatus}. Released partners with ${cooldown}m cooldown.`,
+      );
       updated = true;
     }
   }
@@ -773,6 +782,12 @@ async function announcePairings(pairs, participants, client) {
         }
       )
       .addFields({ name: 'Shared Fate Meter', value: `${pair.fateMeter ?? 50}/100`, inline: false })
+      .addFields({
+        name: 'How to Complete',
+        value:
+          'Both holders must run `/duality` (or press the dashboard Duality Check-In button) before the window ends to earn your karma bonus.',
+        inline: false,
+      })
       .setColor(0x9b59b6)
       .setTimestamp(new Date());
 
@@ -798,11 +813,13 @@ async function announcePairings(pairs, participants, client) {
       console.error('[Duality] Failed to announce pairing:', error);
     }
 
+    const checkInReminder =
+      '\nUse **/duality** (or the dashboard Duality Check-In button) before the window closes to lock in your reward.';
     const dmMessage = sameAlignmentLabel
       ? `🪞 **Same-Side Duality Pairing Active**\nYou have been paired with another ${
           pair.alignment === 'evil' ? 'Evil' : 'Good'
-        } holder.\nYour window ends ${windowEndText}. Coordinate together, then you will enter a ${cooldownText} cooldown.`
-      : `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.`;
+        } holder.\nYour window ends ${windowEndText}. Coordinate together, then you will enter a ${cooldownText} cooldown.${checkInReminder}`
+      : `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.${checkInReminder}`;
     await dmUser(client, good.discordUserId, dmMessage);
     await dmUser(client, evil.discordUserId, dmMessage);
   }
@@ -1415,6 +1432,62 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
   
+  if (interaction.commandName === 'duality') {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const res = await apiFetch('/api/duality/pairings/checkin', {
+        method: 'POST',
+        body: JSON.stringify({ discordUserId: interaction.user.id }),
+      });
+
+      if (!res.ok) {
+        const errorMessage =
+          res.data?.error ||
+          res.data?.message ||
+          'Unable to record Duality check-in. Make sure you have an active pairing window.';
+        await interaction.editReply({
+          content: `❌ **Duality Check-In Failed**\n\n${errorMessage}`,
+        });
+        return;
+      }
+
+      const payload = res.data || {};
+      const pair = payload.pair;
+      let message = '';
+
+      if (payload.alreadyCheckedIn) {
+        message = '✅ You already checked in for the current Duality window.';
+      } else if (payload.bothCheckedIn) {
+        message = `✅ Both check-ins recorded! Cooldown has begun.${
+          pair?.cooldownMinutes
+            ? ` Your cooldown lasts ${pair.cooldownMinutes} minutes.`
+            : ''
+        }`;
+      } else {
+        const partnerStatus = pair?.goodCheckinAt && pair?.evilCheckinAt
+          ? ''
+          : '\n\nPing your partner to check in before the window closes!';
+        message = `✅ Check-in recorded.${partnerStatus}`;
+      }
+
+      if (pair?.windowEnd) {
+        const windowEndTs = Math.floor(new Date(pair.windowEnd).getTime() / 1000);
+        message += `\nWindow closes <t:${windowEndTs}:R>.`;
+      }
+
+      await interaction.editReply({
+        content: message,
+      });
+    } catch (error) {
+      console.error('[Duality] Discord check-in command error:', error);
+      await interaction.editReply({
+        content:
+          '❌ **Error**\n\nUnable to process your Duality check-in right now. Please try again in a moment.',
+      });
+    }
+    return;
+  }
+
   // Handle checkholders command
   if (interaction.commandName === 'checkholders') {
     // Check if user has admin permissions

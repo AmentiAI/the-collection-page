@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { ensureDualitySchema } from '@/lib/duality'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pool = getPool()
+    await ensureDualitySchema(pool)
 
     const profileRes = await pool.query(
       `SELECT id FROM profiles WHERE wallet_address = $1`,

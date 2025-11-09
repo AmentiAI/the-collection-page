@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { ensureDualitySchema } from '@/lib/duality'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pool = getPool()
+    await ensureDualitySchema(pool)
     const body = await request.json().catch(() => ({}))
     const windowMinutes = Number(body.windowMinutes) > 0 ? Number(body.windowMinutes) : 60
     const cooldownMinutes = Number(body.cooldownMinutes) > 0 ? Number(body.cooldownMinutes) : 60
@@ -200,6 +202,12 @@ export async function POST(request: NextRequest) {
           windowStart: row.window_start,
           windowEnd: row.window_end,
           cooldownMinutes: row.cooldown_minutes,
+          goodCheckinAt: row.good_checkin_at,
+          evilCheckinAt: row.evil_checkin_at,
+          rewardStatus: row.reward_status,
+          rewardProcessedAt: row.reward_processed_at,
+          rewardPointsGood: row.reward_points_good,
+          rewardPointsEvil: row.reward_points_evil,
           sameAlignment: plan.mode !== 'opposed',
           alignment:
             plan.mode === 'same-good' ? 'good' : plan.mode === 'same-evil' ? 'evil' : null
