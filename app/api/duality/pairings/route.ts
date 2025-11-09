@@ -66,24 +66,23 @@ export async function POST(request: NextRequest) {
     const goodList = participantsRes.rows.filter((row) => row.alignment === 'good').map(normalize)
     const evilList = participantsRes.rows.filter((row) => row.alignment === 'evil').map(normalize)
 
-    if (goodList.length === 0 || evilList.length === 0) {
-      return NextResponse.json({
-        cycle: { ...cycle },
-        pairs: [],
-        message: 'Need at least one ready participant on each side to create pairings.'
-      })
-    }
-
     const sortByKarma = (arr: typeof goodList) =>
       arr.sort((a, b) => (b.karmaSnapshot || 0) - (a.karmaSnapshot || 0))
 
     sortByKarma(goodList)
     sortByKarma(evilList)
 
-    const pairPlans: Array<{ good: (typeof goodList)[number]; evil: (typeof evilList)[number]; fate: number }> = []
+    const pairPlans: Array<{
+      good: (typeof goodList)[number] | (typeof evilList)[number]
+      evil: (typeof goodList)[number] | (typeof evilList)[number]
+      fate: number
+      mode: 'opposed' | 'same-good' | 'same-evil'
+    }> = []
+    const usedGood = new Set<string>()
     const usedEvil = new Set<string>()
 
     for (const good of goodList) {
+      if (usedGood.has(good.id)) continue
       let bestMatch: (typeof evilList)[number] | null = null
       let bestDiff = Infinity
 
@@ -97,10 +96,39 @@ export async function POST(request: NextRequest) {
       }
 
       if (bestMatch) {
+        usedGood.add(good.id)
         usedEvil.add(bestMatch.id)
         const fate = Math.floor(Math.random() * 41) + 30 // 30-70
-        pairPlans.push({ good, evil: bestMatch, fate })
+        pairPlans.push({ good, evil: bestMatch, fate, mode: 'opposed' })
       }
+    }
+
+    const leftoverGoods = goodList.filter((participant) => !usedGood.has(participant.id))
+    const leftoverEvils = evilList.filter((participant) => !usedEvil.has(participant.id))
+
+    const makeSameSidePairs = (
+      list: typeof goodList | typeof evilList,
+      mode: 'same-good' | 'same-evil'
+    ) => {
+      for (let i = 0; i + 1 < list.length; i += 2) {
+        const first = list[i]
+        const second = list[i + 1]
+        if (!first || !second) continue
+        const fate = Math.floor(Math.random() * 41) + 30
+        pairPlans.push({
+          good: first,
+          evil: second,
+          fate,
+          mode
+        })
+      }
+    }
+
+    if (leftoverGoods.length >= 2) {
+      makeSameSidePairs(leftoverGoods, 'same-good')
+    }
+    if (leftoverEvils.length >= 2) {
+      makeSameSidePairs(leftoverEvils, 'same-evil')
     }
 
     if (pairPlans.length === 0) {
@@ -116,7 +144,7 @@ export async function POST(request: NextRequest) {
     try {
       await client.query('BEGIN')
 
-      const insertedPairs = []
+      const insertedPairs: Array<{ row: any; plan: (typeof pairPlans)[number] }> = []
 
       for (const plan of pairPlans) {
         const windowStart = new Date()
@@ -137,7 +165,7 @@ export async function POST(request: NextRequest) {
           ]
         )
         const pairRow = pairRes.rows[0]
-        insertedPairs.push(pairRow)
+        insertedPairs.push({ row: pairRow, plan })
 
         await client.query(
           `UPDATE duality_participants
@@ -162,7 +190,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         cycle: { ...cycle, status: 'active' },
-        pairs: insertedPairs.map((row) => ({
+        pairs: insertedPairs.map(({ row, plan }) => ({
           id: row.id,
           cycleId: row.cycle_id,
           goodParticipantId: row.good_participant_id,
@@ -171,7 +199,10 @@ export async function POST(request: NextRequest) {
           status: row.status,
           windowStart: row.window_start,
           windowEnd: row.window_end,
-          cooldownMinutes: row.cooldown_minutes
+          cooldownMinutes: row.cooldown_minutes,
+          sameAlignment: plan.mode !== 'opposed',
+          alignment:
+            plan.mode === 'same-good' ? 'good' : plan.mode === 'same-evil' ? 'evil' : null
         })),
         windowMinutes,
         cooldownMinutes

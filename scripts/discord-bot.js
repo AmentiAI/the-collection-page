@@ -597,14 +597,27 @@ async function managePairingSessions(status, client) {
     }
   }
 
-  const readyGood = participants.filter((p) =>
-    p.alignment === 'good' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  const readyGood = participants.filter(
+    (p) =>
+      p.alignment === 'good' &&
+      p.readyForPairing &&
+      !p.currentPairId &&
+      (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
   );
-  const readyEvil = participants.filter((p) =>
-    p.alignment === 'evil' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  const readyEvil = participants.filter(
+    (p) =>
+      p.alignment === 'evil' &&
+      p.readyForPairing &&
+      !p.currentPairId &&
+      (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
   );
 
-  if (readyGood.length && readyEvil.length) {
+  const canPairOpposites = readyGood.length > 0 && readyEvil.length > 0;
+  const canPairSameGood = readyGood.length >= 2;
+  const canPairSameEvil = readyEvil.length >= 2;
+  const canAttemptPairing = canPairOpposites || canPairSameGood || canPairSameEvil;
+
+  if (canAttemptPairing) {
     const res = await apiFetch('/api/duality/pairings', {
       method: 'POST',
       body: JSON.stringify({ windowMinutes: PAIRING_WINDOW_MINUTES, cooldownMinutes: PAIRING_COOLDOWN_MINUTES }),
@@ -718,21 +731,33 @@ async function announcePairings(pairs, participants, client) {
     const evil = participantMap.get(pair.evilParticipantId);
     if (!good || !evil) continue;
 
+    const sameAlignment = Boolean(pair.sameAlignment);
+    const sameAlignmentLabel =
+      sameAlignment && pair.alignment
+        ? pair.alignment === 'evil'
+          ? 'Same-Side Pairing — Evil'
+          : 'Same-Side Pairing — Good'
+        : null;
+
     const windowEnd = pair.windowEnd ? new Date(pair.windowEnd) : null;
     const windowEndText = windowEnd ? `<t:${Math.floor(windowEnd.getTime() / 1000)}:R>` : `${PAIRING_WINDOW_MINUTES} minutes`;
     const cooldownText = `${pair.cooldownMinutes ?? PAIRING_COOLDOWN_MINUTES} minutes`;
 
     const embed = new EmbedBuilder()
-      .setTitle('🔗 New Duality Pairing Window')
-      .setDescription('Opposing holders have been paired for the next challenge slot.')
+      .setTitle(sameAlignmentLabel ? '🪞 Same-Side Duality Pairing' : '🔗 New Duality Pairing Window')
+      .setDescription(
+        sameAlignmentLabel
+          ? `${sameAlignmentLabel}\n\nTwo holders from the same alignment have been paired for this window.`
+          : 'Opposing holders have been paired for the next challenge slot.'
+      )
       .addFields(
         {
-          name: 'Good Holder',
+          name: sameAlignment ? 'Partner A' : 'Good Holder',
           value: formatParticipant(good),
           inline: true,
         },
         {
-          name: 'Evil Holder',
+          name: sameAlignment ? 'Partner B' : 'Evil Holder',
           value: formatParticipant(evil),
           inline: true,
         },
@@ -751,6 +776,14 @@ async function announcePairings(pairs, participants, client) {
       .setColor(0x9b59b6)
       .setTimestamp(new Date());
 
+    if (sameAlignmentLabel) {
+      embed.addFields({
+        name: 'Alignment Context',
+        value: pair.alignment === 'evil' ? 'Both holders are aligned with Evil.' : 'Both holders are aligned with Good.',
+        inline: false,
+      });
+    }
+
     const mentions = [];
     if (good.discordUserId) mentions.push(`<@${good.discordUserId}>`);
     if (evil.discordUserId) mentions.push(`<@${evil.discordUserId}>`);
@@ -765,7 +798,11 @@ async function announcePairings(pairs, participants, client) {
       console.error('[Duality] Failed to announce pairing:', error);
     }
 
-    const dmMessage = `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.`;
+    const dmMessage = sameAlignmentLabel
+      ? `🪞 **Same-Side Duality Pairing Active**\nYou have been paired with another ${
+          pair.alignment === 'evil' ? 'Evil' : 'Good'
+        } holder.\nYour window ends ${windowEndText}. Coordinate together, then you will enter a ${cooldownText} cooldown.`
+      : `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.`;
     await dmUser(client, good.discordUserId, dmMessage);
     await dmUser(client, evil.discordUserId, dmMessage);
   }

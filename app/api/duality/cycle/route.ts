@@ -61,7 +61,9 @@ export async function GET() {
               gp.wallet_address AS good_wallet_address,
               gp.username AS good_username,
               ep.wallet_address AS evil_wallet_address,
-              ep.username AS evil_username
+              ep.username AS evil_username,
+              g.alignment AS good_alignment,
+              e.alignment AS evil_alignment
        FROM duality_pairs pr
        JOIN duality_participants g ON pr.good_participant_id = g.id
        JOIN duality_participants e ON pr.evil_participant_id = e.id
@@ -79,7 +81,10 @@ export async function GET() {
       goodWalletAddress: row.good_wallet_address,
       goodUsername: row.good_username,
       evilWalletAddress: row.evil_wallet_address,
-      evilUsername: row.evil_username
+      evilUsername: row.evil_username,
+      sameAlignment: row.good_alignment === row.evil_alignment,
+      alignment:
+        row.good_alignment === row.evil_alignment ? row.good_alignment : null
     }))
 
     const trialsRes = await pool.query(
