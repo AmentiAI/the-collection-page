@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 
 type Walker = {
@@ -30,6 +31,8 @@ const walkers: Walker[] = [
   { key: 'damned-4', src: '/fullguys4.png', duration: 7.5 },
   { key: 'damned-5', src: '/fallguy5.png', duration: 7.3 },
   { key: 'damned-6', src: '/fallguy6.png', duration: 7.7, flip: true },
+  { key: 'damned-7', src: '/fullguy7.png', duration: 7.5 },
+  { key: 'damned-8', src: '/fullguy8.png', duration: 7.5 },
 ]
 
 const BASE_LEFT_PERCENT = 72
@@ -469,7 +472,16 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
               }}
               key={fallen.id}
             >
-              <img src={fallen.src} alt="" className="h-full w-full object-contain opacity-95" />
+              <div className="relative h-full w-full">
+                <Image
+                  src={fallen.src}
+                  alt="Fallen damned soul"
+                  fill
+                  sizes="(max-width: 768px) 96px, 128px"
+                  className="object-contain opacity-95"
+                  priority={false}
+                />
+              </div>
             </div>
           ))}
           {activeWalkers.map((active) => (
@@ -486,8 +498,15 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
                 } as CSSProperties
               }
             >
-              <div className="abyss-character-inner animate-tilt-run" style={{ transform: 'scaleX(1)' }}>
-                <img src={active.walker.src} alt="" />
+              <div className="abyss-character-inner animate-tilt-run" style={{ transform: 'scaleX(1)', position: 'relative' }}>
+                <Image
+                  src={active.walker.src}
+                  alt="Damned soul marching"
+                  fill
+                  sizes="(max-width: 768px) 96px, 140px"
+                  className="object-contain"
+                  priority={false}
+                />
               </div>
             </div>
           ))}
