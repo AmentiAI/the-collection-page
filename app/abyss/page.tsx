@@ -1,6 +1,8 @@
 'use client'
 
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
+import Header from '@/components/Header'
 import { CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 
 type Walker = {
@@ -34,18 +36,24 @@ const walkers: Walker[] = [
   { key: 'damned-7', src: '/fullguy7.png', duration: 7.5 },
   { key: 'damned-8', src: '/fullguy8.png', duration: 7.5 },
   { key: 'damned-9', src: '/fullguy9.png', duration: 7.4 },
+  { key: 'damned-10', src: '/fullguy10.png', duration: 7.1 },
 ]
 
 const BASE_LEFT_PERCENT = 72
 const BASE_TOP_PERCENT = 110
 const HORIZONTAL_JITTER_PERCENT = 20
 const HORIZONTAL_JITTER_FALLOFF_STEP = 20
-const HORIZONTAL_JITTER_REDUCTION = 0.5
+const HORIZONTAL_JITTER_REDUCTION = 0.8
 const MIN_HORIZONTAL_JITTER_PERCENT = 1
-const VERTICAL_STEP_PERCENT = 0.5
+const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
 
-export default function AbyssPage() {
+const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
+
+function AbyssContent() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const slashAudioRef = useRef<HTMLAudioElement>(null)
@@ -55,7 +63,27 @@ export default function AbyssPage() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [fallenPile, setFallenPile] = useState<FallenCharacter[]>([])
   const [activeWalkers, setActiveWalkers] = useState<ActiveWalker[]>([])
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isWalletConnected, setIsWalletConnected] = useState(false)
   const audioSrc = '/music/abyss.mp3'
+
+  const handleHolderVerified = useCallback((holder: boolean) => {
+    setIsHolder(holder)
+    setIsVerifying(false)
+  }, [])
+
+  const handleVerifyingStart = useCallback(() => {
+    setIsVerifying(true)
+  }, [])
+
+  const handleConnectedChange = useCallback((connected: boolean) => {
+    setIsWalletConnected(connected)
+    if (!connected) {
+      setIsHolder(undefined)
+      setIsVerifying(false)
+    }
+  }, [])
 
   const handleEnter = () => {
     setShowEntryModal(false)
@@ -251,6 +279,13 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     }
   }, [])
 
+  const handleVolumeAdjust = useCallback((delta: number) => {
+    setVolume((prev) => {
+      const next = Math.min(100, Math.max(0, prev + delta))
+      return next
+    })
+  }, [])
+
   const handleWalkerFall = useCallback((walker: Walker) => {
     let impactLeft = BASE_LEFT_PERCENT
     let impactTop = BASE_TOP_PERCENT
@@ -314,6 +349,7 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
   const totalDamned = 666
   const progressPercent = Math.min(100, (fallenCount / totalDamned) * 100)
   const remaining = Math.max(0, totalDamned - fallenCount)
+  const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black">
@@ -332,11 +368,19 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
       />
       <audio ref={slashAudioRef} src="/music/slash.mp3" preload="auto" />
 
-      {/* Volume Control */}
-      <div className="absolute top-4 right-4 z-30 flex flex-col items-center gap-1 rounded-lg border-2 border-red-600/50 bg-black/40 ">
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={isWalletConnected}
+        onHolderVerified={handleHolderVerified}
+        onVerifyingStart={handleVerifyingStart}
+        onConnectedChange={handleConnectedChange}
+        showMusicControls={false}
+      />
+
       {/* Burn Counter + Warnings */}
-      <div className="pointer-events-none z-30 flex   flex-col gap-4 ">
-        <div className="pointer-events-auto w-full rounded-lg border border-red-700 bg-black/80 p-2 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur-sm">
+      <div className="absolute top-28 left-6 z-30 flex w-[18rem] flex-col gap-4">
+        <div className="rounded-lg border border-red-700 bg-black/80 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur-sm">
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
           <div className="mt-2 flex items-end gap-3">
             <div className="text-4xl font-black text-red-500">{fallenCount}</div>
@@ -354,18 +398,21 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-3 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-red-500/80">
-          <div className="rounded border border-red-700/50 bg-black/70 px-6 py-2 shadow-[0_0_22px_rgba(220,38,38,0.45)]">
+        <div className="flex flex-col items-start gap-2 text-left font-mono text-[11px] uppercase tracking-[0.3em] text-red-500/80">
+          <div className="w-full rounded border border-red-700/50 bg-black/70 px-5 py-2 shadow-[0_0_22px_rgba(220,38,38,0.45)]">
             ⚠ Danger Zone ⚠
           </div>
-          <div className="rounded border border-red-700/40 bg-black/60 px-5 py-1.5 text-red-400">
+          <div className="w-full rounded border border-red-700/40 bg-black/60 px-5 py-1.5 text-red-400">
             Ordinals Lost Ahead
           </div>
-          <div className="rounded border border-red-700/30 bg-black/50 px-4 py-1 text-orange-400">
+          <div className="w-full rounded border border-red-700/30 bg-black/50 px-4 py-1 text-orange-400">
             No Return Beyond This Edge
           </div>
         </div>
       </div>
+
+      {/* Audio Controls */}
+      <div className="absolute top-4 right-4 z-30 flex flex-col items-center gap-3 rounded-lg border-2 border-red-600/50 bg-black/40 px-3 py-3">
         <button
           onClick={() => {
             if (!audioRef.current) return
@@ -409,19 +456,23 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
             </svg>
           )}
         </button>
-        <div className="flex h-32 items-center">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
+        <div className="flex items-center gap-3 text-xs font-mono text-red-500">
+          <button
+            onClick={() => handleVolumeAdjust(-5)}
+            className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
             disabled={isMuted}
-            className="h-full w-2 accent-red-600"
-            style={{ writingMode: 'vertical-lr' }}
-          />
+          >
+            −
+          </button>
+          <span className="min-w-[52px] text-center text-red-400">{isMuted ? 'MUTED' : `${volume}%`}</span>
+          <button
+            onClick={() => handleVolumeAdjust(5)}
+            className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
+            disabled={isMuted}
+          >
+            +
+          </button>
         </div>
-        <span className="font-mono text-xs text-red-600">{isMuted ? 'MUTED' : `${volume}%`}</span>
       </div>
 
       {/* Entry Modal */}
@@ -517,7 +568,32 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
           ))}
         </div>
       </div>
+
+      {isWalletConnected && isVerifying && (
+        <div className="absolute inset-x-0 top-24 bottom-0 z-40 flex items-center justify-center">
+          <div className="rounded-lg border border-red-500 bg-black/80 px-6 py-4 text-center font-mono text-sm uppercase tracking-[0.4em] text-red-300 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
+            Verifying holder status…
+          </div>
+        </div>
+      )}
+
+      {showHolderBlock && (
+        <div className="absolute inset-x-0 top-24 bottom-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/85 px-6 text-center">
+          <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-red-500">Access Restricted</h2>
+          <p className="max-w-md text-sm font-mono uppercase tracking-[0.35em] text-red-200">
+            Connect a wallet holding The Damned to descend into the abyss.
+          </p>
+        </div>
+      )}
     </div>
+  )
+}
+
+export default function AbyssPage() {
+  return (
+    <LaserEyesWrapper>
+      <AbyssContent />
+    </LaserEyesWrapper>
   )
 }
 
