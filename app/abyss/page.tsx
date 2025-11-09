@@ -378,8 +378,8 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
         showMusicControls={false}
       />
 
-      {/* Burn Counter + Warnings */}
-      <div className="absolute top-28 left-6 z-30 flex w-[18rem] flex-col gap-4">
+      {/* Burn Counter + Warnings + Audio */}
+      <div className="absolute bottom-10 left-6 z-30 flex w-[18rem] flex-col gap-4">
         <div className="rounded-lg border border-red-700 bg-black/80 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur-sm">
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
           <div className="mt-2 flex items-end gap-3">
@@ -409,69 +409,70 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
             No Return Beyond This Edge
           </div>
         </div>
-      </div>
 
-      {/* Audio Controls */}
-      <div className="absolute top-4 right-4 z-30 flex flex-col items-center gap-3 rounded-lg border-2 border-red-600/50 bg-black/40 px-3 py-3">
-        <button
-          onClick={() => {
-            if (!audioRef.current) return
-            if (audioRef.current.paused) {
-              audioRef.current
-                .play()
-                .then(() => setIsPlaying(true))
-                .catch((error) => console.error('Audio play failed:', error))
-            } else {
-              audioRef.current.pause()
-              setIsPlaying(false)
-            }
-          }}
-          className="text-red-600 transition-colors hover:text-red-500"
-          aria-label="Play/Pause"
-        >
-          {!isPlaying ? (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ) : (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          )}
-        </button>
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className="text-red-600 transition-colors hover:text-red-500"
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-            </svg>
-          ) : (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-            </svg>
-          )}
-        </button>
-        <div className="flex items-center gap-3 text-xs font-mono text-red-500">
-          <button
-            onClick={() => handleVolumeAdjust(-5)}
-            className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
-            disabled={isMuted}
-          >
-            −
-          </button>
-          <span className="min-w-[52px] text-center text-red-400">{isMuted ? 'MUTED' : `${volume}%`}</span>
-          <button
-            onClick={() => handleVolumeAdjust(5)}
-            className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
-            disabled={isMuted}
-          >
-            +
-          </button>
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-red-600/50 bg-black/45 px-3 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (!audioRef.current) return
+                if (audioRef.current.paused) {
+                  audioRef.current
+                    .play()
+                    .then(() => setIsPlaying(true))
+                    .catch((error) => console.error('Audio play failed:', error))
+                } else {
+                  audioRef.current.pause()
+                  setIsPlaying(false)
+                }
+              }}
+              className="text-red-500 transition-colors hover:text-red-400"
+              aria-label="Play/Pause"
+            >
+              {!isPlaying ? (
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="text-red-500 transition-colors hover:text-red-400"
+              aria-label={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? (
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                </svg>
+              ) : (
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-mono text-red-500">
+            <button
+              onClick={() => handleVolumeAdjust(-5)}
+              className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
+              disabled={isMuted}
+            >
+              −
+            </button>
+            <span className="min-w-[52px] text-center text-red-400">{isMuted ? 'MUTED' : `${volume}%`}</span>
+            <button
+              onClick={() => handleVolumeAdjust(5)}
+              className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
+              disabled={isMuted}
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
 
