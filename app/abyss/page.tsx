@@ -33,6 +33,7 @@ const walkers: Walker[] = [
   { key: 'damned-6', src: '/fallguy6.png', duration: 7.7, flip: true },
   { key: 'damned-7', src: '/fullguy7.png', duration: 7.5 },
   { key: 'damned-8', src: '/fullguy8.png', duration: 7.5 },
+  { key: 'damned-9', src: '/fullguy9.png', duration: 7.4 },
 ]
 
 const BASE_LEFT_PERCENT = 72
