@@ -37,9 +37,12 @@ const walkers: Walker[] = [
 
 const BASE_LEFT_PERCENT = 72
 const BASE_TOP_PERCENT = 110
-const HORIZONTAL_JITTER_PERCENT = 15
+const HORIZONTAL_JITTER_PERCENT = 18
+const HORIZONTAL_JITTER_FALLOFF_STEP = 20
+const HORIZONTAL_JITTER_REDUCTION = 0.5
+const MIN_HORIZONTAL_JITTER_PERCENT = 8
 const VERTICAL_STEP_PERCENT = 0.5
-const ROTATION_VARIANCE_DEGREES = 25
+const ROTATION_VARIANCE_DEGREES = 30
 
 export default function AbyssPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -252,8 +255,9 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     let impactTop = BASE_TOP_PERCENT
     setFallenPile((prev) => {
       const index = prev.length
-      const left =
-        BASE_LEFT_PERCENT + (Math.random() * 2 - 1) * HORIZONTAL_JITTER_PERCENT
+      const jitterReduction = Math.floor(index / HORIZONTAL_JITTER_FALLOFF_STEP) * HORIZONTAL_JITTER_REDUCTION
+      const jitter = Math.max(MIN_HORIZONTAL_JITTER_PERCENT, HORIZONTAL_JITTER_PERCENT - jitterReduction)
+      const left = BASE_LEFT_PERCENT + (Math.random() * 2 - 1) * jitter
       const top = BASE_TOP_PERCENT - index * VERTICAL_STEP_PERCENT
       impactLeft = left
       impactTop = top
