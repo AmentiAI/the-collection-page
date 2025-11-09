@@ -147,7 +147,7 @@ export default function Header({
                                  
       </div>
       <div className="flex justify-center items-center gap-4 mt-2 flex-wrap">
-        <p className="text-base text-[#ff6b6b] uppercase tracking-wide">Ordinals Collection</p>
+     
         <WalletConnect 
           onHolderVerified={onHolderVerified}
           onVerifyingStart={onVerifyingStart}
