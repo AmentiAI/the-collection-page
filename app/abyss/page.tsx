@@ -20,10 +20,20 @@ type FallenCharacter = {
   rotation: number
 }
 
+type Placement = {
+  left: number
+  top: number
+  rotation: number
+}
+
 type ActiveWalker = {
   id: string
   walker: Walker
   slashTimeoutId?: number
+  burstTimeoutId?: number
+  plannedPlacement?: Placement
+  plannedIndex?: number
+  burstTriggered?: boolean
 }
 
 const walkers: Walker[] = [
@@ -67,6 +77,16 @@ function AbyssContent() {
   const [isVerifying, setIsVerifying] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const audioSrc = '/music/abyss.mp3'
+  const fallenPileRef = useRef(0)
+
+  const calculatePlacement = useCallback((index: number): Placement => {
+    const jitterReduction = Math.floor(index / HORIZONTAL_JITTER_FALLOFF_STEP) * HORIZONTAL_JITTER_REDUCTION
+    const jitter = Math.max(MIN_HORIZONTAL_JITTER_PERCENT, HORIZONTAL_JITTER_PERCENT - jitterReduction)
+    const left = BASE_LEFT_PERCENT + (Math.random() * 2 - 1) * jitter
+    const top = BASE_TOP_PERCENT - index * VERTICAL_STEP_PERCENT
+    const rotation = 84 + (Math.random() * 2 - 1) * ROTATION_VARIANCE_DEGREES
+    return { left, top, rotation }
+  }, [])
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -286,32 +306,35 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     })
   }, [])
 
-  const handleWalkerFall = useCallback((walker: Walker) => {
-    let impactLeft = BASE_LEFT_PERCENT
-    let impactTop = BASE_TOP_PERCENT
-    setFallenPile((prev) => {
-      const index = prev.length
-      const jitterReduction = Math.floor(index / HORIZONTAL_JITTER_FALLOFF_STEP) * HORIZONTAL_JITTER_REDUCTION
-      const jitter = Math.max(MIN_HORIZONTAL_JITTER_PERCENT, HORIZONTAL_JITTER_PERCENT - jitterReduction)
-      const left = BASE_LEFT_PERCENT + (Math.random() * 2 - 1) * jitter
-      const top = BASE_TOP_PERCENT - index * VERTICAL_STEP_PERCENT
-      impactLeft = left
-      impactTop = top
-      const rotation =
-        84 + (Math.random() * 2 - 1) * ROTATION_VARIANCE_DEGREES
+  const handleWalkerFall = useCallback(
+    (active: ActiveWalker) => {
+      let impactLeft = BASE_LEFT_PERCENT
+      let impactTop = BASE_TOP_PERCENT
+      setFallenPile((prev) => {
+        const index = prev.length
+        let placement = active.plannedPlacement
+        if (!placement || active.plannedIndex !== index) {
+          placement = calculatePlacement(index)
+        }
+        impactLeft = placement.left
+        impactTop = placement.top
 
-      const entry: FallenCharacter = {
-        id: `${walker.key}-${Date.now()}-${index}`,
-        src: walker.src,
-        top,
-        left,
-        rotation,
+        const entry: FallenCharacter = {
+          id: `${active.walker.key}-${Date.now()}-${index}`,
+          src: active.walker.src,
+          top: placement.top,
+          left: placement.left,
+          rotation: placement.rotation,
+        }
+
+        return [...prev, entry]
+      })
+      if (!active.burstTriggered) {
+        emitBurstRef.current?.(impactLeft, impactTop)
       }
-
-      return [...prev, entry]
-    })
-    emitBurstRef.current?.(impactLeft, impactTop)
-  }, [])
+    },
+    [calculatePlacement],
+  )
 
   const walkerIndexRef = useRef(0)
   const SPAWN_SLASH_RATIO = 0.92
@@ -322,15 +345,36 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     const id = `${walker.key}-${Date.now()}-${Math.random()}`
     const impactDelayMs = Math.max(0, walker.duration * SPAWN_SLASH_RATIO * 1000)
     const slashTimeoutId = window.setTimeout(() => playSlash(), impactDelayMs)
-    setActiveWalkers((prev) => [...prev, { id, walker, slashTimeoutId }])
-  }, [playSlash])
+    const burstDelayMs = Math.max(0, impactDelayMs - 500)
+    const burstTimeoutId = window.setTimeout(() => {
+      const index = fallenPileRef.current
+      const placement = calculatePlacement(index)
+      emitBurstRef.current?.(placement.left, placement.top)
+      setActiveWalkers((prev) =>
+        prev.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                plannedPlacement: placement,
+                plannedIndex: index,
+                burstTriggered: true,
+              }
+            : entry,
+        ),
+      )
+    }, burstDelayMs)
+    setActiveWalkers((prev) => [...prev, { id, walker, slashTimeoutId, burstTimeoutId }])
+  }, [calculatePlacement, playSlash])
 
   const handleAnimationEnd = useCallback(
     (active: ActiveWalker) => {
       if (typeof active.slashTimeoutId === 'number') {
         window.clearTimeout(active.slashTimeoutId)
       }
-      handleWalkerFall(active.walker)
+      if (typeof active.burstTimeoutId === 'number') {
+        window.clearTimeout(active.burstTimeoutId)
+      }
+      handleWalkerFall(active)
       setActiveWalkers((prev) => prev.filter((entry) => entry.id !== active.id))
     },
     [handleWalkerFall],
@@ -350,6 +394,9 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
   const progressPercent = Math.min(100, (fallenCount / totalDamned) * 100)
   const remaining = Math.max(0, totalDamned - fallenCount)
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
+  useEffect(() => {
+    fallenPileRef.current = fallenPile.length
+  }, [fallenPile.length])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black">
