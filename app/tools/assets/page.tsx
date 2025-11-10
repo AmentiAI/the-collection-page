@@ -80,8 +80,6 @@ const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
 const MAX_INSCRIPTION_SELECTION = 20
 const MIN_PAYMENT_INPUT_SATS = 600
-const ABYSS_BURN_ADDRESS = 'bc1qmfuv6axyvn7zhy2r8y0gu2np4dknrwxupld6jc'
-const DAMNED_COLLECTION_SLUG = 'the-damned'
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -205,19 +203,17 @@ export default function AssetsPage() {
         onMusicMutedChange={setIsMusicMuted}
       />
       <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
-      <AssetsPageContent isHolder={isHolder} isVerifying={isVerifying} />
+      <AssetsPageContent isHolder={isHolder} />
     </LaserEyesWrapper>
   )
 }
 
 interface AssetsPageContentProps {
   isHolder?: boolean
-  isVerifying?: boolean
 }
 
-function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
+function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const holderAllowed = isHolder === true
-  const verifying = Boolean(isVerifying)
   const toast = useToast()
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{
@@ -254,14 +250,6 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
   const [previewMetadata, setPreviewMetadata] = useState<OrdinalContentMetadata | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
-
-  const [burnModalType, setBurnModalType] = useState<'inscription' | 'payment' | null>(null)
-  const [burnInscription, setBurnInscription] = useState<InscriptionUtxo | null>(null)
-  const [burnPaymentUtxo, setBurnPaymentUtxo] =
-    useState<CategorisedWalletAssets['spendable'][number] | null>(null)
-  const [burnState, setBurnState] = useState<'idle' | 'working' | 'success'>('idle')
-  const [burnTxid, setBurnTxid] = useState<string | null>(null)
-  const [burnError, setBurnError] = useState<string | null>(null)
 
   const lastFetchedRef = useRef<{ ordinal: string | null; payment: string | null }>({
     ordinal: null,
@@ -640,30 +628,6 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
     }
   }, [ordinalAddress, ordinalInscriptionIds])
 
-  const damnedInscriptions = useMemo(() => {
-    const inscriptions = ordinalAssets?.inscriptions ?? []
-    return inscriptions.filter((utxo) => {
-      const primaryId = utxo.inscriptions?.[0]
-      if (!primaryId) return false
-      const meta = inscriptionMetadataMap[primaryId]
-      const symbol = meta?.collectionSymbol?.toLowerCase()
-      const name = meta?.collectionName?.toLowerCase()
-      if (symbol && symbol === DAMNED_COLLECTION_SLUG) return true
-      if (name && name.includes('the damned')) return true
-      return false
-    })
-  }, [ordinalAssets?.inscriptions, inscriptionMetadataMap])
-
-  const burnInscriptionMeta = useMemo(() => {
-    if (!burnInscription) return null
-    const primaryId = burnInscription.inscriptions?.[0]
-    if (!primaryId) return null
-    return inscriptionMetadataMap[primaryId] ?? null
-  }, [burnInscription, inscriptionMetadataMap])
-
-  const burnReady = Boolean(burnInscription && burnPaymentUtxo && holderAllowed && !verifying)
-  const burnBusy = burnState === 'working'
-
   const handlePreview = useCallback((inscriptionId: string) => {
     setPreviewInscription(inscriptionId)
     setPreviewMetadata(null)
@@ -772,24 +736,6 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
       .filter((utxo) => utxo.value > MIN_PAYMENT_INPUT_SATS)
       .sort((a, b) => b.value - a.value)
   }, [paymentAssets?.spendable])
-
-  useEffect(() => {
-    if (!burnInscription) return
-    const exists = (ordinalAssets?.inscriptions ?? []).some(
-      (utxo) => utxo.outpoint === burnInscription.outpoint,
-    )
-    if (!exists) {
-      setBurnInscription(null)
-    }
-  }, [burnInscription, ordinalAssets?.inscriptions])
-
-  useEffect(() => {
-    if (!burnPaymentUtxo) return
-    const exists = spendableSorted.some((utxo) => utxo.outpoint === burnPaymentUtxo.outpoint)
-    if (!exists) {
-      setBurnPaymentUtxo(null)
-    }
-  }, [burnPaymentUtxo, spendableSorted])
 
   useEffect(() => {
     let cancelled = false
@@ -1195,112 +1141,6 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
     setPickerType(null)
   }, [])
 
-  const openBurnModal = useCallback(
-    (type: 'inscription' | 'payment') => {
-      if (!holderAllowed) {
-        toast.error('Holder access required to burn an ordinal.')
-        return
-      }
-      if (!isConnected) {
-        toast.error('Connect your wallet first.')
-        return
-      }
-      if (verifying) {
-        toast.error('Finish holder verification before burning.')
-        return
-      }
-      setBurnModalType(type)
-    },
-    [holderAllowed, isConnected, verifying, toast],
-  )
-
-  const closeBurnModal = useCallback(() => {
-    setBurnModalType(null)
-  }, [])
-
-  const handleAbyssBurn = useCallback(async () => {
-    if (!holderAllowed) {
-      toast.error('Holder access required to burn an ordinal.')
-      return
-    }
-    if (!isConnected) {
-      toast.error('Connect your wallet first.')
-      return
-    }
-    if (verifying) {
-      toast.error('Finish holder verification before burning.')
-      return
-    }
-    if (!burnInscription) {
-      toast.error('Select a Damned ordinal to burn.')
-      return
-    }
-    if (!burnPaymentUtxo) {
-      toast.error('Select a payment UTXO to cover fees.')
-      return
-    }
-    if (!paymentAddress) {
-      toast.error('Payment address required to return change.')
-      return
-    }
-
-    const feeRateValue = 1
-    const inscriptionInput: SelectedAsset = {
-      category: 'inscriptions',
-      outpoint: burnInscription.outpoint,
-      txid: burnInscription.txid,
-      vout: burnInscription.vout,
-      value: burnInscription.value,
-      height: burnInscription.height,
-      inscriptions: burnInscription.inscriptions,
-      autoPayment: false,
-    }
-
-    const paymentInput: SelectedAsset = {
-      category: 'spendable',
-      outpoint: burnPaymentUtxo.outpoint,
-      txid: burnPaymentUtxo.txid,
-      vout: burnPaymentUtxo.vout,
-      value: burnPaymentUtxo.value,
-      height: burnPaymentUtxo.height,
-      autoPayment: false,
-    }
-
-    const outputs = [
-      {
-        address: ABYSS_BURN_ADDRESS,
-        amount: burnInscription.value,
-      },
-    ]
-
-    setBurnState('working')
-    setBurnError(null)
-    setBurnTxid(null)
-
-    try {
-      const { plan, error } = computePlan([inscriptionInput, paymentInput], outputs, feeRateValue)
-      if (!plan || error) {
-        throw new Error(error ?? 'Unable to prepare burn transaction.')
-      }
-
-      const { psbt } = await requestPsbt(plan)
-      const { txid } = await signAndBroadcastPsbt(psbt, plan.feeRate)
-
-      setBurnTxid(txid)
-      setBurnState('success')
-      setBurnInscription(null)
-      setBurnPaymentUtxo(null)
-      toast.success(`Burned to the abyss. TX ${txid.slice(0, 6)}…${txid.slice(-6)}`)
-      void handleRefresh()
-    } catch (error) {
-      console.error('Abyss burn failed', error)
-      const message = error instanceof Error ? error.message : 'Burn failed'
-      setBurnError(message)
-      setBurnState('idle')
-      toast.error(message)
-    }
-  }, [holderAllowed, isConnected, verifying, burnInscription, burnPaymentUtxo, paymentAddress, computePlan, requestPsbt, signAndBroadcastPsbt, toast, handleRefresh])
-
   const handlePickerPageChange = useCallback((type: AssetTabKey, nextPage: number) => {
     setPickerPage((prev) => ({ ...prev, [type]: nextPage }))
   }, [])
@@ -1559,167 +1399,6 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
 
         {/* Asset selection handled via modal pickers */}
 
-
-        <section className="space-y-4 rounded-3xl border border-red-500/40 bg-red-950/20 p-6 md:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-extrabold uppercase tracking-[0.4em] text-red-100">
-              Abyss Burn Shortcut
-            </h2>
-            <span className="rounded-full border border-red-500/40 bg-red-900/30 px-3 py-1 text-xs font-mono uppercase tracking-[0.3em] text-red-200">
-              1 sat/vB sacrifice
-            </span>
-          </div>
-
-          <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">
-            Select a single Damned ordinal and a funding UTXO to send it straight into the abyss address
-            at 1 sat/vB. Change returns to your payment wallet automatically.
-          </p>
-
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-3 rounded-2xl border border-red-500/30 bg-black/40 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.35em] text-red-100">
-                  Damned Ordinal
-                </h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openBurnModal('inscription')}
-                  className="border-red-500/50 bg-red-900/20 text-red-200 hover:bg-red-900/30"
-                  disabled={damnedInscriptions.length === 0 || burnBusy}
-                >
-                  {burnInscription ? 'Change' : 'Select'}
-                </Button>
-              </div>
-              {damnedInscriptions.length === 0 && (
-                <div className="rounded-lg border border-red-500/40 bg-red-900/20 p-3 text-xs uppercase tracking-[0.3em] text-red-200/80">
-                  No The Damned ordinals detected on this address.
-                </div>
-              )}
-              {burnInscription ? (
-                <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-950/30 p-3">
-                  <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    <span>{truncateMiddle(burnInscription.outpoint, 24)}</span>
-                    <span>{formatSats(burnInscription.value)}</span>
-                  </div>
-                  {burnInscriptionMeta && (
-                    <div className="space-y-1 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200/80">
-                      {burnInscriptionMeta.name && <div className="truncate">{burnInscriptionMeta.name}</div>}
-                      {(burnInscriptionMeta.collectionName || burnInscriptionMeta.collectionSymbol) && (
-                        <div className="truncate text-amber-100/70">
-                          {burnInscriptionMeta.collectionName ?? 'Collection'}
-                          {burnInscriptionMeta.collectionSymbol ? ` · ${burnInscriptionMeta.collectionSymbol}` : ''}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-300/80">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const primaryId = burnInscription.inscriptions?.[0]
-                        if (primaryId) {
-                          handlePreview(primaryId)
-                          closeBurnModal()
-                        }
-                      }}
-                      className="h-7 border-red-500/40 px-3 text-red-300 hover:bg-red-900/40"
-                      disabled={!burnInscription.inscriptions?.[0]}
-                    >
-                      Preview
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setBurnInscription(null)}
-                      className="h-7 border-red-500/40 px-3 text-red-300 hover:bg-red-900/40"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="space-y-3 rounded-2xl border border-red-500/30 bg-black/40 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.35em] text-red-100">
-                  Payment UTXO
-                </h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openBurnModal('payment')}
-                  className="border-red-500/50 bg-red-900/20 text-red-200 hover:bg-red-900/30"
-                  disabled={spendableSorted.length === 0 || burnBusy}
-                >
-                  {burnPaymentUtxo ? 'Change' : 'Select'}
-                </Button>
-              </div>
-              {spendableSorted.length === 0 && (
-                <div className="rounded-lg border border-red-500/40 bg-red-900/20 p-3 text-xs uppercase tracking-[0.3em] text-red-200/80">
-                  No spendable payment UTXOs available in the payment wallet.
-                </div>
-              )}
-              {burnPaymentUtxo ? (
-                <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                  <div className="flex items-center justify-between">
-                    <span>{truncateMiddle(burnPaymentUtxo.outpoint, 24)}</span>
-                    <span>{formatSats(burnPaymentUtxo.value)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-red-300/80">
-                    <span>Height</span>
-                    <span>{burnPaymentUtxo.height ?? '—'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-300/80">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setBurnPaymentUtxo(null)}
-                      className="h-7 border-red-500/40 px-3 text-red-300 hover:bg-red-900/40"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {burnError && (
-              <div className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-xs text-red-200">
-                {burnError}
-              </div>
-            )}
-            {burnState === 'success' && burnTxid && (
-              <div className="rounded-lg border border-emerald-500/40 bg-emerald-900/30 p-3 text-xs text-emerald-200">
-                Burned to the abyss. TXID{' '}
-                <button
-                  type="button"
-                  onClick={() => window.open(`https://mempool.space/tx/${burnTxid}`, '_blank', 'noopener')}
-                  className="underline hover:text-emerald-100"
-                >
-                  {truncateMiddle(burnTxid, 26)}
-                </button>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                onClick={handleAbyssBurn}
-                className="bg-red-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-900/40"
-                disabled={!burnReady || burnBusy}
-              >
-                {burnBusy ? 'Burning…' : 'Burn to Abyss'}
-              </Button>
-              <span className="text-xs font-mono uppercase tracking-[0.3em] text-red-200/70">
-                Destination · {truncateMiddle(ABYSS_BURN_ADDRESS, 18)}
-              </span>
-            </div>
-          </div>
-        </section>
 
         <section className="space-y-5 rounded-3xl border border-red-500/40 bg-red-950/20 p-6 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2049,209 +1728,8 @@ function AssetsPageContent({ isHolder, isVerifying }: AssetsPageContentProps) {
             onPreview={handlePreview}
           />
         )}
-
-        {burnModalType === 'inscription' && (
-          <BurnInscriptionModal
-            inscriptions={damnedInscriptions}
-            metadata={inscriptionMetadataMap}
-            onSelect={(utxo) => {
-              setBurnInscription(utxo)
-              closeBurnModal()
-            }}
-            onPreview={handlePreview}
-            onClose={closeBurnModal}
-          />
-        )}
-
-        {burnModalType === 'payment' && (
-          <BurnPaymentModal
-            utxos={spendableSorted}
-            onSelect={(utxo) => {
-              setBurnPaymentUtxo(utxo)
-              closeBurnModal()
-            }}
-            onClose={closeBurnModal}
-          />
-        )}
       </div>
     </main>
-  )
-}
-
-function BurnInscriptionModal({
-  inscriptions,
-  metadata,
-  onSelect,
-  onPreview,
-  onClose,
-}: {
-  inscriptions: InscriptionUtxo[]
-  metadata: Record<string, MagicEdenMetadata>
-  onSelect: (utxo: InscriptionUtxo) => void
-  onPreview: (id: string) => void
-  onClose: () => void
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/85 px-4 py-6 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative flex w-full max-w-4xl flex-col gap-4 rounded-3xl border border-red-500/40 bg-black/92 p-6 shadow-[0_0_60px_rgba(248,113,113,0.2)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-100">
-              Select Damned Ordinal
-            </h3>
-            <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-200/70">
-              {inscriptions.length} eligible · collection slug {DAMNED_COLLECTION_SLUG}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            className="border-red-500/40 bg-red-900/20 text-red-200 hover:bg-red-900/30"
-          >
-            Close
-          </Button>
-        </div>
-
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-          {inscriptions.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
-              No ordinals from The Damned collection detected for this wallet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
-              {inscriptions.map((utxo) => {
-                const primaryId = utxo.inscriptions[0]
-                const meta = primaryId ? metadata[primaryId] : undefined
-                return (
-                  <button
-                    key={utxo.outpoint}
-                    type="button"
-                    onClick={() => onSelect(utxo)}
-                    className="flex flex-col gap-3 rounded-2xl border border-red-500/30 bg-black/50 p-4 text-left transition hover:border-red-400/60 hover:bg-red-950/30"
-                  >
-                    {primaryId ? (
-                      <InscriptionPreviewPanel inscriptionId={primaryId} size={140} interactive={false} />
-                    ) : (
-                      <div className="flex h-[140px] w-full items-center justify-center rounded-xl border border-amber-500/30 bg-black/40 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-100">
-                        No preview
-                      </div>
-                    )}
-                    <div className="space-y-1 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100">
-                      <div className="truncate text-red-200">{truncateMiddle(utxo.outpoint, 28)}</div>
-                      <div className="flex items-center justify-between text-red-300/80">
-                        <span>{formatSats(utxo.value)}</span>
-                        <span>Height {utxo.height ?? '—'}</span>
-                      </div>
-                      {meta && (
-                        <div className="space-y-0.5 text-amber-200/80">
-                          {meta.name && <div className="truncate text-amber-100">{meta.name}</div>}
-                          {(meta.collectionName || meta.collectionSymbol) && (
-                            <div className="truncate text-amber-100/70">
-                              {meta.collectionName ?? 'Collection'}
-                              {meta.collectionSymbol ? ` · ${meta.collectionSymbol}` : ''}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-red-300/80">
-                      <span>{utxo.inscriptions.length} inscription</span>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          if (primaryId) {
-                            onPreview(primaryId)
-                          }
-                        }}
-                        className="rounded-full border border-red-500/40 px-2 py-0.5 text-red-200 transition hover:bg-red-900/40"
-                        disabled={!primaryId}
-                      >
-                        Preview
-                      </button>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BurnPaymentModal({
-  utxos,
-  onSelect,
-  onClose,
-}: {
-  utxos: CategorisedWalletAssets['spendable'][number][]
-  onSelect: (utxo: CategorisedWalletAssets['spendable'][number]) => void
-  onClose: () => void
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/85 px-4 py-6 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-red-500/40 bg-black/92 p-6 shadow-[0_0_60px_rgba(248,113,113,0.2)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-100">
-              Select Payment UTXO
-            </h3>
-            <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-200/70">
-              Choose a spendable input to cover fees and change.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            className="border-red-500/40 bg-red-900/20 text-red-200 hover:bg-red-900/30"
-          >
-            Close
-          </Button>
-        </div>
-
-        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-          {utxos.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
-              No payment UTXOs available.
-            </div>
-          ) : (
-            utxos.map((utxo) => (
-              <button
-                key={utxo.outpoint}
-                type="button"
-                onClick={() => onSelect(utxo)}
-                className="flex w-full items-center justify-between rounded-2xl border border-red-500/30 bg-black/40 p-4 text-left transition hover:border-red-400/60 hover:bg-red-950/30"
-              >
-                <div className="space-y-1 text-[11px] font-mono uppercase tracking-[0.3em] text-red-100">
-                  <div className="truncate text-red-200">{truncateMiddle(utxo.outpoint, 34)}</div>
-                  <div className="flex items-center gap-3 text-red-300/80">
-                    <span>{formatSats(utxo.value)}</span>
-                    <span>Height {utxo.height ?? '—'}</span>
-                  </div>
-                </div>
-                <div className="text-xs uppercase tracking-[0.3em] text-red-200/70">Select</div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
   )
 }
 
