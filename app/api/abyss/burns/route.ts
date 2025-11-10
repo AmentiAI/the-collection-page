@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
           FROM abyss_burns
           GROUP BY ordinal_wallet, payment_wallet
           ORDER BY confirmed DESC, total DESC
-          LIMIT 50
+          LIMIT ${ABYSS_CAP}
         `,
       )
       leaderboard = leaderboardResult.rows.map((row) => ({

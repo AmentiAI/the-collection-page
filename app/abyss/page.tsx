@@ -1155,9 +1155,12 @@ function AbyssContent() {
   const playSlash = useCallback(() => {
     const slash = slashAudioRef.current
     if (slash) {
+      if (slash.readyState === 0) {
+        slash.load()
+      }
       slash.currentTime = 0
       const promise = slash.play()
-      if (promise) {
+      if (promise && typeof promise.catch === 'function') {
         promise.catch((error) => console.error('Slash audio play failed:', error))
       }
     }
@@ -1521,7 +1524,16 @@ function AbyssContent() {
           }
         }}
       />
-      <audio ref={slashAudioRef} src="/music/slash.mp3" preload="auto" />
+      <audio
+        ref={slashAudioRef}
+        preload="auto"
+        onError={(event) => {
+          const error = event.currentTarget.error
+          console.error('Slash audio failed to load', error)
+        }}
+      >
+        <source src="/music/slash.mp3" type="audio/mpeg" />
+      </audio>
 
       <Header
         isHolder={isHolder}
