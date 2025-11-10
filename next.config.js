@@ -2,6 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'ord-mirror.magiceden.dev',
+      },
+    ],
+  },
   experimental: {
     serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react', 'pg'],                                            
   },

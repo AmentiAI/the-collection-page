@@ -3,7 +3,15 @@
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
-import { CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/Toast'
+import { InscriptionService } from '@/services/inscription-service'
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLaserEyes } from '@omnisat/lasereyes'
+import { useWallet } from '@/lib/wallet/compatibility'
+import type { BaseUtxo, InscriptionUtxo } from '@/lib/sandshrew'
+import { Loader2, CheckCircle } from 'lucide-react'
 
 type Walker = {
   key: string
@@ -36,6 +44,42 @@ type ActiveWalker = {
   burstTriggered?: boolean
 }
 
+type DamnedOption = InscriptionUtxo & {
+  inscriptionId: string
+  name?: string
+  image?: string
+  confirmed: boolean
+}
+
+type PendingBurnRecord = {
+  txId: string
+  inscriptionId: string
+  ordinalWallet: string
+  paymentWallet: string
+  status: string
+  updatedAt?: string | null
+  confirmedAt?: string | null
+}
+
+type CooldownState = {
+  active: boolean
+  remainingMs: number
+  nextEligibleAt: string | null
+  lastEventAt: string | null
+  source: 'ordinal' | 'payment' | 'either' | null
+}
+
+type ReservedUtxoEntry = {
+  outpoint: string
+  kind: 'ordinal' | 'payment'
+  expiresAt: number
+}
+
+type PendingBurnData = {
+  records: PendingBurnRecord[]
+  cooldown: CooldownState | null
+}
+
 const walkers: Walker[] = [
   { key: 'damned-1', src: '/fullguy1.png', duration: 7.4 },
   { key: 'damned-2', src: '/fullguy2.png', duration: 7.8, flip: true },
@@ -60,18 +104,139 @@ const HORIZONTAL_JITTER_REDUCTION = 0.8
 const MIN_HORIZONTAL_JITTER_PERCENT = 1
 const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
+const TOTAL_ABYSS_CAP = 333
+const BURN_STATUS_CHECK_INTERVAL_MS = 20_000
+const BURN_COOLDOWN_MS = 30 * 60 * 1_000
+const RESERVED_STORAGE_KEY = 'abyss-reserved-utxos'
+
+const AVERAGE_TAPROOT_INPUT_VBYTES = 58
+const AVERAGE_OUTPUT_VBYTES = 43
+const TX_OVERHEAD_VBYTES = 10
+
+function estimateVsize(inputCount: number, outputCount: number) {
+  return inputCount * AVERAGE_TAPROOT_INPUT_VBYTES + outputCount * AVERAGE_OUTPUT_VBYTES + TX_OVERHEAD_VBYTES
+}
+
+const FEE_RATE_SAT_VB = 1
+const FEE_BUFFER_SATS = 6
+const DUST_THRESHOLD = 546
+const MIN_PAYMENT_INPUT_SATS = 1100
+const BURN_INPUT_COUNT = 2
+const BURN_OUTPUT_COUNT = 2
+const BURN_TX_VSIZE = estimateVsize(BURN_INPUT_COUNT, BURN_OUTPUT_COUNT)
+const MIN_FEE_SATS = Math.ceil(BURN_TX_VSIZE * FEE_RATE_SAT_VB) + FEE_BUFFER_SATS
 
 const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
   ssr: false,
   loading: () => null,
 })
 
+function readReservedUtxos(): ReservedUtxoEntry[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const raw = window.localStorage.getItem(RESERVED_STORAGE_KEY)
+  if (!raw) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null
+        }
+        const outpoint = typeof entry.outpoint === 'string' ? entry.outpoint : ''
+        const kind = entry.kind === 'ordinal' || entry.kind === 'payment' ? entry.kind : null
+        const expiresAt = typeof entry.expiresAt === 'number' ? entry.expiresAt : Number(entry.expiresAt ?? 0)
+        if (!outpoint || !kind || !Number.isFinite(expiresAt)) {
+          return null
+        }
+        return { outpoint, kind, expiresAt } satisfies ReservedUtxoEntry
+      })
+      .filter((entry): entry is ReservedUtxoEntry => Boolean(entry))
+  } catch (error) {
+    console.warn('Failed to parse reserved abyss UTXOs from storage:', error)
+    window.localStorage.removeItem(RESERVED_STORAGE_KEY)
+    return []
+  }
+}
+
+function writeReservedUtxos(entries: ReservedUtxoEntry[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    window.localStorage.setItem(RESERVED_STORAGE_KEY, JSON.stringify(entries))
+  } catch (error) {
+    console.warn('Failed to persist reserved abyss UTXOs to storage:', error)
+  }
+}
+
+function pruneReservedUtxos(entries: ReservedUtxoEntry[], now: number): ReservedUtxoEntry[] {
+  return entries.filter((entry) => entry.expiresAt > now)
+}
+
+function reserveUtxo(outpoint: string, kind: ReservedUtxoEntry['kind'], durationMs = BURN_COOLDOWN_MS) {
+  if (typeof window === 'undefined' || !outpoint) {
+    return
+  }
+
+  const now = Date.now()
+  const expiresAt = now + durationMs
+  const existing = pruneReservedUtxos(readReservedUtxos(), now).filter(
+    (entry) => !(entry.outpoint === outpoint && entry.kind === kind),
+  )
+  existing.push({ outpoint, kind, expiresAt })
+  writeReservedUtxos(existing)
+}
+
+function isUtxoReserved(outpoint: string, kind: ReservedUtxoEntry['kind'], now = Date.now()): boolean {
+  if (!outpoint) {
+    return false
+  }
+  const entries = pruneReservedUtxos(readReservedUtxos(), now)
+  if (entries.length === 0) {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(RESERVED_STORAGE_KEY)
+    }
+    return false
+  }
+  writeReservedUtxos(entries)
+  return entries.some((entry) => entry.outpoint === outpoint && entry.kind === kind)
+}
+
+function getReservedUtxoSet(kind: ReservedUtxoEntry['kind'], now = Date.now()): Set<string> {
+  const pruned = pruneReservedUtxos(readReservedUtxos(), now)
+  if (typeof window !== 'undefined') {
+    if (pruned.length === 0) {
+      window.localStorage.removeItem(RESERVED_STORAGE_KEY)
+    } else {
+      writeReservedUtxos(pruned)
+    }
+  }
+  return new Set(pruned.filter((entry) => entry.kind === kind).map((entry) => entry.outpoint))
+}
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+}
+
 function AbyssContent() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const slashAudioRef = useRef<HTMLAudioElement>(null)
   const [showEntryModal, setShowEntryModal] = useState(true)
-  const [volume, setVolume] = useState(35)
+  const [volume, setVolume] = useState(25)
   const [isMuted, setIsMuted] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [fallenPile, setFallenPile] = useState<FallenCharacter[]>([])
@@ -79,6 +244,7 @@ function AbyssContent() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState(false)
+  const [burnConfirmOpen, setBurnConfirmOpen] = useState(false)
   const audioSrc = '/music/abyss.mp3'
   const fallenPileRef = useRef(0)
 
@@ -91,6 +257,81 @@ function AbyssContent() {
     return { left, top, rotation }
   }, [])
 
+  const wallet = useWallet()
+  const laserEyes = useLaserEyes() as Partial<{ paymentAddress: string; paymentPublicKey: string; publicKey: string }>
+  const toast = useToast()
+  const ordinalAddress = wallet.currentAddress?.trim() || ''
+
+  const [damnedOptions, setDamnedOptions] = useState<DamnedOption[]>([])
+  const [damnedLoading, setDamnedLoading] = useState(false)
+  const [damnedError, setDamnedError] = useState<string | null>(null)
+  const [assetsLoaded, setAssetsLoaded] = useState(false)
+  const [burnSummary, setBurnSummary] = useState<{ confirmed: number; total: number } | null>(null)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [selectedInscriptionId, setSelectedInscriptionId] = useState<string | null>(null)
+  const [paymentOptions, setPaymentOptions] = useState<BaseUtxo[]>([])
+  const [selectedPaymentOutpoint, setSelectedPaymentOutpoint] = useState<string | null>(null)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [paymentScanInitiated, setPaymentScanInitiated] = useState(false)
+  const [changeAddress, setChangeAddress] = useState('')
+  const changeAddressRef = useRef('')
+  const [burning, setBurning] = useState(false)
+  const [burnError, setBurnError] = useState<string | null>(null)
+  const [burnTxid, setBurnTxid] = useState<string | null>(null)
+  const [pendingBurnRecords, setPendingBurnRecords] = useState<PendingBurnRecord[]>([])
+  const [cooldownState, setCooldownState] = useState<CooldownState | null>(null)
+  const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0)
+  const [selectorOpen, setSelectorOpen] = useState(false)
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
+  const [leaderboard, setLeaderboard] = useState<
+    Array<{ ordinalWallet: string; paymentWallet: string; total: number; confirmed: number }>
+  >([])
+
+  const summarizeOrdinal = useCallback((address: string) => {
+    if (!address) return '—'
+    const trimmed = address.trim()
+    return trimmed.length <= 5 ? trimmed : trimmed.slice(-5)
+  }, [])
+  const selectedInscription = useMemo(
+    () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
+    [damnedOptions, selectedInscriptionId],
+  )
+  const selectedPayment = useMemo(
+    () => paymentOptions.find((option) => option.outpoint === selectedPaymentOutpoint) ?? null,
+    [paymentOptions, selectedPaymentOutpoint],
+  )
+  const burnStatusIntervalsRef = useRef<Map<string, number>>(new Map())
+  const pendingFetchKeyRef = useRef<string | null>(null)
+  const summaryPrefetchRef = useRef(false)
+
+  const stopPollingTx = useCallback((txId: string) => {
+    const normalized = txId.trim()
+    if (!normalized) return
+    const existing = burnStatusIntervalsRef.current.get(normalized)
+    if (existing !== undefined) {
+      window.clearInterval(existing)
+      burnStatusIntervalsRef.current.delete(normalized)
+    }
+  }, [])
+
+  const clearAllBurnPolling = useCallback(() => {
+    burnStatusIntervalsRef.current.forEach((intervalId) => {
+      window.clearInterval(intervalId)
+    })
+    burnStatusIntervalsRef.current.clear()
+  }, [])
+
+  useEffect(() => {
+    changeAddressRef.current = changeAddress.trim()
+  }, [changeAddress])
+
+  useEffect(() => {
+    const next = laserEyes.paymentAddress?.trim()
+    if (next && !changeAddress) {
+      setChangeAddress(next)
+    }
+  }, [laserEyes.paymentAddress, changeAddress])
+
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
     setIsVerifying(false)
@@ -100,13 +341,617 @@ function AbyssContent() {
     setIsVerifying(true)
   }, [])
 
-  const handleConnectedChange = useCallback((connected: boolean) => {
-    setIsWalletConnected(connected)
-    if (!connected) {
-      setIsHolder(undefined)
-      setIsVerifying(false)
+  const handleConnectedChange = useCallback(
+    (connected: boolean) => {
+      setIsWalletConnected(connected)
+      if (!connected) {
+        setIsHolder(undefined)
+        setIsVerifying(false)
+        setDamnedOptions([])
+        setPaymentOptions([])
+        setSelectedInscriptionId(null)
+        setSelectedPaymentOutpoint(null)
+        setPaymentError(null)
+        setAssetsLoaded(false)
+        setPaymentScanInitiated(false)
+        setPaymentLoading(false)
+        setPendingBurnRecords([])
+        setCooldownState(null)
+        setCooldownRemainingMs(0)
+        clearAllBurnPolling()
+        setBurnConfirmOpen(false)
+      }
+    },
+    [clearAllBurnPolling],
+  )
+
+  const fetchBurnSummary = useCallback(async () => {
+    try {
+      const response = await fetch('/api/abyss/burns', { cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error(`Summary request failed (${response.status})`)
+      }
+      const data = await response.json().catch(() => null)
+      if (data?.summary) {
+        setBurnSummary({
+          confirmed: Number(data.summary.confirmed ?? 0),
+          total: Number(data.summary.total ?? 0),
+        })
+      }
+      if (Array.isArray(data?.leaderboard)) {
+        const parsed = (data.leaderboard as Array<Record<string, unknown>>)
+          .map((entry) => ({
+            ordinalWallet: (entry?.ordinalWallet ?? '').toString(),
+            paymentWallet: (entry?.paymentWallet ?? '').toString(),
+            total: Number(entry?.total ?? 0),
+            confirmed: Number(entry?.confirmed ?? 0),
+            key: `${(entry?.ordinalWallet ?? '').toString()}|${(entry?.paymentWallet ?? '').toString()}`,
+          }))
+          .filter((entry) => entry.total > 0)
+        parsed.sort((a, b) => {
+          if (b.confirmed !== a.confirmed) return b.confirmed - a.confirmed
+          return b.total - a.total
+        })
+        setLeaderboard(
+          parsed.map(({ ordinalWallet, paymentWallet, total, confirmed }) => ({
+            ordinalWallet,
+            paymentWallet,
+            total,
+            confirmed,
+          })),
+        )
+      } else {
+        setLeaderboard([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch abyss burn summary:', error)
     }
   }, [])
+
+  const fetchPendingBurnRecords = useCallback(async (): Promise<PendingBurnData> => {
+    const ordinalWallet = ordinalAddress
+    const paymentWalletCandidate =
+      changeAddressRef.current?.trim() || laserEyes.paymentAddress?.trim() || ''
+
+    if (!ordinalWallet && !paymentWalletCandidate) {
+      return { records: [], cooldown: null }
+    }
+
+    const params = new URLSearchParams()
+    params.set('includePending', 'true')
+    params.set('includeCooldown', 'true')
+    params.set('includeLeaderboard', 'true')
+    if (ordinalWallet) {
+      params.set('ordinalWallet', ordinalWallet)
+    }
+    if (paymentWalletCandidate) {
+      params.set('paymentWallet', paymentWalletCandidate)
+    }
+
+    try {
+      const response = await fetch(`/api/abyss/burns?${params.toString()}`, { cache: 'no-store' })
+      if (!response.ok) {
+        if (response.status === 400) {
+          return { records: [], cooldown: null }
+        }
+        throw new Error(`Pending burns request failed (${response.status})`)
+      }
+
+      const data = await response.json().catch(() => null)
+      if (data?.summary) {
+        setBurnSummary({
+          confirmed: Number(data.summary.confirmed ?? 0),
+          total: Number(data.summary.total ?? 0),
+        })
+      }
+      if (Array.isArray(data?.leaderboard)) {
+        const parsedLeaderboard = (data.leaderboard as Array<Record<string, unknown>>)
+          .map((entry) => ({
+            ordinalWallet: (entry?.ordinalWallet ?? entry?.ordinal_wallet ?? '').toString(),
+            paymentWallet: (entry?.paymentWallet ?? entry?.payment_wallet ?? '').toString(),
+            total: Number(entry?.total ?? 0),
+            confirmed: Number(entry?.confirmed ?? 0),
+          }))
+          .filter((entry) => entry.total > 0)
+
+        parsedLeaderboard.sort((a, b) => {
+          if (b.confirmed !== a.confirmed) return b.confirmed - a.confirmed
+          return b.total - a.total
+        })
+
+        setLeaderboard(parsedLeaderboard)
+      }
+
+      const pending = Array.isArray(data?.pending) ? data.pending : []
+
+      const normalized = pending
+        .map((entry: Record<string, unknown>) => {
+          const txId = (entry?.txId ?? entry?.tx_id ?? '').toString().trim()
+          const inscriptionId = (entry?.inscriptionId ?? entry?.inscription_id ?? '').toString().trim()
+          if (!txId || !inscriptionId) {
+            return null
+          }
+
+          return {
+            txId,
+            inscriptionId,
+            ordinalWallet: (entry?.ordinalWallet ?? entry?.ordinal_wallet ?? '').toString(),
+            paymentWallet: (entry?.paymentWallet ?? entry?.payment_wallet ?? '').toString(),
+            status: (entry?.status ?? 'pending').toString(),
+            updatedAt: (entry?.updatedAt ?? entry?.updated_at ?? null) as string | null | undefined,
+            confirmedAt: (entry?.confirmedAt ?? entry?.confirmed_at ?? null) as string | null | undefined,
+          } satisfies PendingBurnRecord
+        })
+        .filter((entry: PendingBurnRecord | null): entry is PendingBurnRecord => Boolean(entry))
+
+      let cooldown: CooldownState | null = null
+      if (data?.cooldown && typeof data.cooldown === 'object') {
+        const rawRemaining = Number((data.cooldown as Record<string, unknown>)?.remainingMs ?? 0)
+        const remainingMs = Number.isFinite(rawRemaining) ? rawRemaining : 0
+        const active = remainingMs > 0 || Boolean((data.cooldown as Record<string, unknown>)?.active)
+        cooldown = {
+          active,
+          remainingMs: active ? remainingMs : Math.max(0, remainingMs),
+          nextEligibleAt:
+            typeof (data.cooldown as Record<string, unknown>)?.nextEligibleAt === 'string'
+              ? ((data.cooldown as Record<string, unknown>).nextEligibleAt as string)
+              : null,
+          lastEventAt:
+            typeof (data.cooldown as Record<string, unknown>)?.lastEventAt === 'string'
+              ? ((data.cooldown as Record<string, unknown>).lastEventAt as string)
+              : null,
+          source:
+            (data.cooldown as Record<string, unknown>)?.source === 'ordinal' ||
+            (data.cooldown as Record<string, unknown>)?.source === 'payment' ||
+            (data.cooldown as Record<string, unknown>)?.source === 'either'
+              ? ((data.cooldown as Record<string, unknown>).source as CooldownState['source'])
+              : null,
+        }
+      }
+
+      return { records: normalized, cooldown }
+    } catch (error) {
+      console.error('Failed to fetch pending abyss burns:', error)
+      return { records: [], cooldown: null }
+    }
+  }, [ordinalAddress, changeAddress, laserEyes.paymentAddress])
+
+  const loadDamnedOptions = useCallback(async () => {
+    if (!ordinalAddress) return
+    setDamnedLoading(true)
+    setDamnedError(null)
+    setAssetsLoaded(false)
+    try {
+      const reservedOrdinalSet = getReservedUtxoSet('ordinal')
+      const tokensRes = await fetch(
+        `/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true`,
+        { headers: { Accept: 'application/json' } },
+      )
+
+      if (!tokensRes.ok) {
+        const errorText = await tokensRes.text()
+        throw new Error(errorText || 'Failed to load ordinals from Magic Eden')
+      }
+
+      const tokensPayload = await tokensRes.json().catch(() => ({ tokens: [] }))
+      const rawTokenList =
+        Array.isArray(tokensPayload?.tokens) ? tokensPayload.tokens : Array.isArray(tokensPayload) ? tokensPayload : []
+
+      const filteredOptions: DamnedOption[] = []
+      for (const token of rawTokenList as Array<Record<string, any>>) {
+        const inscriptionId = (token?.id || token?.inscriptionId)?.toString().trim()
+        if (!inscriptionId) continue
+
+        const blockHeight = Number(token?.locationBlockHeight ?? token?.genesisTransactionBlockHeight ?? 0)
+
+        const rawOutput = typeof token?.output === 'string' && token.output.includes(':')
+          ? token.output
+          : typeof token?.location === 'string' && token.location.includes(':')
+            ? token.location.split(':').slice(0, 2).join(':')
+            : undefined
+        if (!rawOutput) continue
+
+        const [txid, voutStr] = rawOutput.split(':')
+        const vout = Number.parseInt(voutStr ?? '0', 10)
+        if (!txid || Number.isNaN(vout)) continue
+
+        const outpoint = `${txid}:${vout}`
+        if (reservedOrdinalSet.has(outpoint)) {
+          continue
+        }
+
+        const outputValue = Number(token?.outputValue ?? 0)
+        if (!Number.isFinite(outputValue) || outputValue <= 0) continue
+
+        const contentType = typeof token?.contentType === 'string' ? token.contentType.toLowerCase() : ''
+        const isImage = contentType.startsWith('image/')
+        const imageUrl = isImage
+          ? token?.contentURI ?? token?.contentPreviewURI ?? token?.meta?.image ?? undefined
+          : token?.contentPreviewURI ?? token?.contentURI ?? token?.meta?.image ?? undefined
+
+        filteredOptions.push({
+          outpoint,
+          txid,
+          vout,
+          value: outputValue,
+          height: blockHeight > 0 ? blockHeight : null,
+          inscriptions: [inscriptionId],
+          inscriptionId,
+          name: token?.meta?.name ?? token?.displayName ?? undefined,
+          image: imageUrl,
+          confirmed: false,
+        })
+      }
+
+      const txids = Array.from(new Set(filteredOptions.map((option) => option.txid)))
+      if (txids.length > 0) {
+        const statusResults = await Promise.allSettled(
+          txids.map((txid) =>
+            fetch(`https://mempool.space/api/tx/${txid}`)
+              .then((res) => (res.ok ? res.json() : Promise.reject()))
+              .then((data) => ({
+                txid,
+                confirmed: data?.status?.confirmed === true,
+              })),
+          ),
+        )
+        const statusMap = new Map<string, boolean>()
+        for (const result of statusResults) {
+          if (result.status === 'fulfilled') {
+            statusMap.set(result.value.txid, result.value.confirmed)
+          }
+        }
+        filteredOptions.forEach((option) => {
+          const confirmed =
+            statusMap.has(option.txid) ? statusMap.get(option.txid)! : option.height !== null && option.height > 0
+          option.confirmed = confirmed
+          if (!confirmed) {
+            option.height = null
+          }
+        })
+      }
+
+      const pendingInscriptionIds =
+        pendingBurnRecords.length > 0
+          ? new Set(pendingBurnRecords.map((record) => record.inscriptionId))
+          : null
+      if (pendingInscriptionIds && pendingInscriptionIds.size > 0) {
+        filteredOptions.forEach((option) => {
+          if (pendingInscriptionIds.has(option.inscriptionId)) {
+            option.confirmed = false
+          }
+        })
+      }
+
+      filteredOptions.sort((a, b) => {
+        if (a.confirmed === b.confirmed) {
+          return (a.name ?? a.inscriptionId).localeCompare(b.name ?? b.inscriptionId)
+        }
+        return a.confirmed ? -1 : 1
+      })
+
+      setDamnedOptions(filteredOptions)
+      const firstConfirmed = filteredOptions.find((option) => option.confirmed)
+      if (firstConfirmed) {
+        setDamnedError(null)
+        setSelectedInscriptionId((prev) => {
+          if (prev && filteredOptions.some((entry) => entry.inscriptionId === prev && entry.confirmed)) {
+            return prev
+          }
+          return firstConfirmed.inscriptionId
+        })
+      } else {
+        setDamnedError('No confirmed ordinals available.')
+        setSelectedInscriptionId(null)
+      }
+
+      setDamnedLoading(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load abyss assets'
+      setDamnedOptions([])
+      setDamnedError(message)
+      toast.error(message)
+    } finally {
+      setDamnedLoading(false)
+      setAssetsLoaded(true)
+    }
+  }, [ordinalAddress, toast, fetchBurnSummary, pendingBurnRecords])
+
+  const loadPaymentAssets = useCallback(async () => {
+    setPaymentScanInitiated(true)
+    const paymentAddress = laserEyes.paymentAddress?.trim() || changeAddressRef.current || ''
+    if (!paymentAddress) {
+      setPaymentError('No payment wallet connected.')
+      setPaymentOptions([])
+      setSelectedPaymentOutpoint(null)
+      return
+    }
+
+    setPaymentLoading(true)
+    setPaymentError(null)
+    try {
+      const reservedPaymentSet = getReservedUtxoSet('payment')
+      const paymentRes = await fetch('/api/wallet/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: paymentAddress }),
+      })
+
+      const paymentJson = await paymentRes.json()
+      if (!paymentRes.ok || !paymentJson.success) {
+        throw new Error(paymentJson.error || 'Failed to load payment wallet assets')
+      }
+
+      const spendableSource = ((paymentJson.data?.spendable ?? []) as BaseUtxo[])
+        .map((entry) => ({ ...entry }))
+        .filter((entry) => entry.height !== null && !reservedPaymentSet.has(entry.outpoint))
+      const spendable = spendableSource.filter((entry) => entry.value > MIN_PAYMENT_INPUT_SATS)
+      const sortedSpendable = [...spendable].sort((a, b) => a.value - b.value)
+
+      if (sortedSpendable.length === 0) {
+        setPaymentOptions([])
+        setSelectedPaymentOutpoint(null)
+        setPaymentError('No confirmed payment UTXO available.')
+      } else {
+        setPaymentOptions(sortedSpendable)
+        setSelectedPaymentOutpoint((prev) => {
+          if (prev && sortedSpendable.some((entry) => entry.outpoint === prev)) {
+            return prev
+          }
+          const suitable = sortedSpendable.find((entry) => entry.value - MIN_FEE_SATS > DUST_THRESHOLD)
+          return suitable?.outpoint ?? sortedSpendable[0].outpoint
+        })
+        setPaymentError(null)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load payment wallet assets'
+      setPaymentOptions([])
+      setSelectedPaymentOutpoint(null)
+      setPaymentError(message)
+      toast.error(message)
+    } finally {
+      setPaymentLoading(false)
+    }
+  }, [laserEyes.paymentAddress, toast])
+
+  const pollBurnStatus = useCallback(
+    (txId: string) => {
+      const normalized = txId.trim()
+      if (!normalized) return
+
+      const checkStatus = async () => {
+        try {
+          const response = await fetch('/api/abyss/burns/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ txId: normalized }),
+          })
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              stopPollingTx(normalized)
+              setPendingBurnRecords((prev) => prev.filter((record) => record.txId !== normalized))
+            }
+            return
+          }
+
+          const data = await response.json().catch(() => null)
+          if (data?.summary) {
+            setBurnSummary({
+              confirmed: Number(data.summary.confirmed ?? 0),
+              total: Number(data.summary.total ?? 0),
+            })
+          }
+
+          if (data?.record) {
+            setPendingBurnRecords((prev) => {
+              if (prev.length === 0) {
+                return prev
+              }
+              let mutated = false
+              const next = prev.map((record) => {
+                if (record.txId !== normalized) {
+                  return record
+                }
+                mutated = true
+                return {
+                  ...record,
+                  status: (data.record.status ?? record.status) as string,
+                  updatedAt: (data.record.updatedAt ?? data.record.updated_at ?? record.updatedAt) as
+                    | string
+                    | null
+                    | undefined,
+                  confirmedAt: (data.record.confirmedAt ?? data.record.confirmed_at ?? record.confirmedAt) as
+                    | string
+                    | null
+                    | undefined,
+                }
+              })
+              return mutated ? next : prev
+            })
+          }
+
+          if (data?.confirmed) {
+            stopPollingTx(normalized)
+            setPendingBurnRecords((prev) => prev.filter((record) => record.txId !== normalized))
+            await loadDamnedOptions()
+          }
+        } catch (error) {
+          console.error('Failed to check burn status:', error)
+        }
+      }
+
+      void checkStatus()
+      const existingInterval = burnStatusIntervalsRef.current.get(normalized)
+      if (existingInterval !== undefined) {
+        window.clearInterval(existingInterval)
+      }
+      const intervalId = window.setInterval(() => {
+        void checkStatus()
+      }, BURN_STATUS_CHECK_INTERVAL_MS)
+      burnStatusIntervalsRef.current.set(normalized, intervalId)
+    },
+    [loadDamnedOptions, stopPollingTx],
+  )
+
+  useEffect(() => {
+    if (isHolder && isWalletConnected && ordinalAddress) {
+      void loadDamnedOptions()
+    }
+  }, [isHolder, isWalletConnected, ordinalAddress, loadDamnedOptions])
+
+  useEffect(() => {
+    if (isWalletConnected) {
+      summaryPrefetchRef.current = false
+      return
+    }
+    if (summaryPrefetchRef.current) {
+      return
+    }
+    summaryPrefetchRef.current = true
+    void fetchBurnSummary()
+  }, [isWalletConnected, fetchBurnSummary])
+
+  const updatePendingData = useCallback(async () => {
+    const { records, cooldown } = await fetchPendingBurnRecords()
+    setPendingBurnRecords(records)
+    setCooldownState(cooldown)
+    setCooldownRemainingMs(Math.max(0, cooldown?.remainingMs ?? 0))
+  }, [fetchPendingBurnRecords])
+
+  useEffect(() => {
+    if (!isWalletConnected) {
+      pendingFetchKeyRef.current = null
+      return
+    }
+
+    const normalizedOrdinal = ordinalAddress.trim().toLowerCase()
+    const normalizedPayment =
+      (changeAddressRef.current?.trim() || laserEyes.paymentAddress?.trim() || '').toLowerCase()
+    const fetchKey = `${normalizedOrdinal}|${normalizedPayment}`
+
+    if (pendingFetchKeyRef.current === fetchKey) {
+      return
+    }
+    pendingFetchKeyRef.current = fetchKey
+
+    if (!normalizedOrdinal && !normalizedPayment) {
+      if (!summaryPrefetchRef.current) {
+        summaryPrefetchRef.current = true
+        void fetchBurnSummary()
+      }
+      return
+    }
+
+    let cancelled = false
+    const syncPending = async () => {
+      const { records, cooldown } = await fetchPendingBurnRecords()
+      if (!cancelled) {
+        setPendingBurnRecords(records)
+        setCooldownState(cooldown)
+        setCooldownRemainingMs(Math.max(0, cooldown?.remainingMs ?? 0))
+      }
+    }
+
+    void syncPending()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isWalletConnected,
+    ordinalAddress,
+    changeAddress,
+    laserEyes.paymentAddress,
+    fetchPendingBurnRecords,
+    fetchBurnSummary,
+  ])
+
+  useEffect(() => {
+    if (pendingBurnRecords.length === 0) {
+      if (burnStatusIntervalsRef.current.size > 0) {
+        clearAllBurnPolling()
+      }
+      return
+    }
+
+    const pendingSet = new Set<string>()
+    for (const record of pendingBurnRecords) {
+      const txId = record.txId?.trim()
+      if (!txId) continue
+      pendingSet.add(txId)
+      if (!burnStatusIntervalsRef.current.has(txId)) {
+        pollBurnStatus(txId)
+      }
+    }
+
+    for (const tracked of Array.from(burnStatusIntervalsRef.current.keys())) {
+      if (!pendingSet.has(tracked)) {
+        stopPollingTx(tracked)
+      }
+    }
+  }, [pendingBurnRecords, pollBurnStatus, stopPollingTx, clearAllBurnPolling])
+
+  useEffect(() => {
+    if (pendingBurnRecords.length === 0) {
+      return
+    }
+
+    setDamnedOptions((prev) => {
+      if (prev.length === 0) {
+        return prev
+      }
+
+      const pendingSet = new Set(pendingBurnRecords.map((record) => record.inscriptionId))
+      if (pendingSet.size === 0) {
+        return prev
+      }
+
+      let mutated = false
+      const next = prev.map((option) => {
+        if (pendingSet.has(option.inscriptionId) && option.confirmed) {
+          mutated = true
+          return { ...option, confirmed: false }
+        }
+        return option
+      })
+
+      return mutated ? next : prev
+    })
+  }, [pendingBurnRecords])
+
+  useEffect(() => {
+    return () => {
+      clearAllBurnPolling()
+    }
+  }, [clearAllBurnPolling])
+
+  useEffect(() => {
+    if (!cooldownState?.active) {
+      setCooldownRemainingMs(0)
+      return
+    }
+
+    const target = cooldownState.nextEligibleAt ? new Date(cooldownState.nextEligibleAt).getTime() : NaN
+    const initialRemaining = Number.isFinite(target) ? Math.max(0, target - Date.now()) : cooldownState.remainingMs
+    setCooldownRemainingMs(Math.max(0, initialRemaining))
+
+    const update = () => {
+      if (!cooldownState?.active) {
+        setCooldownRemainingMs(0)
+        return
+      }
+      const base = Number.isFinite(target) ? target : Date.now() + cooldownState.remainingMs
+      const remaining = Math.max(0, base - Date.now())
+      setCooldownRemainingMs(remaining)
+      if (remaining === 0) {
+        setCooldownState((prev) => (prev ? { ...prev, active: false, remainingMs: 0 } : prev))
+      }
+    }
+
+    const intervalId = window.setInterval(update, 1_000)
+    return () => window.clearInterval(intervalId)
+  }, [cooldownState])
 
   const handleEnter = () => {
     setShowEntryModal(false)
@@ -174,9 +1019,11 @@ function AbyssContent() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    let isMobile = window.innerWidth < 768
     const resizeCanvas = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
+      isMobile = window.innerWidth < 768
     }
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
@@ -194,20 +1041,21 @@ function AbyssContent() {
       constructor(canvasWidth: number, canvasHeight: number, options?: { x?: number; y?: number; burst?: boolean }) {
         const isBurst = Boolean(options?.burst)
         this.x = options?.x ?? Math.random() * canvasWidth
-        this.y = options?.y ?? canvasHeight + 10
+        const defaultGroundY = canvasHeight + 8
+        this.y = options?.y ?? defaultGroundY
         if (isBurst) {
-          const angle = (Math.random() - 0.5) * Math.PI
-          const speed = Math.random() * 6 + 4
-          this.vx = Math.cos(angle) * speed
-          this.vy = Math.sin(angle) * speed - 6
-          this.maxLife = Math.random() * 40 + 40
+          const angle = (Math.random() - 0.5) * (Math.PI / 4)
+          const speed = Math.random() * 5 + 9
+          this.vx = Math.sin(angle) * speed * 0.25
+          this.vy = -Math.abs(Math.cos(angle) * speed)
+          this.maxLife = Math.random() * 35 + 45
         } else {
           this.vx = (Math.random() - 0.5) * 2
           this.vy = -Math.random() * 6 - 3
           this.maxLife = Math.random() * 100 + 60
         }
         this.life = 0
-        this.size = isBurst ? Math.random() * 2.5 + 1.5 : Math.random() * 2 + 1
+        this.size = isBurst ? Math.random() * 1.4 + 0.8 : Math.random() * 1.4 + 0.6
 
         const colors = [
           'rgba(255, 120, 0, ',
@@ -224,7 +1072,7 @@ function AbyssContent() {
         this.y += this.vy
         this.life++
         this.vy *= 0.98
-        this.vx *= 0.99
+        this.vx *= 0.7
       }
 
       draw(context: CanvasRenderingContext2D) {
@@ -266,15 +1114,26 @@ function AbyssContent() {
 
     animate()
 
-    const emitBurst = (leftPercent = BASE_LEFT_PERCENT, topPercent = BASE_TOP_PERCENT) => {
-      const originX = (leftPercent / 100) * canvas.width
-      const originY = (topPercent / 100) * canvas.height
-      const burstCount = 160
+    const emitBurst = (options?: { leftPercent?: number; topPercent?: number; axisLeftPercent?: number }) => {
+      const requestedLeft = options?.leftPercent ?? BASE_LEFT_PERCENT
+      const axisLeftPercent = options?.axisLeftPercent ?? BASE_LEFT_PERCENT
+      const originTopPercent = options?.topPercent ?? BASE_TOP_PERCENT
+      const axisCenterX = (axisLeftPercent / 100) * canvas.width
+      const driftOffsetPx = ((requestedLeft - axisLeftPercent) / 100) * canvas.width
+      const targetCenterX = axisCenterX + driftOffsetPx * 0.35
+      const rawOriginY = (originTopPercent / 100) * canvas.height
+      const mobileOffset = Math.max(28, Math.min(48, canvas.height * 0.05))
+      const desktopOffset = Math.max(48, Math.min(80, canvas.height * 0.08))
+      const burstGround = canvas.height - (isMobile ? mobileOffset : desktopOffset)
+      const verticalSpread = Math.max(canvas.height * 0.06, 60)
+      const baseBurstY = Math.min(rawOriginY + verticalSpread * 0.25, burstGround)
+      const horizontalSpread = Math.max(canvas.width * 0.085, 90)
+      const burstCount = 200
       for (let i = 0; i < burstCount; i++) {
         particles.push(
           new Particle(canvas.width, canvas.height, {
-            x: originX + (Math.random() - 0.5) * 80,
-            y: originY - Math.random() * 20,
+            x: targetCenterX + (Math.random() - 0.5) * horizontalSpread,
+            y: baseBurstY - Math.random() * verticalSpread,
             burst: true,
           }),
         )
@@ -289,7 +1148,9 @@ function AbyssContent() {
     }
   }, [])
 
-const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>()
+  const emitBurstRef = useRef<
+    (options?: { leftPercent?: number; topPercent?: number; axisLeftPercent?: number }) => void
+  >()
 
   const playSlash = useCallback(() => {
     const slash = slashAudioRef.current
@@ -307,6 +1168,233 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
       const next = Math.min(100, Math.max(0, prev + delta))
       return next
     })
+  }, [])
+
+  const handleBurn = useCallback(async () => {
+    if (burning) return
+    if (!selectedInscription) {
+      toast.error('Select a damned inscription to burn.')
+      return
+    }
+    if (!selectedInscription.confirmed) {
+      toast.error('Selected ordinal is still pending confirmation.')
+      return
+    }
+    if (!changeAddress.trim()) {
+      toast.error('Enter a change address for your payment wallet.')
+      return
+    }
+    if (!paymentScanInitiated) {
+      toast.error('Scan your payment wallet before burning.')
+      return
+    }
+    if (!wallet.client) {
+      toast.error('Connect a compatible wallet before burning.')
+      return
+    }
+
+    setBurning(true)
+    setBurnError(null)
+    setBurnTxid(null)
+
+    try {
+      const inscriptionInput = selectedInscription
+
+      let paymentCandidate =
+        selectedPayment ?? paymentOptions.find((entry) => entry.value - MIN_FEE_SATS > DUST_THRESHOLD)
+      if (!paymentCandidate) {
+        throw new Error('No spendable payment UTXO available to cover fees.')
+      }
+      let resolvedPayment: BaseUtxo = paymentCandidate
+      if (!selectedPayment || selectedPayment.outpoint !== resolvedPayment.outpoint) {
+        setSelectedPaymentOutpoint(resolvedPayment.outpoint)
+      }
+
+      let changeAmount = resolvedPayment.value - MIN_FEE_SATS
+      if (changeAmount <= DUST_THRESHOLD) {
+        const fallback = paymentOptions.find(
+          (entry) => entry.outpoint !== resolvedPayment.outpoint && entry.value - MIN_FEE_SATS > DUST_THRESHOLD,
+        )
+        if (fallback) {
+          resolvedPayment = fallback
+          setSelectedPaymentOutpoint(fallback.outpoint)
+          changeAmount = fallback.value - MIN_FEE_SATS
+        }
+      }
+
+      if (changeAmount <= DUST_THRESHOLD) {
+        throw new Error('No payment UTXO with sufficient sats to cover fees without creating dust.')
+      }
+
+      const inputs = [
+        { txid: inscriptionInput.txid, vout: inscriptionInput.vout, value: inscriptionInput.value },
+        { txid: resolvedPayment.txid, vout: resolvedPayment.vout, value: resolvedPayment.value },
+      ]
+
+      const ordinalOutpoint = `${inscriptionInput.txid}:${inscriptionInput.vout}`
+      const paymentOutpoint = `${resolvedPayment.txid}:${resolvedPayment.vout}`
+
+      const burnDestinationAddress = 'bc1qyqqn49zuz6amnpd07zezs6ph2xujk6ezr4uvns'
+
+      const outputs = [{ address: burnDestinationAddress, amount: inscriptionInput.value }]
+      const changeOutput = { address: changeAddress.trim(), amount: changeAmount }
+
+      const psbtResponse = await fetch('/api/wallet/psbt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inputs,
+          outputs,
+          changeOutput,
+          paymentAddress: changeAddress.trim(),
+          paymentPublicKey: laserEyes.paymentPublicKey ?? null,
+          taprootPublicKey: laserEyes.publicKey ?? null,
+          fee: MIN_FEE_SATS,
+          vsize: BURN_TX_VSIZE,
+        }),
+      })
+
+      const psbtJson = await psbtResponse.json()
+      if (!psbtResponse.ok || !psbtJson.success) {
+        throw new Error(psbtJson.error || 'Failed to construct burn transaction.')
+      }
+
+      let psbtBase64 = psbtJson.psbt as string
+      const signed = await wallet.client.signPsbt(psbtBase64, true, false)
+
+      if (typeof signed === 'string') {
+        psbtBase64 = signed
+      } else if (signed && typeof signed === 'object') {
+        if ('signedPsbtBase64' in signed) {
+          psbtBase64 = signed.signedPsbtBase64 as string
+        } else if ('signedPsbtHex' in signed) {
+          psbtBase64 = Buffer.from((signed as { signedPsbtHex: string }).signedPsbtHex, 'hex').toString('base64')
+        } else if (typeof (signed as any).toString === 'function') {
+          psbtBase64 = (signed as any).toString()
+        }
+      }
+
+      const bitcoin = await import('bitcoinjs-lib')
+      const finalPsbt = bitcoin.Psbt.fromBase64(psbtBase64)
+      const signedTxHex = finalPsbt.extractTransaction().toHex()
+
+      const txid = await InscriptionService.broadcastTransaction(signedTxHex, FEE_RATE_SAT_VB)
+      setBurnTxid(txid)
+      toast.success(`Burn complete. TXID ${txid.slice(0, 6)}…${txid.slice(-6)}`)
+
+      reserveUtxo(ordinalOutpoint, 'ordinal')
+      reserveUtxo(paymentOutpoint, 'payment')
+
+      try {
+        const recordResponse = await fetch('/api/abyss/burns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            inscriptionId: inscriptionInput.inscriptionId,
+            txId: txid,
+            ordinalWallet: ordinalAddress,
+            paymentWallet: changeAddressRef.current || laserEyes.paymentAddress?.trim() || '',
+          }),
+        })
+        if (!recordResponse.ok) {
+          let errorMessage = 'Failed to record abyss burn.'
+          try {
+            const payload = await recordResponse.json()
+            if (payload?.summary) {
+              setBurnSummary({
+                confirmed: Number(payload.summary.confirmed ?? 0),
+                total: Number(payload.summary.total ?? 0),
+              })
+            }
+            if (payload?.error) {
+              errorMessage = payload.error
+            }
+          } catch {
+            // ignore parse errors
+          }
+          throw new Error(errorMessage)
+        } else {
+          const payload = await recordResponse.json().catch(() => null)
+          if (payload?.summary) {
+            setBurnSummary({
+              confirmed: Number(payload.summary.confirmed ?? 0),
+              total: Number(payload.summary.total ?? 0),
+            })
+          } else {
+            await fetchBurnSummary()
+          }
+        }
+
+        setDamnedOptions((prev) =>
+          prev.map((option) =>
+            option.inscriptionId === inscriptionInput.inscriptionId ? { ...option, confirmed: false } : option,
+          ),
+        )
+
+        const pendingRecord: PendingBurnRecord = {
+          txId: txid,
+          inscriptionId: inscriptionInput.inscriptionId,
+          ordinalWallet: ordinalAddress,
+          paymentWallet: changeAddressRef.current || laserEyes.paymentAddress?.trim() || '',
+          status: 'pending',
+          updatedAt: new Date().toISOString(),
+          confirmedAt: null,
+        }
+
+        setPendingBurnRecords((prev) => {
+          const filtered = prev.filter((record) => record.txId !== pendingRecord.txId)
+          return [pendingRecord, ...filtered]
+        })
+
+        pollBurnStatus(txid)
+        setSelectedInscriptionId(null)
+        setSelectedPaymentOutpoint(null)
+
+        void fetchPendingBurnRecords()
+          .then(({ records, cooldown }) => {
+            setPendingBurnRecords(records)
+            setCooldownState(cooldown)
+            setCooldownRemainingMs(Math.max(0, cooldown?.remainingMs ?? 0))
+          })
+          .catch((error) => {
+            console.warn('Failed to refresh pending burns after broadcast:', error)
+          })
+      } catch (recordError) {
+        console.error('Failed to record abyss burn:', recordError)
+      }
+    } catch (error) {
+      console.error('Burn failed', error)
+      const message = error instanceof Error ? error.message : 'Failed to burn inscription.'
+      setBurnError(message)
+      toast.error(message)
+    } finally {
+      setBurning(false)
+    }
+  }, [
+    burning,
+    selectedInscription,
+    selectedPayment,
+    paymentOptions,
+    changeAddress,
+    paymentScanInitiated,
+    wallet.client,
+    laserEyes.paymentPublicKey,
+    laserEyes.publicKey,
+    laserEyes.paymentAddress,
+    toast,
+    pollBurnStatus,
+    fetchBurnSummary,
+    fetchPendingBurnRecords,
+    ordinalAddress,
+  ])
+
+  const handleConfirmBurn = useCallback(() => {
+    setBurnConfirmOpen(false)
+    void handleBurn()
+  }, [handleBurn])
+
+  const handleCancelBurn = useCallback(() => {
+    setBurnConfirmOpen(false)
   }, [])
 
   const handleWalkerFall = useCallback(
@@ -333,7 +1421,11 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
         return [...prev, entry]
       })
       if (!active.burstTriggered) {
-        emitBurstRef.current?.(impactLeft, impactTop)
+        emitBurstRef.current?.({
+          leftPercent: impactLeft,
+          topPercent: impactTop,
+          axisLeftPercent: BASE_LEFT_PERCENT,
+        })
       }
     },
     [calculatePlacement],
@@ -352,7 +1444,11 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     const burstTimeoutId = window.setTimeout(() => {
       const index = fallenPileRef.current
       const placement = calculatePlacement(index)
-      emitBurstRef.current?.(placement.left, placement.top)
+      emitBurstRef.current?.({
+        leftPercent: placement.left,
+        topPercent: placement.top,
+        axisLeftPercent: BASE_LEFT_PERCENT,
+      })
       setActiveWalkers((prev) =>
         prev.map((entry) =>
           entry.id === id
@@ -392,11 +1488,20 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
     return () => window.clearInterval(intervalId)
   }, [showEntryModal, spawnWalker])
 
-  const fallenCount = fallenPile.length
-  const totalDamned = 666
-  const progressPercent = Math.min(100, (fallenCount / totalDamned) * 100)
-  const remaining = Math.max(0, totalDamned - fallenCount)
+  const confirmedBurns = burnSummary?.confirmed ?? 0
+  const totalDamned = TOTAL_ABYSS_CAP
+  const progressPercent = Math.min(100, (confirmedBurns / totalDamned) * 100)
+  const remaining = Math.max(0, totalDamned - confirmedBurns)
+  const capReached = confirmedBurns >= TOTAL_ABYSS_CAP
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
+  const holderAllowed = isHolder === true
+  const hasPendingBurn = pendingBurnRecords.length > 0
+  const fallbackCooldownMs = Math.max(0, cooldownState?.remainingMs ?? 0)
+  const cooldownDisplayMs = cooldownRemainingMs > 0 ? cooldownRemainingMs : fallbackCooldownMs
+  const cooldownLabel = formatCountdown(cooldownDisplayMs)
+  const cooldownActive = cooldownDisplayMs > 0 || Boolean(cooldownState?.active)
+  const burnLocked = hasPendingBurn || cooldownActive
+  const canBurn = holderAllowed && !isVerifying && isWalletConnected && !capReached && !burnLocked
   useEffect(() => {
     fallenPileRef.current = fallenPile.length
   }, [fallenPile.length])
@@ -428,12 +1533,12 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
         showMusicControls={false}
       />
 
-      {/* Burn Counter + Warnings + Audio */}
-      <div className="absolute bottom-10 left-6 z-30 flex w-[18rem] flex-col gap-4">
-        <div className="rounded-lg border border-red-700 bg-black/80 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur-sm">
+      {/* Burn Counter + Warnings + Controls */}
+      <div className="absolute bottom-10 left-6 z-30 flex w-[21rem] flex-col gap-4">
+        <div className="rounded-lg border border-red-700 bg-black/40 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
           <div className="mt-2 flex items-end gap-3">
-            <div className="text-4xl font-black text-red-500">{fallenCount}</div>
+            <div className="text-2xl font-black text-red-500">{confirmedBurns}</div>
             <div className="pb-[6px] text-sm text-gray-400">/ {totalDamned}</div>
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded bg-red-900/50">
@@ -442,25 +1547,193 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] font-mono text-red-400">
-            <span>{progressPercent.toFixed(1)}% consumed</span>
-            <span>{remaining} remain</span>
-          </div>
+          
+        </div>
+ 
+
+        <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
+     
+          {capReached && (
+            <div className="mt-3 rounded border border-green-500/40 bg-green-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-green-300">
+              Abyss satiated. Further burns disabled.
+            </div>
+          )}
+          {!holderAllowed ? (
+            <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-500/70">
+              Verify holder status in the header to unlock the ritual.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-3 font-mono text-[11px] uppercase tracking-[0.3em] text-red-400">
+              {damnedError && (
+                <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-red-200">{damnedError}</div>
+              )}
+
+              <div className="space-y-2 rounded border border-red-700/40 bg-black/25 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span>Sacrifice:</span> 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-2 border-red-500 bg-red-700/80 px-4 py-1.5 text-[10px] font-mono font-bold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_20px_rgba(220,38,38,0.55)] transition-all hover:bg-red-600 animate-pulse"
+                    onClick={() => setSelectorOpen(true)}
+                    disabled={damnedLoading || burning || capReached}
+                  >
+                    Select
+                  </Button>
+                </div>
+                {damnedLoading ? (
+                  <div className="flex items-center gap-2 text-red-300">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading ordinals…</span>
+                  </div>
+                ) : selectedInscription ? (
+                  <div className="space-y-2 text-left text-red-200">
+                    <div className="text-xs uppercase tracking-[0.25em] text-red-300">
+                      {selectedInscription.name ?? 'Unnamed Inscription'}
+                    </div>
+                    {selectedInscription.image && (
+                      <div className="relative h-28 w-full overflow-hidden rounded border border-red-700/40 bg-black/30">
+                        <Image
+                          src={selectedInscription.image}
+                          alt={selectedInscription.name ?? 'Selected inscription'}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                    )}
+                    <div
+                      className={`text-[10px] tracking-[0.3em] ${
+                        selectedInscription.confirmed ? 'text-green-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {selectedInscription.confirmed ? 'Confirmed' : 'Pending confirmation'}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-left text-[10px] tracking-[0.3em] text-red-400/60">None selected</p>
+                )}
+              </div>
+
+              <div className="space-y-2 rounded border border-red-700/40 bg-black/25 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-red-300">Payment UTXO</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-2 border-amber-400/80 bg-amber-500/20 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition-all hover:-translate-y-0.5 hover:bg-amber-400/25"
+                    onClick={() => {
+                      setPaymentScanInitiated(true)
+                      void loadPaymentAssets()
+                    }}
+                    disabled={paymentLoading || !isWalletConnected || capReached}
+                  >
+                    {paymentLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : paymentScanInitiated ? (
+                      'Scan'
+                    ) : (
+                      'Scan'
+                    )}
+                  </Button>
+                </div>
+                {!paymentScanInitiated ? (
+                  <p className="text-left text-[10px] tracking-[0.3em] text-red-400/60">
+                    Scan your payment wallet to load confirmed UTXOs.
+                  </p>
+                ) : paymentLoading ? (
+                  <div className="flex items-center gap-2 text-red-300">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Scanning wallet…</span>
+                  </div>
+                ) : paymentError ? (
+                  <p className="text-left text-[10px] tracking-[0.3em] text-red-400/60">{paymentError}</p>
+                ) : selectedPayment ? (
+                  <div className="space-y-1 text-left text-red-200">
+                  
+                    <div className="flex items-center gap-1 text-[10px] tracking-[0.3em] text-green-400">
+                      <CheckCircle className="h-3 w-3" aria-hidden="true" />
+                      <span>{selectedPayment.value.toLocaleString()} sats</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-left text-[10px] tracking-[0.3em] text-red-400/60">
+                    No confirmed payment UTXO available.
+                  </p>
+                )}
+              </div>
+
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  className="w-full border border-red-500 bg-red-700/70 text-xs font-mono uppercase tracking-[0.4em] text-red-50 hover:bg-red-600"
+                  disabled={
+                    !canBurn ||
+                    !selectedInscription ||
+                    !selectedInscription.confirmed ||
+                    !selectedPayment ||
+                    !paymentScanInitiated ||
+                    burning
+                  }
+                  onClick={() => setBurnConfirmOpen(true)}
+                >
+                  {burning ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Burning…
+                    </>
+                  ) : cooldownActive ? (
+                    <>Cooldown {cooldownLabel}</>
+                  ) : (
+                    'Send to the Abyss'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border border-red-500/60 bg-black/40 text-[10px] font-mono uppercase tracking-[0.35em] text-red-200 hover:bg-red-700/20"
+                  onClick={() => {
+                    void updatePendingData()
+                    setLeaderboardOpen(true)
+                  }}
+                >
+                  Leaderboard
+                </Button>
+              </div>
+
+              {hasPendingBurn && (
+                <div className="rounded border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-[10px] tracking-[0.25em] text-amber-200">
+                  <div>
+                    Wait for confirm:                   
+                    {pendingBurnRecords.map((record) => (
+                      <a
+                        key={record.txId}
+                        href={`https://mempool.space/tx/${record.txId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block truncate text-amber-100 underline decoration-amber-500/70 decoration-dotted underline-offset-4 transition-colors hover:text-amber-200"
+                      >
+                        {record.txId.slice(0, 8)}…{record.txId.slice(-8)}
+                      </a>
+                    ))}
+                  </div>
+                                  
+                </div>
+              )}
+
+            
+
+              {burnError && (
+                <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-[10px] tracking-[0.25em] text-red-200">
+                  {burnError}
+                </div>
+              )}
+             
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col items-start gap-2 text-left font-mono text-[11px] uppercase tracking-[0.3em] text-red-500/80">
-          <div className="w-full rounded border border-red-700/50 bg-black/70 px-5 py-2 shadow-[0_0_22px_rgba(220,38,38,0.45)]">
-            ⚠ Danger Zone ⚠
-          </div>
-          <div className="w-full rounded border border-red-700/40 bg-black/60 px-5 py-1.5 text-red-400">
-            Ordinals Lost Ahead
-          </div>
-          <div className="w-full rounded border border-red-700/30 bg-black/50 px-4 py-1 text-orange-400">
-            No Return Beyond This Edge
-          </div>
-        </div>
-
-        <div className="flex flex-col items-start gap-3 rounded-lg border border-red-600/50 bg-black/45 px-3 py-3">
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-red-600/50 bg-black/40 px-3 py-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
@@ -505,8 +1778,7 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
                 </svg>
               )}
             </button>
-          </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-red-500">
+       
             <button
               onClick={() => handleVolumeAdjust(-5)}
               className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
@@ -526,19 +1798,211 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
         </div>
       </div>
 
+      {/* Inscription Selector */}
+      {selectorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="relative w-full max-w-3xl max-h-[75vh] overflow-y-auto rounded-xl border border-red-600/40 bg-black/80 p-6 shadow-[0_0_35px_rgba(220,38,38,0.4)]">
+            <div className="flex items-center justify-between">
+              <h3 className="font-mono text-sm uppercase tracking-[0.4em] text-red-400">Select Damn Ordinal</h3>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-700/50 px-3 py-1 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300 hover:bg-red-800/30"
+                onClick={() => setSelectorOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {damnedLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-red-200">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Loading damned ordinals…</span>
+                </div>
+              ) : damnedOptions.length === 0 ? (
+                <div className="rounded border border-red-600/40 bg-red-950/20 px-4 py-6 text-center font-mono text-[12px] uppercase tracking-[0.3em] text-red-200">
+                  No ordinals from THE-DAMNED detected in this wallet.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {damnedOptions.map((option) => {
+                    const isActive = selectedInscriptionId === option.inscriptionId
+                    const isDisabled = !option.confirmed || capReached
+                    const buttonClass = [
+                      'flex items-center gap-4 rounded-lg border px-4 py-3 text-left transition',
+                      isDisabled
+                        ? 'cursor-not-allowed border-red-900/60 bg-black/25 opacity-50'
+                        : isActive
+                        ? 'border-red-500 bg-red-900/30 shadow-[0_0_20px_rgba(220,38,38,0.25)]'
+                        : 'border-red-800/40 bg-black/25 hover:border-red-500/70',
+                    ].join(' ')
+                    return (
+                    <button
+                      key={option.outpoint}
+                      type="button"
+                      onClick={() => {
+                        if (!option.confirmed || capReached) return
+                        setSelectedInscriptionId(option.inscriptionId)
+                        setSelectorOpen(false)
+                      }}
+                      className={buttonClass}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                    >
+                      <div className="relative h-16 w-16 overflow-hidden rounded border border-red-700/60 bg-black/40">
+                        {option.image ? (
+                          <Image src={option.image} alt={option.name ?? 'Damned'} fill className="object-cover" />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-300">
+                            NO IMG
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1 text-sm font-mono text-red-100">
+                        <div className="text-xs uppercase tracking-[0.3em]">
+                          {option.name ?? option.inscriptionId.slice(0, 12)}
+                        </div>
+                        <div className="text-[10px] tracking-[0.3em] text-red-300/80">
+                          {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                        </div>
+                        <div className="text-[10px] tracking-[0.3em] text-red-300/80">
+                          {option.value.toLocaleString()} sats · {option.outpoint.slice(0, 12)}…
+                        </div>
+                        <div
+                          className={`text-[10px] tracking-[0.3em] ${
+                            option.confirmed ? 'text-green-400' : 'text-amber-400'
+                          }`}
+                        >
+                          {option.confirmed ? 'Confirmed' : 'Pending'}
+                        </div>
+                      </div>
+                    </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {burnConfirmOpen && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/85 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-6 rounded-lg border-2 border-red-600/50 bg-black/90 p-6 text-center shadow-[0_0_35px_rgba(220,38,38,0.45)]">
+            <div className="space-y-3">
+              <h3 className="font-mono text-sm uppercase tracking-[0.4em] text-red-400">Final Warning</h3>
+              <p className="font-mono text-base tracking-[0.3em] text-red-100">
+                Your damned ordinal will be gone forever!
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 border-red-700/60 bg-transparent text-red-300 hover:bg-red-800/20"
+                onClick={handleCancelBurn}
+                disabled={burning}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 border border-red-500 bg-red-700/80 font-mono text-sm tracking-[0.3em] text-white hover:bg-red-600"
+                onClick={handleConfirmBurn}
+                disabled={burning}
+              >
+                Fuck it!
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {leaderboardOpen && (
+        <div className="fixed inset-0 z-[9997] flex items-center justify-center bg-black/85 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl space-y-6 rounded-lg border-2 border-red-600/50 bg-black/92 p-6 shadow-[0_0_35px_rgba(220,38,38,0.5)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1 text-left">
+                <h3 className="font-mono text-base uppercase tracking-[0.35em] text-red-300">Abyss Leaderboards</h3>
+                <p className="font-mono text-xs uppercase tracking-[0.3em] text-red-500/80">
+                  Sacrifices ranked by confirmed burns
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <a
+                  href={`https://twitter.com/intent/tweet?${new URLSearchParams({
+                    text: "Oh my, I just burned my damned in the abyss! It's gone forever!",
+                    url: typeof window !== 'undefined' ? 'https://www.thedamned.xyz/abyss' : 'https://www.thedamned.xyz/abyss',
+                  }).toString()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center border border-red-500 bg-red-700/80 px-3 py-1 text-[11px] font-mono uppercase tracking-[0.3em] text-white shadow-[0_0_18px_rgba(220,38,38,0.45)] transition-colors hover:bg-red-600"
+                >
+                  Share the Burn
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-700/60 bg-transparent px-3 py-1 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300 hover:bg-red-800/20"
+                  onClick={() => setLeaderboardOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto rounded border border-red-700/40 bg-black/40">
+              <div className="grid grid-cols-[auto,1fr,auto] gap-3 border-b border-red-700/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.25em] text-red-400">
+                <span>#</span>
+                <span>Addr</span>
+                <span>Burns</span>
+              </div>
+              {leaderboard.length === 0 ? (
+                <div className="px-4 py-6 text-center font-mono text-[11px] uppercase tracking-[0.25em] text-red-400/70">
+                  No sacrifices recorded yet.
+                </div>
+              ) : (
+                leaderboard.map((entry, index) => {
+                  const normalizedOrdinal = entry.ordinalWallet.trim().toLowerCase()
+                  const isSelf =
+                    ordinalAddress.trim().length > 0 &&
+                    normalizedOrdinal === ordinalAddress.trim().toLowerCase()
+                  const baseClasses =
+                    'grid grid-cols-[auto,1fr,auto] items-center gap-3 border-b border-red-700/20 px-4 py-2 text-[11px] font-mono tracking-[0.25em]'
+                  const rowClasses = isSelf
+                    ? `${baseClasses} bg-red-900/40 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)]`
+                    : `${baseClasses} text-red-200`
+
+                  return (
+                    <div
+                      key={`${entry.ordinalWallet}|${entry.paymentWallet}|${index}`}
+                      className={rowClasses}
+                    >
+                      <span className="text-red-500">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="text-red-200/90">bc1p...{summarizeOrdinal(entry.ordinalWallet)}</span>
+                      <span className="text-green-400">{entry.confirmed}</span>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Entry Modal */}
       {showEntryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
-          <div className="mx-4 w-full max-w-md rounded-lg border-2 border-red-600/50 bg-black/95 p-8">
+          <div className="mx-4 w-full max-w-md rounded-lg border-2 border-red-600/50 bg-black/85 p-8">
             <div className="space-y-4 text-center">
               <h2 className="text-3xl font-bold font-mono">
                 <span className="bg-gradient-to-r from-red-600 via-orange-500 to-red-600 bg-clip-text text-transparent">
                   DESCEND INTO THE ABYSS
                 </span>
               </h2>
-              <div className="space-y-4 pt-4 font-mono text-gray-400">
+              <div className="space-y-4 pt-1 font-mono text-gray-400">
                 <div className="text-lg">The cliff edge beckons the damned.</div>
-                <div className="text-sm">Step forward and tumble with the rest.</div>
+           
                 <div className="text-xs italic text-red-600/70">&quot;Gravity claims all souls in time.&quot;</div>
               </div>
             </div>
@@ -547,7 +2011,7 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
                 onClick={handleEnter}
                 className="w-full rounded border-2 border-red-600/50 bg-red-600 px-6 py-3 text-xl font-mono tracking-wider text-white transition-colors hover:bg-red-700"
               >
-                ACCEPT THE FALL
+                Redemption
               </button>
             </div>
           </div>
@@ -622,14 +2086,14 @@ const emitBurstRef = useRef<(leftPercent?: number, topPercent?: number) => void>
 
       {isWalletConnected && isVerifying && (
         <div className="absolute inset-x-0 top-24 bottom-0 z-40 flex items-center justify-center">
-          <div className="rounded-lg border border-red-500 bg-black/80 px-6 py-4 text-center font-mono text-sm uppercase tracking-[0.4em] text-red-300 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
+          <div className="rounded-lg border border-red-500 bg-black/65 px-6 py-4 text-center font-mono text-sm uppercase tracking-[0.4em] text-red-300 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
             Verifying holder status…
           </div>
         </div>
       )}
 
       {showHolderBlock && (
-        <div className="absolute inset-x-0 top-24 bottom-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/85 px-6 text-center">
+        <div className="absolute inset-x-0 top-24 bottom-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/75 px-6 text-center">
           <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-red-500">Access Restricted</h2>
           <p className="max-w-md text-sm font-mono uppercase tracking-[0.35em] text-red-200">
             Connect a wallet holding The Damned to descend into the abyss.

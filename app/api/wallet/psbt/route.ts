@@ -14,8 +14,9 @@ interface BuildPsbtInput {
 }
 
 interface BuildPsbtOutput {
-  address: string
+  address?: string | null
   amount: number
+  script?: string | null
 }
 
 interface BuildPsbtRequestBody {
@@ -111,13 +112,27 @@ export async function POST(request: NextRequest) {
     let totalOutputValue = 0
 
     for (const output of body.outputs) {
-      if (!output.address || typeof output.amount !== 'number' || output.amount <= 0) {
-        throw new Error('Each output must include a valid address and positive amount')
+      if (typeof output.amount !== 'number' || output.amount < 0) {
+        throw new Error('Each output must include a non-negative amount')
       }
-      psbt.addOutput({
-        address: output.address,
-        value: BigInt(output.amount),
-      })
+
+      if (output.script && output.script.trim()) {
+        const script = toHexBuffer(output.script.trim(), 'script')
+        psbt.addOutput({
+          script,
+          value: BigInt(output.amount),
+        })
+      } else if (output.address && output.address.trim()) {
+        if (output.amount <= 0) {
+          throw new Error('Non-script outputs must include a positive amount')
+        }
+        psbt.addOutput({
+          address: output.address.trim(),
+          value: BigInt(output.amount),
+        })
+      } else {
+        throw new Error('Each output must include either an address or a script')
+      }
       totalOutputValue += output.amount
     }
 

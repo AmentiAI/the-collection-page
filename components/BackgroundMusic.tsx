@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface BackgroundMusicProps {
   shouldPlay: boolean
@@ -14,11 +14,14 @@ export default function BackgroundMusic({ shouldPlay, onInteraction, volume = 30
   const [currentTrack, setCurrentTrack] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
 
-  const playlist = [
-    '/music/Shadows creeping through the door (1).mp3',
-    '/music/The Damned.mp3',
-    '/music/The Damned 3.mp3'
-  ]
+  const playlist = useMemo(
+    () => [
+      '/music/Shadows creeping through the door (1).mp3',
+      '/music/The Damned.mp3',
+      '/music/The Damned 3.mp3',
+    ],
+    [],
+  )
 
   // Set volume
   useEffect(() => {
