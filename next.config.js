@@ -11,19 +11,10 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['@omnisat/lasereyes', '@omnisat/lasereyes-core', '@omnisat/lasereyes-react', 'pg'],                                            
+    esmExternals: 'loose',
   },
   webpack: (config, { isServer, dev }) => {
     // Exclude problematic packages from server-side bundle
-    if (isServer) {
-      config.externals = config.externals || []
-      config.externals.push({
-        '@omnisat/lasereyes': 'commonjs @omnisat/lasereyes',
-        '@omnisat/lasereyes-core': 'commonjs @omnisat/lasereyes-core',
-        '@omnisat/lasereyes-react': 'commonjs @omnisat/lasereyes-react',
-      })
-    }
-    
     config.resolve.fallback = {
       ...config.resolve.fallback,
       // Only set these to false for client-side builds
