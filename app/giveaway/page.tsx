@@ -147,6 +147,9 @@ function ContentCard({ targetDate }: ContentCardProps) {
         <p className="mt-4 text-lg text-red-200/80 md:text-xl">
           Any purchase within the next hour automatically enters you to win one of five hand-selected ordinals.
         </p>
+        <p className="mt-2 text-sm uppercase tracking-[0.4em] text-red-300">
+          Only valid on The Damned listed before the giveaway began.
+        </p>
       </div>
 
       <OrdinalGallery />
