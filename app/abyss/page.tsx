@@ -1291,6 +1291,7 @@ function AbyssContent() {
       try {
         const recordResponse = await fetch('/api/abyss/burns', {
           method: 'POST',
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             inscriptionId: inscriptionInput.inscriptionId,
@@ -1984,14 +1985,14 @@ function AbyssContent() {
                     : `${baseClasses} text-red-200`
 
                   return (
-                    <div
-                      key={`${entry.ordinalWallet}|${entry.paymentWallet}|${index}`}
+                  <div
+                    key={`${entry.ordinalWallet}|${entry.paymentWallet}|${index}`}
                       className={rowClasses}
-                    >
-                      <span className="text-red-500">{String(index + 1).padStart(2, '0')}</span>
+                  >
+                    <span className="text-red-500">{String(index + 1).padStart(2, '0')}</span>
                       <span className="text-red-200/90">bc1p...{summarizeOrdinal(entry.ordinalWallet)}</span>
-                      <span className="text-green-400">{entry.confirmed}</span>
-                    </div>
+                    <span className="text-green-400">{entry.confirmed}</span>
+                      </div>
                   )
                 })
               )}

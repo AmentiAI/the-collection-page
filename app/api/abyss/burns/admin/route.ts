@@ -6,6 +6,8 @@ import { getPool } from '@/lib/db'
 const ABYSS_CAP = 333
 const DEFAULT_LIMIT = ABYSS_CAP
 
+export const dynamic = 'force-dynamic'
+
 async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (

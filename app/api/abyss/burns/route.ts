@@ -6,6 +6,8 @@ import { getPool } from '@/lib/db'
 const ABYSS_CAP = 333
 const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 
+export const dynamic = 'force-dynamic'
+
 async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
@@ -38,6 +40,11 @@ export async function GET(request: NextRequest) {
     await ensureAbyssBurnsTable(pool)
 
     const { searchParams } = request.nextUrl
+    const cacheControl = request.headers.get('cache-control')
+    if (cacheControl?.toLowerCase().includes('no-cache') || cacheControl?.toLowerCase().includes('no-store')) {
+      // Explicitly bypass any internal caching by referencing request headers
+    }
+
     const ordinalWallet = searchParams.get('ordinalWallet')?.trim() ?? ''
     const paymentWallet = searchParams.get('paymentWallet')?.trim() ?? ''
     const includePending =
