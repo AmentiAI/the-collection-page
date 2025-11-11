@@ -998,7 +998,8 @@ function SeatAvatar({ participant, assetMap }: { participant: SummonParticipant;
 
   if (inscriptionId) {
     const preferredImage = participant.image ?? assetMap[inscriptionId]
-    const imagePath = preferredImage ?? `/api/ordinals/image?inscriptionId=${encodeURIComponent(inscriptionId)}`
+    const imagePath =
+      preferredImage ?? `/api/ordinals/content/${encodeURIComponent(inscriptionId)}`
     return (
       <div className="relative h-9 w-9 overflow-hidden rounded-full border border-red-700/50 bg-black/70">
         <Image src={imagePath} alt={inscriptionId} fill sizes="36px" className="object-cover" />
