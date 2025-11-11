@@ -115,12 +115,6 @@ const FULL_ABYSS_MENU_OPTIONS = [
     icon: Flame,
   },
   {
-    href: '/giveaway',
-    label: 'Join the Giveaway',
-    description: 'Redeem your soul for a chance at rare ordinals pulled from the abyssal vault.',
-    icon: Gift,
-  },
-  {
     href: '/tools',
     label: 'Visit the Workshop',
     description: 'Sharpen your rituals and keep busy while the abyss cools down.',
