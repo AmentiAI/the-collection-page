@@ -29,6 +29,13 @@ type SocialStatus = {
   loading: boolean
 }
 
+type InventorySummary = {
+  loading: boolean
+  error: string | null
+  tokenCount: number
+  listedCount: number
+}
+
 const INITIAL_PROFILE: ProfileDetails = {
   username: null,
   avatarUrl: null,
@@ -41,6 +48,13 @@ const INITIAL_SOCIAL: SocialStatus = {
   linked: false,
   identifier: null,
   loading: false,
+}
+
+const INITIAL_INVENTORY: InventorySummary = {
+  loading: false,
+  error: null,
+  tokenCount: 0,
+  listedCount: 0,
 }
 
 export default function ProfilePage() {
@@ -58,6 +72,9 @@ function ProfileContent() {
     profile,
     discord,
     twitter,
+    inventory,
+    isHolder,
+    executioner,
     refreshProfile,
     triggerDiscordAuth,
     triggerTwitterAuth,
@@ -74,6 +91,7 @@ function ProfileContent() {
             {profile.username ?? 'Unknown Damned'}
           </h1>
           <ProfileKarma profile={profile} />
+          <ProfileStatuses connected={connected} inventory={inventory} isHolder={isHolder} executioner={executioner} />
           {!connected && (
             <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">
               Connect your wallet via the header to update your profile.
@@ -171,6 +189,185 @@ function ProfileKarma({ profile }: { profile: ProfileDetails }) {
   )
 }
 
+function ProfileStatuses({
+  connected,
+  inventory,
+  isHolder,
+  executioner,
+}: {
+  connected: boolean
+  inventory: InventorySummary
+  isHolder: boolean | null
+  executioner: boolean | null
+}) {
+  if (!connected) {
+    return null
+  }
+
+  const holderCard = (() => {
+    if (inventory.loading) {
+      return {
+        value: 'Checking…',
+        subtitle: 'Verifying damned holdings',
+        tone: 'neutral' as const,
+      }
+    }
+    if (inventory.error) {
+      return {
+        value: 'Unknown',
+        subtitle: 'Unable to load holdings',
+        tone: 'warning' as const,
+      }
+    }
+    if (isHolder === true) {
+      return {
+        value: 'Holder',
+        subtitle: `${inventory.tokenCount} damned ordinal${inventory.tokenCount === 1 ? '' : 's'} detected`,
+        tone: 'success' as const,
+      }
+    }
+    if (isHolder === false) {
+      return {
+        value: 'Not detected',
+        subtitle: 'No damned ordinals in wallet',
+        tone: 'warning' as const,
+      }
+    }
+    return {
+      value: 'Checking…',
+      subtitle: 'Verifying damned holdings',
+      tone: 'neutral' as const,
+    }
+  })()
+
+  const listingsCard = (() => {
+    if (inventory.loading) {
+      return {
+        value: 'Checking…',
+        subtitle: 'Fetching marketplace activity',
+        tone: 'neutral' as const,
+      }
+    }
+    if (inventory.error) {
+      return {
+        value: 'Unknown',
+        subtitle: 'Unable to load listings',
+        tone: 'warning' as const,
+      }
+    }
+    if (inventory.listedCount > 0) {
+      return {
+        value: `${inventory.listedCount}`,
+        subtitle: 'Active marketplace listings',
+        tone: 'danger' as const,
+      }
+    }
+    return {
+      value: '0',
+      subtitle: 'No active listings',
+      tone: 'success' as const,
+    }
+  })()
+
+  const executionerCard = (() => {
+    if (executioner === true) {
+      return {
+        value: 'Executioner',
+        subtitle: 'Recorded on the abyssal ledger',
+        tone: 'success' as const,
+      }
+    }
+    if (executioner === false) {
+      return {
+        value: 'Not yet',
+        subtitle: 'No abyss burns detected',
+        tone: 'warning' as const,
+      }
+    }
+    return {
+      value: 'Checking…',
+      subtitle: 'Scanning abyssal records',
+      tone: 'neutral' as const,
+    }
+  })()
+
+  return (
+    <div className="w-full space-y-3">
+      {inventory.error && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-900/30 px-4 py-2 text-center text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
+          {inventory.error}
+        </div>
+      )}
+      {inventory.listedCount > 0 && !inventory.loading && (
+        <div className="rounded-2xl border-2 border-red-600 bg-red-950/80 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_30px_rgba(220,38,38,0.55)]">
+          Active listings detected! Remove your damned ordinals from the marketplace to maintain cover.
+        </div>
+      )}
+      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatusCard title="Holder Status" value={holderCard.value} subtitle={holderCard.subtitle} tone={holderCard.tone} />
+        <StatusCard
+          title="Marketplace Listings"
+          value={listingsCard.value}
+          subtitle={listingsCard.subtitle}
+          tone={listingsCard.tone}
+        />
+        <StatusCard
+          title="Executioner Role"
+          value={executionerCard.value}
+          subtitle={executionerCard.subtitle}
+          tone={executionerCard.tone}
+        />
+      </div>
+    </div>
+  )
+}
+
+function StatusCard({
+  title,
+  value,
+  subtitle,
+  tone = 'neutral',
+}: {
+  title: string
+  value: string
+  subtitle?: string
+  tone?: 'neutral' | 'success' | 'warning' | 'danger'
+}) {
+  let borderClass = 'border-red-700/40'
+  let bgClass = 'bg-black/50'
+  let valueClass = 'text-red-100'
+  let subtitleClass = 'text-red-200/60'
+
+  if (tone === 'success') {
+    borderClass = 'border-green-500/50'
+    bgClass = 'bg-green-900/25'
+    valueClass = 'text-green-300'
+    subtitleClass = 'text-green-200/70'
+  } else if (tone === 'warning') {
+    borderClass = 'border-amber-500/50'
+    bgClass = 'bg-amber-900/25'
+    valueClass = 'text-amber-200'
+    subtitleClass = 'text-amber-200/70'
+  } else if (tone === 'danger') {
+    borderClass = 'border-red-600/70'
+    bgClass = 'bg-red-900/35'
+    valueClass = 'text-red-200'
+    subtitleClass = 'text-red-100/70'
+  }
+
+  return (
+    <div className={`rounded-2xl ${borderClass} ${bgClass} px-4 py-4 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)]`}>
+      <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">{title}</p>
+      <p className={`mt-2 text-xl font-black uppercase tracking-[0.3em] ${valueClass}`}>{value}</p>
+      {subtitle ? (
+        <p className={`mt-1 text-[10px] uppercase tracking-[0.3em] ${subtitleClass}`}>
+          {subtitle}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 function ConnectDiscord({
   status,
   onConnect,
@@ -243,6 +440,9 @@ function useProfileState() {
   const [profile, setProfile] = useState<ProfileDetails>(INITIAL_PROFILE)
   const [discord, setDiscord] = useState<SocialStatus>(INITIAL_SOCIAL)
   const [twitter, setTwitter] = useState<SocialStatus>(INITIAL_SOCIAL)
+  const [inventory, setInventory] = useState<InventorySummary>(INITIAL_INVENTORY)
+  const [isHolder, setIsHolder] = useState<boolean | null>(null)
+  const [executioner, setExecutioner] = useState<boolean | null>(null)
 
   const fetchProfile = useCallback(
     async (wallet: string) => {
@@ -301,6 +501,86 @@ function useProfileState() {
     [],
   )
 
+  const fetchInventory = useCallback(
+    async (wallet: string) => {
+      setInventory((prev) => ({ ...prev, loading: true, error: null }))
+      setIsHolder(null)
+      try {
+        const response = await fetch(
+          `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
+          {
+            method: 'GET',
+            headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`Magic Eden request failed (${response.status})`)
+        }
+
+        const payload = await response.json().catch(() => ({ tokens: [] }))
+        const rawTokens =
+          Array.isArray(payload?.tokens) ? payload.tokens : Array.isArray(payload) ? payload : []
+
+        let listedCount = 0
+        for (const token of rawTokens as Array<Record<string, any>>) {
+          const rawPrice = Number(
+            token?.priceInfo?.price ?? token?.listingPrice ?? token?.price ?? token?.listing?.price ?? 0,
+          )
+          if (Number.isFinite(rawPrice) && rawPrice > 0) {
+            listedCount += 1
+          }
+        }
+
+        const tokenCount = rawTokens.length
+        setInventory({
+          loading: false,
+          error: null,
+          tokenCount,
+          listedCount,
+        })
+        setIsHolder(tokenCount > 0)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load holdings'
+        setInventory({
+          loading: false,
+          error: message,
+          tokenCount: 0,
+          listedCount: 0,
+        })
+        setIsHolder(null)
+        console.error('Error fetching inventory:', error)
+      }
+    },
+    [],
+  )
+
+  const fetchExecutionerStatus = useCallback(
+    async (wallet: string) => {
+      try {
+        const response = await fetch(`/api/abyss/burns?includeLeaderboard=true`, {
+          headers: { 'Cache-Control': 'no-store' },
+        })
+        if (!response.ok) {
+          throw new Error(`Abyss leaderboard request failed (${response.status})`)
+        }
+        const data = await response.json()
+        const leaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : []
+        const normalizedWallet = wallet.toLowerCase()
+        const match = leaderboard.some(
+          (entry: Record<string, unknown>) =>
+            typeof entry?.ordinalWallet === 'string' &&
+            entry.ordinalWallet.toLowerCase() === normalizedWallet,
+        )
+        setExecutioner(match)
+      } catch (error) {
+        console.error('Error determining executioner status:', error)
+        setExecutioner(null)
+      }
+    },
+    [],
+  )
+
   const initializeProfile = useCallback(
     async (wallet: string) => {
       try {
@@ -316,9 +596,15 @@ function useProfileState() {
         console.error('Failed to create profile:', error)
       }
 
-      await Promise.all([fetchProfile(wallet), checkDiscordStatus(wallet), checkTwitterStatus(wallet)])
+      await Promise.all([
+        fetchProfile(wallet),
+        checkDiscordStatus(wallet),
+        checkTwitterStatus(wallet),
+        fetchInventory(wallet),
+        fetchExecutionerStatus(wallet),
+      ])
     },
-    [fetchProfile, checkDiscordStatus, checkTwitterStatus],
+    [fetchProfile, checkDiscordStatus, checkTwitterStatus, fetchInventory, fetchExecutionerStatus],
   )
 
   useEffect(() => {
@@ -328,6 +614,9 @@ function useProfileState() {
       setProfile(INITIAL_PROFILE)
       setDiscord(INITIAL_SOCIAL)
       setTwitter(INITIAL_SOCIAL)
+      setInventory(INITIAL_INVENTORY)
+      setIsHolder(null)
+      setExecutioner(null)
     }
   }, [connected, address, initializeProfile])
 
@@ -338,15 +627,15 @@ function useProfileState() {
     const twitterAuth = params.get('twitter_auth')
 
     if (discordAuth === 'success') {
-      void Promise.all([fetchProfile(address), checkDiscordStatus(address)])
+      void Promise.all([fetchProfile(address), checkDiscordStatus(address), fetchInventory(address)])
       window.history.replaceState({}, '', '/profile')
     }
 
     if (twitterAuth === 'success') {
-      void Promise.all([fetchProfile(address), checkTwitterStatus(address)])
+      void Promise.all([fetchProfile(address), checkTwitterStatus(address), fetchInventory(address)])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile])
+  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile, fetchInventory])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -371,17 +660,40 @@ function useProfileState() {
       profile,
       discord,
       twitter,
+      inventory,
+      isHolder,
+      executioner,
       refreshProfile: () => {
         if (address) {
-          void fetchProfile(address)
-          void checkDiscordStatus(address)
-          void checkTwitterStatus(address)
+          void Promise.all([
+            fetchProfile(address),
+            checkDiscordStatus(address),
+            checkTwitterStatus(address),
+            fetchInventory(address),
+            fetchExecutionerStatus(address),
+          ])
         }
       },
       triggerDiscordAuth,
       triggerTwitterAuth,
     }),
-    [connected, address, profile, discord, twitter, fetchProfile, checkDiscordStatus, checkTwitterStatus, triggerDiscordAuth, triggerTwitterAuth],
+    [
+      connected,
+      address,
+      profile,
+      discord,
+      twitter,
+      inventory,
+      isHolder,
+      executioner,
+      fetchProfile,
+      checkDiscordStatus,
+      checkTwitterStatus,
+      fetchInventory,
+      fetchExecutionerStatus,
+      triggerDiscordAuth,
+      triggerTwitterAuth,
+    ],
   )
 }
 
