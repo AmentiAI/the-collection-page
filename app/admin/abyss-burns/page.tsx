@@ -30,7 +30,7 @@ export default function AbyssBurnsAdminPage() {
   const [records, setRecords] = useState<AbyssBurnRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(333)
   const [statusFilter, setStatusFilter] = useState('')
   const [txCheckLoading, setTxCheckLoading] = useState<string | null>(null)
   const [copiedMessage, setCopiedMessage] = useState<string | null>(null)
@@ -132,7 +132,7 @@ export default function AbyssBurnsAdminPage() {
 
   return (
     <div className="min-h-screen bg-black px-6 py-10 text-red-100">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <header className="flex flex-col gap-4 rounded-lg border border-red-700/40 bg-black/60 p-6 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
@@ -148,7 +148,7 @@ export default function AbyssBurnsAdminPage() {
                   onChange={(event) => setLimit(Number(event.target.value) || 0)}
                   min={1}
                   max={333}
-                  className="h-9 w-20 border-red-700/60 bg-black/60 text-red-100"
+                  className="h-9 w-24 border-red-700/60 bg-black/60 text-red-100"
                 />
               </div>
               <div className="flex items-center gap-2">
