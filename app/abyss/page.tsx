@@ -1663,7 +1663,7 @@ function AbyssContent() {
               Abyss satiated. Further burns disabled.
             </div>
           )}
-          {holderAllowed ? (
+          {holderAllowed && !capReached ? (
             <div className="mt-3 space-y-3 font-mono text-[11px] uppercase tracking-[0.3em] text-red-400">
               {damnedError ? (
                 <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-red-200">{damnedError}</div>
@@ -1801,11 +1801,7 @@ function AbyssContent() {
                 </div>
               ) : null}
             </div>
-          ) : (
-            <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-500/70">
-              Verify holder status in the header to unlock the ritual.
-            </p>
-          )}
+          ) : null}
 
           <Button
             type="button"

@@ -9,7 +9,7 @@ type TimeParts = {
   seconds: number
 }
 
-const defaultTarget = () => new Date('2025-11-11T03:00:00Z')
+const defaultTarget = () => new Date('2025-11-11T03:30:00Z')
 
 interface CountdownTimerProps {
   targetDate?: Date | string
