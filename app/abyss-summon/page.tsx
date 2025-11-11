@@ -796,7 +796,8 @@ function SummonList({
           !ACTIVE_SUMMON_STATUSES.has(summon.status) ||
           isParticipant ||
           joiningSummonId === summon.id ||
-          isExpired
+          isExpired ||
+          summon.participants.length >= totalSlots
 
         return (
           <div key={summon.id} className={containerClass}>
