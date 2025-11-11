@@ -13,6 +13,8 @@ type AbyssBurnRecord = {
   ordinalWallet: string
   paymentWallet: string
   status: string
+  source: string
+  summonId?: string | null
   createdAt: string | null
   updatedAt: string | null
   confirmedAt: string | null
@@ -194,6 +196,8 @@ export default function AbyssBurnsAdminPage() {
                 <th className="px-3 py-2 text-left">Ordinal Wallet</th>
                 <th className="px-3 py-2 text-left">Payment Wallet</th>
                 <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">Source</th>
+                <th className="px-3 py-2 text-left">Summon ID</th>
                 <th className="px-3 py-2 text-left">Created</th>
                 <th className="px-3 py-2 text-left">Updated</th>
                 <th className="px-3 py-2 text-left">Confirmed</th>
@@ -204,7 +208,7 @@ export default function AbyssBurnsAdminPage() {
             <tbody className="divide-y divide-red-900/60">
               {records.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-6 text-center text-xs uppercase tracking-[0.35em] text-red-300/70">
+                  <td colSpan={12} className="px-3 py-6 text-center text-xs uppercase tracking-[0.35em] text-red-300/70">
                     No records found.
                   </td>
                 </tr>
@@ -225,6 +229,12 @@ export default function AbyssBurnsAdminPage() {
                     </td>
                     <td className="px-3 py-2 uppercase tracking-[0.3em] text-red-100">
                       {record.status}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                      {record.source}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                      <CopyCell value={record.summonId ?? null} label="Summon ID" onCopy={handleCopy} />
                     </td>
                     <td className="px-3 py-2 text-red-200/80">{formatDateTime(record.createdAt)}</td>
                     <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.updatedAt)}</td>

@@ -17,14 +17,60 @@ async function ensureAbyssBurnsTable(pool: Pool) {
       ordinal_wallet TEXT NOT NULL,
       payment_wallet TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
+      source TEXT NOT NULL DEFAULT 'abyss',
+      summon_id UUID,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       confirmed_at TIMESTAMPTZ,
       last_checked_at TIMESTAMPTZ
     )
   `)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'abyss'`)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS summon_id UUID`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_summons (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      creator_wallet TEXT NOT NULL,
+      creator_inscription_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      required_participants INTEGER NOT NULL DEFAULT 4,
+      locked_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ,
+      bonus_granted BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_status ON abyss_summons(status)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_creator ON abyss_summons((LOWER(creator_wallet)))`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_summon_participants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
+      wallet TEXT NOT NULL,
+      inscription_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'participant',
+      joined_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(summon_id, wallet),
+      UNIQUE(summon_id, inscription_id)
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_summon ON abyss_summon_participants(summon_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_wallet ON abyss_summon_participants((LOWER(wallet)))`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+      wallet TEXT PRIMARY KEY,
+      available INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
 }
 
 export async function GET(request: NextRequest) {
@@ -54,6 +100,8 @@ export async function GET(request: NextRequest) {
              ordinal_wallet,
              payment_wallet,
              status,
+             source,
+             summon_id,
              created_at,
              updated_at,
              confirmed_at,
@@ -76,6 +124,8 @@ export async function GET(request: NextRequest) {
         ordinalWallet: row.ordinal_wallet,
         paymentWallet: row.payment_wallet,
         status: row.status,
+        source: row.source,
+        summonId: row.summon_id,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         confirmedAt: row.confirmed_at,

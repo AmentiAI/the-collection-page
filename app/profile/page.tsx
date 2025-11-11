@@ -36,6 +36,35 @@ type InventorySummary = {
   listedCount: number
 }
 
+type SummonParticipant = {
+  id: string
+  wallet: string
+  inscriptionId: string
+  role: string
+  joinedAt: string
+}
+
+type SummonRecord = {
+  id: string
+  creatorWallet: string
+  creatorInscriptionId: string
+  status: string
+  requiredParticipants: number
+  lockedAt?: string | null
+  completedAt?: string | null
+  expiresAt?: string | null
+  bonusGranted: boolean
+  createdAt: string
+  updatedAt: string
+  participants: SummonParticipant[]
+}
+
+type SummonOverview = {
+  created: SummonRecord[]
+  joined: SummonRecord[]
+  open: SummonRecord[]
+}
+
 const INITIAL_PROFILE: ProfileDetails = {
   username: null,
   avatarUrl: null,
@@ -57,6 +86,12 @@ const INITIAL_INVENTORY: InventorySummary = {
   listedCount: 0,
 }
 
+const INITIAL_SUMMON_OVERVIEW: SummonOverview = {
+  created: [],
+  joined: [],
+  open: [],
+}
+
 export default function ProfilePage() {
   return (
     <LaserEyesWrapper>
@@ -75,6 +110,8 @@ function ProfileContent() {
     inventory,
     isHolder,
     executioner,
+    bonusAllowance,
+    summons,
     refreshProfile,
     triggerDiscordAuth,
     triggerTwitterAuth,
@@ -103,7 +140,14 @@ function ProfileContent() {
             {profile.username ?? 'Unknown Damned'}
           </h1>
           <ProfileKarma profile={profile} />
-          <ProfileStatuses connected={connected} inventory={inventory} isHolder={isHolder} executioner={executioner} />
+          <ProfileStatuses
+            connected={connected}
+            inventory={inventory}
+            isHolder={isHolder}
+            executioner={executioner}
+            bonusAllowance={bonusAllowance}
+            summons={summons}
+          />
           {!connected && (
             <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">
               Connect your wallet via the header to update your profile.
@@ -206,11 +250,15 @@ function ProfileStatuses({
   inventory,
   isHolder,
   executioner,
+  bonusAllowance,
+  summons,
 }: {
   connected: boolean
   inventory: InventorySummary
   isHolder: boolean | null
   executioner: boolean | null
+  bonusAllowance: number
+  summons: SummonOverview
 }) {
   if (!connected) {
     return null
@@ -303,6 +351,45 @@ function ProfileStatuses({
     }
   })()
 
+  const bonusCard = (() => {
+    if (bonusAllowance > 0) {
+      return {
+        value: `${bonusAllowance}`,
+        subtitle: 'Redeemable bonus burn(s) earned via summoning',
+        tone: 'success' as const,
+      }
+    }
+    return {
+      value: '0',
+      subtitle: 'Complete a summoning circle to earn a bonus burn',
+      tone: 'neutral' as const,
+    }
+  })()
+
+  const openCreated = summons.created.filter((entry) =>
+    ['open', 'filling', 'ready'].includes(entry.status),
+  )
+  const activeJoined = summons.joined.filter((entry) =>
+    ['open', 'filling', 'ready'].includes(entry.status),
+  )
+  const activeSummonsCount = openCreated.length + activeJoined.length
+
+  const cards = [
+    { title: 'Holder Status', ...holderCard },
+    { title: 'Marketplace Listings', ...listingsCard },
+    { title: 'Executioner Role', ...executionerCard },
+    { title: 'Bonus Burns', ...bonusCard },
+  ]
+
+  if (activeSummonsCount > 0) {
+    cards.push({
+      title: 'Active Summons',
+      value: `${activeSummonsCount}`,
+      subtitle: `${openCreated.length} created • ${activeJoined.length} joined`,
+      tone: 'warning' as const,
+    })
+  }
+
   return (
     <div className="w-full space-y-3">
       {inventory.error && (
@@ -315,20 +402,16 @@ function ProfileStatuses({
           Active listings detected! Remove your damned ordinals from the marketplace to maintain cover.
         </div>
       )}
-      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <StatusCard title="Holder Status" value={holderCard.value} subtitle={holderCard.subtitle} tone={holderCard.tone} />
-        <StatusCard
-          title="Marketplace Listings"
-          value={listingsCard.value}
-          subtitle={listingsCard.subtitle}
-          tone={listingsCard.tone}
-        />
-        <StatusCard
-          title="Executioner Role"
-          value={executionerCard.value}
-          subtitle={executionerCard.subtitle}
-          tone={executionerCard.tone}
-        />
+      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((card) => (
+          <StatusCard
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            subtitle={card.subtitle}
+            tone={card.tone}
+          />
+        ))}
       </div>
     </div>
   )
@@ -455,6 +538,8 @@ function useProfileState() {
   const [inventory, setInventory] = useState<InventorySummary>(INITIAL_INVENTORY)
   const [isHolder, setIsHolder] = useState<boolean | null>(null)
   const [executioner, setExecutioner] = useState<boolean | null>(null)
+  const [bonusAllowance, setBonusAllowance] = useState<number>(0)
+  const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
 
   const fetchProfile = useCallback(
     async (wallet: string) => {
@@ -593,6 +678,45 @@ function useProfileState() {
     [],
   )
 
+  const fetchSummonSummary = useCallback(
+    async (wallet: string) => {
+      try {
+        const response = await fetch(
+          `/api/abyss/summons?wallet=${encodeURIComponent(wallet)}&limit=50`,
+          {
+            headers: { 'Cache-Control': 'no-store' },
+          },
+        )
+        if (!response.ok) {
+          throw new Error(`Summon summary request failed (${response.status})`)
+        }
+        const data = await response.json()
+        const allowance = Number(data?.bonusAllowance ?? 0)
+        setBonusAllowance(Number.isFinite(allowance) ? allowance : 0)
+
+        const createdList = Array.isArray(data?.createdSummons)
+          ? (data.createdSummons as SummonRecord[])
+          : []
+        const joinedList = Array.isArray(data?.joinedSummons)
+          ? (data.joinedSummons as SummonRecord[])
+          : []
+        const createdIds = new Set(createdList.map((entry) => entry.id))
+        const filteredJoined = joinedList.filter((entry) => !createdIds.has(entry.id))
+
+        setSummons({
+          created: createdList,
+          joined: filteredJoined,
+          open: Array.isArray(data?.summons) ? data.summons : [],
+        })
+      } catch (error) {
+        console.error('Error fetching summon summary:', error)
+        setBonusAllowance(0)
+        setSummons(INITIAL_SUMMON_OVERVIEW)
+      }
+    },
+    [],
+  )
+
   const initializeProfile = useCallback(
     async (wallet: string) => {
       try {
@@ -614,9 +738,17 @@ function useProfileState() {
         checkTwitterStatus(wallet),
         fetchInventory(wallet),
         fetchExecutionerStatus(wallet),
+        fetchSummonSummary(wallet),
       ])
     },
-    [fetchProfile, checkDiscordStatus, checkTwitterStatus, fetchInventory, fetchExecutionerStatus],
+    [
+      fetchProfile,
+      checkDiscordStatus,
+      checkTwitterStatus,
+      fetchInventory,
+      fetchExecutionerStatus,
+      fetchSummonSummary,
+    ],
   )
 
   useEffect(() => {
@@ -629,6 +761,8 @@ function useProfileState() {
       setInventory(INITIAL_INVENTORY)
       setIsHolder(null)
       setExecutioner(null)
+      setBonusAllowance(0)
+      setSummons(INITIAL_SUMMON_OVERVIEW)
     }
   }, [connected, address, initializeProfile])
 
@@ -639,15 +773,25 @@ function useProfileState() {
     const twitterAuth = params.get('twitter_auth')
 
     if (discordAuth === 'success') {
-      void Promise.all([fetchProfile(address), checkDiscordStatus(address), fetchInventory(address)])
+      void Promise.all([
+        fetchProfile(address),
+        checkDiscordStatus(address),
+        fetchInventory(address),
+        fetchSummonSummary(address),
+      ])
       window.history.replaceState({}, '', '/profile')
     }
 
     if (twitterAuth === 'success') {
-      void Promise.all([fetchProfile(address), checkTwitterStatus(address), fetchInventory(address)])
+      void Promise.all([
+        fetchProfile(address),
+        checkTwitterStatus(address),
+        fetchInventory(address),
+        fetchSummonSummary(address),
+      ])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile, fetchInventory])
+  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile, fetchInventory, fetchSummonSummary])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -675,6 +819,8 @@ function useProfileState() {
       inventory,
       isHolder,
       executioner,
+      bonusAllowance,
+      summons,
       refreshProfile: () => {
         if (address) {
           void Promise.all([
@@ -683,6 +829,7 @@ function useProfileState() {
             checkTwitterStatus(address),
             fetchInventory(address),
             fetchExecutionerStatus(address),
+            fetchSummonSummary(address),
           ])
         }
       },
@@ -698,11 +845,14 @@ function useProfileState() {
       inventory,
       isHolder,
       executioner,
+      bonusAllowance,
+      summons,
       fetchProfile,
       checkDiscordStatus,
       checkTwitterStatus,
       fetchInventory,
       fetchExecutionerStatus,
+      fetchSummonSummary,
       triggerDiscordAuth,
       triggerTwitterAuth,
     ],

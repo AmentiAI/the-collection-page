@@ -17,14 +17,60 @@ async function ensureAbyssBurnsTable(pool: Pool) {
       ordinal_wallet TEXT NOT NULL,
       payment_wallet TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
+      source TEXT NOT NULL DEFAULT 'abyss',
+      summon_id UUID,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       confirmed_at TIMESTAMPTZ,
       last_checked_at TIMESTAMPTZ
     )
   `)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'abyss'`)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS summon_id UUID`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_summons (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      creator_wallet TEXT NOT NULL,
+      creator_inscription_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      required_participants INTEGER NOT NULL DEFAULT 4,
+      locked_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ,
+      bonus_granted BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_status ON abyss_summons(status)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_creator ON abyss_summons((LOWER(creator_wallet)))`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_summon_participants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
+      wallet TEXT NOT NULL,
+      inscription_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'participant',
+      joined_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(summon_id, wallet),
+      UNIQUE(summon_id, inscription_id)
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_summon ON abyss_summon_participants(summon_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_wallet ON abyss_summon_participants((LOWER(wallet)))`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+      wallet TEXT PRIMARY KEY,
+      available INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
 }
 
 function summarizeRow(row?: { total?: unknown; confirmed?: unknown }) {
@@ -251,6 +297,14 @@ export async function GET(request: NextRequest) {
     if (includeLeaderboard) {
       responseBody.leaderboard = leaderboard
     }
+    const allowanceSourceWallet = ordinalWallet || paymentWallet
+    if (allowanceSourceWallet) {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [allowanceSourceWallet],
+      )
+      responseBody.bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    }
 
     return NextResponse.json(responseBody)
   } catch (error) {
@@ -266,6 +320,9 @@ export async function POST(request: NextRequest) {
     const txId = (body?.txId ?? '').toString().trim()
     const ordinalWallet = (body?.ordinalWallet ?? '').toString().trim()
     const paymentWallet = (body?.paymentWallet ?? '').toString().trim()
+    const summonIdRaw = body?.summonId
+    const summonId =
+      typeof summonIdRaw === 'string' && summonIdRaw ? summonIdRaw.trim() : summonIdRaw ?? null
 
     if (!inscriptionId || !txId || !ordinalWallet || !paymentWallet) {
       return NextResponse.json(
@@ -281,35 +338,71 @@ export async function POST(request: NextRequest) {
       `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
     )
     const preSummary = summarizeRow(preSummaryResult.rows[0])
+    let burnSource = 'abyss'
+    let allowanceApplied = false
+
     if (preSummary.confirmed >= ABYSS_CAP) {
-      return NextResponse.json(
-        { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
-        { status: 403 },
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [ordinalWallet],
       )
+      const available = Number(allowanceRes.rows[0]?.available ?? 0)
+      if (available > 0) {
+        burnSource = 'summon_bonus'
+        allowanceApplied = true
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
+          { status: 403 },
+        )
+      }
     }
 
     await pool.query(
       `
-        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
+        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
         ON CONFLICT (inscription_id) DO UPDATE
           SET tx_id = EXCLUDED.tx_id,
               ordinal_wallet = EXCLUDED.ordinal_wallet,
               payment_wallet = EXCLUDED.payment_wallet,
               status = 'pending',
+              source = EXCLUDED.source,
+              summon_id = EXCLUDED.summon_id,
               updated_at = NOW(),
               confirmed_at = NULL,
               last_checked_at = NULL
       `,
-      [inscriptionId, txId, ordinalWallet, paymentWallet],
+      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
     )
+
+    if (allowanceApplied) {
+      await pool.query(
+        `
+          UPDATE abyss_bonus_allowances
+          SET available = GREATEST(available - 1, 0),
+              updated_at = NOW()
+          WHERE LOWER(wallet) = LOWER($1)
+        `,
+        [ordinalWallet],
+      )
+    }
 
     const summaryResult = await pool.query(
       `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
     )
     const summary = summarizeRow(summaryResult.rows[0])
 
-    return NextResponse.json({ success: true, summary, cap: ABYSS_CAP })
+    let bonusAllowance: number | undefined
+    if (allowanceApplied || ordinalWallet) {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [ordinalWallet],
+      )
+      bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    }
+
+    return NextResponse.json({ success: true, summary, cap: ABYSS_CAP, bonusAllowance, source: burnSource })
   } catch (error) {
     console.error('[abyss/burns][POST]', error)
     return NextResponse.json({ success: false, error: 'Failed to record abyss burn.' }, { status: 500 })

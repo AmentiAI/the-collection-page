@@ -362,6 +362,7 @@ function AbyssContent() {
     Array<{ ordinalWallet: string; paymentWallet: string; total: number; confirmed: number }>
   >([])
   const [capDriftTimestamp, setCapDriftTimestamp] = useState(() => Date.now())
+  const [bonusAllowance, setBonusAllowance] = useState(0)
 
   const summarizeOrdinal = useCallback((address: string) => {
     if (!address) return '—'
@@ -443,6 +444,7 @@ function AbyssContent() {
         setCooldownRemainingMs(0)
         clearAllBurnPolling()
         setBurnConfirmOpen(false)
+        setBonusAllowance(0)
       }
     },
     [clearAllBurnPolling],
@@ -543,6 +545,10 @@ function AbyssContent() {
         })
 
         setLeaderboard(parsedLeaderboard)
+      }
+
+      if (typeof data?.bonusAllowance === 'number') {
+        setBonusAllowance(Number(data.bonusAllowance))
       }
 
       const pending = Array.isArray(data?.pending) ? data.pending : []
@@ -1407,6 +1413,9 @@ function AbyssContent() {
               confirmed: Number(payload.summary.confirmed ?? 0),
               total: Number(payload.summary.total ?? 0),
             })
+          }
+          if (typeof payload?.bonusAllowance === 'number') {
+            setBonusAllowance(Number(payload.bonusAllowance))
           } else {
             await fetchBurnSummary()
           }
@@ -1587,7 +1596,9 @@ function AbyssContent() {
     return Math.max(totalBurns, reduced)
   }, [minutesSinceReductionStart, totalBurns])
   const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
-  const capReached = dynamicCap <= totalBurns && dynamicCap !== 0
+  const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
+  const bonusBurnAvailable = bonusAllowance > 0
+  const userCapReached = globalCapReached && !bonusBurnAvailable
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0
@@ -1596,7 +1607,7 @@ function AbyssContent() {
   const cooldownLabel = formatCountdown(cooldownDisplayMs)
   const cooldownActive = cooldownDisplayMs > 0 || Boolean(cooldownState?.active)
   const burnLocked = hasPendingBurn || cooldownActive
-  const canBurn = holderAllowed && !isVerifying && isWalletConnected && !capReached && !burnLocked
+  const canBurn = holderAllowed && !isVerifying && isWalletConnected && !userCapReached && !burnLocked
   useEffect(() => {
     fallenPileRef.current = fallenPile.length
   }, [fallenPile.length])
@@ -1638,7 +1649,7 @@ function AbyssContent() {
       />
 
       {/* Burn Counter + Warnings + Controls */}
-      {capReached ? (
+      {globalCapReached && !bonusBurnAvailable ? (
         <FullAbyssMenu totalBurns={totalBurns} onOpenLeaderboard={() => setLeaderboardOpen(true)} />
       ) : null}
 
@@ -1658,12 +1669,18 @@ function AbyssContent() {
         </div>
 
         <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
-          {capReached && (
+          {userCapReached && (
             <div className="mt-3 rounded border border-green-500/40 bg-green-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-green-300">
               Abyss satiated. Further burns disabled.
             </div>
           )}
-          {holderAllowed && !capReached ? (
+          {globalCapReached && bonusBurnAvailable && (
+            <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
+              Summoning bonus active — {bonusAllowance} bonus burn
+              {bonusAllowance === 1 ? '' : 's'} available despite the cap.
+            </div>
+          )}
+          {holderAllowed && !userCapReached ? (
             <div className="mt-3 space-y-3 font-mono text-[11px] uppercase tracking-[0.3em] text-red-400">
               {damnedError ? (
                 <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-red-200">{damnedError}</div>
@@ -1677,7 +1694,7 @@ function AbyssContent() {
                     variant="outline"
                     className="border-2 border-red-500 bg-red-700/80 px-4 py-1.5 text-[10px] font-mono font-bold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_20px_rgba(220,38,38,0.55)] transition-all hover:bg-red-600 animate-pulse"
                     onClick={() => setSelectorOpen(true)}
-                    disabled={damnedLoading || burning || capReached}
+                    disabled={damnedLoading || burning || userCapReached}
                   >
                     Select
                   </Button>
@@ -1717,7 +1734,7 @@ function AbyssContent() {
                       setPaymentScanInitiated(true)
                       void loadPaymentAssets()
                     }}
-                    disabled={paymentLoading || !isWalletConnected || capReached}
+                    disabled={paymentLoading || !isWalletConnected || userCapReached}
                   >
                     {paymentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Scan'}
                   </Button>
@@ -1747,7 +1764,7 @@ function AbyssContent() {
                 )}
               </div>
 
-              {!capReached && (
+              {!userCapReached && (
                 <div className="flex flex-col gap-2">
                   <Button
                     type="button"
@@ -1910,7 +1927,7 @@ function AbyssContent() {
                 <div className="grid gap-3">
                   {damnedOptions.map((option) => {
                     const isActive = selectedInscriptionId === option.inscriptionId
-                    const isDisabled = !option.confirmed || capReached
+                    const isDisabled = !option.confirmed || userCapReached
                     const buttonClass = [
                       'flex items-center gap-4 rounded-lg border px-4 py-3 text-left transition',
                       isDisabled
@@ -1924,7 +1941,7 @@ function AbyssContent() {
                       key={option.outpoint}
                       type="button"
                       onClick={() => {
-                        if (!option.confirmed || capReached) return
+                        if (!option.confirmed || userCapReached) return
                         setSelectedInscriptionId(option.inscriptionId)
                         setSelectorOpen(false)
                       }}
