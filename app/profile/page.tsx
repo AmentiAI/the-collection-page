@@ -563,7 +563,22 @@ function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
   const joined = summons.joined.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
 
   if (active.length === 0 && joined.length === 0) {
-    return null
+    return (
+      <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+          <Link
+            href="/abyss-summon"
+            className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+          >
+            Enter the Ritual
+          </Link>
+        </div>
+        <div className="rounded-2xl border border-amber-400/40 bg-black/60 px-4 py-4 text-center text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
+          No circles yet. Gather four damned to unlock bonus burns.
+        </div>
+      </section>
+    )
   }
 
   return (
