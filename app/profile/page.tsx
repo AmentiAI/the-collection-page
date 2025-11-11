@@ -561,6 +561,8 @@ function ConnectTwitter({
 function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
   const active = summons.created.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
   const joined = summons.joined.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
+  const completedHosted = summons.created.filter((entry) => entry.status === 'completed').length
+  const completedTouched = completedHosted + summons.joined.filter((entry) => entry.status === 'completed').length
 
   if (active.length === 0 && joined.length === 0) {
     return (
@@ -583,8 +585,15 @@ function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
 
   return (
     <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
+            Completed:&nbsp;
+            <span className="text-red-200">{completedHosted}</span> hosted •{' '}
+            <span className="text-red-200">{completedTouched}</span> total touched
+          </p>
+        </div>
         <Link
           href="/abyss-summon"
           className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
