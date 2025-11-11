@@ -165,6 +165,8 @@ function ProfileContent() {
           )}
         </section>
 
+        <SummoningOverviewCard summons={summons} />
+
         <section className="grid gap-5 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur md:grid-cols-2">
           <ConnectDiscord
             status={discord}
@@ -357,12 +359,14 @@ function ProfileStatuses({
         value: `${bonusAllowance}`,
         subtitle: 'Redeemable bonus burn(s) earned via summoning',
         tone: 'success' as const,
+        href: '/abyss',
       }
     }
     return {
       value: '0',
       subtitle: 'Complete a summoning circle to earn a bonus burn',
       tone: 'neutral' as const,
+      href: undefined,
     }
   })()
 
@@ -374,7 +378,13 @@ function ProfileStatuses({
   )
   const activeSummonsCount = openCreated.length + activeJoined.length
 
-  const cards = [
+  const cards: Array<{
+    title: string
+    value: string
+    subtitle: string
+    tone: 'neutral' | 'success' | 'warning' | 'danger'
+    href?: string
+  }> = [
     { title: 'Holder Status', ...holderCard },
     { title: 'Marketplace Listings', ...listingsCard },
     { title: 'Executioner Role', ...executionerCard },
@@ -386,7 +396,8 @@ function ProfileStatuses({
       title: 'Active Summons',
       value: `${activeSummonsCount}`,
       subtitle: `${openCreated.length} created • ${activeJoined.length} joined`,
-      tone: 'warning' as const,
+      tone: 'warning',
+      href: '/abyss-summon',
     })
   }
 
@@ -402,16 +413,28 @@ function ProfileStatuses({
           Active listings detected! Remove your damned ordinals from the marketplace to maintain cover.
         </div>
       )}
-      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
-          <StatusCard
-            key={card.title}
-            title={card.title}
-            value={card.value}
-            subtitle={card.subtitle}
-            tone={card.tone}
-          />
-        ))}
+      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map((card) =>
+          card.href ? (
+            <Link key={card.title} href={card.href} className="block h-full">
+              <StatusCard
+                title={card.title}
+                value={card.value}
+                subtitle={card.subtitle}
+                tone={card.tone}
+                interactive
+              />
+            </Link>
+          ) : (
+            <StatusCard
+              key={card.title}
+              title={card.title}
+              value={card.value}
+              subtitle={card.subtitle}
+              tone={card.tone}
+            />
+          ),
+        )}
       </div>
     </div>
   )
@@ -422,11 +445,13 @@ function StatusCard({
   value,
   subtitle,
   tone = 'neutral',
+  interactive = false,
 }: {
   title: string
   value: string
   subtitle?: string
   tone?: 'neutral' | 'success' | 'warning' | 'danger'
+  interactive?: boolean
 }) {
   let borderClass = 'border-red-700/40'
   let bgClass = 'bg-black/50'
@@ -451,7 +476,11 @@ function StatusCard({
   }
 
   return (
-    <div className={`rounded-2xl ${borderClass} ${bgClass} px-4 py-4 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)]`}>
+    <div
+      className={`rounded-2xl ${borderClass} ${bgClass} px-4 py-4 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)] ${
+        interactive ? 'cursor-pointer transition hover:border-amber-400 hover:shadow-[0_0_25px_rgba(251,191,36,0.35)]' : ''
+      }`}
+    >
       <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">{title}</p>
       <p className={`mt-2 text-xl font-black uppercase tracking-[0.3em] ${valueClass}`}>{value}</p>
       {subtitle ? (
@@ -526,6 +555,61 @@ function ConnectTwitter({
         </Button>
       )}
     </div>
+  )
+}
+
+function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
+  const active = summons.created.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
+  const joined = summons.joined.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
+
+  if (active.length === 0 && joined.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+        <Link
+          href="/abyss-summon"
+          className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+        >
+          View Ritual Hall
+        </Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {active.map((record) => (
+          <Link
+            key={record.id}
+            href="/abyss-summon"
+            className="rounded-2xl border border-amber-500/40 bg-amber-900/15 px-4 py-4 shadow-[0_0_18px_rgba(251,191,36,0.25)] transition hover:border-amber-400"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">Created</p>
+            <p className="mt-1 text-lg font-black uppercase tracking-[0.3em] text-amber-100">
+              {record.status.toUpperCase()}
+            </p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-amber-200/70">
+              {record.participants.length}/{record.requiredParticipants} participants
+            </p>
+          </Link>
+        ))}
+        {joined.map((record) => (
+          <Link
+            key={record.id}
+            href="/abyss-summon"
+            className="rounded-2xl border border-red-500/40 bg-red-900/20 px-4 py-4 shadow-[0_0_18px_rgba(220,38,38,0.25)] transition hover:border-red-400"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-200">Joined</p>
+            <p className="mt-1 text-lg font-black uppercase tracking-[0.3em] text-red-100">
+              {record.status.toUpperCase()}
+            </p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
+              {record.participants.length}/{record.requiredParticipants} participants
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
 
