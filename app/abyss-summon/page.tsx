@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Flame, Loader2, Sparkles, Trash2 } from 'lucide-react'
@@ -120,6 +120,52 @@ export default function AbyssSummonPage() {
       setInscriptionImageCache((prev) => ({ ...prev, ...updates }))
     }
   }, [summons, createdSummons, joinedSummons, inscriptionImageCache])
+
+  useEffect(() => {
+    if (damnedOptions.length === 0) {
+      setSelectedInscriptionId(null)
+      return
+    }
+    setInscriptionImageCache((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const option of damnedOptions) {
+        if (option.inscriptionId && option.image && !next[option.inscriptionId]) {
+          next[option.inscriptionId] = option.image
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [damnedOptions])
+
+  const previousSelectionRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    previousSelectionRef.current = selectedInscriptionId
+  }, [selectedInscriptionId])
+
+  useEffect(() => {
+    if (damnedOptions.length === 0) {
+      setSelectedInscriptionId(null)
+      return
+    }
+    const previousSelection = previousSelectionRef.current
+    if (previousSelection) {
+      const stillExists = damnedOptions.some((option) => option.inscriptionId === previousSelection)
+      if (stillExists) {
+        setSelectedInscriptionId(previousSelection)
+        return
+      }
+    }
+    setSelectedInscriptionId((prev) => {
+      const exists = prev && damnedOptions.some((option) => option.inscriptionId === prev)
+      if (exists) {
+        return prev
+      }
+      return damnedOptions[0]?.inscriptionId ?? null
+    })
+  }, [damnedOptions])
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
