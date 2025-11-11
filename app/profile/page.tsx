@@ -149,7 +149,7 @@ function ProfileAvatar({ imageUrl }: { imageUrl: string | null }) {
 function ProfileKarma({ profile }: { profile: ProfileDetails }) {
   const totalKarma = profile.totalGoodKarma - profile.totalBadKarma
 
-  if (!profile.chosenSide && totalKarma === 0) {
+  if (!profile.chosenSide) {
     return (
       <p className="text-sm uppercase tracking-[0.3em] text-red-200/70">
         Align with a side in duality to earn your first karma points.
@@ -338,15 +338,15 @@ function useProfileState() {
     const twitterAuth = params.get('twitter_auth')
 
     if (discordAuth === 'success') {
-      void checkDiscordStatus(address)
+      void Promise.all([fetchProfile(address), checkDiscordStatus(address)])
       window.history.replaceState({}, '', '/profile')
     }
 
     if (twitterAuth === 'success') {
-      void checkTwitterStatus(address)
+      void Promise.all([fetchProfile(address), checkTwitterStatus(address)])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, checkDiscordStatus, checkTwitterStatus])
+  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
