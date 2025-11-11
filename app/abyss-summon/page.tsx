@@ -42,6 +42,8 @@ type DamnedOption = {
 
 type SummonLeaderboardEntry = {
   wallet: string
+  username: string | null
+  avatarUrl: string | null
   burns: number
   confirmedBurns: number
   hosted: number
@@ -55,6 +57,9 @@ type SummonLeaderboardEntry = {
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
 const SUMMON_DURATION_MS = 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
+const SUMMON_BURN_POINTS = 6
+const SUMMON_HOST_POINTS = 2
+const SUMMON_PARTICIPATION_POINTS = 1
 
 function formatCountdown(ms: number) {
   if (ms <= 0) {
@@ -120,6 +125,45 @@ export default function AbyssSummonPage() {
   const selectedSummonerEntry = useMemo(
     () => summonLeaderboard.find((entry) => entry.wallet === selectedSummonerWallet) ?? null,
     [summonLeaderboard, selectedSummonerWallet],
+  )
+
+  const truncateWallet = useCallback((value: string) => {
+    const normalized = value.trim()
+    if (normalized.length <= 8) return normalized
+    return `${normalized.slice(0, 6)}…${normalized.slice(-4)}`
+  }, [])
+
+  const getDisplayName = useCallback(
+    (entry: SummonLeaderboardEntry) => entry.username?.trim() || truncateWallet(entry.wallet),
+    [truncateWallet],
+  )
+
+  const renderSummonerIdentity = useCallback(
+    (entry: SummonLeaderboardEntry, emphasizeSelf = false) => {
+      const displayName = getDisplayName(entry)
+      const initials =
+        displayName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() ||
+        truncateWallet(entry.wallet).slice(0, 2)
+      return (
+        <span className={`flex items-center gap-2 ${emphasizeSelf ? 'text-amber-200' : 'text-red-200/90'}`}>
+          <span className="relative flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-red-700/50 bg-black/70 text-[9px] font-bold uppercase tracking-[0.2em] text-red-300">
+            {entry.avatarUrl ? (
+              <Image
+                src={entry.avatarUrl}
+                alt={displayName}
+                width={24}
+                height={24}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </span>
+          <span>{emphasizeSelf ? `YOU · ${displayName}` : displayName}</span>
+        </span>
+      )
+    },
+    [getDisplayName, truncateWallet],
   )
 
   useEffect(() => {
@@ -369,6 +413,13 @@ export default function AbyssSummonPage() {
       const entries: SummonLeaderboardEntry[] = Array.isArray(payload?.entries)
         ? (payload.entries as Array<Record<string, unknown>>).map((item) => ({
             wallet: (item?.wallet ?? '').toString().toLowerCase(),
+            username: typeof item?.username === 'string' ? item.username : null,
+            avatarUrl:
+              typeof item?.avatarUrl === 'string'
+                ? item.avatarUrl
+                : typeof item?.avatar_url === 'string'
+                ? item.avatar_url
+                : null,
             burns: Number(item?.burns ?? 0),
             confirmedBurns: Number(item?.confirmedBurns ?? item?.confirmed_burns ?? 0),
             hosted: Number(item?.hosted ?? 0),
@@ -676,12 +727,6 @@ export default function AbyssSummonPage() {
     },
     [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast],
   )
-
-  const truncateWallet = useCallback((value: string) => {
-    const normalized = value.trim()
-    if (normalized.length <= 6) return normalized
-    return `${normalized.slice(0, 4)}…${normalized.slice(-4)}`
-  }, [])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
@@ -1007,7 +1052,7 @@ export default function AbyssSummonPage() {
                   Summoners Leaderboard
                 </h3>
                 <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
-                  Scores: 6 points per abyss burn, 2 points per completed circle you hosted, 1 point per completed circle you joined.
+                  Scores: {SUMMON_BURN_POINTS} points per abyss burn, {SUMMON_HOST_POINTS} points per completed circle you hosted, {SUMMON_PARTICIPATION_POINTS} point per completed circle you joined.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -1065,9 +1110,8 @@ export default function AbyssSummonPage() {
                             onClick={() => setSelectedSummonerWallet(entry.wallet)}
                           >
                             <td className="px-4 py-2 text-left text-red-500">{String(index + 1).padStart(2, '0')}</td>
-                            <td className="px-4 py-2 text-left text-red-200/90">
-                              {isSelf ? 'YOU · ' : ''}
-                              {truncateWallet(entry.wallet)}
+                            <td className="px-4 py-2 text-left">
+                              {renderSummonerIdentity(entry, isSelf)}
                             </td>
                             <td className="px-4 py-2 text-right text-amber-200 tabular-nums">{entry.score}</td>
                             <td className="px-4 py-2 text-right text-red-400 tabular-nums">{entry.burns}</td>
@@ -1081,27 +1125,49 @@ export default function AbyssSummonPage() {
               <div className="space-y-4 rounded-2xl border border-red-600/40 bg-black/60 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
                 {selectedSummonerEntry ? (
                   <>
-                    <div className="space-y-1">
-                      <h4 className="font-mono text-sm uppercase tracking-[0.3em] text-red-200">
-                        {truncateWallet(selectedSummonerEntry.wallet)}
-                      </h4>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
-                        Total Score: {selectedSummonerEntry.score}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-red-600/50 bg-black/80 text-sm font-bold uppercase tracking-[0.2em] text-red-300">
+                        {selectedSummonerEntry.avatarUrl ? (
+                          <Image
+                            src={selectedSummonerEntry.avatarUrl}
+                            alt={getDisplayName(selectedSummonerEntry)}
+                            width={48}
+                            height={48}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          truncateWallet(selectedSummonerEntry.wallet).slice(0, 2)
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-mono text-sm uppercase tracking-[0.3em] text-red-200">
+                          {getDisplayName(selectedSummonerEntry)}
+                        </h4>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
+                          {truncateWallet(selectedSummonerEntry.wallet)}
+                        </p>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
+                          Total Score: {selectedSummonerEntry.score}
+                        </p>
+                      </div>
                     </div>
                     <div className="space-y-2 text-[11px] uppercase tracking-[0.25em] text-red-200/80">
                       <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
                         <span>Burns · {selectedSummonerEntry.burns}</span>
-                        <span className="text-amber-200">+{selectedSummonerEntry.burns * 5} pts</span>
+                        <span className="text-amber-200">
+                          +{selectedSummonerEntry.burns * SUMMON_BURN_POINTS} pts
+                        </span>
                       </div>
                       <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
                         <span>Hosted · {selectedSummonerEntry.hosted}</span>
-                        <span className="text-amber-200">+{selectedSummonerEntry.hosted * 2} pts</span>
+                        <span className="text-amber-200">
+                          +{selectedSummonerEntry.hosted * SUMMON_HOST_POINTS} pts
+                        </span>
                       </div>
                       <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
                         <span>Allies Joined · {selectedSummonerEntry.participated}</span>
                         <span className="text-amber-200">
-                          +{selectedSummonerEntry.participated * 1} pts
+                          +{selectedSummonerEntry.participated * SUMMON_PARTICIPATION_POINTS} pts
                         </span>
                       </div>
                     </div>

@@ -104,6 +104,9 @@ export async function GET() {
       )
       SELECT
         c.wallet,
+        pr.username,
+        pr.avatar_url,
+        du.discord_user_id,
         COALESCE(b.burn_count, 0) AS burns,
         COALESCE(b.confirmed_burn_count, 0) AS confirmed_burns,
         COALESCE(h.hosted_count, 0) AS hosted,
@@ -118,12 +121,16 @@ export async function GET() {
       LEFT JOIN burns b ON b.wallet = c.wallet
       LEFT JOIN hosted h ON h.wallet = c.wallet
       LEFT JOIN participation p ON p.wallet = c.wallet
+      LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = c.wallet
+      LEFT JOIN discord_users du ON du.profile_id = pr.id
       WHERE COALESCE(h.hosted_count, 0) > 0 OR COALESCE(p.participations, 0) > 0
       ORDER BY score DESC, burns DESC, hosted DESC, participated DESC, c.wallet
     `)
 
     const entries = result.rows.map((row) => ({
       wallet: (row.wallet ?? '').toString(),
+      username: row.username ?? null,
+      avatarUrl: row.avatar_url ?? null,
       burns: Number(row.burns ?? 0),
       confirmedBurns: Number(row.confirmed_burns ?? 0),
       hosted: Number(row.hosted ?? 0),
