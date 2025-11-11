@@ -82,6 +82,18 @@ function ProfileContent() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <iframe
+          className="absolute left-1/2 top-1/2 h-[120vh] w-[120vw] -translate-x-1/2 -translate-y-1/2"
+          src="https://www.youtube.com/embed/6WxfleWs-Ck?autoplay=1&mute=1&loop=1&playlist=6WxfleWs-Ck&controls=0&modestbranding=1&showinfo=0&rel=0&playsinline=1"
+          title="The Damned Background"
+          frameBorder="0"
+          allow="autoplay; fullscreen; picture-in-picture"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80" />
+      </div>
+
       <Header connected={connected} showMusicControls={false} />
 
       <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">

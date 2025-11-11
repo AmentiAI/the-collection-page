@@ -8,6 +8,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'ord-mirror.magiceden.dev',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.discordapp.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'media.discordapp.net',
+      },
     ],
   },
   experimental: {
