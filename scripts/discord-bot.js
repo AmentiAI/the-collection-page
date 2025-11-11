@@ -32,6 +32,8 @@ const DUALITY_EVENTS_CHANNEL_ID = process.env.DUALITY_EVENTS_CHANNEL_ID;
 const DUALITY_PARTICIPANT_ROLE_ID = process.env.DUALITY_PARTICIPANT_ROLE_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const SITE_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.thedamned.xyz';
+const EXECUTIONER_ROLE_ID = process.env.EXECUTIONER_ROLE_ID || '1437820365991837859';
+const SUMMONER_ROLE_ID = process.env.SUMMONER_ROLE_ID || '1437895763308052601';
 
 const FLASHNET_MNEMONIC = process.env.FLASHNET_MNEMONIC || process.env.SPARK_MNEMONIC;
 const FLASHNET_NETWORK = (process.env.FLASHNET_NETWORK || 'MAINNET').toUpperCase();
@@ -1280,6 +1282,475 @@ async function handleFlashnetInteraction(interaction) {
   }
 }
 
+async function syncHolderAndSpecialRoles() {
+  try {
+    console.log('🔄 Running holder/special role sync...');
+    const guild =
+      client.guilds.cache.get(process.env.GUILD_ID) ||
+      (process.env.GUILD_ID ? await client.guilds.fetch(process.env.GUILD_ID) : null);
+    if (!guild) {
+      console.error('Guild not found');
+      return;
+    }
+
+    const holderRole = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+    if (!holderRole) {
+      console.error('Holder role not found');
+      return;
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz';
+
+    const removeResponse = await fetch(`${baseUrl}/api/discord/roles/list?action=remove`);
+
+    if (!removeResponse.ok) {
+      console.error('Failed to fetch users to remove roles:', removeResponse.status);
+      return;
+    }
+
+    const removeData = await removeResponse.json();
+    let removedCount = 0;
+
+    if (removeData.discordIds && removeData.discordIds.length > 0) {
+      for (const discordId of removeData.discordIds) {
+        try {
+          const member = await guild.members.fetch(discordId);
+          if (member.roles.cache.has(holderRole.id)) {
+            await member.roles.remove(holderRole);
+            removedCount++;
+            console.log(`✅ Removed holder role from ${member.user.tag} (${discordId}) - no longer has ordinals`);
+          }
+        } catch (error) {
+          console.error(`Error removing role from ${discordId}:`, error);
+        }
+      }
+    }
+
+    const addResponse = await fetch(`${baseUrl}/api/discord/roles/list?action=add`);
+
+    if (!addResponse.ok) {
+      console.error('Failed to fetch users to add roles:', addResponse.status);
+      return;
+    }
+
+    const addData = await addResponse.json();
+    let addedCount = 0;
+
+    if (addData.discordIds && addData.discordIds.length > 0) {
+      for (const discordId of addData.discordIds) {
+        try {
+          const member = await guild.members.fetch(discordId);
+          if (!member.roles.cache.has(holderRole.id)) {
+            await member.roles.add(holderRole);
+            addedCount++;
+            console.log(`✅ Added holder role to ${member.user.tag} (${discordId}) - has ordinals`);
+          }
+        } catch (error) {
+          console.error(`Error adding role to ${discordId}:`, error);
+        }
+      }
+    }
+
+    console.log(`✅ Holder role sync complete: Removed ${removedCount} roles, Added ${addedCount} roles`);
+
+    if (EXECUTIONER_ROLE_ID) {
+      const executionerRole = guild.roles.cache.get(EXECUTIONER_ROLE_ID);
+      if (!executionerRole) {
+        console.warn(`Executioner role with ID ${EXECUTIONER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [execAddResponse, execRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=executioner-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=executioner-remove`),
+          ]);
+
+          if (!execAddResponse.ok) {
+            console.error('Failed to fetch executioner add list:', execAddResponse.status);
+          }
+
+          if (!execRemoveResponse.ok) {
+            console.error('Failed to fetch executioner remove list:', execRemoveResponse.status);
+          }
+
+          const execAddData = execAddResponse.ok ? await execAddResponse.json() : { discordIds: [] };
+          const execRemoveData = execRemoveResponse.ok ? await execRemoveResponse.json() : { discordIds: [] };
+
+          let execAdded = 0;
+          let execRemoved = 0;
+
+          if (Array.isArray(execAddData.discordIds)) {
+            for (const discordId of execAddData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (!member.roles.cache.has(executionerRole.id)) {
+                  await member.roles.add(executionerRole);
+                  execAdded++;
+                  console.log(`✅ Added executioner role to ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error adding executioner role to ${discordId}:`, error);
+              }
+            }
+          }
+
+          if (Array.isArray(execRemoveData.discordIds)) {
+            for (const discordId of execRemoveData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (member.roles.cache.has(executionerRole.id)) {
+                  await member.roles.remove(executionerRole);
+                  execRemoved++;
+                  console.log(`✅ Removed executioner role from ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error removing executioner role from ${discordId}:`, error);
+              }
+            }
+          }
+
+          console.log(`✅ Executioner sync complete: Added ${execAdded} roles, Removed ${execRemoved} roles`);
+        } catch (error) {
+          console.error('Error syncing executioner roles:', error);
+        }
+      }
+    }
+
+    if (SUMMONER_ROLE_ID) {
+      const summonerRole = guild.roles.cache.get(SUMMONER_ROLE_ID);
+      if (!summonerRole) {
+        console.warn(`Summoner role with ID ${SUMMONER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [summonerAddResponse, summonerRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=summoner-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=summoner-remove`),
+          ]);
+
+          if (!summonerAddResponse.ok) {
+            console.error('Failed to fetch summoner add list:', summonerAddResponse.status);
+          }
+
+          if (!summonerRemoveResponse.ok) {
+            console.error('Failed to fetch summoner remove list:', summonerRemoveResponse.status);
+          }
+
+          const summonerAddData = summonerAddResponse.ok ? await summonerAddResponse.json() : { discordIds: [] };
+          const summonerRemoveData = summonerRemoveResponse.ok ? await summonerRemoveResponse.json() : { discordIds: [] };
+
+          let summonerAdded = 0;
+          let summonerRemoved = 0;
+
+          if (Array.isArray(summonerAddData.discordIds)) {
+            for (const discordId of summonerAddData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (!member.roles.cache.has(summonerRole.id)) {
+                  await member.roles.add(summonerRole);
+                  summonerAdded++;
+                  console.log(`✅ Added summoner role to ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error adding summoner role to ${discordId}:`, error);
+              }
+            }
+          }
+
+          if (Array.isArray(summonerRemoveData.discordIds)) {
+            for (const discordId of summonerRemoveData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (member.roles.cache.has(summonerRole.id)) {
+                  await member.roles.remove(summonerRole);
+                  summonerRemoved++;
+                  console.log(`✅ Removed summoner role from ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error removing summoner role from ${discordId}:`, error);
+              }
+            }
+          }
+
+          console.log(`✅ Summoner sync complete: Added ${summonerAdded} roles, Removed ${summonerRemoved} roles`);
+        } catch (error) {
+          console.error('Error syncing summoner roles:', error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in holder/special role sync:', error);
+  }
+}
+
+async function getFlashnetClientInstance() {
+  if (flashnetClientPromise) return flashnetClientPromise;
+  if (!FLASHNET_MNEMONIC) {
+    throw new Error('FLASHNET_MNEMONIC (or SPARK_MNEMONIC) is not set');
+  }
+
+  flashnetClientPromise = (async () => {
+    const { wallet } = await SparkWallet.initialize({
+      mnemonicOrSeed: FLASHNET_MNEMONIC,
+      options: { network: FLASHNET_NETWORK },
+    });
+    const client = new FlashnetClient(wallet);
+    await client.initialize();
+    return client;
+  })();
+
+  return flashnetClientPromise;
+}
+
+async function listFlashnetPoolsFromSdk(limit, offset) {
+  const client = await getFlashnetClientInstance();
+  return client.listPools({
+    limit,
+    offset,
+    sort: 'TVL_DESC',
+  });
+}
+
+async function syncFlashnetPools(force = false) {
+  if (!FLASHNET_COMMANDS_ENABLED) return;
+  if (flashnetSyncInProgress) return;
+
+  const now = Date.now();
+  if (!force && now - flashnetLastSync < FLASHNET_POLL_INTERVAL_MS) {
+    return;
+  }
+
+  flashnetSyncInProgress = true;
+
+  try {
+    console.log('[Flashnet] Syncing pools from Flashnet SDK...');
+    const allPools = [];
+    let offset = 0;
+
+    while (allPools.length < FLASHNET_MAX_SYNC_POOLS) {
+      const page = await listFlashnetPoolsFromSdk(FLASHNET_PAGE_SIZE, offset);
+      const pools = Array.isArray(page?.pools) ? page.pools : Array.isArray(page) ? page : [];
+
+      if (!pools.length) break;
+
+      allPools.push(...pools);
+
+      if (pools.length < FLASHNET_PAGE_SIZE) {
+        break;
+      }
+
+      offset += FLASHNET_PAGE_SIZE;
+    }
+
+    if (!allPools.length) {
+      console.log('[Flashnet] No pools returned from SDK.');
+      return;
+    }
+
+    const payload = allPools.slice(0, FLASHNET_MAX_SYNC_POOLS);
+
+    const res = await apiFetch('/api/flashnet/pools', {
+      method: 'POST',
+      body: JSON.stringify({ pools: payload }),
+    });
+
+    if (!res.ok) {
+      console.error('[Flashnet] Failed to upsert pools:', res.status, res.data);
+      return;
+    }
+
+    console.log(
+      `[Flashnet] Upserted pools — inserted: ${res.data?.inserted ?? 0}, updated: ${res.data?.updated ?? 0}`
+    );
+    flashnetLastSync = Date.now();
+  } catch (error) {
+    console.error('[Flashnet] Pool sync error:', error);
+  } finally {
+    flashnetSyncInProgress = false;
+  }
+}
+
+async function getStoredFlashnetPool(searchTerm) {
+  const query = searchTerm?.trim();
+  if (!query) return null;
+
+  const res = await apiFetch(`/api/flashnet/pools?search=${encodeURIComponent(query)}`);
+  if (!res.ok) {
+    console.error('[Flashnet] Pool search failed:', res.status, res.data);
+    return null;
+  }
+
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  if (!pools.length) {
+    console.warn('[Flashnet] Pool search returned no results', {
+      search: query,
+      total: res.data?.total,
+      count: res.data?.count,
+    });
+  } else {
+    console.log('[Flashnet] Pool search matched', {
+      search: query,
+      firstMatch: getPoolDisplayName(pools[0]),
+      total: pools.length,
+    });
+  }
+  return pools[0] || null;
+}
+
+async function listStoredFlashnetPools(limit = DEFAULT_POOL_LIST_LIMIT, offset = 0) {
+  const res = await apiFetch(
+    `/api/flashnet/pools?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+  );
+  if (!res.ok) {
+    console.error('[Flashnet] Pool list fetch failed:', res.status, res.data);
+    return { pools: [], total: 0 };
+  }
+
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  const total = typeof res.data?.total === 'number' ? res.data.total : pools.length;
+  return { pools, total };
+}
+
+function buildPoolEmbed(pool) {
+  const embed = new EmbedBuilder()
+    .setTitle(`${getPoolDisplayName(pool)} — Flashnet`)
+    .setColor(0x0080ff)
+    .setTimestamp(new Date());
+
+  const icon = getTokenIcon(pool, 'a') || getTokenIcon(pool, 'b');
+  if (icon) {
+    embed.setThumbnail(icon);
+  }
+
+  embed.addFields(
+    { name: 'TVL (Asset B)', value: formatCurrency(pool.tvl_asset_b), inline: true },
+    { name: '24h Volume', value: formatCurrency(pool.volume_24h_asset_b), inline: true },
+    { name: 'Price A in B', value: formatNumber(pool.current_price_a_in_b), inline: true },
+  );
+
+  embed.addFields(
+    { name: '24h Change', value: formatPercent(pool.price_change_percent_24h), inline: true },
+    { name: 'LP Fee (bps)', value: pool.lp_fee_bps !== null ? String(pool.lp_fee_bps) : 'N/A', inline: true },
+    { name: 'Host Fee (bps)', value: pool.host_fee_bps !== null ? String(pool.host_fee_bps) : 'N/A', inline: true },
+  );
+
+  embed.addFields(
+    { name: 'Asset A', value: formatTokenSummary(pool, 'a'), inline: true },
+    { name: 'Asset B', value: formatTokenSummary(pool, 'b'), inline: true },
+  );
+
+  embed.setFooter({
+    text: `Pool ID: ${pool.lp_public_key}`,
+  });
+
+  return embed;
+}
+
+function buildPoolListEmbed(pools, total, offset, limit) {
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Flashnet Pools')
+    .setDescription(`Showing ${pools.length} of ${total}`)
+    .setColor(0x0080ff)
+    .setTimestamp(new Date());
+
+  const lines = pools.map((pool, index) => {
+    const rank = offset + index + 1;
+    const label = getPoolDisplayName(pool);
+    const tvl = formatCurrency(pool.tvl_asset_b);
+    const volume = formatCurrency(pool.volume_24h_asset_b);
+    const symbolA = getTokenSymbol(pool, 'a');
+    const symbolB = getTokenSymbol(pool, 'b');
+    const pair = symbolA && symbolB ? `${symbolA}/${symbolB}` : label;
+    return `${rank}. **${pair}**\n   TVL: ${tvl} | 24h Vol: ${volume}`;
+  });
+
+  embed.addFields({
+    name: `Rank ${offset + 1}-${offset + pools.length}`,
+    value: lines.join('\n\n'),
+    inline: false,
+  });
+
+  embed.setFooter({
+    text: `Use /tokens limit:${limit} offset:${offset + limit} for next page`,
+  });
+
+  return embed;
+}
+
+async function handleFlashnetInteraction(interaction) {
+  if (!FLASHNET_COMMANDS_ENABLED) {
+    await interaction.reply({
+      content: '❌ Flashnet commands are currently disabled on this bot.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isAllowedFlashnetChannel(interaction.channelId)) {
+    await interaction.reply({
+      content: `❌ Flashnet commands are restricted to <#${FLASHNET_ALLOWED_CHANNEL_ID}>.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const commandName = interaction.commandName;
+
+  if (commandName === 'tokens') {
+    await interaction.deferReply();
+    const limit = interaction.options.getInteger('limit') || DEFAULT_POOL_LIST_LIMIT;
+    const offset = interaction.options.getInteger('offset') || 0;
+
+    try {
+      const { pools, total } = await listStoredFlashnetPools(limit, offset);
+
+      if (!pools.length) {
+        await interaction.editReply({
+          content:
+            total === 0
+              ? '❌ No Flashnet pool data available yet. The bot will sync shortly.'
+              : `❌ No pools found at offset ${offset}. Try a lower offset or wait for the next sync.`,
+        });
+        return;
+      }
+
+      const embed = buildPoolListEmbed(pools, total, offset, limit);
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('[Flashnet] /tokens error:', error);
+      await interaction.editReply({
+        content: `❌ Error fetching pool list: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+    return;
+  }
+
+  const query = interaction.options.getString('token', true);
+  await interaction.deferReply();
+
+  let pool = await getStoredFlashnetPool(query);
+
+  if (!pool) {
+    await syncFlashnetPools(true);
+    pool = await getStoredFlashnetPool(query);
+  }
+
+  if (!pool) {
+    await interaction.editReply({
+      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync.`,
+    });
+    return;
+  }
+
+  try {
+    const embed = buildPoolEmbed(pool);
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('[Flashnet] Command error:', error);
+    await interaction.editReply({
+      content: `❌ Error handling /${commandName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    });
+  }
+}
+
 
 // Handle slash commands
 client.on(Events.InteractionCreate, async interaction => {
@@ -1611,84 +2082,9 @@ if (FLASHNET_COMMANDS_ENABLED) {
   }, FLASHNET_POLL_INTERVAL_MS);
 }
 
-setInterval(async () => {
-  try {
-    console.log('🔄 Running periodic holder role check...');
-      const guild = client.guilds.cache.get(process.env.GUILD_ID);
-      if (!guild) {
-        console.error('Guild not found');
-        return;
-      }
-      
-      const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-      if (!role) {
-        console.error('Holder role not found');
-        return;
-      }
-      
-    // Get Discord IDs that should have role removed (0 ordinals)
-    const removeResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=remove`
-    );
-    
-    if (!removeResponse.ok) {
-      console.error('Failed to fetch users to remove roles:', removeResponse.status);
-      return;
-    }
-    
-    const removeData = await removeResponse.json();
-    let removedCount = 0;
-    
-    if (removeData.discordIds && removeData.discordIds.length > 0) {
-      // Remove roles from users who no longer have ordinals
-      for (const discordId of removeData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (member.roles.cache.has(role.id)) {
-            await member.roles.remove(role);
-            removedCount++;
-            console.log(`✅ Removed holder role from ${member.user.tag} (${discordId}) - no longer has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error removing role from ${discordId}:`, error);
-        }
-      }
-    }
-    
-    // Get Discord IDs that should have role added (> 0 ordinals)
-    const addResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=add`
-    );
-    
-    if (!addResponse.ok) {
-      console.error('Failed to fetch users to add roles:', addResponse.status);
-      return;
-    }
-    
-    const addData = await addResponse.json();
-    let addedCount = 0;
-    
-    if (addData.discordIds && addData.discordIds.length > 0) {
-      // Add roles to users who have ordinals but don't have the role
-      for (const discordId of addData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (!member.roles.cache.has(role.id)) {
-            await member.roles.add(role);
-            addedCount++;
-            console.log(`✅ Added holder role to ${member.user.tag} (${discordId}) - has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error adding role to ${discordId}:`, error);
-        }
-      }
-    }
-    
-    console.log(`✅ Periodic check complete: Removed ${removedCount} roles, Added ${addedCount} roles`);
-  } catch (error) {
-    console.error('Error in periodic holder role check:', error);
-  }
-}, 3600000); // Run every hour (3600000 ms)
+setInterval(() => {
+  void syncHolderAndSpecialRoles();
+}, 3600000);
 
 // Periodic job to check for missed check-ins and apply -5 karma penalty (runs every 24 hours)
 setInterval(async () => {
@@ -1739,6 +2135,7 @@ client.once(Events.ClientReady, async () => {
     await syncFlashnetPools(true);
   }
   await handleDualityWeeklyCycle(client);
+  await syncHolderAndSpecialRoles();
 });
 
 // Error handling

@@ -48,6 +48,77 @@ export async function GET(request: Request) {
         discordIds,
         count: discordIds.length
       })
+    } else if (action === 'executioner-add') {
+      // Get Discord IDs with confirmed abyss burns (should receive executioner role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address)
+        WHERE ab.status = 'confirmed'
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'executioner-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'executioner-remove') {
+      // Get Discord IDs without confirmed abyss burns (should have executioner role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address) AND ab.status = 'confirmed'
+        WHERE ab.id IS NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'executioner-remove',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'summoner-add') {
+      // Get Discord IDs that have participated in an abyss summon (should have summoner role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_summon_participants asp ON LOWER(asp.wallet) = LOWER(p.wallet_address)
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'summoner-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'summoner-remove') {
+      // Get Discord IDs that have never participated in an abyss summon (should have summoner role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_summon_participants asp ON LOWER(asp.wallet) = LOWER(p.wallet_address)
+        WHERE asp.id IS NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'summoner-remove',
+        discordIds,
+        count: discordIds.length,
+      })
     } else {
       return NextResponse.json(
         { error: 'Invalid action. Use "remove" or "add"' },
