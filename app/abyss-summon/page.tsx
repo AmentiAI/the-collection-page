@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play } from 'lucide-react'
+import { AlertTriangle, Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -802,6 +802,10 @@ export default function AbyssSummonPage() {
             <p className="mx-auto max-w-3xl text-sm uppercase tracking-[0.35em] text-red-200/85">
               Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.
             </p>
+            <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
+              <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
+              <span>More burns are required to keep the summoning circles open.</span>
+            </div>
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                 <span className="text-[11px] text-amber-300">Bonus Burns Awaiting</span>
