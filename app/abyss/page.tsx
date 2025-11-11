@@ -130,7 +130,7 @@ function FullAbyssMenu({
   onOpenLeaderboard: () => void
 }) {
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/90 px-6 py-12 backdrop-blur">
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 px-6 py-12 backdrop-blur">
       <div className="w-full max-w-4xl space-y-8 text-center">
         <div className="space-y-3">
           <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-red-400 drop-shadow-[0_0_25px_rgba(220,38,38,0.65)] md:text-5xl">
