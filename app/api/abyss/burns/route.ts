@@ -108,6 +108,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl
     const cacheControl = request.headers.get('cache-control')
+
+    if (searchParams.get('ids') === 'inscriptions') {
+      const result = await pool.query(`SELECT inscription_id FROM abyss_burns`)
+      const ids = result.rows
+        .map((row) => (typeof row?.inscription_id === 'string' ? row.inscription_id.trim() : null))
+        .filter((value: string | null): value is string => Boolean(value))
+      return NextResponse.json({ success: true, inscriptions: ids })
+    }
+
     if (cacheControl?.toLowerCase().includes('no-cache') || cacheControl?.toLowerCase().includes('no-store')) {
       // Explicitly bypass any internal caching by referencing request headers
     }
