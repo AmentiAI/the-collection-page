@@ -472,7 +472,7 @@ export default function GatesOfTheDamnedPage() {
                 </p>
            
                 <Link
-                  href="/abyss"
+                  href="/profile"
                   className="inline-block w-full rounded-lg border-2 border-red-600/60 bg-red-600 px-8 py-6 text-2xl md:text-3xl font-mono tracking-[0.4em] uppercase text-white transition-colors hover:bg-red-700 hover:border-red-500"
                 >
                   Enter Detour
