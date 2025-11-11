@@ -40,7 +40,7 @@ export default function GiveawayPage() {
     audioRef.current.volume = isMuted ? 0 : volume / 100
   }, [volume, isMuted])
 
-  const targetDate = useMemo(() => new Date('2025-11-11T04:00:00Z'), [])
+  const targetDate = useMemo(() => new Date('2025-11-11T04:30:00Z'), [])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
