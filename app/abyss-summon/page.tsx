@@ -87,6 +87,39 @@ export default function AbyssSummonPage() {
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
     [damnedOptions, selectedInscriptionId],
   )
+
+  useEffect(() => {
+    if (damnedOptions.length === 0) {
+      return
+    }
+    setInscriptionImageCache((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const option of damnedOptions) {
+        if (option.inscriptionId && option.image && !next[option.inscriptionId]) {
+          next[option.inscriptionId] = option.image
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [damnedOptions])
+
+  useEffect(() => {
+    const updates: Record<string, string> = {}
+    for (const list of [summons, createdSummons, joinedSummons]) {
+      for (const summon of list) {
+        for (const participant of summon.participants) {
+          if (participant.inscriptionId && participant.image && !inscriptionImageCache[participant.inscriptionId]) {
+            updates[participant.inscriptionId] = participant.image
+          }
+        }
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      setInscriptionImageCache((prev) => ({ ...prev, ...updates }))
+    }
+  }, [summons, createdSummons, joinedSummons, inscriptionImageCache])
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
