@@ -111,7 +111,7 @@ export async function GET() {
         b.last_burn_at,
         h.last_hosted_at,
         p.last_participated_at,
-        (COALESCE(b.burn_count, 0) * 4)
+        (COALESCE(b.burn_count, 0) * 6)
           + (COALESCE(h.hosted_count, 0) * 2)
           + (COALESCE(p.participations, 0) * 1) AS score
       FROM combined c

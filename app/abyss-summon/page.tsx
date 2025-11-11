@@ -1007,7 +1007,7 @@ export default function AbyssSummonPage() {
                   Summoners Leaderboard
                 </h3>
                 <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
-                  Scores: 4 points per abyss burn, 2 points per completed circle you hosted, 1 point per completed circle you joined.
+                  Scores: 6 points per abyss burn, 2 points per completed circle you hosted, 1 point per completed circle you joined.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -1092,7 +1092,7 @@ export default function AbyssSummonPage() {
                     <div className="space-y-2 text-[11px] uppercase tracking-[0.25em] text-red-200/80">
                       <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
                         <span>Burns · {selectedSummonerEntry.burns}</span>
-                        <span className="text-amber-200">+{selectedSummonerEntry.burns * 4} pts</span>
+                        <span className="text-amber-200">+{selectedSummonerEntry.burns * 5} pts</span>
                       </div>
                       <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
                         <span>Hosted · {selectedSummonerEntry.hosted}</span>
