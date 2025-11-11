@@ -110,7 +110,7 @@ export default function AbyssSummonPage() {
   const [musicReady, setMusicReady] = useState(false)
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(45)
+  const [musicVolume, setMusicVolume] = useState(15)
   const musicControlsDisabled = !musicReady && !musicPlaying
 
   const selectedOption = useMemo(
