@@ -54,12 +54,14 @@ async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
       summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
       wallet TEXT NOT NULL,
       inscription_id TEXT NOT NULL,
+      inscription_image TEXT,
       role TEXT NOT NULL DEFAULT 'participant',
       joined_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(summon_id, wallet),
       UNIQUE(summon_id, inscription_id)
     )
   `)
+  await pool.query(`ALTER TABLE abyss_summon_participants ADD COLUMN IF NOT EXISTS inscription_image TEXT`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
       wallet TEXT PRIMARY KEY,
@@ -101,6 +103,10 @@ export async function POST(
   const body = await request.json().catch(() => ({}))
   const wallet = (body?.wallet ?? '').toString().trim()
   const inscriptionId = (body?.inscriptionId ?? '').toString().trim()
+  const inscriptionImage =
+    typeof body?.inscriptionImage === 'string' && body.inscriptionImage.trim().length > 0
+      ? body.inscriptionImage.trim()
+      : null
 
   if (!wallet || !inscriptionId) {
     return NextResponse.json(
@@ -178,10 +184,14 @@ export async function POST(
 
     await pool.query(
       `
-        INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, role)
-        VALUES ($1, $2, $3, 'participant')
+        INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, inscription_image, role)
+        VALUES ($1, $2, $3, $4, 'participant')
+        ON CONFLICT (summon_id, wallet) DO UPDATE
+        SET inscription_id = EXCLUDED.inscription_id,
+            inscription_image = COALESCE(EXCLUDED.inscription_image, abyss_summon_participants.inscription_image),
+            joined_at = NOW()
       `,
-      [summonId, wallet, inscriptionId],
+      [summonId, wallet, inscriptionId, inscriptionImage],
     )
 
     const updatedCountRes = await pool.query(
@@ -225,6 +235,7 @@ export async function POST(
                 'id', sp.id,
                 'wallet', sp.wallet,
                 'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                 'role', sp.role,
                 'joinedAt', sp.joined_at
               )

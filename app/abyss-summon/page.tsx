@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Flame, Loader2, Sparkles, Trash2 } from 'lucide-react'
 
 import Header from '@/components/Header'
@@ -14,6 +15,7 @@ type SummonParticipant = {
   wallet: string
   inscriptionId: string
   role: string
+  image?: string | null
   joinedAt?: string | null
 }
 
@@ -40,6 +42,7 @@ type DamnedOption = {
 
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
 const SUMMON_DURATION_MS = 30 * 60 * 1000
+const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 
 function formatCountdown(ms: number) {
   if (ms <= 0) {
@@ -78,21 +81,12 @@ export default function AbyssSummonPage() {
   const [joiningSummonId, setJoiningSummonId] = useState<string | null>(null)
   const [completingSummonId, setCompletingSummonId] = useState<string | null>(null)
   const [dismissingSummonId, setDismissingSummonId] = useState<string | null>(null)
+  const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
 
   const selectedOption = useMemo(
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
     [damnedOptions, selectedInscriptionId],
   )
-  const inscriptionArtMap = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const option of damnedOptions) {
-      if (option.inscriptionId && option.image) {
-        map[option.inscriptionId] = option.image
-      }
-    }
-    return map
-  }, [damnedOptions])
-
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
@@ -194,6 +188,15 @@ export default function AbyssSummonPage() {
           .filter((option: DamnedOption | null): option is DamnedOption => option !== null)
 
         setDamnedOptions(mapped)
+        setInscriptionImageCache((prev) => {
+          const updated = { ...prev }
+          for (const option of mapped) {
+            if (option.image) {
+              updated[option.inscriptionId] = option.image
+            }
+          }
+          return updated
+        })
         setSelectedInscriptionId(mapped.length > 0 ? mapped[0].inscriptionId : null)
       } catch (error) {
         console.error('Failed to load damned ordinals:', error)
@@ -224,7 +227,7 @@ export default function AbyssSummonPage() {
       if (ordinalAddress) {
         void refreshSummons(ordinalAddress)
       }
-    }, 30_000)
+    }, 20_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, refreshSummons])
 
@@ -237,6 +240,12 @@ export default function AbyssSummonPage() {
       toast.error('Select an ordinal from your inventory to continue.')
       return
     }
+    if (selectedOption?.image) {
+      setInscriptionImageCache((prev) => ({
+        ...prev,
+        [selectedOption.inscriptionId]: selectedOption.image as string,
+      }))
+    }
     setCreating(true)
     try {
       const response = await fetch('/api/abyss/summons', {
@@ -245,6 +254,7 @@ export default function AbyssSummonPage() {
         body: JSON.stringify({
           creatorWallet: ordinalAddress,
           inscriptionId: selectedOption.inscriptionId,
+          inscriptionImage: selectedOption.image ?? null,
         }),
       })
       if (!response.ok) {
@@ -285,6 +295,12 @@ export default function AbyssSummonPage() {
         return
       }
 
+      if (selectedOption?.image) {
+        setInscriptionImageCache((prev) => ({
+          ...prev,
+          [selectedOption.inscriptionId]: selectedOption.image as string,
+        }))
+      }
       setJoiningSummonId(summon.id)
       try {
         const response = await fetch(`/api/abyss/summons/${summon.id}/join`, {
@@ -293,6 +309,7 @@ export default function AbyssSummonPage() {
           body: JSON.stringify({
             wallet: ordinalAddress,
             inscriptionId: selectedOption.inscriptionId,
+          inscriptionImage: selectedOption.image ?? null,
           }),
         })
         if (!response.ok) {
@@ -443,6 +460,16 @@ export default function AbyssSummonPage() {
                 </div>
               </div>
             </div>
+            {bonusAllowance > 0 && (
+              <div className="mt-4 flex justify-center">
+                <Link
+                  href="/abyss"
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-500/20 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.35)] transition hover:bg-amber-500/30"
+                >
+                  Spend Bonus Burn
+                </Link>
+              </div>
+            )}
           </div>
         </section>
 
@@ -590,7 +617,7 @@ export default function AbyssSummonPage() {
                         onComplete={handleCompleteSummon}
                         onDismiss={handleDismissSummon}
                         truncateWallet={truncateWallet}
-                        assetMap={inscriptionArtMap}
+                        assetMap={inscriptionImageCache}
                         loading={summonsLoading}
                         now={now}
                       emptyMessage="No active circles. Initiate one or await whispers from the damned."
@@ -611,7 +638,7 @@ export default function AbyssSummonPage() {
                       onComplete={handleCompleteSummon}
                       onDismiss={handleDismissSummon}
                       truncateWallet={truncateWallet}
-                      assetMap={inscriptionArtMap}
+                      assetMap={inscriptionImageCache}
                       highlightCreator
                       now={now}
                       emptyMessage="You haven&rsquo;t founded a summoning circle yet."
@@ -631,7 +658,7 @@ export default function AbyssSummonPage() {
                       onComplete={handleCompleteSummon}
                       onDismiss={handleDismissSummon}
                       truncateWallet={truncateWallet}
-                      assetMap={inscriptionArtMap}
+                      assetMap={inscriptionImageCache}
                       now={now}
                       emptyMessage="You have not joined a summoning circle yet."
                     />
@@ -714,6 +741,8 @@ function SummonList({
         const timeRemainingMs = targetExpiryMs - now
         const isExpired = timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
+        const completionWindowOpen = timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
+        const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
         const containerClass = [
           'rounded-xl border px-4 py-4 transition'
         ].join(' ')
@@ -787,20 +816,26 @@ function SummonList({
                   <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Your circle</span>
                 )}
                 {ready && isCreator && !isExpired ? (
-                  <Button
-                    type="button"
-                    onClick={() => onComplete(summon)}
-                    disabled={completingSummonId === summon.id}
-                    className="border border-amber-400 bg-amber-500/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:bg-amber-500/40"
-                  >
-                    {completingSummonId === summon.id ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Completing…
-                      </>
-                    ) : (
-                      'Complete Circle'
-                    )}
-                  </Button>
+                  completionWindowOpen ? (
+                    <Button
+                      type="button"
+                      onClick={() => onComplete(summon)}
+                      disabled={completingSummonId === summon.id}
+                      className="border border-amber-400 bg-amber-500/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:bg-amber-500/40"
+                    >
+                      {completingSummonId === summon.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Completing…
+                        </>
+                      ) : (
+                        'Complete Circle'
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
+                      Finale unlocks in {formatCountdown(unlockCountdown)}
+                    </div>
+                  )
                 ) : isExpired ? (
                   <div className="flex flex-col gap-2">
                     <Button
@@ -929,7 +964,7 @@ function SeatAvatar({ participant, assetMap }: { participant: SummonParticipant;
   const placeholderText = normalized.length > 10 ? `${normalized.slice(0, 4)}…${normalized.slice(-4)}` : normalized
 
   if (inscriptionId) {
-    const preferredImage = assetMap[inscriptionId]
+    const preferredImage = participant.image ?? assetMap[inscriptionId]
     const imagePath = preferredImage ?? `/api/ordinals/image?inscriptionId=${encodeURIComponent(inscriptionId)}`
     return (
       <div className="relative h-9 w-9 overflow-hidden rounded-full border border-red-700/50 bg-black/70">

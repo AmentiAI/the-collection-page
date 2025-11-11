@@ -1688,7 +1688,7 @@ function AbyssContent() {
 
               <div className="space-y-2 rounded border border-red-700/40 bg-black/25 px-3 py-2">
                 <div className="flex items-center justify-between">
-                  <span>Sacrifice:</span>
+                  <span>Sacrifice:</span> 
                   <Button
                     type="button"
                     variant="outline"
@@ -1765,38 +1765,38 @@ function AbyssContent() {
               </div>
 
               {!userCapReached && (
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    className="w-full border border-red-500 bg-red-700/70 text-xs font-mono uppercase tracking-[0.4em] text-red-50 hover:bg-red-600"
-                    disabled={
-                      !canBurn ||
-                      !selectedInscription ||
-                      !selectedInscription.confirmed ||
-                      !selectedPayment ||
-                      !paymentScanInitiated ||
-                      burning
-                    }
-                    onClick={() => setBurnConfirmOpen(true)}
-                  >
-                    {burning ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Burning…
-                      </>
-                    ) : cooldownActive ? (
-                      <>Cooldown {cooldownLabel}</>
-                    ) : (
-                      'Send to the Abyss'
-                    )}
-                  </Button>
-                </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  className="w-full border border-red-500 bg-red-700/70 text-xs font-mono uppercase tracking-[0.4em] text-red-50 hover:bg-red-600"
+                  disabled={
+                    !canBurn ||
+                    !selectedInscription ||
+                    !selectedInscription.confirmed ||
+                    !selectedPayment ||
+                    !paymentScanInitiated ||
+                    burning
+                  }
+                  onClick={() => setBurnConfirmOpen(true)}
+                >
+                  {burning ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Burning…
+                    </>
+                  ) : cooldownActive ? (
+                    <>Cooldown {cooldownLabel}</>
+                  ) : (
+                    'Send to the Abyss'
+                  )}
+                </Button>
+              </div>
               )}
 
               {hasPendingBurn ? (
                 <div className="rounded border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-[10px] tracking-[0.25em] text-amber-200">
                   <div>
-                    Wait for confirm:
+                    Wait for confirm:                   
                     {pendingBurnRecords.map((record) => (
                       <a
                         key={record.txId}
@@ -1809,7 +1809,7 @@ function AbyssContent() {
                       </a>
                     ))}
                   </div>
-                </div>
+                    </div>
               ) : null}
 
               {burnError ? (

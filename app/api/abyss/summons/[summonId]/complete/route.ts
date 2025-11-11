@@ -53,12 +53,14 @@ async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
       summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
       wallet TEXT NOT NULL,
       inscription_id TEXT NOT NULL,
+      inscription_image TEXT,
       role TEXT NOT NULL DEFAULT 'participant',
       joined_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(summon_id, wallet),
       UNIQUE(summon_id, inscription_id)
     )
   `)
+  await pool.query(`ALTER TABLE abyss_summon_participants ADD COLUMN IF NOT EXISTS inscription_image TEXT`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
       wallet TEXT PRIMARY KEY,
@@ -195,6 +197,7 @@ export async function POST(
                 'id', sp.id,
                 'wallet', sp.wallet,
                 'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                 'role', sp.role,
                 'joinedAt', sp.joined_at
               )

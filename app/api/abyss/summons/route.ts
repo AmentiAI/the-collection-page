@@ -52,6 +52,7 @@ async function ensureSummonInfrastructure(pool: Pool) {
       summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
       wallet TEXT NOT NULL,
       inscription_id TEXT NOT NULL,
+      inscription_image TEXT,
       role TEXT NOT NULL DEFAULT 'participant',
       joined_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(summon_id, wallet),
@@ -60,6 +61,7 @@ async function ensureSummonInfrastructure(pool: Pool) {
   `)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_summon ON abyss_summon_participants(summon_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_wallet ON abyss_summon_participants((LOWER(wallet)))`)
+  await pool.query(`ALTER TABLE abyss_summon_participants ADD COLUMN IF NOT EXISTS inscription_image TEXT`)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
@@ -129,6 +131,7 @@ export async function GET(request: NextRequest) {
                 'id', sp.id,
                 'wallet', sp.wallet,
                 'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                 'role', sp.role,
                 'joinedAt', sp.joined_at
               )
@@ -162,6 +165,7 @@ export async function GET(request: NextRequest) {
                   'id', sp.id,
                   'wallet', sp.wallet,
                   'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                   'role', sp.role,
                   'joinedAt', sp.joined_at
                 )
@@ -189,6 +193,7 @@ export async function GET(request: NextRequest) {
                   'id', sp.id,
                   'wallet', sp.wallet,
                   'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                   'role', sp.role,
                   'joinedAt', sp.joined_at
                 )
@@ -240,6 +245,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const creatorWallet = (body?.creatorWallet ?? '').toString().trim()
   const creatorInscriptionId = (body?.inscriptionId ?? '').toString().trim()
+  const creatorInscriptionImage =
+    typeof body?.inscriptionImage === 'string' && body.inscriptionImage.trim().length > 0
+      ? body.inscriptionImage.trim()
+      : null
   const expiresAtRaw = body?.expiresAt
 
   if (!creatorWallet || !creatorInscriptionId) {
@@ -295,10 +304,10 @@ export async function POST(request: NextRequest) {
 
     await pool.query(
       `
-        INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, role)
-        VALUES ($1, $2, $3, 'creator')
+        INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, inscription_image, role)
+        VALUES ($1, $2, $3, $4, 'creator')
       `,
-      [summon.id, creatorWallet, creatorInscriptionId],
+      [summon.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
     )
 
     await pool.query(
@@ -323,6 +332,7 @@ export async function POST(request: NextRequest) {
                 'id', sp.id,
                 'wallet', sp.wallet,
                 'inscriptionId', sp.inscription_id,
+                'image', sp.inscription_image,
                 'role', sp.role,
                 'joinedAt', sp.joined_at
               )

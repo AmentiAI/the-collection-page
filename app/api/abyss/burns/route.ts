@@ -351,10 +351,10 @@ export async function POST(request: NextRequest) {
         burnSource = 'summon_bonus'
         allowanceApplied = true
       } else {
-        return NextResponse.json(
-          { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
-          { status: 403 },
-        )
+      return NextResponse.json(
+        { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
+        { status: 403 },
+      )
       }
     }
 
@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
           WHERE LOWER(wallet) = LOWER($1)
         `,
         [ordinalWallet],
-      )
+    )
     }
 
     const summaryResult = await pool.query(
