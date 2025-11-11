@@ -186,7 +186,7 @@ export default function AbyssSummonPage() {
       try {
         const response = await fetch(
           `/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned&fetchAll=true`,
-          { headers: { Accept: 'application/json' } },
+          { headers: { Accept: 'application/json' }, cache: 'no-store' },
         )
         if (!response.ok) {
           const message = await response.text()
@@ -263,6 +263,16 @@ export default function AbyssSummonPage() {
     }, 20_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, refreshSummons])
+
+  useEffect(() => {
+    if (!ordinalAddress) {
+      return
+    }
+    const intervalId = window.setInterval(() => {
+      void loadDamnedOptions(ordinalAddress)
+    }, 30_000)
+    return () => window.clearInterval(intervalId)
+  }, [ordinalAddress, loadDamnedOptions])
 
   const handleCreateSummon = useCallback(async () => {
     if (!ordinalAddress) {

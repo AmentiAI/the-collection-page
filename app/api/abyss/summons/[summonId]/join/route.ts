@@ -164,7 +164,29 @@ export async function POST(
     if (existingParticipant.rows.length > 0) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'You have already joined this summoning table.' },
+        { success: false, error: 'You already joined this summoning circle.' },
+        { status: 409 },
+      )
+    }
+
+    const inscriptionConflict = await pool.query(
+      `
+        SELECT s.id
+        FROM abyss_summon_participants p
+        JOIN abyss_summons s ON s.id = p.summon_id
+        WHERE p.inscription_id = $1
+          AND s.status IN ('open', 'filling', 'ready')
+        LIMIT 1
+      `,
+      [inscriptionId],
+    )
+    if (inscriptionConflict.rows.length > 0) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'This ordinal is already pledged to another active summoning circle.',
+        },
         { status: 409 },
       )
     }
