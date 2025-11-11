@@ -1027,7 +1027,7 @@ export default function AbyssSummonPage() {
               </div>
             </div>
             <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-              <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-red-700/40 bg-black/40">
+              <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-red-700/40 bg-black/40 md:max-h-[60vh] sm:max-h-[45vh]">
                 {summonLeaderboardLoading ? (
                   <div className="flex items-center justify-center gap-2 px-4 py-6">
                     <Loader2 className="h-4 w-4 animate-spin text-red-300" />
