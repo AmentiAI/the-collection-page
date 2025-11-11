@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/Toast'
 import { InscriptionService } from '@/services/inscription-service'
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useWallet } from '@/lib/wallet/compatibility'
 import type { BaseUtxo, InscriptionUtxo } from '@/lib/sandshrew'
-import { Loader2, CheckCircle } from 'lucide-react'
+import { Loader2, CheckCircle, Flame, Gift, Hammer, Trophy } from 'lucide-react'
 
 type Walker = {
   key: string
@@ -106,6 +107,79 @@ const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
 const TOTAL_ABYSS_CAP = 333
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
+const FULL_ABYSS_MENU_OPTIONS = [
+  {
+    href: '/gatesofthedamned',
+    label: 'Return to the Gates',
+    description: 'Witness the barricaded inferno and heed the warnings from the front lines.',
+    icon: Flame,
+  },
+  {
+    href: '/giveaway',
+    label: 'Join the Giveaway',
+    description: 'Redeem your soul for a chance at rare ordinals pulled from the abyssal vault.',
+    icon: Gift,
+  },
+  {
+    href: '/tools',
+    label: 'Visit the Workshop',
+    description: 'Sharpen your rituals and keep busy while the abyss cools down.',
+    icon: Hammer,
+  },
+] as const
+
+function FullAbyssMenu({
+  totalBurns,
+  onOpenLeaderboard,
+}: {
+  totalBurns: number
+  onOpenLeaderboard: () => void
+}) {
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/90 px-6 py-12 backdrop-blur">
+      <div className="w-full max-w-4xl space-y-8 text-center">
+        <div className="space-y-3">
+          <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-red-400 drop-shadow-[0_0_25px_rgba(220,38,38,0.65)] md:text-5xl">
+            The Abyss is Full
+          </h2>
+          <p className="text-sm uppercase tracking-[0.4em] text-red-200 md:text-base">
+            Stop throwing your trash in here!
+          </p>
+          <p className="text-xs uppercase tracking-[0.35em] text-red-300/80">
+            {totalBurns} sacrifices sealed beyond redemption.
+          </p>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          <button
+            onClick={onOpenLeaderboard}
+            className="group relative overflow-hidden rounded-2xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition duration-300 hover:-translate-y-1 hover:border-red-400"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-red-700/0 via-red-600/5 to-red-700/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="relative flex flex-col items-center gap-3 text-center">
+              <Trophy className="h-10 w-10 text-red-400 drop-shadow-[0_0_20px_rgba(220,38,38,0.6)]" />
+              <span className="text-lg font-semibold uppercase tracking-[0.35em] text-red-100">Leaderboard</span>
+              <span className="text-sm text-red-200/75">Revel in the souls who already crossed the threshold.</span>
+            </div>
+          </button>
+          {FULL_ABYSS_MENU_OPTIONS.map(({ href, label, description, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group relative overflow-hidden rounded-2xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition duration-300 hover:-translate-y-1 hover:border-red-400"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-red-700/0 via-red-600/5 to-red-700/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <div className="relative flex flex-col items-center gap-3 text-center">
+                <Icon className="h-10 w-10 text-red-400 drop-shadow-[0_0_20px_rgba(220,38,38,0.6)]" />
+                <span className="text-lg font-semibold uppercase tracking-[0.35em] text-red-100">{label}</span>
+                <span className="text-sm text-red-200/75">{description}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 const BURN_STATUS_CHECK_INTERVAL_MS = 20_000
 const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 const RESERVED_STORAGE_KEY = 'abyss-reserved-utxos'
@@ -1564,6 +1638,10 @@ function AbyssContent() {
       />
 
       {/* Burn Counter + Warnings + Controls */}
+      {capReached ? (
+        <FullAbyssMenu totalBurns={totalBurns} onOpenLeaderboard={() => setLeaderboardOpen(true)} />
+      ) : null}
+
       <div className="absolute bottom-10 left-6 z-30 flex w-[21rem] flex-col gap-4">
         <div className="rounded-lg border border-red-700 bg-black/40 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
@@ -1577,30 +1655,23 @@ function AbyssContent() {
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          
         </div>
- 
 
         <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
-     
           {capReached && (
             <div className="mt-3 rounded border border-green-500/40 bg-green-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-green-300">
               Abyss satiated. Further burns disabled.
             </div>
           )}
-          {!holderAllowed ? (
-            <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-500/70">
-              Verify holder status in the header to unlock the ritual.
-            </p>
-          ) : (
+          {holderAllowed ? (
             <div className="mt-3 space-y-3 font-mono text-[11px] uppercase tracking-[0.3em] text-red-400">
-              {damnedError && (
+              {damnedError ? (
                 <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-red-200">{damnedError}</div>
-              )}
+              ) : null}
 
               <div className="space-y-2 rounded border border-red-700/40 bg-black/25 px-3 py-2">
                 <div className="flex items-center justify-between">
-                  <span>Sacrifice:</span> 
+                  <span>Sacrifice:</span>
                   <Button
                     type="button"
                     variant="outline"
@@ -1621,21 +1692,12 @@ function AbyssContent() {
                     <div className="text-xs uppercase tracking-[0.25em] text-red-300">
                       {selectedInscription.name ?? 'Unnamed Inscription'}
                     </div>
-                    {selectedInscription.image && (
+                    {selectedInscription.image ? (
                       <div className="relative h-28 w-full overflow-hidden rounded border border-red-700/40 bg-black/30">
-                        <Image
-                          src={selectedInscription.image}
-                          alt={selectedInscription.name ?? 'Selected inscription'}
-                          fill
-                          className="object-contain"
-                        />
+                        <Image src={selectedInscription.image} alt={selectedInscription.name ?? 'Selected inscription'} fill className="object-contain" />
                       </div>
-                    )}
-                    <div
-                      className={`text-[10px] tracking-[0.3em] ${
-                        selectedInscription.confirmed ? 'text-green-400' : 'text-amber-400'
-                      }`}
-                    >
+                    ) : null}
+                    <div className={`text-[10px] tracking-[0.3em] ${selectedInscription.confirmed ? 'text-green-400' : 'text-amber-400'}`}>
                       {selectedInscription.confirmed ? 'Confirmed' : 'Pending confirmation'}
                     </div>
                   </div>
@@ -1657,13 +1719,7 @@ function AbyssContent() {
                     }}
                     disabled={paymentLoading || !isWalletConnected || capReached}
                   >
-                    {paymentLoading ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : paymentScanInitiated ? (
-                      'Scan'
-                    ) : (
-                      'Scan'
-                    )}
+                    {paymentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Scan'}
                   </Button>
                 </div>
                 {!paymentScanInitiated ? (
@@ -1679,7 +1735,6 @@ function AbyssContent() {
                   <p className="text-left text-[10px] tracking-[0.3em] text-red-400/60">{paymentError}</p>
                 ) : selectedPayment ? (
                   <div className="space-y-1 text-left text-red-200">
-                  
                     <div className="flex items-center gap-1 text-[10px] tracking-[0.3em] text-green-400">
                       <CheckCircle className="h-3 w-3" aria-hidden="true" />
                       <span>{selectedPayment.value.toLocaleString()} sats</span>
@@ -1692,49 +1747,39 @@ function AbyssContent() {
                 )}
               </div>
 
+              {!capReached && (
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    className="w-full border border-red-500 bg-red-700/70 text-xs font-mono uppercase tracking-[0.4em] text-red-50 hover:bg-red-600"
+                    disabled={
+                      !canBurn ||
+                      !selectedInscription ||
+                      !selectedInscription.confirmed ||
+                      !selectedPayment ||
+                      !paymentScanInitiated ||
+                      burning
+                    }
+                    onClick={() => setBurnConfirmOpen(true)}
+                  >
+                    {burning ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Burning…
+                      </>
+                    ) : cooldownActive ? (
+                      <>Cooldown {cooldownLabel}</>
+                    ) : (
+                      'Send to the Abyss'
+                    )}
+                  </Button>
+                </div>
+              )}
 
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  className="w-full border border-red-500 bg-red-700/70 text-xs font-mono uppercase tracking-[0.4em] text-red-50 hover:bg-red-600"
-                  disabled={
-                    !canBurn ||
-                    !selectedInscription ||
-                    !selectedInscription.confirmed ||
-                    !selectedPayment ||
-                    !paymentScanInitiated ||
-                    burning
-                  }
-                  onClick={() => setBurnConfirmOpen(true)}
-                >
-                  {burning ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Burning…
-                    </>
-                  ) : cooldownActive ? (
-                    <>Cooldown {cooldownLabel}</>
-                  ) : (
-                    'Send to the Abyss'
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border border-red-500/60 bg-black/40 text-[10px] font-mono uppercase tracking-[0.35em] text-red-200 hover:bg-red-700/20"
-                  onClick={() => {
-                    void updatePendingData()
-                    setLeaderboardOpen(true)
-                  }}
-                >
-                  Leaderboard
-                </Button>
-              </div>
-
-              {hasPendingBurn && (
+              {hasPendingBurn ? (
                 <div className="rounded border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-[10px] tracking-[0.25em] text-amber-200">
                   <div>
-                    Wait for confirm:                   
+                    Wait for confirm:
                     {pendingBurnRecords.map((record) => (
                       <a
                         key={record.txId}
@@ -1747,20 +1792,32 @@ function AbyssContent() {
                       </a>
                     ))}
                   </div>
-                                  
                 </div>
-              )}
+              ) : null}
 
-            
-
-              {burnError && (
+              {burnError ? (
                 <div className="rounded border border-red-600/40 bg-red-950/30 px-3 py-2 text-[10px] tracking-[0.25em] text-red-200">
                   {burnError}
                 </div>
-              )}
-             
+              ) : null}
             </div>
+          ) : (
+            <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-500/70">
+              Verify holder status in the header to unlock the ritual.
+            </p>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-full border border-red-500/60 bg-black/40 text-[10px] font-mono uppercase tracking-[0.35em] text-red-200 hover:bg-red-700/20"
+            onClick={() => {
+              void updatePendingData()
+              setLeaderboardOpen(true)
+            }}
+          >
+            Leaderboard
+          </Button>
         </div>
 
         <div className="flex flex-col items-start gap-3 rounded-lg border border-red-600/50 bg-black/40 px-3 py-3">
@@ -2122,14 +2179,8 @@ function AbyssContent() {
         </div>
       )}
 
-      {showHolderBlock && (
-        <div className="absolute inset-x-0 top-24 bottom-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/75 px-6 text-center">
-          <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-red-500">Access Restricted</h2>
-          <p className="max-w-md text-sm font-mono uppercase tracking-[0.35em] text-red-200">
-            Connect a wallet holding The Damned to descend into the abyss.
-          </p>
-        </div>
-      )}
+ 
+      
     </div>
   )
 }
