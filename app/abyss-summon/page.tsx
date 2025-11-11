@@ -1028,12 +1028,6 @@ export default function AbyssSummonPage() {
             </div>
             <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
               <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-red-700/40 bg-black/40">
-                <div className="grid grid-cols-[auto,1fr,auto,auto] gap-3 border-b border-red-700/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.25em] text-red-400">
-                  <span>#</span>
-                  <span>Summoner</span>
-                  <span>Score</span>
-                  <span>🔥</span>
-                </div>
                 {summonLeaderboardLoading ? (
                   <div className="flex items-center justify-center gap-2 px-4 py-6">
                     <Loader2 className="h-4 w-4 animate-spin text-red-300" />
@@ -1046,36 +1040,42 @@ export default function AbyssSummonPage() {
                     No completed circles detected yet. Finish a ritual to appear here.
                   </div>
                 ) : (
-                  summonLeaderboard.map((entry, index) => {
-                    const isSelected = selectedSummonerWallet === entry.wallet
-                    const isSelf =
-                      ordinalAddress.trim().length > 0 &&
-                      entry.wallet === ordinalAddress.trim().toLowerCase()
-                    const baseClasses =
-                      'grid grid-cols-[auto,1fr,auto,auto] items-center gap-3 border-b border-red-700/20 px-4 py-2 text-[11px] font-mono tracking-[0.25em] transition'
-                    const rowClasses = [
-                      baseClasses,
-                      isSelected
-                        ? 'bg-red-900/40 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)]'
-                        : 'text-red-200 hover:bg-red-900/20',
-                    ].join(' ')
-                    return (
-                      <button
-                        key={`${entry.wallet}-${index}`}
-                        type="button"
-                        className={rowClasses}
-                        onClick={() => setSelectedSummonerWallet(entry.wallet)}
-                      >
-                        <span className="text-red-500">{String(index + 1).padStart(2, '0')}</span>
-                        <span className="text-left text-red-200/90">
-                          {isSelf ? 'YOU · ' : ''}
-                          {truncateWallet(entry.wallet)}
-                        </span>
-                        <span className="text-amber-200">{entry.score}</span>
-                        <span className="text-red-400">{entry.burns}</span>
-                      </button>
-                    )
-                  })
+                  <table className="w-full table-fixed border-collapse text-[11px] font-mono uppercase tracking-[0.25em] text-red-200">
+                    <thead className="sticky top-0 border-b border-red-700/40 bg-black/60 text-red-400">
+                      <tr>
+                        <th className="w-10 px-4 py-2 text-left font-normal">#</th>
+                        <th className="px-4 py-2 text-left font-normal">Summoner</th>
+                        <th className="w-16 px-4 py-2 text-right font-normal">Score</th>
+                        <th className="w-14 px-4 py-2 text-right font-normal">🔥</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summonLeaderboard.map((entry, index) => {
+                        const isSelected = selectedSummonerWallet === entry.wallet
+                        const isSelf =
+                          ordinalAddress.trim().length > 0 &&
+                          entry.wallet === ordinalAddress.trim().toLowerCase()
+                        const rowClasses = isSelected
+                          ? 'bg-red-900/40 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)]'
+                          : 'hover:bg-red-900/20'
+                        return (
+                          <tr
+                            key={`${entry.wallet}-${index}`}
+                            className={`${rowClasses} border-b border-red-700/20 transition`}
+                            onClick={() => setSelectedSummonerWallet(entry.wallet)}
+                          >
+                            <td className="px-4 py-2 text-left text-red-500">{String(index + 1).padStart(2, '0')}</td>
+                            <td className="px-4 py-2 text-left text-red-200/90">
+                              {isSelf ? 'YOU · ' : ''}
+                              {truncateWallet(entry.wallet)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-amber-200 tabular-nums">{entry.score}</td>
+                            <td className="px-4 py-2 text-right text-red-400 tabular-nums">{entry.burns}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
               <div className="space-y-4 rounded-2xl border border-red-600/40 bg-black/60 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
