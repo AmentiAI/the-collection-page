@@ -105,6 +105,7 @@ const MIN_HORIZONTAL_JITTER_PERCENT = 1
 const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
 const TOTAL_ABYSS_CAP = 333
+const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
 const BURN_STATUS_CHECK_INTERVAL_MS = 20_000
 const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 const RESERVED_STORAGE_KEY = 'abyss-reserved-utxos'
@@ -286,6 +287,7 @@ function AbyssContent() {
   const [leaderboard, setLeaderboard] = useState<
     Array<{ ordinalWallet: string; paymentWallet: string; total: number; confirmed: number }>
   >([])
+  const [capDriftTimestamp, setCapDriftTimestamp] = useState(() => Date.now())
 
   const summarizeOrdinal = useCallback((address: string) => {
     if (!address) return '—'
@@ -324,6 +326,13 @@ function AbyssContent() {
   useEffect(() => {
     changeAddressRef.current = changeAddress.trim()
   }, [changeAddress])
+
+  useEffect(() => {
+    const updateTimestamp = () => setCapDriftTimestamp(Date.now())
+    const intervalId = window.setInterval(updateTimestamp, 60_000)
+    updateTimestamp()
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   useEffect(() => {
     const next = laserEyes.paymentAddress?.trim()
@@ -1493,9 +1502,18 @@ function AbyssContent() {
   }, [showEntryModal, spawnWalker])
 
   const totalBurns = burnSummary?.total ?? 0
-  const totalDamned = TOTAL_ABYSS_CAP
-  const progressPercent = Math.min(100, (totalBurns / totalDamned) * 100)
-  const capReached = totalBurns >= TOTAL_ABYSS_CAP
+  const minutesSinceReductionStart = useMemo(() => {
+    if (Number.isNaN(CAP_REDUCTION_START_UTC)) return 0
+    if (capDriftTimestamp < CAP_REDUCTION_START_UTC) return 0
+    return Math.max(0, Math.floor((capDriftTimestamp - CAP_REDUCTION_START_UTC) / 60_000))
+  }, [capDriftTimestamp])
+  const dynamicCap = useMemo(() => {
+    const raw = TOTAL_ABYSS_CAP - minutesSinceReductionStart
+    const reduced = Math.max(raw, 0)
+    return Math.max(totalBurns, reduced)
+  }, [minutesSinceReductionStart, totalBurns])
+  const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
+  const capReached = dynamicCap <= totalBurns && dynamicCap !== 0
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0
@@ -1551,7 +1569,7 @@ function AbyssContent() {
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
           <div className="mt-2 flex items-end gap-3">
             <div className="text-2xl font-black text-red-500">{totalBurns}</div>
-            <div className="pb-[6px] text-sm text-gray-400">/ {totalDamned}</div>
+            <div className="pb-[6px] text-sm text-gray-400">/ {dynamicCap}</div>
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded bg-red-900/50">
             <div
