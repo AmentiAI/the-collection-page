@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Flame, Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -40,6 +40,18 @@ type DamnedOption = {
   image?: string | null
 }
 
+type SummonLeaderboardEntry = {
+  wallet: string
+  burns: number
+  confirmedBurns: number
+  hosted: number
+  participated: number
+  score: number
+  lastBurnAt: string | null
+  lastHostedAt: string | null
+  lastParticipatedAt: string | null
+}
+
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
 const SUMMON_DURATION_MS = 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
@@ -58,11 +70,20 @@ function formatCountdown(ms: number) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
+function formatTimestamp(value: string | null | undefined) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString()
+}
+
 export default function AbyssSummonPage() {
   const wallet = useWallet()
   const toast = useToast()
 
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const autoplayAttemptedRef = useRef(false)
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -82,10 +103,23 @@ export default function AbyssSummonPage() {
   const [completingSummonId, setCompletingSummonId] = useState<string | null>(null)
   const [dismissingSummonId, setDismissingSummonId] = useState<string | null>(null)
   const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
+  const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
+  const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
+  const [summonLeaderboardOpen, setSummonLeaderboardOpen] = useState(false)
+  const [selectedSummonerWallet, setSelectedSummonerWallet] = useState<string | null>(null)
+  const [musicReady, setMusicReady] = useState(false)
+  const [musicPlaying, setMusicPlaying] = useState(false)
+  const [isMusicMuted, setIsMusicMuted] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(45)
+  const musicControlsDisabled = !musicReady && !musicPlaying
 
   const selectedOption = useMemo(
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
     [damnedOptions, selectedInscriptionId],
+  )
+  const selectedSummonerEntry = useMemo(
+    () => summonLeaderboard.find((entry) => entry.wallet === selectedSummonerWallet) ?? null,
+    [summonLeaderboard, selectedSummonerWallet],
   )
 
   useEffect(() => {
@@ -169,6 +203,43 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const handlePlay = () => setMusicPlaying(true)
+    const handlePause = () => setMusicPlaying(false)
+    const handleCanPlay = () => {
+      setMusicReady(true)
+      if (!autoplayAttemptedRef.current) {
+        autoplayAttemptedRef.current = true
+        audio.play().catch(() => {
+          // Autoplay blocked; controls remain available
+        })
+      }
+    }
+
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('canplay', handleCanPlay, { once: true })
+    audio.load()
+
+    return () => {
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+    }
+  }, [])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = isMusicMuted ? 0 : musicVolume / 100
+  }, [musicVolume, isMusicMuted])
+
+  useEffect(() => () => {
+    audioRef.current?.pause()
   }, [])
 
   const activeSummons = useMemo(
@@ -287,6 +358,71 @@ export default function AbyssSummonPage() {
     [],
   )
 
+  const loadSummonLeaderboard = useCallback(async () => {
+    setSummonLeaderboardLoading(true)
+    try {
+      const response = await fetch('/api/abyss/summons/leaderboard', { cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error(`Summon leaderboard request failed (${response.status})`)
+      }
+      const payload = await response.json().catch(() => null)
+      const entries: SummonLeaderboardEntry[] = Array.isArray(payload?.entries)
+        ? (payload.entries as Array<Record<string, unknown>>).map((item) => ({
+            wallet: (item?.wallet ?? '').toString().toLowerCase(),
+            burns: Number(item?.burns ?? 0),
+            confirmedBurns: Number(item?.confirmedBurns ?? item?.confirmed_burns ?? 0),
+            hosted: Number(item?.hosted ?? 0),
+            participated: Number(item?.participated ?? 0),
+            score: Number(item?.score ?? 0),
+            lastBurnAt:
+              typeof item?.lastBurnAt === 'string'
+                ? item.lastBurnAt
+                : typeof item?.last_burn_at === 'string'
+                ? item.last_burn_at
+                : null,
+            lastHostedAt:
+              typeof item?.lastHostedAt === 'string'
+                ? item.lastHostedAt
+                : typeof item?.last_hosted_at === 'string'
+                ? item.last_hosted_at
+                : null,
+            lastParticipatedAt:
+              typeof item?.lastParticipatedAt === 'string'
+                ? item.lastParticipatedAt
+                : typeof item?.last_participated_at === 'string'
+                ? item.last_participated_at
+                : null,
+          }))
+        : []
+      entries.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        if (b.burns !== a.burns) return b.burns - a.burns
+        if (b.hosted !== a.hosted) return b.hosted - a.hosted
+        if (b.participated !== a.participated) return b.participated - a.participated
+        return a.wallet.localeCompare(b.wallet)
+      })
+      setSummonLeaderboard(entries)
+      setSelectedSummonerWallet((previous) => {
+        if (previous && entries.some((entry) => entry.wallet === previous)) {
+          return previous
+        }
+        const normalizedAddress = ordinalAddress.trim().toLowerCase()
+        if (normalizedAddress) {
+          const match = entries.find((entry) => entry.wallet === normalizedAddress)
+          if (match) {
+            return match.wallet
+          }
+        }
+        return entries[0]?.wallet ?? null
+      })
+    } catch (error) {
+      console.error('Failed to load summon leaderboard:', error)
+      setSummonLeaderboard([])
+    } finally {
+      setSummonLeaderboardLoading(false)
+    }
+  }, [ordinalAddress])
+
   useEffect(() => {
     if (ordinalAddress) {
       void refreshSummons(ordinalAddress)
@@ -298,8 +434,10 @@ export default function AbyssSummonPage() {
       setBonusAllowance(0)
       setDamnedOptions([])
       setSelectedInscriptionId(null)
+      setSelectedSummonerWallet(null)
     }
-  }, [ordinalAddress, refreshSummons, loadDamnedOptions])
+    void loadSummonLeaderboard()
+  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -319,6 +457,51 @@ export default function AbyssSummonPage() {
     }, 30_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, loadDamnedOptions])
+
+  useEffect(() => {
+    void loadSummonLeaderboard()
+    const intervalId = window.setInterval(() => {
+      void loadSummonLeaderboard()
+    }, 30_000)
+    return () => window.clearInterval(intervalId)
+  }, [loadSummonLeaderboard])
+
+  const handleToggleMusic = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (musicPlaying) {
+      audio.pause()
+    } else {
+      audio.play().catch(() => {
+        setMusicReady(true)
+      })
+    }
+  }, [musicPlaying])
+
+  const handleToggleMute = useCallback(() => {
+    setIsMusicMuted((prev) => {
+      const next = !prev
+      if (!next && musicVolume === 0) {
+        setMusicVolume(30)
+      }
+      if (!next && audioRef.current && audioRef.current.paused) {
+        audioRef.current.play().catch(() => {})
+      }
+      return next
+    })
+  }, [musicVolume])
+
+  const handleVolumeChange = useCallback((value: number) => {
+    setMusicVolume(value)
+    if (value > 0) {
+      setIsMusicMuted(false)
+      if (audioRef.current && audioRef.current.paused) {
+        audioRef.current.play().catch(() => {})
+      }
+    } else {
+      setIsMusicMuted(true)
+    }
+  }, [])
 
   const handleCreateSummon = useCallback(async () => {
     if (!ordinalAddress) {
@@ -356,6 +539,7 @@ export default function AbyssSummonPage() {
       setSelectedInscriptionId(null)
       if (ordinalAddress) {
         await refreshSummons(ordinalAddress)
+        await loadSummonLeaderboard()
       }
     } catch (error) {
       console.error('Create summon failed:', error)
@@ -363,7 +547,7 @@ export default function AbyssSummonPage() {
     } finally {
       setCreating(false)
     }
-  }, [ordinalAddress, selectedOption, refreshSummons, toast])
+  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast])
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
@@ -411,6 +595,7 @@ export default function AbyssSummonPage() {
         setSelectedInscriptionId(null)
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
+          await loadSummonLeaderboard()
         }
       } catch (error) {
         console.error('Join summon failed:', error)
@@ -419,7 +604,7 @@ export default function AbyssSummonPage() {
         setJoiningSummonId(null)
       }
     },
-    [ordinalAddress, selectedOption, refreshSummons, toast],
+    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast],
   )
 
   const handleCompleteSummon = useCallback(
@@ -447,6 +632,7 @@ export default function AbyssSummonPage() {
         toast.success('Summoning circle completed. Bonus burn granted.')
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
+          await loadSummonLeaderboard()
         }
       } catch (error) {
         console.error('Complete summon failed:', error)
@@ -455,7 +641,7 @@ export default function AbyssSummonPage() {
         setCompletingSummonId(null)
       }
     },
-    [ordinalAddress, refreshSummons, toast],
+    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast],
   )
 
   const handleDismissSummon = useCallback(
@@ -479,6 +665,7 @@ export default function AbyssSummonPage() {
         toast.success('Circle dissolved. Summon anew.')
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
+          await loadSummonLeaderboard()
         }
       } catch (error) {
         console.error('Dismiss summon failed:', error)
@@ -487,7 +674,7 @@ export default function AbyssSummonPage() {
         setDismissingSummonId(null)
       }
     },
-    [ordinalAddress, refreshSummons, toast],
+    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast],
   )
 
   const truncateWallet = useCallback((value: string) => {
@@ -498,6 +685,47 @@ export default function AbyssSummonPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
+      <audio
+        ref={audioRef}
+        src="/music/summon2.mp3"
+        preload="auto"
+        loop
+        onError={(event) => {
+          console.error('Summon audio failed to load', event.currentTarget.error)
+        }}
+      />
+
+      <div className="fixed bottom-6 left-6 z-[10001] flex items-center gap-3 rounded-2xl border border-red-600/40 bg-black/70 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.4)] backdrop-blur">
+        <button
+          type="button"
+          onClick={handleToggleMusic}
+          className="rounded-full border border-red-600/40 bg-red-800/50 p-2 text-red-100 transition hover:bg-red-600/60"
+          aria-label={musicPlaying ? 'Pause summoning soundtrack' : 'Play summoning soundtrack'}
+        >
+          {musicPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleMute}
+          className="rounded-full border border-red-600/40 bg-red-800/50 p-2 text-red-100 transition hover:bg-red-600/60"
+          aria-label={isMusicMuted ? 'Unmute soundtrack' : 'Mute soundtrack'}
+        >
+          {isMusicMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={musicVolume}
+          onChange={(event) => handleVolumeChange(Number(event.target.value))}
+          className="h-1 w-32 accent-red-600"
+          disabled={musicControlsDisabled}
+        />
+        <span className="w-16 text-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
+          {musicControlsDisabled ? 'LOADING' : isMusicMuted ? 'MUTED' : `${musicVolume}%`}
+        </span>
+      </div>
+
       <div className="pointer-events-none absolute inset-0 -z-10">
         <Image
           src="/abyssbg.png"
@@ -559,6 +787,16 @@ export default function AbyssSummonPage() {
                 </Link>
               </div>
             )}
+            <div className="flex justify-center pt-4">
+              <Button
+                type="button"
+                onClick={() => setSummonLeaderboardOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
+              >
+                <Trophy className="h-4 w-4" />
+                Summoners Leaderboard
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -758,6 +996,148 @@ export default function AbyssSummonPage() {
           </div>
         </div>
       </main>
+
+      {summonLeaderboardOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-5xl space-y-6 rounded-3xl border border-red-600/50 bg-black/92 p-6 shadow-[0_0_45px_rgba(220,38,38,0.55)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1 text-left">
+                <h3 className="flex items-center gap-2 font-mono text-base uppercase tracking-[0.35em] text-red-200">
+                  <Trophy className="h-5 w-5 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]" />
+                  Summoners Leaderboard
+                </h3>
+                <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
+                  Scores: 4 points per abyss burn, 2 points per completed circle you hosted, 1 point per completed circle you joined.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {summonLeaderboardLoading && (
+                  <span className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Refreshing
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-700/60 bg-transparent px-3 py-1 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300 hover:bg-red-800/20"
+                  onClick={() => setSummonLeaderboardOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+              <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-red-700/40 bg-black/40">
+                <div className="grid grid-cols-[auto,1fr,auto,auto] gap-3 border-b border-red-700/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.25em] text-red-400">
+                  <span>#</span>
+                  <span>Summoner</span>
+                  <span>Score</span>
+                  <span>🔥</span>
+                </div>
+                {summonLeaderboardLoading ? (
+                  <div className="flex items-center justify-center gap-2 px-4 py-6">
+                    <Loader2 className="h-4 w-4 animate-spin text-red-300" />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-red-300">
+                      Calculating summoning ranks…
+                    </span>
+                  </div>
+                ) : summonLeaderboard.length === 0 ? (
+                  <div className="px-4 py-6 text-center font-mono text-[11px] uppercase tracking-[0.25em] text-red-400/70">
+                    No completed circles detected yet. Finish a ritual to appear here.
+                  </div>
+                ) : (
+                  summonLeaderboard.map((entry, index) => {
+                    const isSelected = selectedSummonerWallet === entry.wallet
+                    const isSelf =
+                      ordinalAddress.trim().length > 0 &&
+                      entry.wallet === ordinalAddress.trim().toLowerCase()
+                    const baseClasses =
+                      'grid grid-cols-[auto,1fr,auto,auto] items-center gap-3 border-b border-red-700/20 px-4 py-2 text-[11px] font-mono tracking-[0.25em] transition'
+                    const rowClasses = [
+                      baseClasses,
+                      isSelected
+                        ? 'bg-red-900/40 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)]'
+                        : 'text-red-200 hover:bg-red-900/20',
+                    ].join(' ')
+                    return (
+                      <button
+                        key={`${entry.wallet}-${index}`}
+                        type="button"
+                        className={rowClasses}
+                        onClick={() => setSelectedSummonerWallet(entry.wallet)}
+                      >
+                        <span className="text-red-500">{String(index + 1).padStart(2, '0')}</span>
+                        <span className="text-left text-red-200/90">
+                          {isSelf ? 'YOU · ' : ''}
+                          {truncateWallet(entry.wallet)}
+                        </span>
+                        <span className="text-amber-200">{entry.score}</span>
+                        <span className="text-red-400">{entry.burns}</span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+              <div className="space-y-4 rounded-2xl border border-red-600/40 bg-black/60 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
+                {selectedSummonerEntry ? (
+                  <>
+                    <div className="space-y-1">
+                      <h4 className="font-mono text-sm uppercase tracking-[0.3em] text-red-200">
+                        {truncateWallet(selectedSummonerEntry.wallet)}
+                      </h4>
+                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
+                        Total Score: {selectedSummonerEntry.score}
+                      </p>
+                    </div>
+                    <div className="space-y-2 text-[11px] uppercase tracking-[0.25em] text-red-200/80">
+                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
+                        <span>Burns · {selectedSummonerEntry.burns}</span>
+                        <span className="text-amber-200">+{selectedSummonerEntry.burns * 4} pts</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
+                        <span>Hosted · {selectedSummonerEntry.hosted}</span>
+                        <span className="text-amber-200">+{selectedSummonerEntry.hosted * 2} pts</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
+                        <span>Allies Joined · {selectedSummonerEntry.participated}</span>
+                        <span className="text-amber-200">
+                          +{selectedSummonerEntry.participated * 1} pts
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 rounded-lg border border-red-700/40 bg-black/40 px-3 py-3 text-[10px] uppercase tracking-[0.3em] text-red-300/80">
+                      <div className="flex items-center justify-between">
+                        <span>Last Completed Circle</span>
+                        <span>{formatTimestamp(selectedSummonerEntry.lastParticipatedAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Last Hosted</span>
+                        <span>{formatTimestamp(selectedSummonerEntry.lastHostedAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Last Burn Recorded</span>
+                        <span>{formatTimestamp(selectedSummonerEntry.lastBurnAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-red-400/70">
+                        <span>Confirmed Burns</span>
+                        <span>{selectedSummonerEntry.confirmedBurns}</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-red-400/70">
+                      Score is cumulative; keep hosting and sealing circles to climb the rankings.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[11px] uppercase tracking-[0.3em] text-red-300/70">
+                    <Trophy className="h-8 w-8 text-red-500 drop-shadow-[0_0_18px_rgba(220,38,38,0.4)]" />
+                    Select a summoner to view their contributions.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
