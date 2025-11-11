@@ -219,18 +219,18 @@ export async function GET(request: NextRequest) {
         `
           SELECT
             ordinal_wallet,
-            payment_wallet,
+            MIN(payment_wallet) AS primary_payment_wallet,
             COUNT(*)::int AS total,
             COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed
           FROM abyss_burns
-          GROUP BY ordinal_wallet, payment_wallet
+          GROUP BY ordinal_wallet
           ORDER BY confirmed DESC, total DESC
           LIMIT ${ABYSS_CAP}
         `,
       )
       leaderboard = leaderboardResult.rows.map((row) => ({
         ordinalWallet: row.ordinal_wallet ?? '',
-        paymentWallet: row.payment_wallet ?? '',
+        paymentWallet: row.primary_payment_wallet ?? '',
         total: Number(row.total ?? 0),
         confirmed: Number(row.confirmed ?? 0),
       }))
