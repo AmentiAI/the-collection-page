@@ -1491,11 +1491,10 @@ function AbyssContent() {
     return () => window.clearInterval(intervalId)
   }, [showEntryModal, spawnWalker])
 
-  const confirmedBurns = burnSummary?.confirmed ?? 0
+  const totalBurns = burnSummary?.total ?? 0
   const totalDamned = TOTAL_ABYSS_CAP
-  const progressPercent = Math.min(100, (confirmedBurns / totalDamned) * 100)
-  const remaining = Math.max(0, totalDamned - confirmedBurns)
-  const capReached = confirmedBurns >= TOTAL_ABYSS_CAP
+  const progressPercent = Math.min(100, (totalBurns / totalDamned) * 100)
+  const capReached = totalBurns >= TOTAL_ABYSS_CAP
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0
@@ -1550,7 +1549,7 @@ function AbyssContent() {
         <div className="rounded-lg border border-red-700 bg-black/40 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
           <div className="font-mono text-xs uppercase tracking-[0.4em] text-red-600">Abyssal Burn</div>
           <div className="mt-2 flex items-end gap-3">
-            <div className="text-2xl font-black text-red-500">{confirmedBurns}</div>
+            <div className="text-2xl font-black text-red-500">{totalBurns}</div>
             <div className="pb-[6px] text-sm text-gray-400">/ {totalDamned}</div>
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded bg-red-900/50">
