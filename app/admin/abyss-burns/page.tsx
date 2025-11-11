@@ -209,7 +209,6 @@ export default function AbyssBurnsAdminPage() {
                     <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.lastCheckedAt)}</td>
                     <td className="px-3 py-2">
                       <Button
-                        size="sm"
                         variant="outline"
                         className="flex items-center gap-1 border-red-500/70 text-[11px] uppercase tracking-[0.25em] text-red-200 hover:bg-red-800/20"
                         onClick={() => handleCheckTx(record.txId)}
