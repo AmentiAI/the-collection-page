@@ -1362,23 +1362,6 @@ function AbyssContent() {
 
       const bitcoin = await import('bitcoinjs-lib')
       const finalPsbt = bitcoin.Psbt.fromBase64(psbtBase64)
-
-      const inputsFinalized = finalPsbt.data.inputs.every(
-        (input) => Boolean(input.finalScriptSig) || Boolean(input.finalScriptWitness),
-      )
-
-      if (!inputsFinalized) {
-        try {
-          finalPsbt.finalizeAllInputs()
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Signed transaction could not be finalized. Please retry with a fresh PSBT.'
-          throw new Error(`Failed to finalize signed burn transaction: ${message}`)
-        }
-      }
-
       const signedTxHex = finalPsbt.extractTransaction().toHex()
 
       const txid = await InscriptionService.broadcastTransaction(signedTxHex, FEE_RATE_SAT_VB)
