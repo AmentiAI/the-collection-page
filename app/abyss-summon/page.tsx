@@ -60,6 +60,8 @@ const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const SUMMON_BURN_POINTS = 6
 const SUMMON_HOST_POINTS = 2
 const SUMMON_PARTICIPATION_POINTS = 1
+const SUMMONING_DISABLED = true
+const SUMMONING_DISABLED_MESSAGE = 'The summoning has been completed. Thank you for your efforts!'
 
 function formatCountdown(ms: number) {
   if (ms <= 0) {
@@ -391,7 +393,12 @@ export default function AbyssSummonPage() {
           }
           return updated
         })
-        setSelectedInscriptionId(mapped.length > 0 ? mapped[0].inscriptionId : null)
+        setSelectedInscriptionId((previous) => {
+          if (previous && mapped.some((option) => option.inscriptionId === previous)) {
+            return previous
+          }
+          return mapped.length > 0 ? mapped[0].inscriptionId : null
+        })
       } catch (error) {
         console.error('Failed to load damned ordinals:', error)
         setDamnedError(error instanceof Error ? error.message : 'Failed to load ordinals.')
@@ -555,6 +562,10 @@ export default function AbyssSummonPage() {
   }, [])
 
   const handleCreateSummon = useCallback(async () => {
+    if (SUMMONING_DISABLED) {
+      toast.error(SUMMONING_DISABLED_MESSAGE)
+      return
+    }
     if (!ordinalAddress) {
       toast.error('Connect your wallet to start a summoning circle.')
       return
@@ -602,6 +613,10 @@ export default function AbyssSummonPage() {
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
+      if (SUMMONING_DISABLED) {
+        toast.error(SUMMONING_DISABLED_MESSAGE)
+        return
+      }
       if (!ordinalAddress) {
         toast.error('Connect your wallet to join a summoning circle.')
         return
@@ -806,6 +821,12 @@ export default function AbyssSummonPage() {
               <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
               <span>More burns are required to keep the summoning circles open.</span>
             </div>
+            {SUMMONING_DISABLED && (
+              <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-900/20 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.35)]">
+                <AlertTriangle className="h-4 w-4 text-amber-200 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
+                <span>{SUMMONING_DISABLED_MESSAGE}</span>
+              </div>
+            )}
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                 <span className="text-[11px] text-amber-300">Bonus Burns Awaiting</span>
