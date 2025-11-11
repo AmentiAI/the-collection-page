@@ -4,6 +4,7 @@ import type { Pool } from 'pg'
 import { getPool } from '@/lib/db'
 
 const ABYSS_CAP = 333
+const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
 const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,26 @@ function summarizeRow(row?: { total?: unknown; confirmed?: unknown }) {
     total: Number(row?.total ?? 0),
     confirmed: Number(row?.confirmed ?? 0),
   }
+}
+
+function hasDynamicCapBeenReached(summary: { total: number; confirmed: number }) {
+  if (summary.confirmed >= ABYSS_CAP) {
+    return true
+  }
+
+  if (Number.isNaN(CAP_REDUCTION_START_UTC)) {
+    return false
+  }
+
+  const now = Date.now()
+  if (now < CAP_REDUCTION_START_UTC) {
+    return false
+  }
+
+  const minutesSinceReduction = Math.max(0, Math.floor((now - CAP_REDUCTION_START_UTC) / 60_000))
+  const reducedCap = Math.max(ABYSS_CAP - minutesSinceReduction, 0)
+
+  return summary.total >= reducedCap
 }
 
 export async function GET(request: NextRequest) {
@@ -341,7 +362,9 @@ export async function POST(request: NextRequest) {
     let burnSource = 'abyss'
     let allowanceApplied = false
 
-    if (preSummary.confirmed >= ABYSS_CAP) {
+    const capReached = hasDynamicCapBeenReached(preSummary)
+
+    if (capReached) {
       const allowanceRes = await pool.query(
         `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
         [ordinalWallet],
@@ -351,10 +374,10 @@ export async function POST(request: NextRequest) {
         burnSource = 'summon_bonus'
         allowanceApplied = true
       } else {
-      return NextResponse.json(
-        { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
-        { status: 403 },
-      )
+        return NextResponse.json(
+          { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
+          { status: 403 },
+        )
       }
     }
 
@@ -385,7 +408,7 @@ export async function POST(request: NextRequest) {
           WHERE LOWER(wallet) = LOWER($1)
         `,
         [ordinalWallet],
-    )
+      )
     }
 
     const summaryResult = await pool.query(
