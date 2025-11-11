@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw, Search } from 'lucide-react'
+import { Copy, Loader2, RefreshCw, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,7 @@ export default function AbyssBurnsAdminPage() {
   const [limit, setLimit] = useState(50)
   const [statusFilter, setStatusFilter] = useState('')
   const [txCheckLoading, setTxCheckLoading] = useState<string | null>(null)
+  const [copiedMessage, setCopiedMessage] = useState<string | null>(null)
 
   const loadRecords = useCallback(async () => {
     try {
@@ -106,6 +107,28 @@ export default function AbyssBurnsAdminPage() {
       return acc
     }, {})
   }, [records])
+
+  const inscriptionJson = useMemo(() => {
+    const ids = records.map((record) => record.inscriptionId).filter(Boolean)
+    return JSON.stringify(ids, null, 2)
+  }, [records])
+
+  const handleCopy = useCallback(async (value: string, label: string) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedMessage(`${label} copied`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      window.alert(`Failed to copy: ${message}`)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!copiedMessage) return
+    const timeoutId = window.setTimeout(() => setCopiedMessage(null), 2000)
+    return () => window.clearTimeout(timeoutId)
+  }, [copiedMessage])
 
   return (
     <div className="min-h-screen bg-black px-6 py-10 text-red-100">
@@ -189,16 +212,16 @@ export default function AbyssBurnsAdminPage() {
                 records.map((record) => (
                   <tr key={record.id} className="hover:bg-red-900/20">
                     <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      {record.inscriptionId}
+                      <CopyCell value={record.inscriptionId} label="Inscription ID" onCopy={handleCopy} />
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      {record.txId || '—'}
+                      <CopyCell value={record.txId} label="Transaction ID" onCopy={handleCopy} />
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-red-200/90">
-                      {record.ordinalWallet}
+                      <CopyCell value={record.ordinalWallet} label="Ordinal Wallet" onCopy={handleCopy} />
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-red-200/70">
-                      {record.paymentWallet}
+                      <CopyCell value={record.paymentWallet} label="Payment Wallet" onCopy={handleCopy} />
                     </td>
                     <td className="px-3 py-2 uppercase tracking-[0.3em] text-red-100">
                       {record.status}
@@ -234,9 +257,67 @@ export default function AbyssBurnsAdminPage() {
             </div>
           )}
         </div>
+
+        <section className="rounded-lg border border-red-700/40 bg-black/70 p-6 shadow-[0_0_20px_rgba(220,38,38,0.3)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Inscription IDs (JSON)</h2>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-red-500/60 text-xs uppercase tracking-[0.3em] text-red-100 hover:bg-red-800/20"
+              onClick={() => handleCopy(inscriptionJson, 'Inscription list')}
+              disabled={!records.length}
+            >
+              <Copy className="h-3 w-3" />
+              Copy JSON
+            </Button>
+          </div>
+          <textarea
+            readOnly
+            value={inscriptionJson}
+            className="mt-4 h-48 w-full resize-none rounded-lg border border-red-700/30 bg-black/80 p-3 font-mono text-xs text-red-200"
+          />
+        </section>
       </div>
+
+      {copiedMessage && (
+        <div className="fixed bottom-6 right-6 rounded-md border border-red-600/50 bg-black/80 px-4 py-2 font-mono text-xs uppercase tracking-[0.3em] text-red-100 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
+          {copiedMessage}
+        </div>
+      )}
     </div>
   )
 }
 
+
+function CopyCell({
+  value,
+  label,
+  onCopy,
+}: {
+  value: string | null
+  label: string
+  onCopy: (value: string, label: string) => void
+}) {
+  if (!value) {
+    return <span>—</span>
+  }
+
+  const truncated = value.length <= 14 ? value : `${value.slice(0, 6)}…${value.slice(-6)}`
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="truncate" title={value}>
+        {truncated}
+      </span>
+      <button
+        type="button"
+        aria-label={`Copy ${label}`}
+        onClick={() => onCopy(value, label)}
+        className="text-red-300 transition hover:text-red-100"
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
 
