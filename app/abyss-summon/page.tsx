@@ -593,7 +593,7 @@ export default function AbyssSummonPage() {
                         assetMap={inscriptionArtMap}
                         loading={summonsLoading}
                         now={now}
-                        emptyMessage="No active circles. Initiate one or await whispers from the damned."
+                      emptyMessage="No active circles. Initiate one or await whispers from the damned."
                       />
                     )}
                   </>
@@ -614,13 +614,13 @@ export default function AbyssSummonPage() {
                       assetMap={inscriptionArtMap}
                       highlightCreator
                       now={now}
-                      emptyMessage="You haven’t founded a summoning circle yet."
+                      emptyMessage="You haven&rsquo;t founded a summoning circle yet."
                     />
                   </>
                 )}
                 {activeTab === 'joined' && (
                   <>
-                    <h3 className="text-xs uppercase tracking-[0.35em] text-red-200">Circles You've Joined</h3>
+                    <h3 className="text-xs uppercase tracking-[0.35em] text-red-200">Circles You&apos;ve Joined</h3>
                     <SummonList
                       summons={joinedSummons}
                       ordinalAddress={ordinalAddress}
