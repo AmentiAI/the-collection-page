@@ -130,6 +130,12 @@ export async function GET(request: NextRequest) {
     const includeCooldown =
       searchParams.get('includeCooldown') === 'true' ||
       searchParams.get('cooldown') === 'true'
+    const includeGraveyard = searchParams.get('includeGraveyard') === 'true'
+    const graveyardLimitRaw = Number.parseInt(searchParams.get('graveyardLimit') ?? '', 10)
+    const defaultGraveyardLimit = Math.min(120, ABYSS_CAP)
+    const graveyardLimit = Number.isFinite(graveyardLimitRaw)
+      ? Math.min(Math.max(graveyardLimitRaw, 1), ABYSS_CAP)
+      : defaultGraveyardLimit
 
     let pending: Array<{
       inscriptionId: string
@@ -326,6 +332,56 @@ export async function GET(request: NextRequest) {
     }
     if (includeLeaderboard) {
       responseBody.leaderboard = leaderboard
+    }
+    if (includeGraveyard) {
+      let graveyardRows: Array<Record<string, unknown>> = []
+      if (ordinalWallet) {
+        const result = await pool.query(
+          `
+            SELECT inscription_id,
+                   tx_id,
+                   status,
+                   source,
+                   created_at,
+                   confirmed_at,
+                   updated_at
+            FROM abyss_burns
+            WHERE LOWER(ordinal_wallet) = LOWER($1)
+            ORDER BY created_at DESC
+            LIMIT ${graveyardLimit}
+          `,
+          [ordinalWallet],
+        )
+        graveyardRows = result.rows
+      } else if (paymentWallet) {
+        const result = await pool.query(
+          `
+            SELECT inscription_id,
+                   tx_id,
+                   status,
+                   source,
+                   created_at,
+                   confirmed_at,
+                   updated_at
+            FROM abyss_burns
+            WHERE LOWER(payment_wallet) = LOWER($1)
+            ORDER BY created_at DESC
+            LIMIT ${graveyardLimit}
+          `,
+          [paymentWallet],
+        )
+        graveyardRows = result.rows
+      }
+
+      responseBody.graveyard = graveyardRows.map((row) => ({
+        inscriptionId: (row?.inscription_id ?? '').toString(),
+        txId: (row?.tx_id ?? '').toString(),
+        status: (row?.status ?? 'pending').toString(),
+        source: (row?.source ?? 'abyss').toString(),
+        createdAt: row?.created_at ?? null,
+        confirmedAt: row?.confirmed_at ?? null,
+        updatedAt: row?.updated_at ?? null,
+      }))
     }
     const allowanceSourceWallet = ordinalWallet || paymentWallet
     if (allowanceSourceWallet) {
