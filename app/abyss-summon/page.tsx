@@ -832,9 +832,14 @@ function SummonList({
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
         const completionWindowOpen = timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
         const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
-        const containerClass = [
-          'rounded-xl border px-4 py-4 transition'
-        ].join(' ')
+        const glowIntensity = isExpired
+          ? 0
+          : Math.min(1, Math.max(0, 1 - timeRemainingMs / SUMMON_DURATION_MS))
+        const glowRadius = 18 + glowIntensity * 32
+        const glowAlpha = 0.22 + glowIntensity * 0.5
+        const borderAlpha = 0.18 + glowIntensity * 0.55
+        const backgroundGlowAlpha = 0.08 + glowIntensity * 0.35
+        const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition'].join(' ')
 
         const summaryText = `${summon.participants.length}/${totalSlots}`
         const cannotJoin =
@@ -846,7 +851,15 @@ function SummonList({
           summon.participants.length >= totalSlots
 
         return (
-          <div key={summon.id} className={containerClass}>
+          <div
+            key={summon.id}
+            className={containerClass}
+            style={{
+              borderColor: `rgba(248,113,113,${borderAlpha})`,
+              boxShadow: `0 0 ${glowRadius}px rgba(220,38,38,${glowAlpha})`,
+              backgroundImage: `linear-gradient(135deg, rgba(127,29,29,${backgroundGlowAlpha}) 0%, rgba(12,12,12,0.82) 55%, rgba(17,17,17,0.9) 100%)`,
+            }}
+          >
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="mx-auto flex w-full max-w-[220px] flex-col items-center gap-3 md:mx-0">
                 <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
@@ -865,6 +878,7 @@ function SummonList({
                   currentWallet={ordinalAddress}
                   isCreator={isCreator}
                   assetMap={assetMap}
+                  glowIntensity={glowIntensity}
                 />
                 <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
                   {truncateWallet(summon.creatorWallet)}
@@ -990,6 +1004,7 @@ function SummoningCircleGraphic({
   currentWallet,
   isCreator,
   assetMap,
+  glowIntensity,
 }: {
   participants: SummonParticipant[]
   totalSlots: number
@@ -997,14 +1012,40 @@ function SummoningCircleGraphic({
   currentWallet: string
   isCreator: boolean
   assetMap: Record<string, string>
+  glowIntensity: number
 }) {
   const slots = Array.from({ length: totalSlots }, (_, index) => participants[index] ?? null)
+  const outerGlow = 22 + glowIntensity * 36
+  const ringGlow = 14 + glowIntensity * 28
+  const runeGlow = 12 + glowIntensity * 22
+  const auraAlpha = 0.18 + glowIntensity * 0.45
+  const innerAuraAlpha = 0.12 + glowIntensity * 0.4
 
   return (
     <div className="relative mx-auto h-44 w-44">
-      <div className="absolute inset-0 rounded-full border border-red-600/50 bg-[radial-gradient(circle,_rgba(220,38,38,0.25)_0%,_rgba(0,0,0,0.05)_60%,_transparent_75%)] shadow-[0_0_25px_rgba(220,38,38,0.45)]" />
-      <div className="absolute inset-5 rounded-full border border-amber-500/30 blur-sm" />
-      <div className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-500/50 bg-red-900/40 text-center text-[12px] uppercase tracking-[0.3em] text-red-200 shadow-[0_0_18px_rgba(220,38,38,0.4)]">
+      <div
+        className="absolute inset-0 rounded-full border"
+        style={{
+          borderColor: `rgba(248,113,113,${0.25 + glowIntensity * 0.6})`,
+          boxShadow: `0 0 ${outerGlow}px rgba(220,38,38,${0.26 + glowIntensity * 0.45})`,
+          background: `radial-gradient(circle, rgba(127,29,29,${0.35 + glowIntensity * 0.35}) 0%, rgba(0,0,0,0.05) 55%, transparent 80%)`,
+        }}
+      />
+      <div
+        className="absolute inset-5 rounded-full border blur-sm"
+        style={{
+          borderColor: `rgba(251,191,36,${0.18 + glowIntensity * 0.45})`,
+          boxShadow: `0 0 ${ringGlow}px rgba(251,191,36,${0.15 + glowIntensity * 0.4})`,
+        }}
+      />
+      <div
+        className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border text-center text-[12px] uppercase tracking-[0.3em] text-red-200"
+        style={{
+          borderColor: `rgba(248,113,113,${0.3 + glowIntensity * 0.5})`,
+          background: `rgba(127,29,29,${0.35 + glowIntensity * 0.35})`,
+          boxShadow: `0 0 ${runeGlow}px rgba(220,38,38,${0.3 + glowIntensity * 0.5})`,
+        }}
+      >
         <span className="flex h-full w-full items-center justify-center">
           {isCreator ? 'Host' : 'Rite'}
         </span>
@@ -1020,15 +1061,29 @@ function SummoningCircleGraphic({
           participant?.wallet && currentWallet && participant.wallet.toLowerCase() === currentWallet.toLowerCase()
 
         const slotClass = [
-          'absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-red-700/40 bg-black/80 shadow-[0_0_14px_rgba(220,38,38,0.35)] backdrop-blur',
+          'absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-red-700/40 bg-black/80 backdrop-blur',
           participant
             ? isSelf
-              ? 'border-amber-400/70'
+              ? 'border-amber-400/50 text-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.35)]'
               : participant.role === 'creator'
               ? 'border-red-500/60'
               : 'border-red-400/40'
             : 'border-red-700/30',
         ].join(' ')
+
+        const iconGlow = participant
+          ? participant.role === 'creator'
+            ? 18 + glowIntensity * 18
+            : 12 + glowIntensity * 16
+          : 10 + glowIntensity * 12
+        const iconAlpha = participant
+          ? participant.role === 'creator'
+            ? 0.35 + glowIntensity * 0.4
+            : 0.28 + glowIntensity * 0.35
+          : 0.25 + glowIntensity * 0.3
+        const runeStyle = {
+          textShadow: `0 0 ${iconGlow}px rgba(220,38,38,${iconAlpha})`,
+        }
 
         return (
           <div
@@ -1039,11 +1094,21 @@ function SummoningCircleGraphic({
             {participant ? (
               <SeatAvatar participant={participant} assetMap={assetMap} />
             ) : (
-              <span className="text-[12px] text-red-200/70">{rune}</span>
+              <span className="text-[10px] text-red-200/70" style={runeStyle}>
+                {participant ? '✦' : rune}
+              </span>
             )}
           </div>
         )
       })}
+      <div className="pointer-events-none absolute inset-0 rounded-full border border-amber-500/20" />
+      <div
+        className="pointer-events-none absolute inset-0 rounded-full"
+        style={{
+          background: `radial-gradient(circle, rgba(249,115,22,${innerAuraAlpha}) 0%, rgba(0,0,0,0) 70%)`,
+          boxShadow: `0 0 ${outerGlow * 0.6}px rgba(220,38,38,${auraAlpha})`,
+        }}
+      />
     </div>
   )
 }
