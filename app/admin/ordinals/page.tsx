@@ -15,7 +15,7 @@ type OrdinalRecord = {
   trait_combination_hash?: string | null
 }
 
-type GenerationVariant = 'chromatic' | 'noir'
+type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl'
 
 type GenerationResult = {
   ordinalId: string
@@ -217,7 +217,7 @@ export default function OrdinalsAdminPage() {
             </div>
             <div className="flex items-center gap-3">
               <Button
-                variant="ghost"
+                variant="outline"
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage <= 1}
                 className="flex items-center gap-1 text-xs uppercase tracking-[0.3em] text-red-200 hover:bg-red-800/10 disabled:text-red-500/40"
@@ -229,7 +229,7 @@ export default function OrdinalsAdminPage() {
                 {currentPage} / {totalPages.toLocaleString()}
               </span>
               <Button
-                variant="ghost"
+                variant="outline"
                 onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={currentPage >= totalPages}
                 className="flex items-center gap-1 text-xs uppercase tracking-[0.3em] text-red-200 hover:bg-red-800/10 disabled:text-red-500/40"
@@ -332,7 +332,6 @@ export default function OrdinalsAdminPage() {
                       <Button
                         disabled={isGenerating}
                         onClick={() => handleGenerateImage(ordinal, 'gold')}
-                        variant="secondary"
                         className="flex items-center justify-center gap-2 border border-amber-400/70 bg-amber-500/20 text-xs uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/30 hover:text-amber-100"
                       >
                         {isGenerating && generationLoadingId === ordinal.id ? (
@@ -345,7 +344,6 @@ export default function OrdinalsAdminPage() {
                       <Button
                         disabled={isGenerating}
                         onClick={() => handleGenerateImage(ordinal, 'forward')}
-                        variant="ghost"
                         className="flex items-center justify-center gap-2 border border-cyan-500/60 text-xs uppercase tracking-[0.3em] text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-100"
                       >
                         {isGenerating && generationLoadingId === ordinal.id ? (
