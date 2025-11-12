@@ -828,6 +828,7 @@ function GraveyardModal({
                   ? 'border-emerald-400/50 bg-emerald-900/30 text-emerald-200'
                   : 'border-amber-400/40 bg-amber-900/30 text-amber-200'
 
+              const progressPercent = 0
               return (
                 <div
                   key={`${entry.inscriptionId}-${entry.txId}`}
@@ -841,6 +842,20 @@ function GraveyardModal({
                       sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
                       className="object-cover transition duration-500 ease-out group-hover:scale-105"
                     />
+                    <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
+                      <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
+                        <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
+                          <span>Progress</span>
+                          <span>{progressPercent}%</span>
+                        </div>
+                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-red-500/40 bg-black/50">
+                          <div
+                            className="h-full bg-gradient-to-r from-red-500/70 via-amber-400/80 to-emerald-400/80"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                     <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 py-3">
                       <div
                         className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] ${statusClasses}`}

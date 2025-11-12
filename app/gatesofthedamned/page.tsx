@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
+const GATES_EVENT_UTC = Date.parse('2025-11-15T20:00:00Z')
+
 export default function GatesOfTheDamnedPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -12,6 +14,8 @@ export default function GatesOfTheDamnedPage() {
   const [volume, setVolume] = useState(30)
   const [isMuted, setIsMuted] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [countdown, setCountdown] = useState<string | null>(null)
+  const [eventStatus, setEventStatus] = useState<'upcoming' | 'active' | 'ended'>('upcoming')
   const audioSrc = '/gates-audio.mp3'
 
   const handleEnter = () => {
@@ -93,6 +97,59 @@ export default function GatesOfTheDamnedPage() {
         audio.removeEventListener('pause', handlePause)
       }
     }
+  }, [])
+
+  useEffect(() => {
+    if (!Number.isFinite(GATES_EVENT_UTC)) {
+      return
+    }
+
+    const formatCountdown = (ms: number) => {
+      if (ms <= 0) {
+        return '00:00:00'
+      }
+      const totalSeconds = Math.floor(ms / 1000)
+      const days = Math.floor(totalSeconds / 86_400)
+      const hours = Math.floor((totalSeconds % 86_400) / 3600)
+      const minutes = Math.floor((totalSeconds % 3600) / 60)
+      const seconds = totalSeconds % 60
+
+      const segments: string[] = []
+      if (days > 0) {
+        segments.push(days.toString().padStart(2, '0'))
+      }
+      segments.push(hours.toString().padStart(2, '0'))
+      segments.push(minutes.toString().padStart(2, '0'))
+      segments.push(seconds.toString().padStart(2, '0'))
+      return segments.join(':')
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now()
+      const diff = GATES_EVENT_UTC - now
+      if (diff <= 0) {
+        setCountdown('00:00:00')
+        setEventStatus('active')
+        return false
+      }
+      setCountdown(formatCountdown(diff))
+      setEventStatus('upcoming')
+      return true
+    }
+
+    const continueUpdating = updateCountdown()
+    if (!continueUpdating) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      const shouldContinue = updateCountdown()
+      if (!shouldContinue) {
+        window.clearInterval(intervalId)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
   }, [])
 
   useEffect(() => {
@@ -470,6 +527,19 @@ export default function GatesOfTheDamnedPage() {
                 <p className="text-base md:text-lg text-red-500 font-mono tracking-widest uppercase">
                   UNDER CONSTRUCTION · DETOUR AHEAD
                 </p>
+                <div className="space-y-2">
+                  <p className="text-xs md:text-sm text-red-300 font-mono tracking-[0.45em] uppercase">
+                    Gates reopen November 15 · 3:00 PM EST
+                  </p>
+                  <div className="mx-auto flex w-full max-w-sm flex-col items-center justify-center rounded-lg border border-red-600/60 bg-black/60 px-6 py-4">
+                    <span className="text-[11px] font-mono uppercase tracking-[0.4em] text-red-400">
+                      Countdown
+                    </span>
+                    <span className="mt-2 font-mono text-3xl tracking-[0.35em] text-red-200">
+                      {eventStatus === 'active' ? 'Opening Now' : countdown ?? '— — : — — : — —'}
+                    </span>
+                  </div>
+                </div>
            
                 <Link
                   href="/profile"

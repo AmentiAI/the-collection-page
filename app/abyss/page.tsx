@@ -604,11 +604,11 @@ function AbyssContent() {
       console.error('Failed to fetch pending abyss burns:', error)
       return { records: [], cooldown: null }
     }
-  }, [ordinalAddress, changeAddress, laserEyes.paymentAddress])
+  }, [ordinalAddress, laserEyes.paymentAddress])
 
   const loadDamnedOptions = useCallback(async () => {
     if (!ordinalAddress) return
-    setDamnedLoading(true)
+    setDamnedLoading(true)  
     setDamnedError(null)
     setAssetsLoaded(false)
     try {
@@ -745,7 +745,7 @@ function AbyssContent() {
       setDamnedLoading(false)
       setAssetsLoaded(true)
     }
-  }, [ordinalAddress, toast, fetchBurnSummary, pendingBurnRecords])
+  }, [ordinalAddress, toast, pendingBurnRecords])
 
   const loadPaymentAssets = useCallback(async () => {
     setPaymentScanInitiated(true)
@@ -1493,6 +1493,7 @@ function AbyssContent() {
     }
   }, [
     burning,
+    abyssDisabled,
     selectedInscription,
     selectedPayment,
     paymentOptions,
