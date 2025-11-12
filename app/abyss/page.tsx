@@ -9,6 +9,7 @@ import { useToast } from '@/components/Toast'
 import { InscriptionService } from '@/services/inscription-service'
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useWallet } from '@/lib/wallet/compatibility'
 import type { BaseUtxo, InscriptionUtxo } from '@/lib/sandshrew'
@@ -318,6 +319,10 @@ function AbyssContent() {
   const [burnConfirmOpen, setBurnConfirmOpen] = useState(false)
   const audioSrc = '/music/abyss.mp3'
   const fallenPileRef = useRef(0)
+
+  const searchParams = useSearchParams()
+  const bypassDisabled = searchParams?.get('bypass') === '1'
+  const abyssDisabled = ABYSS_DISABLED && !bypassDisabled
 
   const calculatePlacement = useCallback((index: number): Placement => {
     const jitterReduction = Math.floor(index / HORIZONTAL_JITTER_FALLOFF_STEP) * HORIZONTAL_JITTER_REDUCTION
@@ -1259,7 +1264,7 @@ function AbyssContent() {
   }, [])
 
   const handleBurn = useCallback(async () => {
-    if (ABYSS_DISABLED) {
+    if (abyssDisabled) {
       toast.error(ABYSS_DISABLED_MESSAGE)
       return
     }
@@ -1367,7 +1372,27 @@ function AbyssContent() {
       }
 
       const bitcoin = await import('bitcoinjs-lib')
+      const eccModule = await import('@bitcoinerlab/secp256k1')
+      if (typeof bitcoin.initEccLib === 'function') {
+        try {
+          bitcoin.initEccLib((eccModule as any).default ?? eccModule)
+        } catch (eccError) {
+          console.warn('Failed to initialize ECC library', eccError)
+        }
+      }
       const finalPsbt = bitcoin.Psbt.fromBase64(psbtBase64)
+      const requiresFinalization = finalPsbt.data.inputs.some(
+        (input) => !input.finalScriptSig && !input.finalScriptWitness,
+      )
+      if (requiresFinalization) {
+        try {
+          finalPsbt.finalizeAllInputs()
+        } catch (finalizeError) {
+          console.error('Failed to finalize PSBT', finalizeError)
+          throw new Error('Unable to finalize PSBT returned by wallet.')
+        }
+      }
+
       const signedTxHex = finalPsbt.extractTransaction().toHex()
 
       const txid = await InscriptionService.broadcastTransaction(signedTxHex, FEE_RATE_SAT_VB)
@@ -1593,13 +1618,14 @@ function AbyssContent() {
   const dynamicCap = useMemo(() => {
     const raw = TOTAL_ABYSS_CAP - minutesSinceReductionStart
     const reduced = Math.max(raw, 0)
-    return Math.max(totalBurns, reduced)
-  }, [minutesSinceReductionStart, totalBurns])
+    const bonusCap = !abyssDisabled && bonusAllowance > 0 ? bonusAllowance : 0
+    return Math.max(totalBurns, reduced + bonusCap)
+  }, [minutesSinceReductionStart, totalBurns, bonusAllowance, abyssDisabled])
   const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
   const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
   const bonusBurnsRemain = bonusAllowance > 0
-  const bonusBurnAvailable = !ABYSS_DISABLED && bonusBurnsRemain
-  const userCapReached = ABYSS_DISABLED || (globalCapReached && !bonusBurnAvailable)
+  const bonusBurnAvailable = !abyssDisabled && bonusBurnsRemain
+  const userCapReached = abyssDisabled || (globalCapReached && !bonusBurnAvailable)
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0
@@ -1670,7 +1696,7 @@ function AbyssContent() {
         </div>
 
         <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
-          {ABYSS_DISABLED && (
+          {abyssDisabled && (
             <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
               {ABYSS_DISABLED_MESSAGE}
             </div>
