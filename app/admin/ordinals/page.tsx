@@ -122,10 +122,11 @@ export default function OrdinalsAdminPage() {
         revisedPrompt?: string | null
         finalPrompt?: string
         variant?: GenerationVariant
+        error?: string
       }
 
       if (!payload.success || !payload.imageBase64) {
-        throw new Error(payload?.['error'] ?? 'Image generation did not return data.')
+        throw new Error(payload.error ?? 'Image generation did not return data.')
       }
 
       const finalPrompt = payload.finalPrompt ?? ordinal.prompt
