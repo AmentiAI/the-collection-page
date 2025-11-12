@@ -845,7 +845,7 @@ function GraveyardModal({
                     <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
                       <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
                         <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
-                          <span>Progress</span>
+                          <span>Ascension</span>
                           <span>{progressPercent}%</span>
                         </div>
                         <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-red-500/40 bg-black/50">
