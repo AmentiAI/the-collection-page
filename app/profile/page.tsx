@@ -815,7 +815,8 @@ function GraveyardModal({
             No abyss burns found yet. Make an offering to populate your graveyard.
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {entries.map((entry) => {
               const imageUrl = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(entry.inscriptionId)}`
               const shortInscription =
@@ -873,6 +874,7 @@ function GraveyardModal({
                 </div>
               )
             })}
+            </div>
           </div>
         )}
       </div>
