@@ -10,3 +10,4 @@ export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElem
   return <label className={mergeClasses('text-sm font-medium text-zinc-300', className)} {...props} />
 }
 
+
