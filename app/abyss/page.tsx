@@ -106,6 +106,8 @@ const MIN_HORIZONTAL_JITTER_PERCENT = 1
 const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
 const TOTAL_ABYSS_CAP = 333
+const ABYSS_DISABLED = true
+const ABYSS_DISABLED_MESSAGE = 'The summoning has been completed. Thank you for your efforts!'
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
 const FULL_ABYSS_MENU_OPTIONS = [
   {
@@ -1257,6 +1259,10 @@ function AbyssContent() {
   }, [])
 
   const handleBurn = useCallback(async () => {
+    if (ABYSS_DISABLED) {
+      toast.error(ABYSS_DISABLED_MESSAGE)
+      return
+    }
     if (burning) return
     if (!selectedInscription) {
       toast.error('Select a damned inscription to burn.')
@@ -1591,8 +1597,9 @@ function AbyssContent() {
   }, [minutesSinceReductionStart, totalBurns])
   const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
   const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
-  const bonusBurnAvailable = bonusAllowance > 0
-  const userCapReached = globalCapReached && !bonusBurnAvailable
+  const bonusBurnsRemain = bonusAllowance > 0
+  const bonusBurnAvailable = !ABYSS_DISABLED && bonusBurnsRemain
+  const userCapReached = ABYSS_DISABLED || (globalCapReached && !bonusBurnAvailable)
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0
@@ -1663,6 +1670,11 @@ function AbyssContent() {
         </div>
 
         <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
+          {ABYSS_DISABLED && (
+            <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
+              {ABYSS_DISABLED_MESSAGE}
+            </div>
+          )}
           {userCapReached && (
             <div className="mt-3 rounded border border-green-500/40 bg-green-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-green-300">
               Abyss satiated. Further burns disabled.
