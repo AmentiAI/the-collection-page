@@ -321,7 +321,7 @@ function AbyssContent() {
   const fallenPileRef = useRef(0)
 
   const searchParams = useSearchParams()
-  const bypassDisabled = searchParams?.get('bypass') === '1'
+  const bypassDisabled = searchParams?.get('bygas') === '1'
   const abyssDisabled = ABYSS_DISABLED && !bypassDisabled
 
   const calculatePlacement = useCallback((index: number): Placement => {
