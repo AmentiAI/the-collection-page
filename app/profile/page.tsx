@@ -858,14 +858,7 @@ function GraveyardModal({
                       </div>
                     </div>
                     <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 py-3">
-                      <div
-                        className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] ${statusClasses}`}
-                      >
-                        {status === 'confirmed' ? 'Purged' : status}
-                      </div>
-                      <div className="text-[10px] uppercase tracking-[0.3em] text-red-200/80">
-                        {shortInscription}
-                      </div>
+                     
                       <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
                         Source: {entry.source.replace(/_/g, ' ')}
                       </div>
