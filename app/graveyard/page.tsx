@@ -176,9 +176,7 @@ function GraveyardContent() {
             Personal Graveyard
             <Skull className="h-7 w-7 text-red-400 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]" aria-hidden="true" />
           </h1>
-          <p className="mx-auto max-w-xl text-xs uppercase tracking-[0.35em] text-red-200/70 md:text-sm">
-            {ordinalAddress ? `Wallet ${ordinalAddress.slice(0, 4)}…${ordinalAddress.slice(-6)}` : 'Connect wallet to proceed'}
-          </p>
+       
           {profile?.username && (
             <div className="mx-auto flex max-w-md items-center justify-center gap-3 rounded-full border border-red-600/40 bg-black/60 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
               {profile.avatar_url && (
