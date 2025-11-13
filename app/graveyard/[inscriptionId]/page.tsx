@@ -352,41 +352,7 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
               </div>
             </header>
 
-            <section className="space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Trait Manifest</h2>
-                {ordinal?.metadata_url && (
-                  <Link
-                    href={ordinal.metadata_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] uppercase tracking-[0.35em] text-red-300/80 underline underline-offset-4 hover:text-red-100"
-                  >
-                    View metadata
-                  </Link>
-                )}
-              </div>
-              {ordinal ? (
-                <TraitList traits={ordinal.traits ?? {}} />
-              ) : (
-                <p className="text-sm uppercase tracking-[0.3em] text-red-200/70">
-                  We could not locate trait metadata for this inscription. It may belong to an external collection or
-                  predate the current catalog.
-                </p>
-              )}
-            </section>
-
-            {ordinal?.prompt && (
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">
-                  Original Summoning Prompt
-                </h2>
-                <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-red-600/40 bg-black/70 p-4 font-mono text-xs leading-relaxed text-red-100 shadow-[0_0_20px_rgba(220,38,38,0.25)]">
-                  {ordinal.prompt}
-                </pre>
-              </section>
-            )}
-
+  
             <section className="space-y-3">
               <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Ascension Powder</h2>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3">
