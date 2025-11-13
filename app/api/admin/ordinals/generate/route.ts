@@ -22,6 +22,8 @@ const SWIRLED_COLOR_SUFFIX =
   'override existing palettes by flooding the character and background with bold, high-saturation prismatic color swirls—thick ribbons of iridescent paint should coil through the figure and environment, aggressively recoloring surfaces while preserving the border and frame as-is.'
 const FORWARD_LEAN_SUFFIX =
   'pose the character so their upper body and face lean forward toward the viewer, creating an exaggerated 3D effect as if the character is emerging out of the canvas, while keeping the rest of the scene intact.'
+const MONSTER_TRANSFORMATION_SUFFIX =
+  'and then turn it into a monster instead of the body described but same traits'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +32,7 @@ async function loadOrdinals(): Promise<GeneratedOrdinal[]> {
   return JSON.parse(fileContents) as GeneratedOrdinal[]
 }
 
-type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl'
+type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl' | 'monster'
 
 function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): string {
   const trimmedPrompt = prompt.trim()
@@ -41,6 +43,10 @@ function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): strin
       return trimmedPrompt
     }
     return `${trimmedPrompt}\n\n${CHROMATIC_FOIL_SUFFIX}`
+  }
+
+  if (variant === 'monster') {
+    return ensureMonsterPrompt(trimmedPrompt)
   }
 
   // Noir character variant
@@ -89,6 +95,14 @@ function ensureSwirledColorPrompt(prompt: string): string {
     return trimmedPrompt
   }
   return `${trimmedPrompt}\n\n${SWIRLED_COLOR_SUFFIX}`
+}
+
+function ensureMonsterPrompt(prompt: string): string {
+  const trimmedPrompt = prompt.trim()
+  if (trimmedPrompt.toLowerCase().includes(MONSTER_TRANSFORMATION_SUFFIX.toLowerCase())) {
+    return trimmedPrompt
+  }
+  return `${trimmedPrompt}\n\n${MONSTER_TRANSFORMATION_SUFFIX}`
 }
 
 export async function POST(request: NextRequest) {
@@ -150,6 +164,7 @@ export async function POST(request: NextRequest) {
     if (variant === 'diamond') safeVariant = 'diamond'
     if (variant === 'ultra_rare') safeVariant = 'ultra_rare'
     if (variant === 'swirl') safeVariant = 'swirl'
+    if (variant === 'monster') safeVariant = 'monster'
 
     let augmentedPrompt: string
     if (safeVariant === 'gold') {
@@ -162,6 +177,8 @@ export async function POST(request: NextRequest) {
       augmentedPrompt = ensureUltraRarePrompt(prompt)
     } else if (safeVariant === 'swirl') {
       augmentedPrompt = ensureSwirledColorPrompt(prompt)
+    } else if (safeVariant === 'monster') {
+      augmentedPrompt = ensureMonsterPrompt(prompt)
     } else {
       augmentedPrompt = buildAugmentedPrompt(prompt, safeVariant)
     }

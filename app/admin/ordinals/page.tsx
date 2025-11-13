@@ -15,7 +15,7 @@ type OrdinalRecord = {
   trait_combination_hash?: string | null
 }
 
-type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl'
+type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl' | 'monster'
 
 type GenerationResult = {
   ordinalId: string
@@ -391,6 +391,19 @@ export default function OrdinalsAdminPage() {
                           <Wand2 className="h-4 w-4" />
                         )}
                         {isGenerating && generationLoadingId === ordinal.id ? 'Summoning…' : 'Prismatic Swirls'}
+                      </Button>
+                      <Button
+                        disabled={isGenerating}
+                        onClick={() => handleGenerateImage(ordinal, 'monster')}
+                        variant="outline"
+                        className="flex items-center justify-center gap-2 border border-red-500/70 text-xs uppercase tracking-[0.3em] text-red-100 hover:bg-red-800/20 hover:text-red-50"
+                      >
+                        {isGenerating && generationLoadingId === ordinal.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-4 w-4" />
+                        )}
+                        {isGenerating && generationLoadingId === ordinal.id ? 'Summoning…' : 'Monstrous Mutation'}
                       </Button>
                     </div>
                   </article>
