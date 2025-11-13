@@ -84,6 +84,7 @@ async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardReco
           b.confirmed_at,
           b.updated_at,
           b.status,
+          b.ascension_powder AS ordinal_ascension_powder,
           p.username,
           p.avatar_url,
           p.ascension_powder
@@ -110,10 +111,14 @@ async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardReco
       status: row?.status ?? null,
       username: row?.username ?? null,
       avatar_url: row?.avatar_url ?? null,
-      ascension_powder:
+      profile_ascension_powder:
         typeof row?.ascension_powder === 'number'
           ? Number(row.ascension_powder)
           : Number.parseInt(row?.ascension_powder ?? '0', 10) || 0,
+      ordinal_ascension_powder:
+        typeof row?.ordinal_ascension_powder === 'number'
+          ? Number(row.ordinal_ascension_powder)
+          : Number.parseInt(row?.ordinal_ascension_powder ?? '0', 10) || 0,
     }
   } catch (error) {
     console.error('[graveyard detail] Failed to load abyss burn record:', error)
@@ -203,7 +208,8 @@ type GraveyardRecord = {
   status: string | null
   username: string | null
   avatar_url: string | null
-  ascension_powder: number | null
+  profile_ascension_powder: number | null
+  ordinal_ascension_powder: number | null
 }
 
 type PageProps = {
@@ -233,8 +239,11 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
     (sacrificerWallet ? `${sacrificerWallet.slice(0, 4)}…${sacrificerWallet.slice(-6)}` : null)
   const timeInGraveyardReference = burnRecord?.confirmed_at ?? burnRecord?.created_at ?? burnRecord?.updated_at ?? null
   const timeInGraveyard = formatRelativeTime(timeInGraveyardReference)
-  const powderAvailable = Math.max(0, Math.round(burnRecord?.ascension_powder ?? 0))
-  const hasPowder = powderAvailable > 0
+  const profilePowder = Math.max(0, Math.round(burnRecord?.profile_ascension_powder ?? 0))
+  const ordinalPowder = Math.max(0, Math.round(burnRecord?.ordinal_ascension_powder ?? 0))
+  const hasPowder = profilePowder > 0
+  const ascensionPercent = Math.min(100, Math.round((ordinalPowder / 500) * 100))
+  const hasAscended = ordinalPowder >= 500
   const rarityScore =
     typeof ordinal?.rarity_score === 'number' && Number.isFinite(ordinal.rarity_score)
       ? ordinal.rarity_score.toFixed(2)
@@ -351,20 +360,31 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Ascension Powder</h2>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3">
-                <span className="text-xs uppercase tracking-[0.35em] text-red-200/70">
-                  Remaining: {powderAvailable.toLocaleString()}
-                </span>
+                <div className="flex flex-col gap-1 text-xs uppercase tracking-[0.35em] text-red-200/70">
+                  <span>Reserve: {profilePowder.toLocaleString()}</span>
+                  <span className="flex items-center gap-2 text-[11px] text-amber-200/80">
+                    <span className="rounded-full border border-amber-500/50 bg-amber-900/20 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.4em] text-amber-100">
+                      {ascensionPercent}%
+                    </span>
+                    Ascension {Math.min(500, ordinalPowder).toLocaleString()} / 500
+                  </span>
+                </div>
                 <Button
                   type="button"
-                  disabled={!hasPowder}
+                  disabled={!hasPowder || hasAscended}
                   className="rounded-full border border-red-500/60 bg-red-600/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
                 >
-                  Use Powder
+                  {hasAscended ? 'Ascended' : 'Use Powder'}
                 </Button>
               </div>
-              {!hasPowder && (
+              {!hasPowder && !hasAscended && (
                 <p className="text-[10px] uppercase tracking-[0.3em] text-red-200/60">
                   You lack the ascension powder required to channel this offering.
+                </p>
+              )}
+              {hasAscended && (
+                <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">
+                  This inscription radiates with full ascension.
                 </p>
               )}
             </section>

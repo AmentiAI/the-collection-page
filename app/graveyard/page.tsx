@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Skull, AlertTriangle } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ type GraveyardEntry = {
   createdAt?: string | null
   confirmedAt?: string | null
   updatedAt?: string | null
+  ascensionPowder: number
 }
 
 type WalletProfile = {
@@ -64,6 +65,7 @@ function GraveyardContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState<WalletProfile | null>(null)
+  const [powderSpending, setPowderSpending] = useState<string | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
@@ -122,6 +124,13 @@ function GraveyardContent() {
             createdAt: (item?.createdAt ?? item?.created_at ?? null) as string | null | undefined,
             confirmedAt: (item?.confirmedAt ?? item?.confirmed_at ?? null) as string | null | undefined,
             updatedAt: (item?.updatedAt ?? item?.updated_at ?? null) as string | null | undefined,
+            ascensionPowder:
+              typeof item?.ascensionPowder === 'number'
+                ? Math.max(0, Number(item.ascensionPowder))
+                : Math.max(
+                    0,
+                    Number.parseInt((item?.ascensionPowder ?? item?.ascension_powder ?? '0').toString(), 10) || 0,
+                  ),
           } satisfies GraveyardEntry
         })
         .filter((entry: GraveyardEntry | null): entry is GraveyardEntry => Boolean(entry))
@@ -156,6 +165,74 @@ function GraveyardContent() {
 
   const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
   const hasPowder = powderAvailable > 0
+
+  const handleUsePowder = useCallback(
+    async (entry: GraveyardEntry) => {
+      if (!ordinalAddress) {
+        toast.error('Connect your wallet to channel ascension powder.')
+        return
+      }
+
+      if (powderSpending) {
+        return
+      }
+
+      if (!hasPowder) {
+        toast.error('No ascension powder available to spend.')
+        return
+      }
+
+      if (entry.ascensionPowder >= 500) {
+        toast.error('This offering has already reached full ascension.')
+        return
+      }
+
+      setPowderSpending(entry.inscriptionId)
+      try {
+        const response = await fetch(
+          `/api/abyss/burns/${encodeURIComponent(entry.inscriptionId)}/ascend`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress: ordinalAddress }),
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to channel ascension powder.')
+        }
+
+        const updatedOrdinalPowder = Math.max(0, Number(payload?.ordinalPowder ?? entry.ascensionPowder))
+        const updatedProfilePowder = Math.max(0, Number(payload?.profilePowder ?? 0))
+
+        setProfile((prev) =>
+          prev ? { ...prev, ascension_powder: updatedProfilePowder } : prev,
+        )
+        setEntries((prev) =>
+          prev.map((item) =>
+            item.inscriptionId === entry.inscriptionId
+              ? { ...item, ascensionPowder: updatedOrdinalPowder }
+              : item,
+          ),
+        )
+
+        const completed = Boolean(payload?.completed)
+        toast.success(
+          completed
+            ? 'The abyss accepts your tribute. Ascension complete!'
+            : 'Ascension powder channeled successfully.',
+        )
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to channel ascension powder.'
+        toast.error(message)
+      } finally {
+        setPowderSpending(null)
+      }
+    },
+    [ordinalAddress, toast, hasPowder, powderSpending],
+  )
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
@@ -267,7 +344,10 @@ function GraveyardContent() {
                         ? 'border-emerald-400/50 bg-emerald-900/30 text-emerald-200'
                         : 'border-amber-400/40 bg-amber-900/30 text-amber-200'
 
-                    const progressPercent = 0
+                    const progressPercent = Math.min(
+                      100,
+                      Math.round((Math.max(0, entry.ascensionPowder) / 500) * 100),
+                    )
                     const referenceInstant = entry.confirmedAt ?? entry.createdAt ?? entry.updatedAt ?? null
                     const timeInGraveyard = formatRelativeTime(referenceInstant)
 
@@ -316,16 +396,34 @@ function GraveyardContent() {
                             </div>
                           </div>
                         </Link>
-                        <div className="flex items-center justify-between border-t border-red-500/20 bg-black/60 px-3 py-3">
-                          <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
-                            Powder: {powderAvailable.toLocaleString()}
+                        <div className="space-y-2 border-t border-red-500/20 bg-black/60 px-3 py-3">
+                          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-red-200/60">
+                            <span className="flex items-center gap-1">
+                              <FlaskConical className="h-3 w-3 text-amber-300" /> Reserve
+                            </span>
+                            <span className="font-mono text-[10px] text-red-100">{powderAvailable.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-amber-200/80">
+                            <span className="flex items-center gap-1">
+                              <Sparkles className="h-3 w-3 text-amber-400" /> Ascension
+                            </span>
+                            <span className="font-mono text-[10px] text-amber-100">
+                              {Math.min(500, entry.ascensionPowder).toLocaleString()} / 500
+                            </span>
                           </div>
                           <Button
                             type="button"
-                            disabled={!hasPowder}
-                            className="rounded-full border border-red-500/60 bg-red-600/30 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                            disabled={!hasPowder || entry.ascensionPowder >= 500 || powderSpending === entry.inscriptionId}
+                            onClick={() => handleUsePowder(entry)}
+                            className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
                           >
-                            Use Powder
+                            {powderSpending === entry.inscriptionId ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : entry.ascensionPowder >= 500 ? (
+                              'Ascended'
+                            ) : (
+                              'Use Powder'
+                            )}
                           </Button>
                         </div>
                       </article>

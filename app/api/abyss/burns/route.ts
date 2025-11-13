@@ -20,6 +20,7 @@ async function ensureAbyssBurnsTable(pool: Pool) {
       status TEXT NOT NULL DEFAULT 'pending',
       source TEXT NOT NULL DEFAULT 'abyss',
       summon_id UUID,
+      ascension_powder INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       confirmed_at TIMESTAMPTZ,
@@ -28,6 +29,7 @@ async function ensureAbyssBurnsTable(pool: Pool) {
   `)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'abyss'`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS summon_id UUID`)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
@@ -343,6 +345,7 @@ export async function GET(request: NextRequest) {
                    tx_id,
                    status,
                    source,
+                   ascension_powder,
                    created_at,
                    confirmed_at,
                    updated_at
@@ -376,6 +379,7 @@ export async function GET(request: NextRequest) {
                    tx_id,
                    status,
                    source,
+                   ascension_powder,
                    created_at,
                    confirmed_at,
                    updated_at
@@ -409,6 +413,10 @@ export async function GET(request: NextRequest) {
         txId: (row?.tx_id ?? '').toString(),
         status: (row?.status ?? 'pending').toString(),
         source: (row?.source ?? 'abyss').toString(),
+        ascensionPowder:
+          typeof row?.ascension_powder === 'number'
+            ? Number(row.ascension_powder)
+            : Number.parseInt((row?.ascension_powder ?? '').toString(), 10) || 0,
         createdAt: row?.created_at ?? null,
         confirmedAt: row?.confirmed_at ?? null,
         updatedAt: row?.updated_at ?? null,
