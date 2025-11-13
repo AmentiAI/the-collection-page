@@ -47,8 +47,6 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const [isVerifying, setIsVerifying] = useState(false)
   const [isHolder, setIsHolder] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [verificationCode, setVerificationCode] = useState<string | null>(null)
-  const [showCodeModal, setShowCodeModal] = useState(false)
 
   const handleConnect = async (wallet: any, walletType: string = 'lasereyes') => {
     try {
@@ -122,29 +120,8 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       setIsHolder(hasOrdinals)
       onHolderVerified?.(hasOrdinals, address)
       
-      // If holder, get verification code
-      if (hasOrdinals) {
-        console.log('🎫 Holder detected! Getting verification code...')
-        try {
-          const response = await fetch('/api/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address })
-          })
-          const data = await response.json()
-          console.log('📝 Verification API response:', data)
-          if (data.verified && data.code) {
-            console.log('✅ Verification code generated:', data.code)
-            setVerificationCode(data.code)
-            // Don't auto-show modal - user must click "Show Code" button
-          } else {
-            console.error('❌ Verification failed:', data.message || 'Unknown error')
-          }
-        } catch (error) {
-          console.error('❌ Error getting verification code:', error)
-        }
-      } else {
-        console.log('❌ Not a holder - no verification code will be generated')
+      if (!hasOrdinals) {
+        console.log('❌ Not a holder - skipping verification code flow')
       }
     } catch (error) {
       console.error('Error checking holder status:', error)
@@ -282,15 +259,6 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
             </div>
           </div>
           
-          {/* Show verification code button if holder */}
-          {isHolder && verificationCode && !showCodeModal && (
-            <button
-              onClick={() => setShowCodeModal(true)}
-              className="px-3 py-1 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] text-xs font-bold transition-all"
-            >
-              Show Code
-            </button>
-          )}
           <button
             onClick={handleDisconnect}
             className="px-3 py-1 bg-[#333] text-[#ff6b6b] rounded hover:bg-[#8B0000] hover:text-white text-xs font-bold transition-all"
@@ -308,36 +276,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
         />
       )}
       
-      {/* Verification Code Modal */}
-      {showCodeModal && verificationCode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-          <div className="bg-[rgba(20,20,20,0.98)] border-2 border-[#ff0000] rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl text-[#ff0000] font-bold mb-2">✓ The Damned Holder</h3>
-                        <p className="text-[#ff6b6b] mb-4">
-              Copy this code and type <code className="bg-black px-2 py-1 rounded">/verify code:</code> then paste your code in Discord to join the holders chat:            
-            </p>
-            <div className="bg-black p-4 rounded mb-4">
-              <code className="text-lg text-white font-bold select-all">{verificationCode}</code>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(verificationCode)
-                }}
-                className="flex-1 px-4 py-2 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] font-bold"
-              >
-                Copy Code
-              </button>
-              <button
-                onClick={() => setShowCodeModal(false)}
-                className="flex-1 px-4 py-2 bg-[#333] text-white rounded hover:bg-[#555] font-bold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Verification Code Modal removed */}
     </div>
   )
 }
