@@ -21,6 +21,12 @@ type GraveyardEntry = {
   updatedAt?: string | null
 }
 
+type WalletProfile = {
+  username?: string | null
+  avatar_url?: string | null
+  ascension_powder?: number | null
+}
+
 const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
   ssr: false,
   loading: () => null,
@@ -28,78 +34,58 @@ const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), 
 
 const GRAVEYARD_LIMIT = 180
 
+function formatRelativeTime(value?: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
+  const intervals = [
+    { label: 'day', seconds: 86_400 },
+    { label: 'hour', seconds: 3_600 },
+    { label: 'minute', seconds: 60 },
+  ] as const
+
+  for (const { label, seconds } of intervals) {
+    if (diffSeconds >= seconds) {
+      const count = Math.floor(diffSeconds / seconds)
+      return `${count} ${label}${count === 1 ? '' : 's'} ago`
+    }
+  }
+
+  return `${diffSeconds}s ago`
+}
+
 function GraveyardContent() {
   const wallet = useWallet()
   const toast = useToast()
 
-  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
-  const [isVerifying, setIsVerifying] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<GraveyardEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [eligible, setEligible] = useState(false)
-  const [checkedEligibility, setCheckedEligibility] = useState(false)
+  const [profile, setProfile] = useState<WalletProfile | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
-  const formattedEligibleSources = useMemo(() => {
+  const formattedSources = useMemo(() => {
     const sources = new Set(entries.map((entry) => entry.source.replace(/_/g, ' ')))
     return Array.from(sources)
       .map((source) => source.replace(/\b([a-z])/g, (match) => match.toUpperCase()))
       .join(' • ')
   }, [entries])
 
-  const handleHolderVerified = useCallback((holder: boolean) => {
-    setIsHolder(holder)
-    setIsVerifying(false)
-    if (holder) {
-      setEligible(true)
-    }
-  }, [])
-
-  const handleVerifyingStart = useCallback(() => {
-    setIsVerifying(true)
-  }, [])
-
-  const handleConnectedChange = useCallback(
-    (connected: boolean) => {
-      setIsWalletConnected(connected)
-      if (!connected) {
-        setEntries([])
-        setEligible(false)
-        setError(null)
-        setCheckedEligibility(false)
-        setIsHolder(undefined)
-        setIsVerifying(false)
-      }
-    },
-    [],
-  )
-
-  const checkHolderStatus = useCallback(async (address: string) => {
-    try {
-      const response = await fetch(
-        `/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned&fetchAll=false`,
-        { headers: { Accept: 'application/json' }, cache: 'no-store' },
-      )
-      if (!response.ok) {
-        return false
-      }
-      const payload = await response.json().catch(() => null)
-      if (!payload) {
-        return false
-      }
-
-      if (typeof payload.total === 'number') {
-        return payload.total > 0
-      }
-
-      const tokens = Array.isArray(payload.tokens) ? payload.tokens : Array.isArray(payload) ? payload : []
-      return tokens.length > 0
-    } catch (err) {
-      console.warn('Failed to verify holder status for graveyard access:', err)
-      return false
+  const handleConnectedChange = useCallback((connected: boolean) => {
+    setIsWalletConnected(connected)
+    if (!connected) {
+      setEntries([])
+      setProfile(null)
+      setError(null)
     }
   }, [])
 
@@ -147,37 +133,24 @@ function GraveyardContent() {
         .filter((entry: GraveyardEntry | null): entry is GraveyardEntry => Boolean(entry))
 
       setEntries(mapped)
-
-      const hasRecords = mapped.length > 0
-      let holderEligible = false
-
-      if (!hasRecords) {
-        holderEligible = await checkHolderStatus(ordinalAddress)
-      }
-
-      const isEligible = hasRecords || holderEligible || isHolder === true
-      setEligible(isEligible)
-
-      if (!isEligible) {
-        setError('Only holders or proven sacrifice survivors may enter the graveyard.')
-      }
+      setProfile(
+        payload?.profile && typeof payload.profile === 'object' ? (payload.profile as WalletProfile) : null,
+      )
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load graveyard.'
       setError(message)
       setEntries([])
-      setEligible(false)
+      setProfile(null)
       toast.error(message)
     } finally {
       setLoading(false)
-      setCheckedEligibility(true)
     }
-  }, [ordinalAddress, checkHolderStatus, isHolder, toast])
+  }, [ordinalAddress, toast])
 
   useEffect(() => {
-    if (!isWalletConnected || !ordinalAddress) {
-      return
+    if (isWalletConnected && ordinalAddress) {
+      void loadGraveyard()
     }
-    void loadGraveyard()
   }, [isWalletConnected, ordinalAddress, loadGraveyard])
 
   const handleRefresh = useCallback(() => {
@@ -187,17 +160,12 @@ function GraveyardContent() {
     void loadGraveyard()
   }, [ordinalAddress, loadGraveyard])
 
+  const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
+  const hasPowder = powderAvailable > 0
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
-      <Header
-        isHolder={isHolder}
-        isVerifying={isVerifying}
-        connected={isWalletConnected}
-        onHolderVerified={handleHolderVerified}
-        onVerifyingStart={handleVerifyingStart}
-        onConnectedChange={handleConnectedChange}
-        showMusicControls={false}
-      />
+      <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
 
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.15),_transparent_55%)]" />
 
@@ -209,13 +177,30 @@ function GraveyardContent() {
             <Skull className="h-7 w-7 text-red-400 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]" aria-hidden="true" />
           </h1>
           <p className="mx-auto max-w-xl text-xs uppercase tracking-[0.35em] text-red-200/70 md:text-sm">
-            {ordinalAddress
-              ? `Wallet ${ordinalAddress.slice(0, 4)}…${ordinalAddress.slice(-6)}`
-              : 'Connect wallet to proceed'}
+            {ordinalAddress ? `Wallet ${ordinalAddress.slice(0, 4)}…${ordinalAddress.slice(-6)}` : 'Connect wallet to proceed'}
           </p>
+          {profile?.username && (
+            <div className="mx-auto flex max-w-md items-center justify-center gap-3 rounded-full border border-red-600/40 bg-black/60 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
+              {profile.avatar_url && (
+                <Image
+                  src={profile.avatar_url}
+                  alt={profile.username ?? 'Sacrificer avatar'}
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-full border border-red-500/60 object-cover"
+                />
+              )}
+              <span>Offerings by {profile.username}</span>
+            </div>
+          )}
+          {profile && (
+            <p className="mx-auto max-w-2xl text-[10px] uppercase tracking-[0.3em] text-red-200/60">
+              Ascension powder reserve: {powderAvailable.toLocaleString()}
+            </p>
+          )}
           {entries.length > 0 && (
             <p className="mx-auto max-w-2xl text-[11px] uppercase tracking-[0.3em] text-red-200/60">
-              Fallen offerings from: {formattedEligibleSources || 'Unknown rites'}
+              Fallen offerings from: {formattedSources || 'Unknown rites'}
             </p>
           )}
         </div>
@@ -230,36 +215,14 @@ function GraveyardContent() {
               </p>
             </div>
           </section>
-        ) : loading && !checkedEligibility ? (
-          <section className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/80 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
-            <Loader2 className="mb-4 h-10 w-10 animate-spin text-red-400" />
-            <p className="text-xs uppercase tracking-[0.4em] text-red-200">Summoning your graveyard…</p>
-          </section>
-        ) : !eligible ? (
-          <section className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
-            <AlertTriangle className="mb-4 h-11 w-11 text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]" />
-            <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Access Denied</h2>
-            <p className="mt-3 max-w-md text-xs uppercase tracking-[0.35em] text-red-200/70">
-              Only The Damned holders or those with recorded abyss burns may traverse the graveyard.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/gatesofthedamned"
-                className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45"
-              >
-                Seek the Gates
-              </Link>
-              <Link
-                href="/abyss"
-                className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/35"
-              >
-                Offer a Sacrifice
-              </Link>
-            </div>
-            {error && <p className="mt-6 max-w-md text-[11px] uppercase tracking-[0.3em] text-red-300/60">{error}</p>}
-          </section>
         ) : (
           <section className="flex flex-col gap-5">
+            {error && (
+              <div className="rounded-3xl border border-red-600/40 bg-red-950/40 px-4 py-3 text-sm text-red-200 shadow-[0_0_25px_rgba(220,38,38,0.25)]">
+                {error}
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 rounded-3xl border border-red-600/40 bg-black/80 px-5 py-4 shadow-[0_0_35px_rgba(220,38,38,0.35)] md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-[0.35em] text-red-200/80">Total sacrifices</p>
@@ -285,7 +248,12 @@ function GraveyardContent() {
               </div>
             </div>
 
-            {entries.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/80 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
+                <Loader2 className="mb-4 h-10 w-10 animate-spin text-red-400" />
+                <p className="text-xs uppercase tracking-[0.4em] text-red-200">Summoning your graveyard…</p>
+              </div>
+            ) : entries.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                 <Skull className="h-10 w-10 text-red-400" />
                 <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
@@ -295,7 +263,7 @@ function GraveyardContent() {
             ) : (
               <div className="max-h-[65vh] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {entries.map((entry) => {
+                  {entries.map((entry: GraveyardEntry) => {
                     const imageUrl = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(entry.inscriptionId)}`
                     const shortInscription =
                       entry.inscriptionId.length > 18
@@ -308,49 +276,72 @@ function GraveyardContent() {
                         : 'border-amber-400/40 bg-amber-900/30 text-amber-200'
 
                     const progressPercent = 0
+                    const referenceInstant = entry.confirmedAt ?? entry.createdAt ?? entry.updatedAt ?? null
+                    const timeInGraveyard = formatRelativeTime(referenceInstant)
 
                     return (
-                      <Link
+                      <article
                         key={`${entry.inscriptionId}-${entry.txId}`}
-                        href={`/graveyard/${encodeURIComponent(entry.inscriptionId)}`}
-                        className="group relative overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                        prefetch={false}
+                        className="group relative flex flex-col overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition focus-within:outline-none focus-within:ring-2 focus-within:ring-red-400 focus-within:ring-offset-2 focus-within:ring-offset-black"
                       >
-                        <div className="relative aspect-square">
-                          <Image
-                            src={imageUrl}
-                            alt={entry.inscriptionId}
-                            fill
-                            sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
-                            className="object-cover transition duration-500 ease-out group-hover:scale-105"
-                          />
-                          <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
-                            <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
-                              <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
-                                <span>Ascension</span>
-                                <span>{progressPercent}%</span>
+                        <Link
+                          href={`/graveyard/${encodeURIComponent(entry.inscriptionId)}`}
+                          className="block"
+                          prefetch={false}
+                        >
+                          <div className="relative aspect-square">
+                            <Image
+                              src={imageUrl}
+                              alt={entry.inscriptionId}
+                              fill
+                              sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
+                              className="object-cover transition duration-500 ease-out group-hover:scale-105"
+                            />
+                            <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
+                              <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
+                                <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
+                                  <span>Ascension</span>
+                                  <span>{progressPercent}%</span>
+                                </div>
+                                <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-red-500/40 bg-black/50">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-red-500/70 via-amber-400/80 to-emerald-400/80"
+                                    style={{ width: `${progressPercent}%` }}
+                                  />
+                                </div>
                               </div>
-                              <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-red-500/40 bg-black/50">
-                                <div
-                                  className="h-full bg-gradient-to-r from-red-500/70 via-amber-400/80 to-emerald-400/80"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
+                            </div>
+                            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-3 py-3">
+                              <div
+                                className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] ${statusClasses}`}
+                              >
+                                {status === 'confirmed' ? 'Purged' : status}
+                              </div>
+                              <div className="text-[10px] uppercase tracking-[0.3em] text-red-200/80">{shortInscription}</div>
+                              {timeInGraveyard && (
+                                <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
+                                  In pit {timeInGraveyard}
+                                </div>
+                              )}
+                              <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
+                                Source: {entry.source.replace(/_/g, ' ')}
                               </div>
                             </div>
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-3 py-3">
-                            <div
-                              className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] ${statusClasses}`}
-                            >
-                              {status === 'confirmed' ? 'Purged' : status}
-                            </div>
-                            <div className="text-[10px] uppercase tracking-[0.3em] text-red-200/80">{shortInscription}</div>
-                            <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
-                              Source: {entry.source.replace(/_/g, ' ')}
-                            </div>
+                        </Link>
+                        <div className="flex items-center justify-between border-t border-red-500/20 bg-black/60 px-3 py-3">
+                          <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
+                            Powder: {powderAvailable.toLocaleString()}
                           </div>
+                          <Button
+                            type="button"
+                            disabled={!hasPowder}
+                            className="rounded-full border border-red-500/60 bg-red-600/30 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                          >
+                            Use Powder
+                          </Button>
                         </div>
-                      </Link>
+                      </article>
                     )
                   })}
                 </div>

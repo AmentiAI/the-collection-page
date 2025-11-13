@@ -335,6 +335,7 @@ export async function GET(request: NextRequest) {
     }
     if (includeGraveyard) {
       let graveyardRows: Array<Record<string, unknown>> = []
+      let profile: { username: string | null; avatar_url: string | null } | null = null
       if (ordinalWallet) {
         const result = await pool.query(
           `
@@ -353,6 +354,21 @@ export async function GET(request: NextRequest) {
           [ordinalWallet],
         )
         graveyardRows = result.rows
+
+        const profileRes = await pool.query(
+          `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
+          [ordinalWallet],
+        )
+        if (profileRes.rows.length > 0) {
+          profile = {
+            username: profileRes.rows[0]?.username ?? null,
+            avatar_url: profileRes.rows[0]?.avatar_url ?? null,
+            ascension_powder:
+              typeof profileRes.rows[0]?.ascension_powder === 'number'
+                ? Number(profileRes.rows[0]?.ascension_powder)
+                : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+          }
+        }
       } else if (paymentWallet) {
         const result = await pool.query(
           `
@@ -371,6 +387,21 @@ export async function GET(request: NextRequest) {
           [paymentWallet],
         )
         graveyardRows = result.rows
+
+        const profileRes = await pool.query(
+          `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
+          [paymentWallet],
+        )
+        if (profileRes.rows.length > 0) {
+          profile = {
+            username: profileRes.rows[0]?.username ?? null,
+            avatar_url: profileRes.rows[0]?.avatar_url ?? null,
+            ascension_powder:
+              typeof profileRes.rows[0]?.ascension_powder === 'number'
+                ? Number(profileRes.rows[0]?.ascension_powder)
+                : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+          }
+        }
       }
 
       responseBody.graveyard = graveyardRows.map((row) => ({
@@ -382,6 +413,7 @@ export async function GET(request: NextRequest) {
         confirmedAt: row?.confirmed_at ?? null,
         updatedAt: row?.updated_at ?? null,
       }))
+      responseBody.profile = profile
     }
     const allowanceSourceWallet = ordinalWallet || paymentWallet
     if (allowanceSourceWallet) {

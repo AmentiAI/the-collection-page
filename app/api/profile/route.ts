@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
     }
     
     const pool = getPool()
+
+    await pool.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0
+    `)
     
     // Use a timeout for the query
     const queryPromise = pool.query(
@@ -68,13 +73,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { walletAddress, paymentAddress, username, avatarUrl } = body
+    const { walletAddress, paymentAddress, username, avatarUrl, ascensionPowder } = body
     
     if (!walletAddress) {
       return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 })
     }
     
     const pool = getPool()
+
+    await pool.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0
+    `)
     
     // Check if payment_address column exists
     const columnCheck = await pool.query(`
@@ -83,18 +93,29 @@ export async function POST(request: NextRequest) {
       WHERE table_name='profiles' AND column_name='payment_address'
     `)
     
+    let normalizedAscensionPowder: number | null = null
+    if (typeof ascensionPowder === 'number' && Number.isFinite(ascensionPowder)) {
+      normalizedAscensionPowder = Math.round(ascensionPowder)
+    } else if (typeof ascensionPowder === 'string' && ascensionPowder.trim().length > 0) {
+      const parsed = Number(ascensionPowder)
+      if (Number.isFinite(parsed)) {
+        normalizedAscensionPowder = Math.round(parsed)
+      }
+    }
+
     let result
-    if (columnCheck.rows.length > 0 && paymentAddress) {
+    if (columnCheck.rows.length > 0) {
       // Update with payment_address
       result = await pool.query(
         `UPDATE profiles 
          SET payment_address = COALESCE($1, payment_address),
              username = COALESCE($2, username), 
              avatar_url = COALESCE($3, avatar_url),
+             ascension_powder = COALESCE($4, ascension_powder),
              updated_at = NOW()
-         WHERE wallet_address = $4
+         WHERE wallet_address = $5
          RETURNING *`,
-        [paymentAddress, username || null, avatarUrl || null, walletAddress]
+        [paymentAddress || null, username || null, avatarUrl || null, normalizedAscensionPowder, walletAddress]
       )
     } else {
       // Update without payment_address
@@ -102,10 +123,11 @@ export async function POST(request: NextRequest) {
         `UPDATE profiles 
          SET username = COALESCE($1, username), 
              avatar_url = COALESCE($2, avatar_url),
+             ascension_powder = COALESCE($3, ascension_powder),
              updated_at = NOW()
-         WHERE wallet_address = $3
+         WHERE wallet_address = $4
          RETURNING *`,
-        [username || null, avatarUrl || null, walletAddress]
+        [username || null, avatarUrl || null, normalizedAscensionPowder, walletAddress]
       )
     }
     
