@@ -21,7 +21,7 @@ const SWIRLED_COLOR_SUFFIX =
 const FORWARD_LEAN_SUFFIX =
   'pose the character so their upper body and face lean forward toward the viewer, creating an exaggerated 3D effect as if the character is emerging out of the canvas, while keeping the rest of the scene intact.'
 const MONSTER_TRANSFORMATION_SUFFIX =
-  '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge Monster.'
+  '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge Monster, vibrant colors high contrast.'
 
 export const dynamic = 'force-dynamic'
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play } from 'lucide-react'
+import { AlertTriangle, Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2 } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,8 @@ type SummonParticipant = {
   role: string
   image?: string | null
   joinedAt?: string | null
+  completed?: boolean
+  completedAt?: string | null
 }
 
 type SummonRecord = {
@@ -54,14 +56,22 @@ type SummonLeaderboardEntry = {
   lastParticipatedAt: string | null
 }
 
+
+const IS_POWDER_MODE = false
+const SUMMON_REQUIRED_PARTICIPANTS = IS_POWDER_MODE ? 10 : 4
+const SUMMON_API_BASE = IS_POWDER_MODE ? '/api/ascension/circles' : '/api/abyss/summons'
+const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE
+const POWDER_CIRCLE_REWARD = 20
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
 const SUMMON_DURATION_MS = 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const SUMMON_BURN_POINTS = 6
 const SUMMON_HOST_POINTS = 2
 const SUMMON_PARTICIPATION_POINTS = 1
-const SUMMONING_DISABLED = true
-const SUMMONING_DISABLED_MESSAGE = 'The summoning has been completed. Thank you for your efforts!'
+const SUMMONING_DISABLED = IS_POWDER_MODE ? false : true
+const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
+  ? 'Ascension circles are currently paused.'
+  : 'The summoning has been completed. Thank you for your efforts!'
 
 function formatCountdown(ms: number) {
   if (ms <= 0) {
@@ -312,7 +322,9 @@ export default function AbyssSummonPage() {
         if (address) {
           params.set('wallet', address)
         }
-        const response = await fetch(`/api/abyss/summons?${params.toString()}`, {
+        const query = params.toString()
+        const endpoint = `${SUMMON_API_BASE}${query ? `?${query}` : ''}`
+        const response = await fetch(endpoint, {
           headers: { 'Cache-Control': 'no-store' },
         })
         if (!response.ok) {
@@ -326,7 +338,10 @@ export default function AbyssSummonPage() {
         setSummons(openSummons)
         setCreatedSummons(created)
         setJoinedSummons(joined)
-        setBonusAllowance(typeof data?.bonusAllowance === 'number' ? Number(data.bonusAllowance) : 0)
+        const rewardBalance = IS_POWDER_MODE
+          ? Number(data?.powderBalance ?? 0)
+          : Number(data?.bonusAllowance ?? 0)
+        setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
       } catch (error) {
         console.error('Failed to load summons', error)
         toast.error('Failed to load summons. Please try again.')
@@ -410,6 +425,11 @@ export default function AbyssSummonPage() {
   )
 
   const loadSummonLeaderboard = useCallback(async () => {
+    if (!SUMMON_LEADERBOARD_ENABLED) {
+      setSummonLeaderboard([])
+      setSummonLeaderboardOpen(false)
+      return
+    }
     setSummonLeaderboardLoading(true)
     try {
       const response = await fetch('/api/abyss/summons/leaderboard', { cache: 'no-store' })
@@ -494,7 +514,9 @@ export default function AbyssSummonPage() {
       setSelectedInscriptionId(null)
       setSelectedSummonerWallet(null)
     }
-    void loadSummonLeaderboard()
+    if (SUMMON_LEADERBOARD_ENABLED) {
+      void loadSummonLeaderboard()
+    }
   }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard])
 
   useEffect(() => {
@@ -517,6 +539,9 @@ export default function AbyssSummonPage() {
   }, [ordinalAddress, loadDamnedOptions])
 
   useEffect(() => {
+    if (!SUMMON_LEADERBOARD_ENABLED) {
+      return undefined
+    }
     void loadSummonLeaderboard()
     const intervalId = window.setInterval(() => {
       void loadSummonLeaderboard()
@@ -582,7 +607,7 @@ export default function AbyssSummonPage() {
     }
     setCreating(true)
     try {
-      const response = await fetch('/api/abyss/summons', {
+      const response = await fetch(SUMMON_API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -596,12 +621,18 @@ export default function AbyssSummonPage() {
         const message = payload?.error ?? `Summon creation failed (${response.status})`
         throw new Error(message)
       }
-      toast.success('Summoning circle created. Await three allies.')
+      toast.success(
+        IS_POWDER_MODE
+          ? 'Ascension circle created. Await nine allies.'
+          : 'Summoning circle created. Await three allies.',
+      )
       setDamnedOptions((prev) => prev.filter((option) => option.inscriptionId !== selectedOption.inscriptionId))
       setSelectedInscriptionId(null)
       if (ordinalAddress) {
         await refreshSummons(ordinalAddress)
-        await loadSummonLeaderboard()
+        if (SUMMON_LEADERBOARD_ENABLED) {
+          await loadSummonLeaderboard()
+        }
       }
     } catch (error) {
       console.error('Create summon failed:', error)
@@ -642,7 +673,7 @@ export default function AbyssSummonPage() {
       }
       setJoiningSummonId(summon.id)
       try {
-        const response = await fetch(`/api/abyss/summons/${summon.id}/join`, {
+        const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -656,12 +687,16 @@ export default function AbyssSummonPage() {
           const message = payload?.error ?? `Failed to join summon (${response.status})`
           throw new Error(message)
         }
-        toast.success('You joined the summoning circle.')
+        toast.success(
+          IS_POWDER_MODE ? 'You joined the ascension circle.' : 'You joined the summoning circle.',
+        )
         setDamnedOptions((prev) => prev.filter((option) => option.inscriptionId !== selectedOption.inscriptionId))
         setSelectedInscriptionId(null)
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
-          await loadSummonLeaderboard()
+          if (SUMMON_LEADERBOARD_ENABLED) {
+            await loadSummonLeaderboard()
+          }
         }
       } catch (error) {
         console.error('Join summon failed:', error)
@@ -681,7 +716,7 @@ export default function AbyssSummonPage() {
       }
       setCompletingSummonId(summon.id)
       try {
-        const response = await fetch(`/api/abyss/summons/${summon.id}/complete`, {
+        const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ wallet: ordinalAddress }),
@@ -692,13 +727,22 @@ export default function AbyssSummonPage() {
           throw new Error(message)
         }
         const payload = await response.json().catch(() => null)
-        if (typeof payload?.bonusAllowance === 'number') {
-          setBonusAllowance(Number(payload.bonusAllowance))
+        if (IS_POWDER_MODE) {
+          if (typeof payload?.profilePowder === 'number') {
+            setBonusAllowance(Number(payload.profilePowder))
+          }
+          toast.success(payload?.message ?? 'Ascension powder channel complete.')
+        } else {
+          if (typeof payload?.bonusAllowance === 'number') {
+            setBonusAllowance(Number(payload.bonusAllowance))
+          }
+          toast.success('Summoning circle completed. Bonus burn granted.')
         }
-        toast.success('Summoning circle completed. Bonus burn granted.')
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
-          await loadSummonLeaderboard()
+          if (SUMMON_LEADERBOARD_ENABLED) {
+            await loadSummonLeaderboard()
+          }
         }
       } catch (error) {
         console.error('Complete summon failed:', error)
@@ -718,7 +762,7 @@ export default function AbyssSummonPage() {
       }
       setDismissingSummonId(summon.id)
       try {
-        const response = await fetch(`/api/abyss/summons/${summon.id}/dismiss`, {
+        const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/dismiss`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ wallet: ordinalAddress }),
@@ -731,7 +775,9 @@ export default function AbyssSummonPage() {
         toast.success('Circle dissolved. Summon anew.')
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
-          await loadSummonLeaderboard()
+          if (SUMMON_LEADERBOARD_ENABLED) {
+            await loadSummonLeaderboard()
+          }
         }
       } catch (error) {
         console.error('Dismiss summon failed:', error)
@@ -810,16 +856,22 @@ export default function AbyssSummonPage() {
             <div className="flex items-center justify-center gap-3">
               <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
               <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
-                Summoning Circles
+                {IS_POWDER_MODE ? 'Ascension Circles' : 'Summoning Circles'}
               </h1>
               <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
             </div>
             <p className="mx-auto max-w-3xl text-sm uppercase tracking-[0.35em] text-red-200/85">
-              Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.
+              {IS_POWDER_MODE
+                ? `Gather ten damned within thirty minutes. Seal the ritual together to transmute ${POWDER_CIRCLE_REWARD.toLocaleString()} ascension powder per acolyte.`
+                : 'Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.'}
             </p>
             <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
               <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
-              <span>More burns are required to keep the summoning circles open.</span>
+              <span>
+                {IS_POWDER_MODE
+                  ? 'All ten must remain until the final two minutes and confirm completion to claim powder.'
+                  : 'More burns are required to keep the summoning circles open.'}
+              </span>
             </div>
             {SUMMONING_DISABLED && (
               <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-900/20 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.35)]">
@@ -829,7 +881,9 @@ export default function AbyssSummonPage() {
             )}
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
-                <span className="text-[11px] text-amber-300">Bonus Burns Awaiting</span>
+                <span className="text-[11px] text-amber-300">
+                  {IS_POWDER_MODE ? 'Ascension Powder Banked' : 'Bonus Burns Awaiting'}
+                </span>
                 <div className="mt-1 text-2xl font-black text-amber-100 drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]">
                   {bonusAllowance}
                 </div>
@@ -848,25 +902,29 @@ export default function AbyssSummonPage() {
               </div>
             </div>
             {bonusAllowance > 0 && (
-              <div className="mt-4 flex justify-center">
-                <Link
-                  href="/abyss"
-                  className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-500/20 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.35)] transition hover:bg-amber-500/30"
+              !IS_POWDER_MODE && (
+                <div className="mt-4 flex justify-center">
+                  <Link
+                    href="/abyss"
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-500/20 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.35)] transition hover:bg-amber-500/30"
+                  >
+                    Spend Bonus Burn
+                  </Link>
+                </div>
+              )
+            )}
+            {SUMMON_LEADERBOARD_ENABLED && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  type="button"
+                  onClick={() => setSummonLeaderboardOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
                 >
-                  Spend Bonus Burn
-                </Link>
+                  <Trophy className="h-4 w-4" />
+                  Summoners Leaderboard
+                </Button>
               </div>
             )}
-            <div className="flex justify-center pt-4">
-              <Button
-                type="button"
-                onClick={() => setSummonLeaderboardOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
-              >
-                <Trophy className="h-4 w-4" />
-                Summoners Leaderboard
-              </Button>
-            </div>
           </div>
         </section>
 
@@ -1001,7 +1059,7 @@ export default function AbyssSummonPage() {
                     <h3 className="text-xs uppercase tracking-[0.35em] text-red-200">Active Circles</h3>
                     {hasOwnActive ? (
                       <div className="rounded-xl border border-amber-500/40 bg-amber-900/20 px-4 py-4 text-[11px] uppercase tracking-[0.3em] text-amber-200">
-                        You are already leading a summoning circle. Manage or complete it under “Circles You Founded” before joining another.
+                        You are already leading a summoning circle. Manage or complete it under "Circles You Founded" before joining another.
                       </div>
                     ) : (
                       <SummonList
@@ -1015,9 +1073,10 @@ export default function AbyssSummonPage() {
                         onDismiss={handleDismissSummon}
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
+                        isPowderMode={IS_POWDER_MODE}
                         loading={summonsLoading}
                         now={now}
-                      emptyMessage="No active circles. Initiate one or await whispers from the damned."
+                        emptyMessage="No active circles. Initiate one or await whispers from the damned."
                       />
                     )}
                   </>
@@ -1036,6 +1095,7 @@ export default function AbyssSummonPage() {
                       onDismiss={handleDismissSummon}
                       truncateWallet={truncateWallet}
                       assetMap={inscriptionImageCache}
+                      isPowderMode={IS_POWDER_MODE}
                       highlightCreator
                       now={now}
                       emptyMessage="You haven&rsquo;t founded a summoning circle yet."
@@ -1056,6 +1116,7 @@ export default function AbyssSummonPage() {
                       onDismiss={handleDismissSummon}
                       truncateWallet={truncateWallet}
                       assetMap={inscriptionImageCache}
+                      isPowderMode={IS_POWDER_MODE}
                       now={now}
                       emptyMessage="You have not joined a summoning circle yet."
                     />
@@ -1067,8 +1128,8 @@ export default function AbyssSummonPage() {
         </div>
       </main>
 
-      {summonLeaderboardOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 px-4 py-8 backdrop-blur-sm">
+      {SUMMON_LEADERBOARD_ENABLED && summonLeaderboardOpen && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/90 px-4 py-8">
           <div className="w-full max-w-5xl space-y-6 rounded-3xl border border-red-600/50 bg-black/92 p-6 shadow-[0_0_45px_rgba(220,38,38,0.55)]">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1 text-left">
@@ -1248,6 +1309,7 @@ function SummonList({
   loading = false,
   now,
   emptyMessage,
+  isPowderMode,
 }: {
   summons: SummonRecord[]
   ordinalAddress: string
@@ -1263,6 +1325,7 @@ function SummonList({
   loading?: boolean
   now: number
   emptyMessage?: string
+  isPowderMode: boolean
 }) {
   if (loading && summons.length === 0) {
     return (
@@ -1281,12 +1344,17 @@ function SummonList({
   return (
     <div className="space-y-4">
       {summons.map((summon) => {
-        const totalSlots = Math.max(summon.requiredParticipants, 4)
+        const fallbackSlots = isPowderMode ? SUMMON_REQUIRED_PARTICIPANTS : 4
+        const totalSlots = Math.max(summon.requiredParticipants, fallbackSlots)
         const isCreator =
           ordinalAddress.length > 0 && summon.creatorWallet?.toLowerCase() === ordinalAddress.toLowerCase()
         const isParticipant = summon.participants.some(
           (participant) => participant.wallet?.toLowerCase() === ordinalAddress.toLowerCase(),
         )
+        const currentParticipant = summon.participants.find(
+          (participant) => participant.wallet?.toLowerCase() === ordinalAddress.toLowerCase(),
+        )
+        const participantCompleted = Boolean(currentParticipant?.completed)
         const ready = summon.status === 'ready'
         const createdAtMs = Number.isFinite(Date.parse(summon.createdAt ?? ''))
           ? Date.parse(summon.createdAt ?? '')
@@ -1320,6 +1388,9 @@ function SummonList({
           joiningSummonId === summon.id ||
           isExpired ||
           summon.participants.length >= totalSlots
+
+        const completionAllowed =
+          !isExpired && completionWindowOpen && ((ready && isCreator && !isPowderMode) || (isPowderMode && isParticipant && !participantCompleted))
 
         return (
           <div
@@ -1362,11 +1433,14 @@ function SummonList({
                       'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em]',
                       participant.role === 'creator'
                         ? 'border-red-500/60 text-red-200'
+                        : participant.completed
+                        ? 'border-emerald-500/50 text-emerald-200'
                         : 'border-red-400/40 text-red-200/80',
                     ].join(' ')
                     return (
                       <span key={participant.id} className={pillClass}>
                         {participant.role === 'creator' ? 'Host' : 'Ally'} · {truncateWallet(participant.wallet)}
+                        {participant.completed && <CheckCircle2 className="ml-1 inline h-3 w-3" />}
                       </span>
                     )
                   })}
@@ -1390,27 +1464,32 @@ function SummonList({
                 {isCreator && highlightCreator && (
                   <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Your circle</span>
                 )}
-                {ready && isCreator && !isExpired ? (
-                  completionWindowOpen ? (
-                    <Button
-                      type="button"
-                      onClick={() => onComplete(summon)}
-                      disabled={completingSummonId === summon.id}
-                      className="border border-amber-400 bg-amber-500/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:bg-amber-500/40"
-                    >
-                      {completingSummonId === summon.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Completing…
-                        </>
-                      ) : (
-                        'Complete Circle'
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
-                      Finale unlocks in {formatCountdown(unlockCountdown)}
-                    </div>
-                  )
+                {completionAllowed ? (
+                  <Button
+                    type="button"
+                    onClick={() => onComplete(summon)}
+                    disabled={completingSummonId === summon.id}
+                    className="border border-amber-400 bg-amber-500/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:bg-amber-500/40"
+                  >
+                    {completingSummonId === summon.id ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        {isPowderMode ? 'Channeling…' : 'Completing…'}
+                      </>
+                    ) : isPowderMode ? (
+                      'Mark Complete'
+                    ) : (
+                      'Complete Circle'
+                    )}
+                  </Button>
+                ) : isPowderMode && isParticipant && participantCompleted ? (
+                  <div className="rounded border border-emerald-500/40 bg-emerald-900/20 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200">
+                    Ascension confirmed
+                  </div>
+                ) : isPowderMode && isParticipant && !participantCompleted && !completionWindowOpen && !isExpired ? (
+                  <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
+                    Finale unlocks in {formatCountdown(unlockCountdown)}
+                  </div>
                 ) : isExpired ? (
                   <div className="flex flex-col gap-2">
                     <Button
@@ -1439,7 +1518,17 @@ function SummonList({
                       </Button>
                     )}
                   </div>
-                ) : (
+                ) : !isPowderMode ? (
+                  <div className="rounded border border-red-600/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
+                    Awaiting more allies…
+                  </div>
+                ) : null}
+                {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
+                  <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
+                    Ten seats must be filled before the ritual locks.
+                  </div>
+                )}
+                {!isExpired && !isParticipant && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <Button
                     type="button"
                     onClick={() => onJoin(summon)}
