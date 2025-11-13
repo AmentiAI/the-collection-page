@@ -13,7 +13,7 @@ const CHROMATIC_FOIL_SUFFIX = 'now cover in a light chromatic foil finish'
 const NOIR_CHARACTER_SUFFIX =
   'render the central character only in dramatic high-contrast black and white values while keeping the rest of the scene fully colored and vibrant; override any previous border instructions and instead surround the entire composition with an ultra-fancy, smoky, monochrome (black and white) ornamental border that hugs the canvas edge without affecting interior colors.'
 const GOLD_FOIL_SUFFIX =
-  'override all previous color instructions and transform the entire artwork into a unified gold-plated treatment, like a metallic baseball card: use a single monochromatic spectrum of rich gold tones with embossed shine, high-contrast highlights, and shadowed gold gradients across every element.'
+  'override all previous color instructions and transform the entire artwork into a completely solid, uniform slab of reflective gold: every single element must be rendered in the same molten gold material with no other colors, textures, or materials visible anywhere.'
 const DIAMOND_ENCRUSTED_SUFFIX =
   'override all previous material instructions and render every element of the artwork as if carved from crystalline diamond: facets, refractions, prismatic highlights, and sparkling glints covering the entire composition—including character, props, background, atmosphere, and border—so the entire canvas becomes a unified diamond-encrusted sculpture.'
 const ULTRA_RARE_SUFFIX =
