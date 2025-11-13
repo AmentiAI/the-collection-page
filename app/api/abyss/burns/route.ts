@@ -335,7 +335,7 @@ export async function GET(request: NextRequest) {
     }
     if (includeGraveyard) {
       let graveyardRows: Array<Record<string, unknown>> = []
-      let profile: { username: string | null; avatar_url: string | null } | null = null
+      let profile: { username: string | null; avatar_url: string | null; ascension_powder: number } | null = null
       if (ordinalWallet) {
         const result = await pool.query(
           `
