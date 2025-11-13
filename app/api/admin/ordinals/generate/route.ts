@@ -12,8 +12,6 @@ const ORDINALS_FILE_PATH = path.join(process.cwd(), 'public', 'generated_ordinal
 const CHROMATIC_FOIL_SUFFIX = 'now cover in a light chromatic foil finish'
 const NOIR_CHARACTER_SUFFIX =
   'render the central character only in dramatic high-contrast black and white values while keeping the rest of the scene fully colored and vibrant; override any previous border instructions and instead surround the entire composition with an ultra-fancy, smoky, monochrome (black and white) ornamental border that hugs the canvas edge without affecting interior colors.'
-const GOLD_FOIL_SUFFIX =
-  'override all previous color instructions and transform the entire artwork into a completely solid, uniform slab of reflective gold: every single element must be rendered in the same molten gold material with no other colors, textures, or materials visible anywhere.'
 const DIAMOND_ENCRUSTED_SUFFIX =
   'override all previous material instructions and render every element of the artwork as if carved from crystalline diamond: facets, refractions, prismatic highlights, and sparkling glints covering the entire composition—including character, props, background, atmosphere, and border—so the entire canvas becomes a unified diamond-encrusted sculpture.'
 const ULTRA_RARE_SUFFIX =
@@ -35,7 +33,6 @@ async function loadOrdinals(): Promise<GeneratedOrdinal[]> {
 type GenerationVariant =
   | 'chromatic'
   | 'noir'
-  | 'gold'
   | 'forward'
   | 'diamond'
   | 'ultra_rare'
@@ -45,7 +42,7 @@ type GenerationVariant =
 
 const MONSTER_COMBO_SOURCE_VARIANTS: Array<
   Exclude<GenerationVariant, 'monster' | 'monster_combo'>
-> = ['chromatic', 'noir', 'gold', 'forward', 'diamond', 'ultra_rare', 'swirl']
+> = ['chromatic', 'noir', 'forward', 'diamond', 'ultra_rare', 'swirl']
 
 function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): string {
   const trimmedPrompt = prompt.trim()
@@ -68,14 +65,6 @@ function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): strin
   }
 
   return `${trimmedPrompt}\n\n${NOIR_CHARACTER_SUFFIX}`
-}
-
-function normalizeGoldPrompt(prompt: string): string {
-  const trimmedPrompt = prompt.trim()
-  if (trimmedPrompt.toLowerCase().includes(GOLD_FOIL_SUFFIX.toLowerCase())) {
-    return trimmedPrompt
-  }
-  return `${trimmedPrompt}\n\n${GOLD_FOIL_SUFFIX}`
 }
 
 function ensureForwardLeanPrompt(prompt: string): string {
@@ -122,9 +111,6 @@ function applyVariantPrompt(
   prompt: string,
   variant: Exclude<GenerationVariant, 'monster' | 'monster_combo'>,
 ): string {
-  if (variant === 'gold') {
-    return normalizeGoldPrompt(prompt)
-  }
   if (variant === 'forward') {
     return ensureForwardLeanPrompt(prompt)
   }
@@ -195,7 +181,6 @@ export async function POST(request: NextRequest) {
 
     let safeVariant: GenerationVariant = 'chromatic'
     if (variant === 'noir') safeVariant = 'noir'
-    if (variant === 'gold') safeVariant = 'gold'
     if (variant === 'forward') safeVariant = 'forward'
     if (variant === 'diamond') safeVariant = 'diamond'
     if (variant === 'ultra_rare') safeVariant = 'ultra_rare'
@@ -204,9 +189,7 @@ export async function POST(request: NextRequest) {
     if (variant === 'monster_combo') safeVariant = 'monster_combo'
 
     let augmentedPrompt: string
-    if (safeVariant === 'gold') {
-      augmentedPrompt = normalizeGoldPrompt(prompt)
-    } else if (safeVariant === 'forward') {
+    if (safeVariant === 'forward') {
       augmentedPrompt = ensureForwardLeanPrompt(prompt)
     } else if (safeVariant === 'diamond') {
       augmentedPrompt = ensureDiamondPrompt(prompt)

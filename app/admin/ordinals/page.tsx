@@ -18,7 +18,6 @@ type OrdinalRecord = {
 type GenerationVariant =
   | 'chromatic'
   | 'noir'
-  | 'gold'
   | 'forward'
   | 'diamond'
   | 'ultra_rare'
@@ -340,18 +339,6 @@ export default function OrdinalsAdminPage() {
                       </Button>
                       <Button
                         disabled={isGenerating}
-                        onClick={() => handleGenerateImage(ordinal, 'gold')}
-                        className="flex items-center justify-center gap-2 border border-amber-400/70 bg-amber-500/20 text-xs uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/30 hover:text-amber-100"
-                      >
-                        {isGenerating && generationLoadingId === ordinal.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-4 w-4" />
-                        )}
-                        {isGenerating && generationLoadingId === ordinal.id ? 'Summoning…' : 'Gold Foil Enrich'}
-                      </Button>
-                      <Button
-                        disabled={isGenerating}
                         onClick={() => handleGenerateImage(ordinal, 'forward')}
                         className="flex items-center justify-center gap-2 border border-cyan-500/60 text-xs uppercase tracking-[0.3em] text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-100"
                       >
@@ -484,8 +471,6 @@ export default function OrdinalsAdminPage() {
                       Finish:{' '}
                       {lastGeneration.variant === 'noir'
                         ? 'High-contrast Noir Character'
-                        : lastGeneration.variant === 'gold'
-                        ? 'Opulent Gold Foil Accents'
                         : lastGeneration.variant === 'forward'
                         ? 'Forward Lean 3D Emphasis'
                         : lastGeneration.variant === 'diamond'
