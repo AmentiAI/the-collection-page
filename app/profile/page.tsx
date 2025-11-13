@@ -129,81 +129,6 @@ function ProfileContent() {
   } = useProfileState()
   const toast = useToast()
 
-  const [graveyardOpen, setGraveyardOpen] = useState(false)
-  const [graveyardLoading, setGraveyardLoading] = useState(false)
-  const [graveyardError, setGraveyardError] = useState<string | null>(null)
-  const [graveyardEntries, setGraveyardEntries] = useState<GraveyardEntry[]>([])
-
-  const loadGraveyard = useCallback(
-    async (wallet: string) => {
-      setGraveyardLoading(true)
-      setGraveyardError(null)
-      try {
-        const params = new URLSearchParams()
-        params.set('includeGraveyard', 'true')
-        params.set('ordinalWallet', wallet)
-        params.set('graveyardLimit', '120')
-
-        const response = await fetch(`/api/abyss/burns?${params.toString()}`, {
-          headers: { 'Cache-Control': 'no-store' },
-        })
-        const payload = await response.json().catch(() => null)
-
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.error ?? `Graveyard request failed (${response.status})`)
-        }
-
-        const recordsRaw = Array.isArray(payload?.graveyard) ? payload.graveyard : []
-        const mapped = recordsRaw
-          .map((item: Record<string, unknown>) => {
-            const inscriptionId = (item?.inscriptionId ?? item?.inscription_id ?? '').toString().trim()
-            if (!inscriptionId) {
-              return null
-            }
-
-            return {
-              inscriptionId,
-              txId: (item?.txId ?? item?.tx_id ?? '').toString(),
-              status: (item?.status ?? 'pending').toString(),
-              source: (item?.source ?? 'abyss').toString(),
-              createdAt: (item?.createdAt ?? item?.created_at ?? null) as string | null | undefined,
-              confirmedAt: (item?.confirmedAt ?? item?.confirmed_at ?? null) as string | null | undefined,
-              updatedAt: (item?.updatedAt ?? item?.updated_at ?? null) as string | null | undefined,
-            } satisfies GraveyardEntry
-          })
-          .filter((entry: GraveyardEntry | null): entry is GraveyardEntry => Boolean(entry))
-
-        setGraveyardEntries(mapped)
-      } catch (error) {
-        console.error('Failed to load graveyard records:', error)
-        setGraveyardEntries([])
-        setGraveyardError(error instanceof Error ? error.message : 'Failed to load graveyard records')
-        toast.error('Failed to load your graveyard.')
-      } finally {
-        setGraveyardLoading(false)
-      }
-    },
-    [toast],
-  )
-
-  const handleOpenGraveyard = useCallback(() => {
-    if (!connected || !address) {
-      toast.warning('Connect your wallet to view the graveyard.')
-      return
-    }
-    setGraveyardOpen(true)
-    void loadGraveyard(address)
-  }, [connected, address, loadGraveyard, toast])
-
-  const handleCloseGraveyard = useCallback(() => {
-    setGraveyardOpen(false)
-  }, [])
-
-  const handleRefreshGraveyard = useCallback(() => {
-    if (!address) return
-    void loadGraveyard(address)
-  }, [address, loadGraveyard])
-
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
@@ -250,14 +175,12 @@ function ProfileContent() {
               >
                 Refresh Profile
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 hover:bg-amber-500/20"
-                onClick={handleOpenGraveyard}
+              <Link
+                href="/graveyard"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
               >
                 <Skull className="h-4 w-4" /> Graveyard
-              </Button>
+              </Link>
             </div>
           )}
         </section>
@@ -303,14 +226,6 @@ function ProfileContent() {
           </div>
         </section>
       </main>
-      <GraveyardModal
-        open={graveyardOpen}
-        loading={graveyardLoading}
-        error={graveyardError}
-        entries={graveyardEntries}
-        onClose={handleCloseGraveyard}
-        onRefresh={handleRefreshGraveyard}
-      />
     </div>
   )
 }
@@ -739,139 +654,6 @@ function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
         ))}
       </div>
     </section>
-  )
-}
-
-function GraveyardModal({
-  open,
-  loading,
-  error,
-  entries,
-  onClose,
-  onRefresh,
-}: {
-  open: boolean
-  loading: boolean
-  error: string | null
-  entries: GraveyardEntry[]
-  onClose: () => void
-  onRefresh: () => void
-}) {
-  if (!open) return null
-
-  const confirmedCount = entries.filter((entry) => entry.status.toLowerCase() === 'confirmed').length
-
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 px-4 py-8 backdrop-blur-sm">
-      <div className="relative w-full max-w-5xl space-y-6 rounded-3xl border border-red-600/60 bg-black/90 p-6 shadow-[0_0_45px_rgba(220,38,38,0.5)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 text-lg font-bold text-red-200/80 transition hover:text-red-100"
-          aria-label="Close graveyard"
-        >
-          ×
-        </button>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold uppercase tracking-[0.35em] text-red-200">
-              <Skull className="h-5 w-5 text-red-400" /> Personal Graveyard
-            </h2>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-red-200/70">
-              {entries.length} total • {confirmedCount} confirmed
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={loading}
-              onClick={onRefresh}
-              className="flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
-            >
-              <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 hover:bg-red-600/20"
-            >
-              Close
-            </Button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center gap-3 rounded-2xl border border-red-600/40 bg-black/70 px-4 py-12 text-[12px] uppercase tracking-[0.3em] text-red-200">
-            <Loader2 className="h-5 w-5 animate-spin" /> Summoning fallen damned…
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-600/60 bg-red-900/30 px-4 py-4 text-center text-sm text-red-100">
-            {error}
-          </div>
-        ) : entries.length === 0 ? (
-          <div className="rounded-2xl border border-red-500/40 bg-black/70 px-4 py-10 text-center text-[12px] uppercase tracking-[0.3em] text-red-200/70">
-            No abyss burns found yet. Make an offering to populate your graveyard.
-          </div>
-        ) : (
-          <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {entries.map((entry) => {
-              const imageUrl = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(entry.inscriptionId)}`
-              const shortInscription =
-                entry.inscriptionId.length > 18
-                  ? `${entry.inscriptionId.slice(0, 8)}…${entry.inscriptionId.slice(-6)}`
-                  : entry.inscriptionId
-              const status = entry.status.toLowerCase()
-              const statusClasses =
-                status === 'confirmed'
-                  ? 'border-emerald-400/50 bg-emerald-900/30 text-emerald-200'
-                  : 'border-amber-400/40 bg-amber-900/30 text-amber-200'
-
-              const progressPercent = 0
-              return (
-                <div
-                  key={`${entry.inscriptionId}-${entry.txId}`}
-                  className="group relative overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]"
-                >
-                  <div className="relative aspect-square">
-                    <Image
-                      src={imageUrl}
-                      alt={entry.inscriptionId}
-                      fill
-                      sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
-                      className="object-cover transition duration-500 ease-out group-hover:scale-105"
-                    />
-                    <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
-                      <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
-                        <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
-                          <span>Ascension</span>
-                          <span>{progressPercent}%</span>
-                        </div>
-                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-red-500/40 bg-black/50">
-                          <div
-                            className="h-full bg-gradient-to-r from-red-500/70 via-amber-400/80 to-emerald-400/80"
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 py-3">
-                     
-                      <div className="text-[9px] uppercase tracking-[0.3em] text-red-200/60">
-                        Source: {entry.source.replace(/_/g, ' ')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 
