@@ -178,9 +178,37 @@ function AssetRow({
 }
 
 export default function AssetsToolsPage() {
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [startMusic, setStartMusic] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(30)
+  const [isMusicMuted, setIsMusicMuted] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStartMusic(true), 500)
+    return () => clearTimeout(timer)
+  }, [])
+
   return (
     <LaserEyesWrapper>
-      <AssetsPageContent />
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={connected}
+        onHolderVerified={(holder) => {
+          setIsHolder(holder)
+          setIsVerifying(false)
+        }}
+        onVerifyingStart={() => setIsVerifying(true)}
+        onConnectedChange={setConnected}
+        musicVolume={musicVolume}
+        onMusicVolumeChange={setMusicVolume}
+        isMusicMuted={isMusicMuted}
+        onMusicMutedChange={setIsMusicMuted}
+      />
+      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
+      <AssetsPageContent isHolder={isHolder} />
     </LaserEyesWrapper>
   )
 }
