@@ -32,7 +32,20 @@ async function loadOrdinals(): Promise<GeneratedOrdinal[]> {
   return JSON.parse(fileContents) as GeneratedOrdinal[]
 }
 
-type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl' | 'monster'
+type GenerationVariant =
+  | 'chromatic'
+  | 'noir'
+  | 'gold'
+  | 'forward'
+  | 'diamond'
+  | 'ultra_rare'
+  | 'swirl'
+  | 'monster'
+  | 'monster_combo'
+
+const MONSTER_COMBO_SOURCE_VARIANTS: Array<
+  Exclude<GenerationVariant, 'monster' | 'monster_combo'>
+> = ['chromatic', 'noir', 'gold', 'forward', 'diamond', 'ultra_rare', 'swirl']
 
 function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): string {
   const trimmedPrompt = prompt.trim()
@@ -105,6 +118,29 @@ function ensureMonsterPrompt(prompt: string): string {
   return `${trimmedPrompt}\n\n${MONSTER_TRANSFORMATION_SUFFIX}`
 }
 
+function applyVariantPrompt(
+  prompt: string,
+  variant: Exclude<GenerationVariant, 'monster' | 'monster_combo'>,
+): string {
+  if (variant === 'gold') {
+    return normalizeGoldPrompt(prompt)
+  }
+  if (variant === 'forward') {
+    return ensureForwardLeanPrompt(prompt)
+  }
+  if (variant === 'diamond') {
+    return ensureDiamondPrompt(prompt)
+  }
+  if (variant === 'ultra_rare') {
+    return ensureUltraRarePrompt(prompt)
+  }
+  if (variant === 'swirl') {
+    return ensureSwirledColorPrompt(prompt)
+  }
+
+  return buildAugmentedPrompt(prompt, variant)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.OPENAI_API_KEY
@@ -165,6 +201,7 @@ export async function POST(request: NextRequest) {
     if (variant === 'ultra_rare') safeVariant = 'ultra_rare'
     if (variant === 'swirl') safeVariant = 'swirl'
     if (variant === 'monster') safeVariant = 'monster'
+    if (variant === 'monster_combo') safeVariant = 'monster_combo'
 
     let augmentedPrompt: string
     if (safeVariant === 'gold') {
@@ -179,6 +216,13 @@ export async function POST(request: NextRequest) {
       augmentedPrompt = ensureSwirledColorPrompt(prompt)
     } else if (safeVariant === 'monster') {
       augmentedPrompt = ensureMonsterPrompt(prompt)
+    } else if (safeVariant === 'monster_combo') {
+      const randomVariant =
+        MONSTER_COMBO_SOURCE_VARIANTS[
+          Math.floor(Math.random() * MONSTER_COMBO_SOURCE_VARIANTS.length)
+        ]
+      const withRandomVariant = applyVariantPrompt(prompt, randomVariant)
+      augmentedPrompt = ensureMonsterPrompt(withRandomVariant)
     } else {
       augmentedPrompt = buildAugmentedPrompt(prompt, safeVariant)
     }

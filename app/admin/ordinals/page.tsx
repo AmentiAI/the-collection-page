@@ -15,7 +15,16 @@ type OrdinalRecord = {
   trait_combination_hash?: string | null
 }
 
-type GenerationVariant = 'chromatic' | 'noir' | 'gold' | 'forward' | 'diamond' | 'ultra_rare' | 'swirl' | 'monster'
+type GenerationVariant =
+  | 'chromatic'
+  | 'noir'
+  | 'gold'
+  | 'forward'
+  | 'diamond'
+  | 'ultra_rare'
+  | 'swirl'
+  | 'monster'
+  | 'monster_combo'
 
 type GenerationResult = {
   ordinalId: string
@@ -405,6 +414,21 @@ export default function OrdinalsAdminPage() {
                         )}
                         {isGenerating && generationLoadingId === ordinal.id ? 'Summoning…' : 'Monstrous Mutation'}
                       </Button>
+                      <Button
+                        disabled={isGenerating}
+                        onClick={() => handleGenerateImage(ordinal, 'monster_combo')}
+                        variant="outline"
+                        className="flex items-center justify-center gap-2 border border-fuchsia-400/70 text-xs uppercase tracking-[0.3em] text-fuchsia-200 hover:bg-fuchsia-500/10 hover:text-fuchsia-100"
+                      >
+                        {isGenerating && generationLoadingId === ordinal.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-4 w-4" />
+                        )}
+                        {isGenerating && generationLoadingId === ordinal.id
+                          ? 'Summoning…'
+                          : 'Chaotic Monster Blend'}
+                      </Button>
                     </div>
                   </article>
                 )
@@ -470,6 +494,10 @@ export default function OrdinalsAdminPage() {
                         ? 'Ultra-Rare Prestige Finish'
                         : lastGeneration.variant === 'swirl'
                         ? 'Intricate Prismatic Swirls'
+                        : lastGeneration.variant === 'monster'
+                        ? 'Monstrous Mutation Override'
+                        : lastGeneration.variant === 'monster_combo'
+                        ? 'Chaotic Monster Blend'
                         : 'Light Chromatic Foil'}
                     </span>
                   </div>
