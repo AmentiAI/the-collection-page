@@ -310,9 +310,11 @@ function GraveyardContent() {
                     const progressPercent = 0
 
                     return (
-                      <div
+                      <Link
                         key={`${entry.inscriptionId}-${entry.txId}`}
-                        className="group relative overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]"
+                        href={`/graveyard/${encodeURIComponent(entry.inscriptionId)}`}
+                        className="group relative overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                        prefetch={false}
                       >
                         <div className="relative aspect-square">
                           <Image
@@ -348,7 +350,7 @@ function GraveyardContent() {
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     )
                   })}
                 </div>
