@@ -23,14 +23,35 @@ function normalize(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
+function stripInscriptionSuffix(value: string) {
+  if (!value) return value
+  return value.endsWith('i0') ? value.slice(0, -2) : value
+}
+
 async function findOrdinalByInscriptionId(inscriptionId: string) {
   const ordinals = await loadOrdinals()
   const normalized = normalize(inscriptionId)
+  const withoutSuffix = stripInscriptionSuffix(normalized)
+  const hexCandidate = withoutSuffix.replace(/[^a-f0-9]/g, '')
 
   return ordinals.find((ordinal) => {
     const ordinalInscriptionId = normalize(ordinal.inscription_id)
     const ordinalId = normalize(ordinal.id)
-    return ordinalInscriptionId === normalized || ordinalId === normalized
+    const ordinalTraitHash = normalize(ordinal.trait_combination_hash ?? '')
+    if (ordinalInscriptionId === normalized || ordinalId === normalized) {
+      return true
+    }
+    if (ordinalTraitHash && hexCandidate && ordinalTraitHash === hexCandidate) {
+      return true
+    }
+    const metadataUrl = normalize(ordinal.metadata_url)
+    const imageUrl = normalize(ordinal.image_url)
+    return (
+      (metadataUrl && metadataUrl.includes(normalized)) ||
+      (imageUrl && imageUrl.includes(normalized)) ||
+      (metadataUrl && hexCandidate && metadataUrl.includes(hexCandidate)) ||
+      (imageUrl && hexCandidate && imageUrl.includes(hexCandidate))
+    )
   })
 }
 
@@ -90,6 +111,9 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
   const ordinal = decodedInscriptionId ? await findOrdinalByInscriptionId(decodedInscriptionId) : null
 
   const imageUrl =
+    ordinal?.image_url ??
+    `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`
+  const downloadUrl =
     ordinal?.image_url ??
     `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`
 
@@ -218,7 +242,7 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
                   View on ordinals.com
                 </Link>
                 <Link
-                  href={`https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`}
+                  href={downloadUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/25"
