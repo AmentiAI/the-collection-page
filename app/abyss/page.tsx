@@ -198,11 +198,6 @@ const BURN_OUTPUT_COUNT = 2
 const BURN_TX_VSIZE = estimateVsize(BURN_INPUT_COUNT, BURN_OUTPUT_COUNT)
 const MIN_FEE_SATS = Math.ceil(BURN_TX_VSIZE * FEE_RATE_SAT_VB) + FEE_BUFFER_SATS
 
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
-
 function readReservedUtxos(): ReservedUtxoEntry[] {
   if (typeof window === 'undefined') {
     return []
@@ -2230,6 +2225,11 @@ function AbyssContent() {
     </div>
   )
 }
+
+const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
 
 export default function AbyssPage() {
   return (

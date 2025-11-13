@@ -8,7 +8,6 @@ import { BadgeCheck, Copy, FileImage, FileText, Flame, Grid3X3, Layers3, Loader2
 
 import BackgroundMusic from '@/components/BackgroundMusic'
 import Header from '@/components/Header'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +20,12 @@ import type {
   RuneBearingUtxo,
 } from '@/lib/sandshrew'
 import { InscriptionService } from '@/services/inscription-service'
+import dynamic from 'next/dynamic'
+
+const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
 
 type AssetTabKey = 'inscriptions' | 'spendable' | 'runes' | 'alkanes'
 
@@ -172,38 +177,10 @@ function AssetRow({
   )
 }
 
-export default function AssetsPage() {
-  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
-
+export default function AssetsToolsPage() {
   return (
     <LaserEyesWrapper>
-      <Header
-        isHolder={isHolder}
-        isVerifying={isVerifying}
-        connected={connected}
-        onHolderVerified={(holder) => {
-          setIsHolder(holder)
-          setIsVerifying(false)
-        }}
-        onVerifyingStart={() => setIsVerifying(true)}
-        onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
-      />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
-      <AssetsPageContent isHolder={isHolder} />
+      <AssetsPageContent />
     </LaserEyesWrapper>
   )
 }

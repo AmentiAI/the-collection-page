@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useCallback } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
@@ -11,9 +11,9 @@ import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { InscriptionService } from '@/services/inscription-service'
 import { useToast } from '@/components/Toast'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import Header from '@/components/Header'
 import BackgroundMusic from '@/components/BackgroundMusic'
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 type SpeedupStrategy = 'rbf' | 'cpfp' | 'hybrid'
 

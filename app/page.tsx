@@ -14,13 +14,9 @@ import SplashScreen from '@/components/SplashScreen'
 import TraitRarityTracker from '@/components/TraitRarityTracker'
 import { Ordinal, Trait } from '@/types'
 
-// Only load LaserEyes provider after page is mounted
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
-  { 
-    ssr: false,
-    loading: () => null
-  }
+  { ssr: false, loading: () => null },
 )
 
 export default function Home() {

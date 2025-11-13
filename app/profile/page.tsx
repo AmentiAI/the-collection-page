@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loader2, Skull } from 'lucide-react'
@@ -10,11 +9,6 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
-
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
 
 type ProfileDetails = {
   username: string | null
@@ -104,11 +98,7 @@ const INITIAL_SUMMON_OVERVIEW: SummonOverview = {
 }
 
 export default function ProfilePage() {
-  return (
-    <LaserEyesWrapper>
-      <ProfileContent />
-    </LaserEyesWrapper>
-  )
+  return <ProfileContent />
 }
 
 function ProfileContent() {

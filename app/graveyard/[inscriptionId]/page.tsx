@@ -10,10 +10,6 @@ import { getPool } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 
 const HeaderClient = dynamic(() => import('@/components/Header'), { ssr: false })
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
 
 const ORDINALS_FILE_PATH = path.join(process.cwd(), 'public', 'generated_ordinals.json')
 
@@ -245,10 +241,9 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
       : null
 
   return (
-    <LaserEyesWrapper>
-      <div className="min-h-screen bg-black text-red-100">
-        <HeaderClient showMusicControls={false} />
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 md:py-16">
+    <div className="min-h-screen bg-black text-red-100">
+      <HeaderClient showMusicControls={false} />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 md:py-16">
         <div className="flex items-center justify-between gap-4">
           <Link
             href="/graveyard"
@@ -397,9 +392,8 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
             </section>
           </div>
         </section>
-        </div>
       </div>
-    </LaserEyesWrapper>
+    </div>
   )
 }
 

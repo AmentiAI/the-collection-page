@@ -14,13 +14,9 @@ import DualityStatus from '@/components/dashboard/DualityStatus'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 
-// Only load LaserEyes provider after page is mounted
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
-  { 
-    ssr: false,
-    loading: () => null
-  }
+  { ssr: false, loading: () => null },
 )
 
 interface MagicEdenToken {

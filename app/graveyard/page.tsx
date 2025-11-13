@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, Skull, AlertTriangle } from 'lucide-react'
 
@@ -26,11 +25,6 @@ type WalletProfile = {
   avatar_url?: string | null
   ascension_powder?: number | null
 }
-
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
 
 const GRAVEYARD_LIMIT = 180
 
@@ -353,11 +347,7 @@ function GraveyardContent() {
 }
 
 export default function GraveyardPage() {
-  return (
-    <LaserEyesWrapper>
-      <GraveyardContent />
-    </LaserEyesWrapper>
-  )
+  return <GraveyardContent />
 }
 
 
