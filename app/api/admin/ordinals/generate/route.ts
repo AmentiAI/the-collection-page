@@ -23,7 +23,7 @@ const FORWARD_LEAN_SUFFIX =
 const MONSTER_TRANSFORMATION_SUFFIX =
   '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge Monster, vibrant colors high contrast.'
 const ANGELIC_TRANSFORMATION_SUFFIX =
-  'and then transform the figure into an angelic being with luminous wings, preserving all original traits; eliminate legs from view and surround the canvas edge with an ornate silver filigree halo border glowing with holy light.'
+  'and then transform the figure into an angelic cute face, with luminous wings, preserving all original traits but making them clean, and beautiful; eliminate legs from view and surround the canvas edge with an ornate silver filigree halo border glowing with holy light.'
 
 export const dynamic = 'force-dynamic'
 
