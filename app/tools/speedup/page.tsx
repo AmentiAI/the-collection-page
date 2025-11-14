@@ -342,18 +342,6 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
   )
 
   useEffect(() => {
-    const urlTxid = searchParams.get('txid')
-    if (urlTxid && urlTxid.length === 64) {
-      setTxid(urlTxid)
-      if (isConnected && currentAddress && !loading && !parsedTx) {
-        setTimeout(() => {
-          void fetchTransactionWithTxid(urlTxid)
-        }, 100)
-      }
-    }
-  }, [searchParams, isConnected, currentAddress, loading, parsedTx])
-
-  useEffect(() => {
     if (!parsedTx) {
       setAnalysis(null)
       setSelectedStrategy(null)
@@ -530,6 +518,153 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
     },
     [currentAddress, paymentAddress, toast, holderAllowed]
   )
+
+  useEffect(() => {
+    const urlTxid = searchParams.get('txid')
+    if (urlTxid && urlTxid.length === 64) {
+      setTxid(urlTxid)
+      if (isConnected && currentAddress && !loading && !parsedTx) {
+        setTimeout(() => {
+          void fetchTransactionWithTxid(urlTxid)
+        }, 100)
+      }
+    }
+  }, [searchParams, isConnected, currentAddress, loading, parsedTx, fetchTransactionWithTxid])
+
+  const renderStrategyCard = (strategy: SpeedupStrategy) => {
+    if (!analysis) return null
+    const detail = analysis.strategies[strategy]
+    const meta = STRATEGY_COPY[strategy]
+    const isSelected = selectedStrategy === strategy
+    const disabled = !detail.available
+
+    const baseClass = disabled
+      ? 'cursor-not-allowed opacity-40 border-slate-700/60 bg-slate-900/40'
+      : isSelected
+        ? 'border-sky-400/70 bg-sky-500/20 shadow-[0_22px_44px_-22px_rgba(56,189,248,0.65)]'
+        : meta.accent
+
+  return (
+      <button
+        key={strategy}
+        type="button"
+        onClick={() => {
+          if (!disabled) {
+            setSelectedStrategy(strategy)
+          }
+        }}
+        disabled={disabled}
+        className={`flex flex-col gap-3 rounded-2xl border p-4 text-left text-xs transition ${baseClass}`}
+      >
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-slate-100">{meta.title}</p>
+          {isSelected && <span className="text-[10px] uppercase tracking-[0.35em] text-sky-200">Active</span>}
+        </div>
+        <p className="text-slate-400">{meta.blurb}</p>
+
+        {detail.available ? (
+          <div className="space-y-1 text-slate-300">
+            {strategy === 'rbf' && <p>Bump: {formatSats(Math.max(analysis.requiredRbfFee, 0))} sats</p>}
+            {strategy === 'cpfp' && <p>Child fee: {formatSats(analysis.childFeeNeeded)} sats</p>}
+            {strategy === 'hybrid' && (
+              <p className="text-emerald-200">
+                {analysis.requiresHybrid ? 'Needs extra UTXO' : 'Will add a wallet UTXO if needed'}
+              </p>
+            )}
+          </div>
+        ) : detail.reasons.length > 0 ? (
+          <ul className="space-y-1 text-amber-200">
+            {detail.reasons.slice(0, 2).map((reason) => (
+              <li key={reason}>• {reason}</li>
+            ))}
+            {detail.reasons.length > 2 && <li>• More conditions apply</li>}
+          </ul>
+        ) : null}
+      </button>
+    )
+  }
+
+  const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(value))
+
+  const revalidateTransaction = useCallback(async (): Promise<RevalidateResult> => {
+    if (!parsedTx || !currentAddress) {
+      toast.error('Missing transaction context. Try analyzing again.')
+      return { ok: false }
+    }
+
+    try {
+      const response = await fetch('/api/speedup/parse-tx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txid: parsedTx.txid,
+          userAddress: currentAddress,
+          walletAddresses: [currentAddress, paymentAddress].filter(Boolean)
+        })
+      })
+      const data = await response.json()
+
+      if (!data.success) {
+        toast.error(data.error || 'Failed to refresh transaction.')
+        return { ok: false }
+      }
+
+      setParsedTx(data.transaction)
+      setEstimate(data.estimate)
+
+      if (data.transaction.status === 'confirmed') {
+        setAnalysis(null)
+        setSelectedStrategy(null)
+        toast.info('Parent transaction already confirmed. No speedup required.')
+        return { ok: false }
+      }
+
+      return { ok: true, transaction: data.transaction as ParsedTransaction, estimate: (data.estimate ?? null) as CpfpEstimate | null }
+    } catch (error) {
+      console.error('Revalidation error:', error)
+      toast.error('Unable to refresh transaction before broadcast.')
+      return { ok: false }
+    }
+  }, [parsedTx, currentAddress, paymentAddress, toast])
+
+  useEffect(() => {
+    if (!analysis || !parsedTx) return
+
+    const abortController = new AbortController()
+    const { signal } = abortController
+
+    const fetchWalletBalance = async () => {
+      try {
+        const response = await fetch('/api/speedup/fetch-balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: currentAddress,
+            paymentAddress: paymentAddress,
+            signal
+          })
+        })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch wallet balance: ${response.status}`)
+        }
+        const data = await response.json()
+        if (data.success) {
+          // This effect is not directly used in the current component's logic,
+          // but it's part of the original file's structure.
+          // If it were used, it would be here.
+        }
+      } catch (err) {
+        if (signal.aborted) return
+        console.error('Failed to fetch wallet balance:', err)
+      }
+    }
+
+    void fetchWalletBalance()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [analysis, parsedTx, currentAddress, paymentAddress])
 
   const fetchTransaction = async () => {
     await fetchTransactionWithTxid(txid)
@@ -804,102 +939,6 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
       const mode = selectedStrategy === 'hybrid' ? 'hybrid' : 'simple'
       await performCpfp(mode)
     }
-  }
-
-  const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(value))
-
-  const revalidateTransaction = useCallback(async (): Promise<RevalidateResult> => {
-    if (!parsedTx || !currentAddress) {
-      toast.error('Missing transaction context. Try analyzing again.')
-      return { ok: false }
-    }
-
-    try {
-      const response = await fetch('/api/speedup/parse-tx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          txid: parsedTx.txid,
-          userAddress: currentAddress,
-          walletAddresses: [currentAddress, paymentAddress].filter(Boolean)
-        })
-      })
-      const data = await response.json()
-
-      if (!data.success) {
-        toast.error(data.error || 'Failed to refresh transaction.')
-        return { ok: false }
-      }
-
-      setParsedTx(data.transaction)
-      setEstimate(data.estimate)
-
-      if (data.transaction.status === 'confirmed') {
-        setAnalysis(null)
-        setSelectedStrategy(null)
-        toast.info('Parent transaction already confirmed. No speedup required.')
-        return { ok: false }
-      }
-
-      return { ok: true, transaction: data.transaction as ParsedTransaction, estimate: (data.estimate ?? null) as CpfpEstimate | null }
-    } catch (error) {
-      console.error('Revalidation error:', error)
-      toast.error('Unable to refresh transaction before broadcast.')
-      return { ok: false }
-    }
-  }, [parsedTx?.txid, currentAddress, paymentAddress, toast])
-
-  const renderStrategyCard = (strategy: SpeedupStrategy) => {
-    if (!analysis) return null
-    const detail = analysis.strategies[strategy]
-    const meta = STRATEGY_COPY[strategy]
-    const isSelected = selectedStrategy === strategy
-    const disabled = !detail.available
-
-    const baseClass = disabled
-      ? 'cursor-not-allowed opacity-40 border-slate-700/60 bg-slate-900/40'
-      : isSelected
-        ? 'border-sky-400/70 bg-sky-500/20 shadow-[0_22px_44px_-22px_rgba(56,189,248,0.65)]'
-        : meta.accent
-
-  return (
-      <button
-        key={strategy}
-        type="button"
-        onClick={() => {
-          if (!disabled) {
-            setSelectedStrategy(strategy)
-          }
-        }}
-        disabled={disabled}
-        className={`flex flex-col gap-3 rounded-2xl border p-4 text-left text-xs transition ${baseClass}`}
-      >
-        <div className="flex items-center justify-between">
-          <p className="font-semibold text-slate-100">{meta.title}</p>
-          {isSelected && <span className="text-[10px] uppercase tracking-[0.35em] text-sky-200">Active</span>}
-        </div>
-        <p className="text-slate-400">{meta.blurb}</p>
-
-        {detail.available ? (
-          <div className="space-y-1 text-slate-300">
-            {strategy === 'rbf' && <p>Bump: {formatSats(Math.max(analysis.requiredRbfFee, 0))} sats</p>}
-            {strategy === 'cpfp' && <p>Child fee: {formatSats(analysis.childFeeNeeded)} sats</p>}
-            {strategy === 'hybrid' && (
-              <p className="text-emerald-200">
-                {analysis.requiresHybrid ? 'Needs extra UTXO' : 'Will add a wallet UTXO if needed'}
-              </p>
-            )}
-          </div>
-        ) : detail.reasons.length > 0 ? (
-          <ul className="space-y-1 text-amber-200">
-            {detail.reasons.slice(0, 2).map((reason) => (
-              <li key={reason}>• {reason}</li>
-            ))}
-            {detail.reasons.length > 2 && <li>• More conditions apply</li>}
-          </ul>
-        ) : null}
-      </button>
-    )
   }
 
   return (
