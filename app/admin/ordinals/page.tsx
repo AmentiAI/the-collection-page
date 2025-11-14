@@ -24,6 +24,7 @@ type GenerationVariant =
   | 'swirl'
   | 'monster'
   | 'monster_combo'
+  | 'angelic'
 
 type GenerationResult = {
   ordinalId: string
@@ -403,6 +404,19 @@ export default function OrdinalsAdminPage() {
                       </Button>
                       <Button
                         disabled={isGenerating}
+                        onClick={() => handleGenerateImage(ordinal, 'angelic')}
+                        variant="outline"
+                        className="flex items-center justify-center gap-2 border border-blue-300/70 text-xs uppercase tracking-[0.3em] text-blue-100 hover:bg-blue-400/15 hover:text-blue-50"
+                      >
+                        {isGenerating && generationLoadingId === ordinal.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-4 w-4" />
+                        )}
+                        {isGenerating && generationLoadingId === ordinal.id ? 'Summoning…' : 'Angelic Ascension'}
+                      </Button>
+                      <Button
+                        disabled={isGenerating}
                         onClick={() => handleGenerateImage(ordinal, 'monster_combo')}
                         variant="outline"
                         className="flex items-center justify-center gap-2 border border-fuchsia-400/70 text-xs uppercase tracking-[0.3em] text-fuchsia-200 hover:bg-fuchsia-500/10 hover:text-fuchsia-100"
@@ -483,6 +497,8 @@ export default function OrdinalsAdminPage() {
                         ? 'Monstrous Mutation Override'
                         : lastGeneration.variant === 'monster_combo'
                         ? 'Chaotic Monster Blend'
+                        : lastGeneration.variant === 'angelic'
+                        ? 'Angelic Ascension'
                         : 'Light Chromatic Foil'}
                     </span>
                   </div>
