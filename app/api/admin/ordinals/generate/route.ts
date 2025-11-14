@@ -21,9 +21,9 @@ const SWIRLED_COLOR_SUFFIX =
 const FORWARD_LEAN_SUFFIX =
   'pose the character so their upper body and face lean forward toward the viewer, creating an exaggerated 3D effect as if the character is emerging out of the canvas, while keeping the rest of the scene intact.'
 const MONSTER_TRANSFORMATION_SUFFIX =
-  '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge Monster, vibrant colors high contrast. character skin is gold plated.'
+  '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is gold plated.'
 const ANGELIC_TRANSFORMATION_SUFFIX =
-  'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all original but making them clean, and beautiful angelic monsters; eliminate legs from view and keep the same border placement but make the canvas edge with an ornate silver filigree halo border glowing with holy light. character skin is gold plated.'
+  'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all original but making them clean, and beautiful angelic monsters; eliminate legs from view and keep the same border placement but make the canvas edge with an ornate gold filigree halo border glowing with holy light. character skin is gold plated.'
 
 export const dynamic = 'force-dynamic'
 
