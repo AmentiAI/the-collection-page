@@ -130,7 +130,9 @@ async function grantAscensionPowder(
     [wallet, eventKey, POWDER_REWARD],
   )
 
-  if (claimRes.rowCount > 0) {
+  const insertedRows = claimRes?.rowCount ?? 0
+
+  if (insertedRows > 0) {
     await client.query(
       `
         UPDATE profiles
