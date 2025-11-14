@@ -22,6 +22,8 @@ const FORWARD_LEAN_SUFFIX =
   'pose the character so their upper body and face lean forward toward the viewer, creating an exaggerated 3D effect as if the character is emerging out of the canvas, while keeping the rest of the scene intact.'
 const MONSTER_TRANSFORMATION_SUFFIX =
   '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge Monster, vibrant colors high contrast.'
+const ANGELIC_TRANSFORMATION_SUFFIX =
+  'and then transform the figure into an angelic being with luminous wings and radiant celestial armor, preserving all original traits; eliminate legs from view and surround the canvas edge with an ornate silver filigree halo border glowing with holy light.'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,10 +41,11 @@ type GenerationVariant =
   | 'swirl'
   | 'monster'
   | 'monster_combo'
+  | 'angelic'
 
 const MONSTER_COMBO_SOURCE_VARIANTS: Array<
   Exclude<GenerationVariant, 'monster' | 'monster_combo'>
-> = ['chromatic', 'noir', 'forward', 'diamond', 'ultra_rare', 'swirl']
+> = ['chromatic', 'noir', 'forward', 'diamond', 'ultra_rare', 'swirl', 'angelic']
 
 function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): string {
   const trimmedPrompt = prompt.trim()
@@ -57,6 +60,9 @@ function buildAugmentedPrompt(prompt: string, variant: GenerationVariant): strin
 
   if (variant === 'monster') {
     return ensureMonsterPrompt(trimmedPrompt)
+  }
+  if (variant === 'angelic') {
+    return ensureAngelicPrompt(trimmedPrompt)
   }
 
   // Noir character variant
@@ -105,6 +111,14 @@ function ensureMonsterPrompt(prompt: string): string {
     return trimmedPrompt
   }
   return `${trimmedPrompt}\n\n${MONSTER_TRANSFORMATION_SUFFIX}`
+}
+
+function ensureAngelicPrompt(prompt: string): string {
+  const trimmedPrompt = prompt.trim()
+  if (trimmedPrompt.toLowerCase().includes(ANGELIC_TRANSFORMATION_SUFFIX.toLowerCase())) {
+    return trimmedPrompt
+  }
+  return `${trimmedPrompt}\n\n${ANGELIC_TRANSFORMATION_SUFFIX}`
 }
 
 function applyVariantPrompt(
@@ -187,6 +201,7 @@ export async function POST(request: NextRequest) {
     if (variant === 'swirl') safeVariant = 'swirl'
     if (variant === 'monster') safeVariant = 'monster'
     if (variant === 'monster_combo') safeVariant = 'monster_combo'
+    if (variant === 'angelic') safeVariant = 'angelic'
 
     let augmentedPrompt: string
     if (safeVariant === 'forward') {
@@ -199,6 +214,8 @@ export async function POST(request: NextRequest) {
       augmentedPrompt = ensureSwirledColorPrompt(prompt)
     } else if (safeVariant === 'monster') {
       augmentedPrompt = ensureMonsterPrompt(prompt)
+    } else if (safeVariant === 'angelic') {
+      augmentedPrompt = ensureAngelicPrompt(prompt)
     } else if (safeVariant === 'monster_combo') {
       const randomVariant =
         MONSTER_COMBO_SOURCE_VARIANTS[
