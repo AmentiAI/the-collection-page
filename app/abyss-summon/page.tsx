@@ -1059,7 +1059,7 @@ export default function AbyssSummonPage() {
                     <h3 className="text-xs uppercase tracking-[0.35em] text-red-200">Active Circles</h3>
                     {hasOwnActive ? (
                       <div className="rounded-xl border border-amber-500/40 bg-amber-900/20 px-4 py-4 text-[11px] uppercase tracking-[0.3em] text-amber-200">
-                        You are already leading a summoning circle. Manage or complete it under "Circles You Founded" before joining another.
+                        You are already leading a summoning circle. Manage or complete it under &ldquo;Circles You Founded&rdquo; before joining another.
                       </div>
                     ) : (
                       <SummonList
