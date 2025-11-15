@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   Info,
   ShieldCheck,
+  FileText,
 } from 'lucide-react'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
@@ -24,9 +26,17 @@ import ChestCallout from '@/components/ChestCallout'
 import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import type { CategorisedWalletAssets, InscriptionUtxo } from '@/lib/sandshrew'
 
+interface OrdinalContentMetadata {
+  inscriptionId: string
+  endpoint: string
+  contentType?: string | null
+  contentLength?: number | null
+  acceptsRanges?: boolean
+}
+
 const formatSats = (value: number) => `${value.toLocaleString()} sats`
 
-const MIN_WORTHWHILE_RECOVERY = 1000
+const MIN_WORTHWHILE_RECOVERY = 950
 const MIN_INSCRIPTION_UTXO_VALUE = 877 // > 876 sats
 
 interface RecoverableInscription {
@@ -721,33 +731,50 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
                       <h2 className="mb-4 text-lg font-semibold text-slate-200">
                         Recoverable Inscriptions
                       </h2>
-                      <div className="flex flex-col gap-2">
-                        {analysis.recoverable.map((ins) => (
-                          <div
-                            key={ins.outpoint}
-                            className="rounded border border-slate-600 bg-slate-900/50 p-3"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex flex-col gap-1">
-                                <p className="text-xs font-mono text-slate-400">
-                                  {ins.txid.slice(0, 16)}...:{ins.vout}
-                                </p>
-                                <p className="text-sm text-slate-300">
-                                  {ins.inscriptions.length} inscription
-                                  {ins.inscriptions.length !== 1 ? 's' : ''}
-                                </p>
-                              </div>
-                              <div className="text-right text-sm">
-                                <p className="text-slate-400">
-                                  Value: {formatSats(ins.value)}
-                                </p>
-                                <p className="text-emerald-400">
-                                  Recoverable: {formatSats(ins.recoverableSats)}
-                                </p>
+                      <div className="flex flex-col gap-3">
+                        {analysis.recoverable.map((ins) => {
+                          const primaryInscriptionId = ins.inscriptions[0]
+                          return (
+                            <div
+                              key={ins.outpoint}
+                              className="flex items-center gap-4 rounded-lg border border-slate-600 bg-slate-900/50 p-4"
+                            >
+                              {primaryInscriptionId ? (
+                                <div className="flex-shrink-0">
+                                  <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={80} interactive={false} />
+                                </div>
+                              ) : (
+                                <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-xl border border-slate-600 bg-slate-800/50 text-[10px] font-mono uppercase tracking-[0.3em] text-slate-500">
+                                  No preview
+                                </div>
+                              )}
+                              <div className="flex flex-1 items-center justify-between gap-4">
+                                <div className="flex flex-col gap-1.5">
+                                  <p className="text-xs font-mono text-slate-400">
+                                    {ins.txid.slice(0, 16)}...:{ins.vout}
+                                  </p>
+                                  <p className="text-sm font-medium text-slate-200">
+                                    {ins.inscriptions.length} inscription
+                                    {ins.inscriptions.length !== 1 ? 's' : ''}
+                                  </p>
+                                  {ins.inscriptions.length > 1 && (
+                                    <p className="text-xs text-slate-500">
+                                      +{ins.inscriptions.length - 1} more
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right text-sm">
+                                  <p className="mb-1 text-slate-400">
+                                    UTXO: {formatSats(ins.value)}
+                                  </p>
+                                  <p className="text-lg font-semibold text-emerald-400">
+                                    Recoverable: {formatSats(ins.recoverableSats)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
 
@@ -780,6 +807,119 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
           <ChestCallout eventKey="treasure_chest_sat_recovery" size="sm" className="mt-6" />
         </div>
       </div>
+    </div>
+  )
+}
+
+function InscriptionPreviewPanel({ inscriptionId, size = 120, interactive = true }: { inscriptionId: string; size?: number; interactive?: boolean }) {
+  const [metadata, setMetadata] = useState<OrdinalContentMetadata | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!inscriptionId) return
+    const controller = new AbortController()
+
+    async function loadMetadata() {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await fetch(`/api/ordinals/content/${encodeURIComponent(inscriptionId)}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const payload = await response.json()
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error || 'Unable to fetch inscription metadata')
+        }
+        setMetadata(payload.data as OrdinalContentMetadata)
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        console.error('Failed to load inscription preview metadata', err)
+        setError(err instanceof Error ? err.message : 'Failed to load metadata')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadMetadata()
+
+    return () => controller.abort()
+  }, [inscriptionId])
+
+  const contentUrl = `https://ordinals.com/content/${encodeURIComponent(inscriptionId)}`
+  const contentType = metadata?.contentType?.toLowerCase() ?? ''
+  const isHtml = contentType.includes('text/html')
+  const isSvg = contentType.includes('image/svg')
+  const isImage = contentType.startsWith('image/') && !isSvg
+  const isText = contentType.startsWith('text/') && !isHtml
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border border-amber-500/30 bg-black/60 ${interactive ? '' : 'pointer-events-none'}`}
+      style={{ width: size, height: size }}
+    >
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center text-amber-200">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && metadata && (
+        <>
+          {isHtml && (
+            <iframe
+              src={contentUrl}
+              title={`Inscription ${inscriptionId}`}
+              sandbox="allow-scripts allow-same-origin"
+              className="absolute inset-0 h-full w-full border-0"
+              style={interactive ? undefined : { pointerEvents: 'none' }}
+            />
+          )}
+          {isSvg && (
+            <iframe
+              src={contentUrl}
+              title={`Inscription ${inscriptionId}`}
+              className="absolute inset-0 h-full w-full border-0 bg-black"
+              style={interactive ? undefined : { pointerEvents: 'none' }}
+            />
+          )}
+          {isImage && (
+            <Image
+              src={contentUrl}
+              alt={`Inscription ${inscriptionId}`}
+              fill
+              sizes={`${size}px`}
+              className="object-cover"
+              unoptimized
+              style={interactive ? undefined : { pointerEvents: 'none' }}
+            />
+          )}
+          {isText && (
+            <iframe
+              src={contentUrl}
+              title={`Inscription ${inscriptionId}`}
+              className="absolute inset-0 h-full w-full border-0 bg-black text-left text-amber-100"
+              style={interactive ? undefined : { pointerEvents: 'none' }}
+            />
+          )}
+          {!isHtml && !isSvg && !isImage && !isText && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 text-center text-[10px] font-mono uppercase tracking-[0.3em] text-amber-100"
+              style={interactive ? undefined : { pointerEvents: 'none' }}
+            >
+              <FileText className="h-5 w-5" />
+              <span>{metadata.contentType || 'Unknown content'}</span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

@@ -8,7 +8,7 @@ const MIN_INSCRIPTION_UTXO_VALUE = 877 // > 876 sats
 const MIN_INSCRIPTION_OUTPUT = 330 // Minimum sats for inscription output
 const MIN_PAYMENT_OUTPUT = 546 // Minimum sats for payment output
 const MIN_REQUIRED_OUTPUTS = MIN_INSCRIPTION_OUTPUT + MIN_PAYMENT_OUTPUT // 876 sats
-const MIN_WORTHWHILE_RECOVERY = 1000 // Minimum total recoverable to make it worthwhile
+const MIN_WORTHWHILE_RECOVERY = 950 // Minimum total recoverable to make it worthwhile
 
 // Transaction size estimates
 const TAPROOT_INPUT_VBYTES = 58
