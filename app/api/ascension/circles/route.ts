@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
+const MAX_ACTIVE_CIRCLES = 6
 
 async function ensurePowderInfrastructure(pool: Pool) {
   await pool.query(`
@@ -218,6 +219,24 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + CIRCLE_DURATION_MS)
 
     await pool.query('BEGIN')
+
+    // Check if there are already 6 active circles
+    const activeCountRes = await pool.query(
+      `
+        SELECT COUNT(*)::int AS active_count
+        FROM summoning_powder_circles
+        WHERE status IN ('open', 'filling', 'ready')
+      `,
+    )
+    const activeCount = Number(activeCountRes.rows[0]?.active_count ?? 0)
+    
+    if (activeCount >= MAX_ACTIVE_CIRCLES) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES} active circles allowed. Please wait for a circle to complete or expire.` },
+        { status: 409 },
+      )
+    }
 
     const conflictRes = await pool.query(
       `
