@@ -431,7 +431,7 @@ function SatRecoveryContent() {
                   <h2 className="text-lg font-semibold text-slate-200">
                     Inscriptions with UTXO value &gt; 876 sats
                   </h2>
-                  <Button onClick={fetchAssets} variant="outline" size="sm">
+                  <Button onClick={fetchAssets} variant="outline">
                     <Loader2 className={`mr-2 h-4 w-4 ${assetsLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
@@ -623,7 +623,6 @@ function SatRecoveryContent() {
                       onClick={handleRecover}
                       disabled={!canRecover}
                       className="w-full bg-emerald-600 hover:bg-emerald-700"
-                      size="lg"
                     >
                       {recovering ? (
                         <>
