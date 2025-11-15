@@ -921,7 +921,7 @@ export default function AbyssSummonPage() {
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          <aside className="space-y-6">
+          <aside className="sticky top-4 h-fit space-y-6">
             <section className="rounded-2xl border border-red-600/40 bg-black/70 p-5 shadow-[0_0_20px_rgba(220,38,38,0.3)] backdrop-blur">
               <h2 className="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.35em] text-red-200">
                 <span>Your Summoning Stockpile</span>
@@ -939,7 +939,7 @@ export default function AbyssSummonPage() {
                     const isActive = selectedInscriptionId === option.inscriptionId
                     const isInCircle = inscriptionsInCircles.has(option.inscriptionId)
                     const buttonClass = [
-                      'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition',
+                      'flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition',
                       isActive
                         ? 'border-red-500 bg-red-900/30 shadow-[0_0_20px_rgba(220,38,38,0.35)]'
                         : isInCircle
@@ -954,7 +954,7 @@ export default function AbyssSummonPage() {
                         disabled={isInCircle}
                         className={buttonClass}
                       >
-                        <div className="relative h-10 w-10 overflow-hidden rounded border border-red-700/40 bg-black/40">
+                        <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded border border-red-700/40 bg-black/40">
                           {option.image ? (
                             <Image
                               src={option.image}
@@ -963,23 +963,23 @@ export default function AbyssSummonPage() {
                               className="object-cover"
                             />
                           ) : (
-                            <span className="flex h-full w-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-300">
+                            <span className="flex h-full w-full items-center justify-center text-[8px] font-mono uppercase tracking-[0.3em] text-red-300">
                               NO IMG
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-1 flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-red-200">
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-red-200">
                               {option.name ?? option.inscriptionId.slice(0, 12)}
                             </span>
                             {isInCircle && (
-                              <span className="rounded-full border border-amber-500/60 bg-amber-900/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] text-amber-200">
+                              <span className="flex-shrink-0 rounded-full border border-amber-500/60 bg-amber-900/30 px-1 py-0.5 text-[8px] font-mono uppercase tracking-[0.15em] text-amber-200">
                                 IN CIRCLE
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
+                          <span className="truncate text-[9px] uppercase tracking-[0.25em] text-red-300/70">
                             {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
                           </span>
                         </div>
