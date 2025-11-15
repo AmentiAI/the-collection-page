@@ -27,7 +27,7 @@ const OYO_WALLET = {
     throw new Error('OYO wallet not found. Please install the OYO wallet extension.')
   }
 }
-
+ 
 const WALLET_OPTIONS = [
   { id: 'unisat', name: 'Unisat', icon: '🔗', wallet: UNISAT, type: 'lasereyes' },
   { id: 'xverse', name: 'Xverse', icon: '⚡', wallet: XVERSE, type: 'lasereyes' },
