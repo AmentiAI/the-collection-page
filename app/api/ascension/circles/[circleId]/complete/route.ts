@@ -226,10 +226,27 @@ export async function POST(
     }
 
     const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
+    const timeUntilExpiry = expiresAt.getTime() - now.getTime()
+    const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
+    
+    // Debug logging
+    console.log('[ascension/circles/complete]', {
+      now: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      finalWindowStart: finalWindowStart.toISOString(),
+      timeUntilExpiry: Math.floor(timeUntilExpiry / 1000),
+      timeUntilWindow: Math.floor(timeUntilWindow / 1000),
+      completionWindowMs: COMPLETION_WINDOW_MS,
+    })
+    
     if (now < finalWindowStart) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'Final ritual window has not opened.' },
+        { 
+          success: false, 
+          error: `Final ritual window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
+          timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
+        },
         { status: 409 },
       )
     }

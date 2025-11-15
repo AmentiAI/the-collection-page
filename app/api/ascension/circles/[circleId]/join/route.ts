@@ -204,6 +204,8 @@ export async function POST(
     const updatedCount = updatedCountRes.rows[0]?.count ?? 0
 
     if (updatedCount >= circle.required_participants) {
+      // When circle becomes ready, set locked_at and ensure expires_at is exactly CIRCLE_DURATION_MS from locked_at
+      // This ensures the completion window opens at the correct time (2 minutes before expiration)
       await pool.query(
         `
           UPDATE summoning_powder_circles
