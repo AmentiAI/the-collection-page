@@ -9,6 +9,8 @@ const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
 const MAX_ACTIVE_CIRCLES = 6
+// Set to false to disable powder circles at the API level
+const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
 async function ensurePowderInfrastructure(pool: Pool) {
   await pool.query(`
@@ -142,6 +144,12 @@ function buildCircleSelect(whereClause = '', limitClause = '', values: unknown[]
 
 export async function GET(request: NextRequest) {
   try {
+    if (!POWDER_MODE_ENABLED) {
+      return NextResponse.json(
+        { success: false, error: 'Powder circles are currently disabled.' },
+        { status: 503 },
+      )
+    }
     const pool = getPool()
     await ensurePowderInfrastructure(pool)
     await expireOverdueCircles(pool)
@@ -197,6 +205,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!POWDER_MODE_ENABLED) {
+    return NextResponse.json(
+      { success: false, error: 'Powder circles are currently disabled.' },
+      { status: 503 },
+    )
+  }
   const pool = getPool()
   try {
     const body = await request.json().catch(() => ({}))
@@ -220,20 +234,22 @@ export async function POST(request: NextRequest) {
 
     await pool.query('BEGIN')
 
-    // Check if there are already 6 active circles
+    // Check if this user already has 6 active circles
     const activeCountRes = await pool.query(
       `
         SELECT COUNT(*)::int AS active_count
         FROM summoning_powder_circles
-        WHERE status IN ('open', 'filling', 'ready')
+        WHERE LOWER(creator_wallet) = LOWER($1)
+          AND status IN ('open', 'filling', 'ready')
       `,
+      [creatorWallet],
     )
     const activeCount = Number(activeCountRes.rows[0]?.active_count ?? 0)
     
     if (activeCount >= MAX_ACTIVE_CIRCLES) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES} active circles allowed. Please wait for a circle to complete or expire.` },
+        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES} active circles allowed per user. Please wait for a circle to complete or expire.` },
         { status: 409 },
       )
     }

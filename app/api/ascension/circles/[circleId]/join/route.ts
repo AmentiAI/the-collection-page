@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
+// Set to false to disable powder circles at the API level
+const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
 async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
@@ -93,6 +95,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { circleId: string } },
 ) {
+  if (!POWDER_MODE_ENABLED) {
+    return NextResponse.json(
+      { success: false, error: 'Powder circles are currently disabled.' },
+      { status: 503 },
+    )
+  }
   const { circleId } = params
   if (!circleId) {
     return NextResponse.json({ success: false, error: 'Missing circleId' }, { status: 400 })
