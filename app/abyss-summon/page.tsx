@@ -920,8 +920,8 @@ export default function AbyssSummonPage() {
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          <aside className="sticky top-4 h-fit space-y-6">
+        <div className="grid gap-6 lg:grid-cols-[320px_1fr] lg:items-start">
+          <aside className="sticky top-20 space-y-6">
             <section className="rounded-2xl border border-red-600/40 bg-black/70 p-5 shadow-[0_0_20px_rgba(220,38,38,0.3)] backdrop-blur">
               <h2 className="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.35em] text-red-200">
                 <span>Your Summoning Stockpile</span>
