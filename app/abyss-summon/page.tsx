@@ -19,6 +19,8 @@ type SummonParticipant = {
   joinedAt?: string | null
   completed?: boolean
   completedAt?: string | null
+  username?: string | null
+  avatarUrl?: string | null
 }
 
 type SummonRecord = {
@@ -1236,24 +1238,49 @@ function SummonList({
                   glowIntensity={glowIntensity}
                 />
                 <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
-                  {truncateWallet(summon.creatorWallet)}
+                  {(() => {
+                    const creatorParticipant = summon.participants.find((p) => p.role === 'creator')
+                    if (creatorParticipant?.username) {
+                      return creatorParticipant.username
+                    }
+                    return truncateWallet(summon.creatorWallet)
+                  })()}
                 </span>
               </div>
               <div className="flex flex-1 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {summon.participants.map((participant) => {
                     const pillClass = [
-                      'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em]',
+                      'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
                       participant.role === 'creator'
                         ? 'border-red-500/60 text-red-200'
                         : participant.completed
                         ? 'border-emerald-500/50 text-emerald-200'
                         : 'border-red-400/40 text-red-200/80',
                     ].join(' ')
+                    const displayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                    const displayInitials = participant.username
+                      ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
+                      : truncateWallet(participant.wallet).slice(0, 2)
                     return (
                       <span key={participant.id} className={pillClass}>
-                        {participant.role === 'creator' ? 'Host' : 'Ally'} · {truncateWallet(participant.wallet)}
-                        {participant.completed && <CheckCircle2 className="ml-1 inline h-3 w-3" />}
+                        {participant.avatarUrl ? (
+                          <Image
+                            src={participant.avatarUrl}
+                            alt={displayName}
+                            width={16}
+                            height={16}
+                            className="h-4 w-4 rounded-full border border-red-700/50"
+                          />
+                        ) : (
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
+                            {displayInitials}
+                          </span>
+                        )}
+                        <span>
+                          {displayName}
+                        </span>
+                        {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
                       </span>
                     )
                   })}

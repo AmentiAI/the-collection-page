@@ -120,13 +120,16 @@ function buildCircleSelect(whereClause = '', limitClause = '', values: unknown[]
               'role', p.role,
               'joinedAt', p.joined_at,
               'completed', p.completed,
-              'completedAt', p.completed_at
+              'completedAt', p.completed_at,
+              'username', pr.username,
+              'avatarUrl', pr.avatar_url
             )
           ) FILTER (WHERE p.id IS NOT NULL),
           '[]'::json
         ) AS participants
       FROM summoning_powder_circles c
       LEFT JOIN summoning_powder_participants p ON p.circle_id = c.id
+      LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(p.wallet)
       ${whereClause}
       GROUP BY c.id, c.creator_wallet, c.creator_inscription_id, c.status, c.required_participants, c.locked_at, c.completed_at, c.expires_at, c.reward_granted, c.created_at, c.updated_at
       ORDER BY c.created_at DESC
