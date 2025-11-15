@@ -35,6 +35,30 @@ export async function POST(request: NextRequest) {
     try {
       await client.query('BEGIN')
 
+      // Check if wallet has any burns in abyss_burns table
+      const burnsCheck = await client.query(
+        `
+          SELECT COUNT(*)::int AS burn_count
+          FROM abyss_burns
+          WHERE LOWER(ordinal_wallet) = LOWER($1)
+          LIMIT 1
+        `,
+        [walletAddressRaw],
+      )
+
+      const burnCount = Number(burnsCheck.rows[0]?.burn_count ?? 0)
+      if (burnCount === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'You must have sacrificed at least one ordinal to the abyss before claiming ascension powder.',
+            requiresBurns: true,
+          },
+          { status: 403 },
+        )
+      }
+
       await client.query(
         `
           INSERT INTO profiles (wallet_address, ascension_powder)

@@ -14,6 +14,7 @@ import {
   Wallet,
   TrendingUp,
   Info,
+  ShieldCheck,
 } from 'lucide-react'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
@@ -49,7 +50,12 @@ interface RecoveryAnalysis {
   worthwhile: boolean
 }
 
-function SatRecoveryContent() {
+interface SatRecoveryContentProps {
+  isHolder?: boolean
+}
+
+function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
+  const holderAllowed = isHolder === true
   const toast = useToast()
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{
@@ -89,6 +95,10 @@ function SatRecoveryContent() {
 
   // Fetch wallet assets
   const fetchAssets = useCallback(async () => {
+    if (!holderAllowed) {
+      return
+    }
+
     if (!taprootAddress) {
       setAssets(null)
       setAssetsError(null)
@@ -127,14 +137,14 @@ function SatRecoveryContent() {
     } finally {
       setAssetsLoading(false)
     }
-  }, [taprootAddress, toast])
+  }, [holderAllowed, taprootAddress, toast])
 
-  // Auto-fetch assets when wallet is connected
+  // Auto-fetch assets when wallet is connected and holder verified
   useEffect(() => {
-    if (isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
+    if (holderAllowed && isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
       void fetchAssets()
     }
-  }, [isConnected, taprootAddress, fetchAssets])
+  }, [holderAllowed, isConnected, taprootAddress, fetchAssets])
 
   // Auto-analyze when assets are loaded (moved after analyzeRecoverable definition)
 
@@ -174,8 +184,18 @@ function SatRecoveryContent() {
   }, [feeRate])
 
   const analyzeRecoverable = useCallback(async () => {
-    if (!taprootAddress) {
-      setError('Please connect your wallet')
+    if (!holderAllowed) {
+      setError('Only verified holders can use this tool.')
+      return
+    }
+
+    if (!taprootAddress || !paymentAddress) {
+      setAnalysis(null)
+      setError(null)
+      return
+    }
+
+    if (loading || hasAnalyzedRef.current) {
       return
     }
 
@@ -186,41 +206,42 @@ function SatRecoveryContent() {
     try {
       const numericFeeRate = Number.parseFloat(feeRate)
       if (!Number.isFinite(numericFeeRate) || numericFeeRate <= 0) {
-        setError('Please enter a valid fee rate')
-        setLoading(false)
-        return
+        throw new Error('Invalid fee rate')
       }
 
       const response = await fetch('/api/sat-recovery/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          address: taprootAddress,
+          walletAddress: taprootAddress,
           taprootAddress,
-          paymentAddress: paymentAddress || taprootAddress,
+          paymentAddress,
           feeRate: numericFeeRate,
         }),
       })
 
-      const data = await response.json()
+      const payload = await response.json()
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to analyze recoverable sats')
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to analyze recoverable sats')
       }
 
-      setAnalysis(data.analysis)
+      setAnalysis(payload.analysis as RecoveryAnalysis)
+      hasAnalyzedRef.current = true
     } catch (err) {
-      console.error('Analysis error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to analyze recoverable sats')
+      console.error('Failed to analyze recoverable sats:', err)
+      const message = err instanceof Error ? err.message : 'Failed to analyze recoverable sats'
+      setError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }
-  }, [taprootAddress, feeRate])
+  }, [holderAllowed, taprootAddress, paymentAddress, feeRate, loading, toast])
 
   // Auto-analyze when assets are loaded (only once when assets first load)
   useEffect(() => {
-    // Skip if already analyzed or conditions not met
-    if (!assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
+    // Skip if not holder, already analyzed, or conditions not met
+    if (!holderAllowed || !assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
       return
     }
 
@@ -229,9 +250,14 @@ function SatRecoveryContent() {
       hasAnalyzedRef.current = true
       void analyzeRecoverable()
     }
-  }, [assets, recoverableInscriptions.length, feeRate, loading])
+  }, [holderAllowed, assets, recoverableInscriptions.length, feeRate, loading, analyzeRecoverable])
 
   const handleRecover = useCallback(async () => {
+    if (!holderAllowed) {
+      toast.error('Only verified holders can use this tool.')
+      return
+    }
+
     if (!analysis || !taprootAddress || !paymentAddress) {
       toast.error('Missing required addresses')
       return
@@ -368,10 +394,11 @@ function SatRecoveryContent() {
     } finally {
       setRecovering(false)
     }
-  }, [analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast, analyzeRecoverable])
+  }, [holderAllowed, analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast, analyzeRecoverable])
 
   const canRecover = useMemo(() => {
     return (
+      holderAllowed &&
       analysis &&
       analysis.worthwhile &&
       analysis.recoverable.length > 0 &&
@@ -379,7 +406,30 @@ function SatRecoveryContent() {
       paymentAddress &&
       !recovering
     )
-  }, [analysis, taprootAddress, paymentAddress, recovering])
+  }, [holderAllowed, analysis, taprootAddress, paymentAddress, recovering])
+
+  if (!holderAllowed) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+        <div className="container mx-auto flex flex-1 flex-col items-center justify-center gap-6 px-4 py-20">
+          <div className="flex max-w-2xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              Holder Access Only
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Sat Recovery Locked</h1>
+            <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+              Connect your wallet and complete holder verification in the header to unlock the sat recovery tool. Only
+              verified holders can recover excess satoshis from inscription UTXOs.
+            </p>
+            <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
+              Use the Verify Holder control in the header to confirm access.
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -524,7 +574,7 @@ function SatRecoveryContent() {
               />
               <Button
                 onClick={analyzeRecoverable}
-                disabled={loading || !taprootAddress}
+                disabled={loading || !taprootAddress || !holderAllowed}
                 className="w-full"
               >
                 {loading ? (
@@ -684,14 +734,14 @@ function SatRecoveryContent() {
 }
 
 export default function SatRecoveryPage() {
-  const [isHolder, setIsHolder] = useState<boolean | null>(null)
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
 
   return (
     <>
       <Header
-        isHolder={isHolder ?? undefined}
+        isHolder={isHolder}
         isVerifying={isVerifying}
         onHolderVerified={(holder) => {
           setIsHolder(holder)
@@ -702,7 +752,7 @@ export default function SatRecoveryPage() {
         onConnectedChange={setConnected}
       />
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
-        <SatRecoveryContent />
+        <SatRecoveryContent isHolder={isHolder} />
       </Suspense>
     </>
   )

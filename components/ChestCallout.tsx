@@ -66,6 +66,13 @@ export default function ChestCallout({ eventKey, size = 'md', className = '' }: 
       })
       const payload = await response.json().catch(() => null)
 
+      // Handle requiresBurns error case
+      if (payload?.requiresBurns) {
+        setChestGrantStatus('error')
+        toast.error(payload.error || 'You must have sacrificed at least one ordinal to the abyss before claiming ascension powder.')
+        return
+      }
+
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.error ?? 'Failed to grant ascension powder.')
       }
