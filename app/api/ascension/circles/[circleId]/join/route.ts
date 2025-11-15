@@ -209,7 +209,7 @@ export async function POST(
           UPDATE summoning_powder_circles
           SET status = 'ready',
               locked_at = NOW(),
-              expires_at = NOW() + INTERVAL '${CIRCLE_DURATION_MS / 1000} seconds',
+              expires_at = NOW() + INTERVAL '${Math.floor(CIRCLE_DURATION_MS / 1000)} seconds',
               updated_at = NOW()
           WHERE id = $1
         `,
