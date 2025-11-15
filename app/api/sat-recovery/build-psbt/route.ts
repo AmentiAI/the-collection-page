@@ -50,12 +50,20 @@ function estimateTransactionVsize(inputCount: number, taprootAddress: string, pa
   const isPaymentTaproot = isTaprootAddress(paymentAddress)
   const paymentOutputSize = isPaymentTaproot ? TAPROOT_OUTPUT_VBYTES : P2WPKH_OUTPUT_VBYTES
   
-  return (
+  const baseVsize = (
     TX_OVERHEAD_VBYTES +
     inputCount * TAPROOT_INPUT_VBYTES +
     inscriptionOutputs * TAPROOT_OUTPUT_VBYTES +
     paymentOutputs * paymentOutputSize
   )
+  
+  // Add 1% buffer for P2WPKH addresses to account for witness data variations
+  // This helps ensure fees are slightly overestimated rather than underestimated
+  if (!isPaymentTaproot) {
+    return Math.ceil(baseVsize * 1.01)
+  }
+  
+  return baseVsize
 }
 
 export async function POST(request: NextRequest) {

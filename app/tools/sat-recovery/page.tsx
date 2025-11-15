@@ -21,6 +21,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import ChestCallout from '@/components/ChestCallout'
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import type { CategorisedWalletAssets, InscriptionUtxo } from '@/lib/sandshrew'
 
 const formatSats = (value: number) => `${value.toLocaleString()} sats`
@@ -55,16 +56,18 @@ interface SatRecoveryContentProps {
 }
 
 function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
-  const holderAllowed = isHolder === true
   const toast = useToast()
   const { isConnected, currentAddress, client } = useWallet()
   const laserEyes = useLaserEyes() as Partial<{
+    address: string | null
     paymentAddress: string
     paymentPublicKey: string
     publicKey: string
   }>
 
-  const taprootAddress = currentAddress?.trim() || ''
+  // Use LaserEyes address directly if available, fallback to useWallet address
+  // This ensures we get the address even if there's a timing issue with useWallet
+  const taprootAddress = (laserEyes.address || currentAddress)?.trim() || ''
   const paymentAddress = laserEyes.paymentAddress?.trim() || ''
 
   const [assets, setAssets] = useState<CategorisedWalletAssets | null>(null)
@@ -95,7 +98,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
 
   // Fetch wallet assets
   const fetchAssets = useCallback(async () => {
-    if (!holderAllowed) {
+    if (isHolder !== true) {
       return
     }
 
@@ -137,14 +140,14 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
     } finally {
       setAssetsLoading(false)
     }
-  }, [holderAllowed, taprootAddress, toast])
+  }, [isHolder, taprootAddress, toast])
 
   // Auto-fetch assets when wallet is connected and holder verified
   useEffect(() => {
-    if (holderAllowed && isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
+    if (isHolder === true && isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
       void fetchAssets()
     }
-  }, [holderAllowed, isConnected, taprootAddress, fetchAssets])
+  }, [isHolder, isConnected, taprootAddress, fetchAssets])
 
   // Auto-analyze when assets are loaded (moved after analyzeRecoverable definition)
 
@@ -184,24 +187,32 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
   }, [feeRate])
 
   const analyzeRecoverable = useCallback(async () => {
-    if (!holderAllowed) {
+    if (isHolder !== true) {
       setError('Only verified holders can use this tool.')
       return
     }
 
-    if (!taprootAddress || !paymentAddress) {
-      setAnalysis(null)
-      setError(null)
+    // Ensure we have a valid address before proceeding
+    if (!taprootAddress || taprootAddress.length === 0) {
+      const errorMsg = isConnected
+        ? 'Wallet address is not available. Please try reconnecting your wallet.'
+        : 'Please connect your wallet to analyze recoverable sats.'
+      setError(errorMsg)
+      toast.error(errorMsg)
       return
     }
 
-    if (loading || hasAnalyzedRef.current) {
+    // Use taproot address as fallback for payment address if not available
+    const effectivePaymentAddress = paymentAddress || taprootAddress
+
+    if (loading) {
       return
     }
 
     setLoading(true)
     setError(null)
     setAnalysis(null)
+    // Don't reset hasAnalyzedRef here - let it be set after successful analysis
 
     try {
       const numericFeeRate = Number.parseFloat(feeRate)
@@ -209,13 +220,24 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
         throw new Error('Invalid fee rate')
       }
 
+      // Log the addresses being sent for debugging
+      console.log('[sat-recovery] Analyzing with addresses:', {
+        address: taprootAddress,
+        taprootAddress,
+        paymentAddress: effectivePaymentAddress,
+        feeRate: numericFeeRate,
+        hasLaserEyesAddress: !!laserEyes.address,
+        hasCurrentAddress: !!currentAddress,
+        isConnected,
+      })
+
       const response = await fetch('/api/sat-recovery/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          walletAddress: taprootAddress,
+          address: taprootAddress, // API expects 'address' not 'walletAddress'
           taprootAddress,
-          paymentAddress,
+          paymentAddress: effectivePaymentAddress,
           feeRate: numericFeeRate,
         }),
       })
@@ -236,12 +258,17 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
     } finally {
       setLoading(false)
     }
-  }, [holderAllowed, taprootAddress, paymentAddress, feeRate, loading, toast])
+  }, [isHolder, taprootAddress, paymentAddress, feeRate, loading, toast])
 
   // Auto-analyze when assets are loaded (only once when assets first load)
   useEffect(() => {
     // Skip if not holder, already analyzed, or conditions not met
-    if (!holderAllowed || !assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
+    if (isHolder !== true || !assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
+      return
+    }
+
+    // Only auto-analyze if we have both addresses (or can use taproot as fallback)
+    if (!taprootAddress) {
       return
     }
 
@@ -250,18 +277,21 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
       hasAnalyzedRef.current = true
       void analyzeRecoverable()
     }
-  }, [holderAllowed, assets, recoverableInscriptions.length, feeRate, loading, analyzeRecoverable])
+  }, [isHolder, assets, recoverableInscriptions.length, feeRate, loading, analyzeRecoverable, taprootAddress])
 
   const handleRecover = useCallback(async () => {
-    if (!holderAllowed) {
+    if (isHolder !== true) {
       toast.error('Only verified holders can use this tool.')
       return
     }
 
-    if (!analysis || !taprootAddress || !paymentAddress) {
+    if (!analysis || !taprootAddress) {
       toast.error('Missing required addresses')
       return
     }
+
+    // Use taproot address as fallback for payment address if not available
+    const effectivePaymentAddress = paymentAddress || taprootAddress
 
     if (!client) {
       toast.error('Wallet client not available')
@@ -300,7 +330,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
             value: ins.value,
           })),
           taprootAddress,
-          paymentAddress,
+          paymentAddress: effectivePaymentAddress,
           paymentPublicKey: laserEyes.paymentPublicKey,
           taprootPublicKey: laserEyes.publicKey,
           feeRate: numericFeeRate,
@@ -394,40 +424,39 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
     } finally {
       setRecovering(false)
     }
-  }, [holderAllowed, analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast, analyzeRecoverable])
+  }, [isHolder, analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast, analyzeRecoverable])
 
   const canRecover = useMemo(() => {
     return (
-      holderAllowed &&
+      isHolder === true &&
       analysis &&
       analysis.worthwhile &&
       analysis.recoverable.length > 0 &&
       taprootAddress &&
-      paymentAddress &&
       !recovering
     )
-  }, [holderAllowed, analysis, taprootAddress, paymentAddress, recovering])
+  }, [isHolder, analysis, taprootAddress, recovering])
 
-  if (!holderAllowed) {
+  // Show locked page only if explicitly checked and confirmed not a holder (isHolder === false)
+  // When isHolder is undefined, we show the page content (but functionality is disabled)
+  if (isHolder === false) {
     return (
-      <div className="flex min-h-screen flex-col bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <div className="container mx-auto flex flex-1 flex-col items-center justify-center gap-6 px-4 py-20">
-          <div className="flex max-w-2xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              Holder Access Only
-            </div>
-            <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Sat Recovery Locked</h1>
-            <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
-              Connect your wallet and complete holder verification in the header to unlock the sat recovery tool. Only
-              verified holders can recover excess satoshis from inscription UTXOs.
-            </p>
-            <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
-              Use the Verify Holder control in the header to confirm access.
-            </div>
+      <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 px-4 py-20 text-zinc-200 md:px-8">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            Holder Access Only
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Sat Recovery Locked</h1>
+          <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+            Connect your wallet and complete holder verification in the header to unlock the sat recovery tool. Only
+            verified holders can recover excess satoshis from inscription UTXOs.
+          </p>
+          <div className="text-xs font-mono uppercase tracking-[0.35em] text-red-200/70">
+            Use the Verify Holder control in the header to confirm access.
           </div>
         </div>
-      </div>
+      </main>
     )
   }
 
@@ -572,9 +601,16 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
                 min="1"
                 step="1"
               />
+              {!paymentAddress && isConnected && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-center">
+                  <p className="text-xs text-amber-200">
+                    Waiting for payment address... If this persists, try reconnecting your wallet.
+                  </p>
+                </div>
+              )}
               <Button
                 onClick={analyzeRecoverable}
-                disabled={loading || !taprootAddress || !holderAllowed}
+                disabled={loading || !taprootAddress || isHolder !== true}
                 className="w-full"
               >
                 {loading ? (
@@ -596,6 +632,21 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
                 <div className="flex items-center gap-2 text-red-200">
                   <AlertCircle className="h-5 w-5" />
                   <p>{error}</p>
+                </div>
+              </div>
+            )}
+
+            {!recoveryTxid && !analysis && !loading && recoverableInscriptions.length > 0 && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-6">
+                <div className="flex items-center gap-3 text-blue-200">
+                  <Info className="h-6 w-6" />
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold">Ready to analyze</p>
+                    <p className="text-sm text-blue-300">
+                      Found {recoverableInscriptions.length} inscription{recoverableInscriptions.length !== 1 ? 's' : ''} with UTXO value &gt; 876 sats.
+                      Click &quot;Analyze Recoverable Sats&quot; above to calculate recoverable amounts.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -739,7 +790,7 @@ export default function SatRecoveryPage() {
   const [connected, setConnected] = useState(false)
 
   return (
-    <>
+    <LaserEyesWrapper>
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -754,7 +805,7 @@ export default function SatRecoveryPage() {
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
         <SatRecoveryContent isHolder={isHolder} />
       </Suspense>
-    </>
+    </LaserEyesWrapper>
   )
 }
 
