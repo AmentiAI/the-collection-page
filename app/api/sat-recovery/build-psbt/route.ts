@@ -30,6 +30,11 @@ interface BuildRecoveryPsbtRequest {
   paymentPublicKey?: string
   taprootPublicKey?: string
   feeRate: number
+  additionalPaymentInput?: {
+    txid: string
+    vout: number
+    value: number
+  } | null
 }
 
 function isTaprootAddress(address: string): boolean {
@@ -37,14 +42,23 @@ function isTaprootAddress(address: string): boolean {
   return address.startsWith('bc1p') && address.length === 62
 }
 
-function estimateTransactionVsize(inputCount: number, taprootAddress: string, paymentAddress: string): number {
+function estimateTransactionVsize(
+  inputCount: number, 
+  taprootAddress: string, 
+  paymentAddress: string,
+  inscriptionInputCount?: number,
+  hasChangeOutput?: boolean
+): number {
   // For sat recovery transactions:
-  // - inputCount taproot inputs (58 vbytes each)
-  // - inputCount taproot outputs for inscriptions (43 vbytes each)
-  // - inputCount payment outputs (taproot if bc1p, 43 vbytes; P2WPKH if bc1q, 31 vbytes)
+  // - inputCount total inputs (taproot, 58 vbytes each)
+  // - inscriptionInputCount inscription outputs (taproot, 43 vbytes each) - defaults to inputCount
+  // - inscriptionInputCount payment outputs (taproot if bc1p, 43 vbytes; P2WPKH if bc1q, 31 vbytes)
+  // - 1 change output if hasChangeOutput (same type as payment outputs)
   // - Transaction overhead (10 vbytes)
-  const inscriptionOutputs = inputCount
-  const paymentOutputs = inputCount
+  const actualInscriptionInputs = inscriptionInputCount ?? inputCount
+  const inscriptionOutputs = actualInscriptionInputs
+  const paymentOutputs = actualInscriptionInputs
+  const changeOutputs = hasChangeOutput ? 1 : 0
   
   // Check if payment address is also taproot
   const isPaymentTaproot = isTaprootAddress(paymentAddress)
@@ -54,15 +68,19 @@ function estimateTransactionVsize(inputCount: number, taprootAddress: string, pa
     TX_OVERHEAD_VBYTES +
     inputCount * TAPROOT_INPUT_VBYTES +
     inscriptionOutputs * TAPROOT_OUTPUT_VBYTES +
-    paymentOutputs * paymentOutputSize
+    paymentOutputs * paymentOutputSize +
+    changeOutputs * paymentOutputSize
   )
   
-  // Add 1% buffer for P2WPKH addresses to account for witness data variations
-  // This helps ensure fees are slightly overestimated rather than underestimated
+  // Add buffer to account for witness data variations
+  // 1% buffer for P2WPKH addresses
+  // No buffer for taproot addresses (they're more predictable, and we want to avoid overestimation)
   if (!isPaymentTaproot) {
     return Math.ceil(baseVsize * 1.01)
   }
   
+  // For all-taproot transactions, return base size without buffer
+  // Taproot transactions have more predictable witness data, so we don't need a buffer
   return baseVsize
 }
 
@@ -153,84 +171,172 @@ export async function POST(request: NextRequest) {
       totalInputValue += output.value
     }
 
+    // Add additional payment input if provided (to cover shortfall)
+    if (body.additionalPaymentInput) {
+      const additionalInput = body.additionalPaymentInput
+      const additionalTx = await fetchSandshrewTx(additionalInput.txid)
+      const additionalOutput = additionalTx.vout?.[additionalInput.vout]
+
+      if (!additionalOutput) {
+        throw new Error(`Transaction ${additionalInput.txid} does not have output index ${additionalInput.vout}`)
+      }
+
+      if (typeof additionalOutput.value !== 'number') {
+        throw new Error(`Transaction output missing value for ${additionalInput.txid}:${additionalInput.vout}`)
+      }
+
+      if (!additionalOutput.scriptpubkey) {
+        throw new Error(`Transaction output missing scriptpubkey for ${additionalInput.txid}:${additionalInput.vout}`)
+      }
+
+      const additionalIndex = body.inputs.length
+      psbt.addInput({
+        hash: additionalInput.txid,
+        index: additionalInput.vout,
+        witnessUtxo: {
+          script: Buffer.from(additionalOutput.scriptpubkey, 'hex'),
+          value: BigInt(additionalOutput.value),
+        },
+      })
+
+      // Add signing info for additional payment input
+      const additionalAddress = additionalOutput.scriptpubkey_address ?? body.paymentAddress
+      if (additionalAddress) {
+        addInputSigningInfo(
+          psbt,
+          additionalIndex,
+          additionalAddress,
+          body.paymentPublicKey,
+          body.taprootPublicKey,
+          additionalOutput.value,
+        )
+      }
+
+      totalInputValue += additionalOutput.value
+    }
+
     // Calculate outputs
-    // FIFO RULE: Each input maps to its two outputs in order
-    // Fees are ONLY deducted from the very last output
+    // FIFO RULE: Each inscription input maps to its two outputs in order
+    // Fees are ONLY deducted from the very last inscription payment output
+    // Additional payment input (if present) contributes to change output
     
     // Input 1 → Output 0 (inscription) + Output 1 (payment)
     // Input 2 → Output 2 (inscription) + Output 3 (payment - fees here)
     // Input 3 → Output 4 (inscription) + Output 5 (payment - fees here if last)
+    // Additional payment input → change output (if >= 546)
     
-    const inputCount = body.inputs.length
-    const outputCount = inputCount * 2 // Two outputs per inscription (inscription + payment)
-    const estimatedVsize = estimateTransactionVsize(inputCount, body.taprootAddress, body.paymentAddress)
+    const inputCount = body.inputs.length + (body.additionalPaymentInput ? 1 : 0)
+    const inscriptionInputCount = body.inputs.length
+    // When payment input is added: inscriptionInputCount inscription inputs + 1 payment input
+    // Outputs: inscriptionInputCount inscription + inscriptionInputCount payment + 1 change (if >= 546)
+    // We'll estimate assuming change output exists (worst case for fee estimation)
+    const hasChangeOutput = body.additionalPaymentInput ? true : false
+    const estimatedVsize = estimateTransactionVsize(inputCount, body.taprootAddress, body.paymentAddress, inscriptionInputCount, hasChangeOutput)
     const estimatedFee = Math.ceil(estimatedVsize * feeRate)
 
     console.log('[sat-recovery/build-psbt] Calculation:', {
       inputCount,
-      outputCount,
+      inscriptionInputCount,
       estimatedVsize,
       estimatedFee,
       feeRate,
       totalInputValue,
     })
 
-    // Calculate outputs for each input using FIFO
-    // Each input contributes: 330 (inscription) + (input_value - 330) (payment)
-    // Fees are ONLY taken from the last payment output
+    // Calculate outputs for each inscription input using FIFO
+    // Each inscription input contributes: 330 (inscription) + (input_value - 330) (payment)
+    // When payment input is added, fees come ONLY from the payment input, not inscription outputs
     const outputValues: number[] = []
     
-    for (let i = 0; i < inputCount; i++) {
+    for (let i = 0; i < inscriptionInputCount; i++) {
       const inputValue = body.inputs[i].value
       
       // Inscription output: always 330
       outputValues.push(MIN_INSCRIPTION_OUTPUT)
       
-      // Payment output: input_value - 330
-      // For the last input, also subtract fees
+      // Payment output: input_value - 330 (NO fees deducted from inscription outputs)
       const paymentOutput = inputValue - MIN_INSCRIPTION_OUTPUT
-      if (i === inputCount - 1) {
-        // Last output: subtract fees
-        const lastPaymentOutput = paymentOutput - estimatedFee
-        if (lastPaymentOutput < MIN_PAYMENT_OUTPUT) {
-          console.error('[sat-recovery/build-psbt] Last payment output too small after fees:', {
-            inputIndex: i,
-            inputValue,
-            inscriptionOutput: MIN_INSCRIPTION_OUTPUT,
-            paymentOutput,
-            estimatedFee,
-            lastPaymentOutput,
-            minRequired: MIN_PAYMENT_OUTPUT,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Insufficient value after fees. Last payment output would be ${lastPaymentOutput} sats (minimum ${MIN_PAYMENT_OUTPUT} sats required). Fee: ${estimatedFee} sats`,
-            },
-            { status: 400 },
-          )
-        }
-        outputValues.push(lastPaymentOutput)
+      
+      // Check minimum (but if payment input is added, it will cover shortfall)
+      if (!body.additionalPaymentInput && paymentOutput < MIN_PAYMENT_OUTPUT) {
+        console.error('[sat-recovery/build-psbt] Payment output too small:', {
+          inputIndex: i,
+          inputValue,
+          inscriptionOutput: MIN_INSCRIPTION_OUTPUT,
+          paymentOutput,
+          minRequired: MIN_PAYMENT_OUTPUT,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insufficient value in input ${i + 1}. Payment output would be ${paymentOutput} sats (minimum ${MIN_PAYMENT_OUTPUT} sats required).`,
+          },
+          { status: 400 },
+        )
+      }
+      
+      // If payment input is added and this is the last inscription, ensure it meets minimum
+      if (body.additionalPaymentInput && i === inscriptionInputCount - 1 && paymentOutput < MIN_PAYMENT_OUTPUT) {
+        // Adjust to minimum (shortfall will be covered by payment input)
+        outputValues.push(MIN_PAYMENT_OUTPUT)
       } else {
-        // Not last output: no fees deducted
-        if (paymentOutput < MIN_PAYMENT_OUTPUT) {
-          console.error('[sat-recovery/build-psbt] Payment output too small:', {
-            inputIndex: i,
-            inputValue,
-            inscriptionOutput: MIN_INSCRIPTION_OUTPUT,
-            paymentOutput,
-            minRequired: MIN_PAYMENT_OUTPUT,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Insufficient value in input ${i + 1}. Payment output would be ${paymentOutput} sats (minimum ${MIN_PAYMENT_OUTPUT} sats required).`,
-            },
-            { status: 400 },
-          )
-        }
         outputValues.push(paymentOutput)
       }
+    }
+    
+    // Calculate change output if additional payment input was added
+    // Payment input pays: shortfall (if any) + all fees
+    // Change = payment input value - shortfall - fees
+    if (body.additionalPaymentInput) {
+      const totalInscriptionOutputs = inscriptionInputCount * MIN_INSCRIPTION_OUTPUT
+      const totalPaymentOutputs = outputValues.filter((_, i) => i % 2 === 1).reduce((sum, val) => sum + val, 0)
+      const totalOutputsValue = totalInscriptionOutputs + totalPaymentOutputs
+      const changeOutput = totalInputValue - totalOutputsValue - estimatedFee
+      
+      if (changeOutput >= MIN_PAYMENT_OUTPUT) {
+        // Add change output back to payment address
+        outputValues.push(changeOutput)
+      } else if (changeOutput < 0) {
+        // This shouldn't happen if the analysis was correct, but handle it
+        console.error('[sat-recovery/build-psbt] Change output is negative:', {
+          totalInputValue,
+          totalOutputsValue,
+          estimatedFee,
+          changeOutput,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insufficient value to cover outputs and fees. Shortfall: ${Math.abs(changeOutput)} sats`,
+          },
+          { status: 400 },
+        )
+      }
+      // If changeOutput is 0 < changeOutput < 546, it's absorbed into the fee (dust)
+    } else {
+      // No payment input: fees must come from last inscription payment output
+      const lastPaymentOutputIndex = (inscriptionInputCount - 1) * 2 + 1
+      const lastPaymentOutput = outputValues[lastPaymentOutputIndex]
+      const lastPaymentOutputAfterFee = lastPaymentOutput - estimatedFee
+      
+      if (lastPaymentOutputAfterFee < MIN_PAYMENT_OUTPUT) {
+        console.error('[sat-recovery/build-psbt] Last payment output too small after fees:', {
+          lastPaymentOutput,
+          estimatedFee,
+          lastPaymentOutputAfterFee,
+          minRequired: MIN_PAYMENT_OUTPUT,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insufficient value after fees. Last payment output would be ${lastPaymentOutputAfterFee} sats (minimum ${MIN_PAYMENT_OUTPUT} sats required). Fee: ${estimatedFee} sats`,
+          },
+          { status: 400 },
+        )
+      }
+      
+      // Update last payment output to deduct fees
+      outputValues[lastPaymentOutputIndex] = lastPaymentOutputAfterFee
     }
 
     // Calculate total output value
@@ -271,11 +377,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Add outputs: FIFO order
-    // For each input: inscription output (330) then payment output (input_value - 330)
-    // Fees only deducted from last payment output
+    // For each inscription input: inscription output (330) then payment output (input_value - 330)
+    // Fees only deducted from last inscription payment output
+    // If additional payment input exists, add change output at the end
     const outputsAdded: Array<{ type: string; value: number }> = []
     
-    for (let i = 0; i < inputCount; i++) {
+    for (let i = 0; i < inscriptionInputCount; i++) {
       const outputIndex = i * 2
       
       // Inscription output to taproot (always 330)
@@ -297,6 +404,19 @@ export async function POST(request: NextRequest) {
         value: paymentValue,
       })
     }
+    
+    // Add change output if additional payment input was added
+    if (body.additionalPaymentInput && outputValues.length > inscriptionInputCount * 2) {
+      const changeValue = outputValues[outputValues.length - 1]
+      psbt.addOutput({
+        script: paymentOutputScript,
+        value: BigInt(changeValue),
+      })
+      outputsAdded.push({ 
+        type: 'change', 
+        value: changeValue,
+      })
+    }
 
     console.log('[sat-recovery/build-psbt] Outputs added (FIFO):', {
       count: outputsAdded.length,
@@ -313,8 +433,10 @@ export async function POST(request: NextRequest) {
     })
 
     // Verify outputs were added correctly
-    if (outputsAdded.length !== outputCount) {
-      const errorMsg = `Output count mismatch: expected ${outputCount}, got ${outputsAdded.length}`
+    const expectedOutputCount = inscriptionInputCount * 2 + (body.additionalPaymentInput && outputValues.length > inscriptionInputCount * 2 ? 1 : 0)
+    const outputCount = expectedOutputCount
+    if (outputsAdded.length !== expectedOutputCount) {
+      const errorMsg = `Output count mismatch: expected ${expectedOutputCount}, got ${outputsAdded.length}`
       console.error('[sat-recovery/build-psbt]', errorMsg)
       return NextResponse.json(
         {

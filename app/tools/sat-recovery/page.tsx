@@ -36,7 +36,10 @@ interface OrdinalContentMetadata {
 
 const formatSats = (value: number) => `${value.toLocaleString()} sats`
 
-const MIN_WORTHWHILE_RECOVERY = 950
+// Feature flag to temporarily bypass holder check
+const BYPASS_HOLDER_CHECK = false
+
+const MIN_WORTHWHILE_RECOVERY = 1
 const MIN_INSCRIPTION_UTXO_VALUE = 877 // > 876 sats
 
 interface RecoverableInscription {
@@ -59,6 +62,12 @@ interface RecoveryAnalysis {
   totalOutputs: number
   estimatedVsize: number
   worthwhile: boolean
+  additionalPaymentInput?: {
+    txid: string
+    vout: number
+    value: number
+    outpoint: string
+  } | null
 }
 
 interface SatRecoveryContentProps {
@@ -108,7 +117,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
 
   // Fetch wallet assets
   const fetchAssets = useCallback(async (force = false) => {
-    if (isHolder !== true) {
+    if (!BYPASS_HOLDER_CHECK && isHolder !== true) {
       return
     }
 
@@ -155,7 +164,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
 
   // Auto-fetch assets when wallet is connected and holder verified
   useEffect(() => {
-    if (isHolder === true && isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
+    if ((BYPASS_HOLDER_CHECK || isHolder === true) && isConnected && taprootAddress && taprootAddress !== lastFetchedRef.current) {
       void fetchAssets()
     }
   }, [isHolder, isConnected, taprootAddress, fetchAssets])
@@ -198,7 +207,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
   }, [feeRate])
 
   const analyzeRecoverable = useCallback(async () => {
-    if (isHolder !== true) {
+    if (!BYPASS_HOLDER_CHECK && isHolder !== true) {
       setError('Only verified holders can use this tool.')
       return
     }
@@ -274,7 +283,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
   // Auto-analyze when assets are loaded (only once when assets first load)
   useEffect(() => {
     // Skip if not holder, already analyzed, or conditions not met
-    if (isHolder !== true || !assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
+    if ((!BYPASS_HOLDER_CHECK && isHolder !== true) || !assets || recoverableInscriptions.length === 0 || !feeRate || loading || hasAnalyzedRef.current) {
       return
     }
 
@@ -291,7 +300,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
   }, [isHolder, assets, recoverableInscriptions.length, feeRate, loading, analyzeRecoverable, taprootAddress])
 
   const handleRecover = useCallback(async () => {
-    if (isHolder !== true) {
+    if (!BYPASS_HOLDER_CHECK && isHolder !== true) {
       toast.error('Only verified holders can use this tool.')
       return
     }
@@ -345,6 +354,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
           paymentPublicKey: laserEyes.paymentPublicKey,
           taprootPublicKey: laserEyes.publicKey,
           feeRate: numericFeeRate,
+          additionalPaymentInput: analysis.additionalPaymentInput || null,
         }),
       })
 
@@ -439,7 +449,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
 
   const canRecover = useMemo(() => {
     return (
-      isHolder === true &&
+      (BYPASS_HOLDER_CHECK || isHolder === true) &&
       analysis &&
       analysis.worthwhile &&
       analysis.recoverable.length > 0 &&
@@ -450,7 +460,8 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
 
   // Show locked page only if explicitly checked and confirmed not a holder (isHolder === false)
   // When isHolder is undefined, we show the page content (but functionality is disabled)
-  if (isHolder === false) {
+  // Bypass if feature flag is enabled
+  if (!BYPASS_HOLDER_CHECK && isHolder === false) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 px-4 py-20 text-zinc-200 md:px-8">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
@@ -621,7 +632,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
               )}
               <Button
                 onClick={analyzeRecoverable}
-                disabled={loading || !taprootAddress || isHolder !== true}
+                disabled={loading || !taprootAddress || (!BYPASS_HOLDER_CHECK && isHolder !== true)}
                 className="w-full"
               >
                 {loading ? (
@@ -771,6 +782,11 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
                                   <p className="text-lg font-semibold text-emerald-400">
                                     Recoverable: {formatSats(ins.recoverableSats)}
                                   </p>
+                                  {ins.fee > 0 && (
+                                    <p className="text-xs text-slate-500">
+                                      Fee: {formatSats(ins.fee)}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </div>
