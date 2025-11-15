@@ -235,41 +235,79 @@ export async function POST(request: NextRequest) {
 
     await pool.query('BEGIN')
 
-    // Check if this user already has 6 active circles
-    const userActiveCountRes = await pool.query(
-      `
-        SELECT COUNT(*)::int AS active_count
-        FROM summoning_powder_circles
-        WHERE LOWER(creator_wallet) = LOWER($1)
-          AND status IN ('open', 'filling', 'ready')
-      `,
-      [creatorWallet],
+    // Use advisory lock to prevent race conditions when checking/creating circles
+    // Hash the wallet address to a bigint for the lock key
+    const lockKey = await pool.query(
+      `SELECT hashtext($1)::bigint AS lock_key`,
+      [creatorWallet.toLowerCase()],
     )
-    const userActiveCount = Number(userActiveCountRes.rows[0]?.active_count ?? 0)
+    const lockKeyValue = Number(lockKey.rows[0]?.lock_key ?? 0)
     
-    if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user. Please wait for a circle to complete or expire.` },
-        { status: 409 },
-      )
-    }
+    try {
+      // Acquire advisory lock (will wait if another request is processing for this wallet)
+      await pool.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
 
-    // Check if there are already 10 active circles globally
-    const globalActiveCountRes = await pool.query(
-      `
-        SELECT COUNT(*)::int AS active_count
-        FROM summoning_powder_circles
-        WHERE status IN ('open', 'filling', 'ready')
-      `,
-    )
-    const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
-    
-    if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
+      // Check if this user already has 6 active circles
+      // Lock existing rows to prevent concurrent creation
+      await pool.query(
+        `
+          SELECT id FROM summoning_powder_circles
+          WHERE LOWER(creator_wallet) = LOWER($1)
+            AND status IN ('open', 'filling', 'ready')
+          FOR UPDATE
+        `,
+        [creatorWallet],
+      )
+      const userActiveCountRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS active_count
+          FROM summoning_powder_circles
+          WHERE LOWER(creator_wallet) = LOWER($1)
+            AND status IN ('open', 'filling', 'ready')
+        `,
+        [creatorWallet],
+      )
+      const userActiveCount = Number(userActiveCountRes.rows[0]?.active_count ?? 0)
+      
+      if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
+        await pool.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user. Please wait for a circle to complete or expire.` },
+          { status: 409 },
+        )
+      }
+
+      // Check if there are already 10 active circles globally
+      // Lock existing rows to prevent concurrent creation
+      await pool.query(
+        `
+          SELECT id FROM summoning_powder_circles
+          WHERE status IN ('open', 'filling', 'ready')
+          FOR UPDATE
+        `,
+      )
+      const globalActiveCountRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS active_count
+          FROM summoning_powder_circles
+          WHERE status IN ('open', 'filling', 'ready')
+        `,
+      )
+      const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
+      
+      if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
+        await pool.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active circles allowed globally. Please wait for a circle to complete or expire.` },
+          { status: 409 },
+        )
+      }
+    } catch (lockError) {
       await pool.query('ROLLBACK')
+      console.error('Lock error:', lockError)
       return NextResponse.json(
-        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active circles allowed globally. Please wait for a circle to complete or expire.` },
-        { status: 409 },
+        { success: false, error: 'Failed to acquire lock. Please try again.' },
+        { status: 503 },
       )
     }
 
