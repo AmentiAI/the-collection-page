@@ -149,7 +149,9 @@ export async function POST(request: NextRequest) {
     const recoverableInscriptions: RecoverableInscription[] = []
 
     for (const inscription of assets.inscriptions) {
-      if (inscription.value > MIN_INSCRIPTION_UTXO_VALUE) {
+      // Only include UTXOs with exactly 1 inscription
+      // Skip UTXOs with multiple inscriptions (more than 1)
+      if (inscription.value > MIN_INSCRIPTION_UTXO_VALUE && inscription.inscriptions.length === 1) {
         recoverableInscriptions.push({
           txid: inscription.txid,
           vout: inscription.vout,
