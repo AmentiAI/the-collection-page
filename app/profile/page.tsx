@@ -177,6 +177,12 @@ function ProfileContent() {
               >
                 <Trophy className="h-4 w-4" /> Summoners Leaderboard
               </Link>
+              <Link
+                href="/ascension/leaderboard"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
+              >
+                <Trophy className="h-4 w-4" /> Ascension Leaderboard
+              </Link>
             </div>
           )}
         </section>
