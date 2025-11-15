@@ -78,7 +78,8 @@ const STRATEGY_COPY: Record<SpeedupStrategy, { title: string; blurb: string; acc
 
 const TOOL_LINKS = [
   { name: 'Transaction Speedup', href: '/tools/speedup' },
-  { name: 'Cancel Transaction', href: '/tools/cancel' }
+  { name: 'Cancel Transaction', href: '/tools/cancel' },
+  { name: 'Sat Recovery', href: '/tools/sat-recovery' },
 ]
 
 const formatRate = (value: number | null | undefined, digits = 2) =>

@@ -24,6 +24,12 @@ const liveTools = [
     description: 'RBF an opt-in send back to your payment wallet when miners ignore it.',
     href: '/tools/cancel',
     icon: Undo2
+  },
+  {
+    name: 'Sat Recovery',
+    description: 'Recover excess satoshis from inscription UTXOs. Split oversized UTXOs: 330 sats back to taproot (preserve inscription) and remainder to payment wallet.',
+    href: '/tools/sat-recovery',
+    icon: Coins
   }
 ]
 
@@ -32,11 +38,6 @@ const upcomingTools = [
     name: 'Inscriptions Management',
     description: 'Streamline batch inscription housekeeping with queue-based actions.',
     icon: Package
-  },
-  {
-    name: 'Recover Padding Sats',
-    description: 'Pull back the extra sats sitting in oversized inscription UTXOs.',
-    icon: Coins
   },
   {
     name: 'Transfer Inscriptions',
@@ -85,9 +86,7 @@ export default function ToolsLandingContent() {
             <h1 className="text-4xl font-black uppercase tracking-[0.55em] text-blue-200 md:text-5xl">
               Pools of the Damned
             </h1>
-            <p className="mx-auto max-w-2xl text-sm text-zinc-400 md:text-base">
-              Choose a live pool to accelerate your transaction, or watch for the next ritual to unlock.
-            </p>
+          
             {connected && isHolder && (
               <p className="text-xs uppercase tracking-[0.4em] text-emerald-300">Access granted — The Damned recognize you.</p>
             )}

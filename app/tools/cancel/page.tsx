@@ -52,7 +52,8 @@ const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(
 
 const TOOL_LINKS = [
   { name: 'Transaction Speedup', href: '/tools/speedup' },
-  { name: 'Cancel Transaction', href: '/tools/cancel' }
+  { name: 'Cancel Transaction', href: '/tools/cancel' },
+  { name: 'Sat Recovery', href: '/tools/sat-recovery' },
 ]
 
 const QUICK_RATE_PRESETS = [2, 3, 5, 10]
