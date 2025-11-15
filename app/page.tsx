@@ -5,8 +5,6 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useRef } from 'react'
 import dynamicImport from 'next/dynamic'
 import Image from 'next/image'
-import { useWallet } from '@/lib/wallet/compatibility'
-import { useToast } from '@/components/Toast'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
 import Filters from '@/components/Filters'
@@ -14,7 +12,6 @@ import Gallery from '@/components/Gallery'
 import BackgroundMusic from '@/components/BackgroundMusic'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
-import ChestCallout from '@/components/ChestCallout'
 import { Ordinal, Trait } from '@/types'
 
 const LaserEyesWrapper = dynamicImport(
@@ -173,7 +170,6 @@ export default function Home() {
                 </main>
               </div>
             </div>
-            <ChestCallout eventKey="treasure_chest_initial" size="md" className="mt-6 pb-12" />
           </main>
           {selectedOrdinal && (
             <Modal ordinal={selectedOrdinal} onClose={() => setSelectedOrdinal(null)} />
