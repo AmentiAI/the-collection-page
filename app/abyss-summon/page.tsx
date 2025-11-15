@@ -125,6 +125,7 @@ export default function AbyssSummonPage() {
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
   const [burnCount, setBurnCount] = useState<number | null>(null)
+  const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
   const [musicReady, setMusicReady] = useState(false)
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
@@ -311,6 +312,20 @@ export default function AbyssSummonPage() {
           ? Number(data?.powderBalance ?? 0)
           : Number(data?.bonusAllowance ?? 0)
         setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
+
+        // Track which inscriptions are already in active circles
+        const allActiveSummons = [...openSummons, ...created, ...joined].filter((s) =>
+          ACTIVE_SUMMON_STATUSES.has(s.status),
+        )
+        const inUseInscriptions = new Set<string>()
+        for (const summon of allActiveSummons) {
+          for (const participant of summon.participants) {
+            if (participant.inscriptionId) {
+              inUseInscriptions.add(participant.inscriptionId)
+            }
+          }
+        }
+        setInscriptionsInCircles(inUseInscriptions)
       } catch (error) {
         console.error('Failed to load summons', error)
         toast.error('Failed to load summons. Please try again.')
@@ -922,17 +937,21 @@ export default function AbyssSummonPage() {
                 <div className="mt-3 space-y-2">
                   {damnedOptions.map((option: DamnedOption) => {
                     const isActive = selectedInscriptionId === option.inscriptionId
+                    const isInCircle = inscriptionsInCircles.has(option.inscriptionId)
                     const buttonClass = [
                       'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition',
                       isActive
                         ? 'border-red-500 bg-red-900/30 shadow-[0_0_20px_rgba(220,38,38,0.35)]'
+                        : isInCircle
+                        ? 'border-amber-500/60 bg-amber-900/20 opacity-60'
                         : 'border-red-800/40 bg-black/50 hover:border-red-500/60',
                     ].join(' ')
                     return (
                       <button
                         key={option.inscriptionId}
                         type="button"
-                        onClick={() => setSelectedInscriptionId(option.inscriptionId)}
+                        onClick={() => !isInCircle && setSelectedInscriptionId(option.inscriptionId)}
+                        disabled={isInCircle}
                         className={buttonClass}
                       >
                         <div className="relative h-10 w-10 overflow-hidden rounded border border-red-700/40 bg-black/40">
@@ -950,9 +969,16 @@ export default function AbyssSummonPage() {
                           )}
                         </div>
                         <div className="flex flex-1 flex-col">
-                          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-red-200">
-                            {option.name ?? option.inscriptionId.slice(0, 12)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-red-200">
+                              {option.name ?? option.inscriptionId.slice(0, 12)}
+                            </span>
+                            {isInCircle && (
+                              <span className="rounded-full border border-amber-500/60 bg-amber-900/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] text-amber-200">
+                                IN CIRCLE
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
                             {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
                           </span>
