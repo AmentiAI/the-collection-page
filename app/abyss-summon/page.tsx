@@ -59,20 +59,26 @@ type SummonLeaderboardEntry = {
 }
 
 
-const IS_POWDER_MODE = true
-const SUMMON_REQUIRED_PARTICIPANTS = IS_POWDER_MODE ? 10 : 4
-const SUMMON_API_BASE = IS_POWDER_MODE ? '/api/ascension/circles' : '/api/abyss/summons'
-const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE
+// Change this to 'abyss', 'powder', or 'damned_pool' to switch modes
+// To use damned pool: change 'powder' below to 'damned_pool'
+const SUMMONING_MODE = 'powder' as 'abyss' | 'powder' | 'damned_pool'
+const IS_POWDER_MODE = SUMMONING_MODE === 'powder'
+const IS_DAMNED_POOL_MODE = SUMMONING_MODE === 'damned_pool'
+const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
+const SUMMON_API_BASE = IS_DAMNED_POOL_MODE ? '/api/damned-pool/circles' : IS_POWDER_MODE ? '/api/ascension/circles' : '/api/abyss/summons'
+const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
 const POWDER_CIRCLE_REWARD = 2
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
-const SUMMON_DURATION_MS = IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
+const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const SUMMON_BURN_POINTS = 6
 const SUMMON_HOST_POINTS = 2
 const SUMMON_PARTICIPATION_POINTS = 1
-const SUMMONING_DISABLED = IS_POWDER_MODE ? false : true
+const SUMMONING_DISABLED = IS_POWDER_MODE || IS_DAMNED_POOL_MODE ? false : true
 const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
   ? 'Ascension circles are currently paused.'
+  : IS_DAMNED_POOL_MODE
+  ? 'Damned pool circles are currently paused.'
   : 'The summoning has been completed. Thank you for your efforts!'
 
 function formatCountdown(ms: number) {
@@ -615,7 +621,9 @@ export default function AbyssSummonPage() {
         throw new Error(message)
       }
       toast.success(
-        IS_POWDER_MODE
+        IS_DAMNED_POOL_MODE
+          ? 'Damned pool created. Await 49 allies.'
+          : IS_POWDER_MODE
           ? 'Ascension circle created. Await nine allies.'
           : 'Summoning circle created. Await three allies.',
       )
@@ -849,19 +857,23 @@ export default function AbyssSummonPage() {
             <div className="flex items-center justify-center gap-3">
               <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
               <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
-                {IS_POWDER_MODE ? 'Ascension Circles' : 'Summoning Circles'}
+                {IS_DAMNED_POOL_MODE ? 'Damned Pool' : IS_POWDER_MODE ? 'Ascension Circles' : 'Summoning Circles'}
               </h1>
               <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
             </div>
             <p className="mx-auto max-w-3xl text-sm uppercase tracking-[0.35em] text-red-200/85">
-              {IS_POWDER_MODE
+              {IS_DAMNED_POOL_MODE
+                ? 'Gather fifty damned within thirty minutes. If forty-five complete the ritual, a one-hour burn window opens for all.'
+                : IS_POWDER_MODE
                 ? `Gather ten damned within thirty minutes. Seal the ritual together to transmute ${POWDER_CIRCLE_REWARD.toLocaleString()} ${powderTerm} per acolyte.`
                 : 'Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.'}
             </p>
             <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
               <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
               <span>
-                {IS_POWDER_MODE
+                {IS_DAMNED_POOL_MODE
+                  ? 'Forty-five of fifty must mark complete in the final two minutes to unlock the burn window.'
+                  : IS_POWDER_MODE
                   ? `All ten must remain until the final two minutes and confirm completion to claim ${powderTerm}.`
                   : 'More burns are required to keep the summoning circles open.'}
               </span>
@@ -1007,7 +1019,11 @@ export default function AbyssSummonPage() {
                     Start a Summon
                   </h2>
                   <p className="mt-2 max-w-xl text-[11px] uppercase tracking-[0.3em] text-red-300/70">
-                    Select an ordinal from your inventory and gather three allies. The circle locks when four damned commit their relics.
+                    {IS_DAMNED_POOL_MODE
+                      ? 'Select an ordinal from your inventory and gather forty-nine allies. The pool locks when fifty damned commit their relics.'
+                      : IS_POWDER_MODE
+                      ? 'Select an ordinal from your inventory and gather nine allies. The circle locks when ten damned commit their relics.'
+                      : 'Select an ordinal from your inventory and gather three allies. The circle locks when four damned commit their relics.'}
                   </p>
                 </div>
                 <Button
@@ -1076,7 +1092,7 @@ export default function AbyssSummonPage() {
                         onDismiss={handleDismissSummon}
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
-                        isPowderMode={IS_POWDER_MODE}
+                        isPowderMode={IS_POWDER_MODE || IS_DAMNED_POOL_MODE}
                         loading={summonsLoading}
                         now={now}
                         emptyMessage="No active circles. Initiate one or await whispers from the damned."
@@ -1208,9 +1224,9 @@ function SummonList({
           ? Math.min(rawExpiryMs, fallbackExpiryMs)
           : fallbackExpiryMs
         const timeRemainingMs = targetExpiryMs - now
-        const isExpired = timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)
+        const isExpired = (timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)) || summon.status === 'expired'
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
-        const completionWindowOpen = timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
+        const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
         const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
         const glowIntensity = isExpired
           ? 0
@@ -1231,7 +1247,10 @@ function SummonList({
           summon.participants.length >= totalSlots
 
         const completionAllowed =
-          !isExpired && completionWindowOpen && ((ready && isCreator && !isPowderMode) || (isPowderMode && isParticipant && !participantCompleted))
+          !isExpired &&
+          summon.status !== 'expired' &&
+          completionWindowOpen &&
+          ((ready && isCreator && !isPowderMode) || (isPowderMode && isParticipant && !participantCompleted))
 
         return (
           <div
@@ -1391,7 +1410,7 @@ function SummonList({
                 ) : null}
                 {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
-                    Ten seats must be filled before the ritual locks.
+                    {IS_DAMNED_POOL_MODE ? 'Fifty seats must be filled before the ritual locks.' : 'Ten seats must be filled before the ritual locks.'}
                   </div>
                 )}
                 {!isExpired && !isParticipant && ACTIVE_SUMMON_STATUSES.has(summon.status) && (

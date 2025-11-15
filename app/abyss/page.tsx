@@ -317,7 +317,33 @@ function AbyssContent() {
 
   const searchParams = useSearchParams()
   const bypassDisabled = searchParams?.get('bygas') === '1'
-  const abyssDisabled = ABYSS_DISABLED && !bypassDisabled
+  const [burnWindowActive, setBurnWindowActive] = useState(false)
+  const [burnWindowExpiresAt, setBurnWindowExpiresAt] = useState<string | null>(null)
+  
+  // Check for active burn window
+  useEffect(() => {
+    async function checkBurnWindow() {
+      try {
+        const response = await fetch('/api/abyss/burn-window', {
+          headers: { 'Cache-Control': 'no-store' },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setBurnWindowActive(data.active)
+            setBurnWindowExpiresAt(data.expiresAt)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check burn window', error)
+      }
+    }
+    checkBurnWindow()
+    const interval = setInterval(checkBurnWindow, 10000) // Check every 10 seconds
+    return () => clearInterval(interval)
+  }, [])
+  
+  const abyssDisabled = ABYSS_DISABLED && !bypassDisabled && !burnWindowActive
 
   const calculatePlacement = useCallback((index: number): Placement => {
     const jitterReduction = Math.floor(index / HORIZONTAL_JITTER_FALLOFF_STEP) * HORIZONTAL_JITTER_REDUCTION
@@ -1692,7 +1718,12 @@ function AbyssContent() {
         </div>
 
         <div className="rounded-lg border border-red-600/40 bg-black/30 px-3 py-3">
-          {abyssDisabled && (
+          {burnWindowActive && burnWindowExpiresAt && (
+            <div className="mb-3 rounded border border-emerald-500/40 bg-emerald-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-emerald-200">
+              DAMNED POOL COMPLETE! Burn window active until {new Date(burnWindowExpiresAt).toLocaleTimeString()}
+            </div>
+          )}
+          {abyssDisabled && !burnWindowActive && (
             <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
               {ABYSS_DISABLED_MESSAGE}
             </div>
