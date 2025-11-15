@@ -224,25 +224,33 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
     setHolderStatus('checking')
     setHolderMessage(null)
 
-    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
-      .then(async (res) => {
+    // Check both Magic Eden ordinals and abyss_burns records
+    Promise.all([
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`).then(async (res) => {
         if (!res.ok) {
           const text = await res.text()
           throw new Error(text || `Magic Eden check failed (${res.status})`)
         }
         return res.json()
-      })
-      .then((data) => {
+      }),
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`).then(async (res) => {
+        if (!res.ok) return { success: false, hasBurns: false }
+        return res.json()
+      }).catch(() => ({ success: false, hasBurns: false }))
+    ])
+      .then(([ordinalsData, burnsData]) => {
         if (cancelled) return
         let total = 0
-        if (typeof data.total === 'number') total = data.total
-        else if (Array.isArray(data.tokens)) total = data.tokens.length
-        else if (Array.isArray(data)) total = data.length
-        else if (typeof data.count === 'number') total = data.count
-        const isHolderWallet = total > 0
+        if (typeof ordinalsData.total === 'number') total = ordinalsData.total
+        else if (Array.isArray(ordinalsData.tokens)) total = ordinalsData.tokens.length
+        else if (Array.isArray(ordinalsData)) total = ordinalsData.length
+        else if (typeof ordinalsData.count === 'number') total = ordinalsData.count
+        const hasOrdinals = total > 0
+        const hasBurns = burnsData.success && burnsData.hasBurns
+        const isHolderWallet = hasOrdinals || hasBurns
         setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
         if (!isHolderWallet) {
-          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
+          setHolderMessage('Tools are restricted to The Damned holders or those who have burned ordinals in the abyss.')
         }
       })
       .catch((err) => {

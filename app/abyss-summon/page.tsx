@@ -122,8 +122,6 @@ export default function AbyssSummonPage() {
   const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
-  const [summonLeaderboardOpen, setSummonLeaderboardOpen] = useState(false)
-  const [selectedSummonerWallet, setSelectedSummonerWallet] = useState<string | null>(null)
   const [musicReady, setMusicReady] = useState(false)
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
@@ -134,49 +132,12 @@ export default function AbyssSummonPage() {
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
     [damnedOptions, selectedInscriptionId],
   )
-  const selectedSummonerEntry = useMemo(
-    () => summonLeaderboard.find((entry) => entry.wallet === selectedSummonerWallet) ?? null,
-    [summonLeaderboard, selectedSummonerWallet],
-  )
-
   const truncateWallet = useCallback((value: string) => {
     const normalized = value.trim()
     if (normalized.length <= 8) return normalized
     return `${normalized.slice(0, 6)}…${normalized.slice(-4)}`
   }, [])
 
-  const getDisplayName = useCallback(
-    (entry: SummonLeaderboardEntry) => entry.username?.trim() || truncateWallet(entry.wallet),
-    [truncateWallet],
-  )
-
-  const renderSummonerIdentity = useCallback(
-    (entry: SummonLeaderboardEntry, emphasizeSelf = false) => {
-      const displayName = getDisplayName(entry)
-      const initials =
-        displayName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() ||
-        truncateWallet(entry.wallet).slice(0, 2)
-      return (
-        <span className={`flex items-center gap-2 ${emphasizeSelf ? 'text-amber-200' : 'text-red-200/90'}`}>
-          <span className="relative flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-red-700/50 bg-black/70 text-[9px] font-bold uppercase tracking-[0.2em] text-red-300">
-            {entry.avatarUrl ? (
-              <Image
-                src={entry.avatarUrl}
-                alt={displayName}
-                width={24}
-                height={24}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              initials
-            )}
-          </span>
-          <span>{emphasizeSelf ? `YOU · ${displayName}` : displayName}</span>
-        </span>
-      )
-    },
-    [getDisplayName, truncateWallet],
-  )
 
   useEffect(() => {
     if (damnedOptions.length === 0) {
@@ -427,7 +388,6 @@ export default function AbyssSummonPage() {
   const loadSummonLeaderboard = useCallback(async () => {
     if (!SUMMON_LEADERBOARD_ENABLED) {
       setSummonLeaderboard([])
-      setSummonLeaderboardOpen(false)
       return
     }
     setSummonLeaderboardLoading(true)
@@ -480,19 +440,6 @@ export default function AbyssSummonPage() {
         return a.wallet.localeCompare(b.wallet)
       })
       setSummonLeaderboard(entries)
-      setSelectedSummonerWallet((previous) => {
-        if (previous && entries.some((entry) => entry.wallet === previous)) {
-          return previous
-        }
-        const normalizedAddress = ordinalAddress.trim().toLowerCase()
-        if (normalizedAddress) {
-          const match = entries.find((entry) => entry.wallet === normalizedAddress)
-          if (match) {
-            return match.wallet
-          }
-        }
-        return entries[0]?.wallet ?? null
-      })
     } catch (error) {
       console.error('Failed to load summon leaderboard:', error)
       setSummonLeaderboard([])
@@ -512,7 +459,6 @@ export default function AbyssSummonPage() {
       setBonusAllowance(0)
       setDamnedOptions([])
       setSelectedInscriptionId(null)
-      setSelectedSummonerWallet(null)
     }
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
@@ -915,14 +861,13 @@ export default function AbyssSummonPage() {
             )}
             {SUMMON_LEADERBOARD_ENABLED && (
               <div className="flex justify-center pt-4">
-                <Button
-                  type="button"
-                  onClick={() => setSummonLeaderboardOpen(true)}
+                <Link
+                  href="/abyss-summon/leaderboard"
                   className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
                 >
                   <Trophy className="h-4 w-4" />
                   Summoners Leaderboard
-                </Button>
+                </Link>
               </div>
             )}
           </div>
@@ -1128,168 +1073,6 @@ export default function AbyssSummonPage() {
         </div>
       </main>
 
-      {SUMMON_LEADERBOARD_ENABLED && summonLeaderboardOpen && (
-        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/90 px-4 py-8">
-          <div className="w-full max-w-5xl space-y-6 rounded-3xl border border-red-600/50 bg-black/92 p-6 shadow-[0_0_45px_rgba(220,38,38,0.55)]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1 text-left">
-                <h3 className="flex items-center gap-2 font-mono text-base uppercase tracking-[0.35em] text-red-200">
-                  <Trophy className="h-5 w-5 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]" />
-                  Summoners Leaderboard
-                </h3>
-                <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
-                  Scores: {SUMMON_BURN_POINTS} points per abyss burn, {SUMMON_HOST_POINTS} points per completed circle you hosted, {SUMMON_PARTICIPATION_POINTS} point per completed circle you joined.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {summonLeaderboardLoading && (
-                  <span className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Refreshing
-                  </span>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-red-700/60 bg-transparent px-3 py-1 text-[11px] font-mono uppercase tracking-[0.3em] text-red-300 hover:bg-red-800/20"
-                  onClick={() => setSummonLeaderboardOpen(false)}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-              <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-red-700/40 bg-black/40 md:max-h-[60vh] sm:max-h-[40vh]">
-                {summonLeaderboardLoading ? (
-                  <div className="flex items-center justify-center gap-2 px-4 py-6">
-                    <Loader2 className="h-4 w-4 animate-spin text-red-300" />
-                    <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-red-300">
-                      Calculating summoning ranks…
-                    </span>
-                  </div>
-                ) : summonLeaderboard.length === 0 ? (
-                  <div className="px-4 py-6 text-center font-mono text-[11px] uppercase tracking-[0.25em] text-red-400/70">
-                    No completed circles detected yet. Finish a ritual to appear here.
-                  </div>
-                ) : (
-                  <table className="w-full table-fixed border-collapse text-[11px] font-mono uppercase tracking-[0.25em] text-red-200">
-                    <thead className="sticky top-0 border-b border-red-700/40 bg-black/60 text-red-400">
-                      <tr>
-                        <th className="w-10 px-4 py-2 text-left font-normal">#</th>
-                        <th className="px-4 py-2 text-left font-normal">Summoner</th>
-                        <th className="w-16 px-4 py-2 text-right font-normal">Score</th>
-                        <th className="w-14 px-4 py-2 text-right font-normal">🔥</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summonLeaderboard.map((entry, index) => {
-                        const isSelected = selectedSummonerWallet === entry.wallet
-                        const isSelf =
-                          ordinalAddress.trim().length > 0 &&
-                          entry.wallet === ordinalAddress.trim().toLowerCase()
-                        const rowClasses = isSelected
-                          ? 'bg-red-900/40 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)]'
-                          : 'hover:bg-red-900/20'
-                        return (
-                          <tr
-                            key={`${entry.wallet}-${index}`}
-                            className={`${rowClasses} border-b border-red-700/20 transition`}
-                            onClick={() => setSelectedSummonerWallet(entry.wallet)}
-                          >
-                            <td className="px-4 py-2 text-left text-red-500">{String(index + 1).padStart(2, '0')}</td>
-                            <td className="px-4 py-2 text-left">
-                              {renderSummonerIdentity(entry, isSelf)}
-                            </td>
-                            <td className="px-4 py-2 text-right text-amber-200 tabular-nums">{entry.score}</td>
-                            <td className="px-4 py-2 text-right text-red-400 tabular-nums">{entry.burns}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              <div className="space-y-4 rounded-2xl border border-red-600/40 bg-black/60 p-4 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
-                {selectedSummonerEntry ? (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-red-600/50 bg-black/80 text-sm font-bold uppercase tracking-[0.2em] text-red-300">
-                        {selectedSummonerEntry.avatarUrl ? (
-                          <Image
-                            src={selectedSummonerEntry.avatarUrl}
-                            alt={getDisplayName(selectedSummonerEntry)}
-                            width={48}
-                            height={48}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          truncateWallet(selectedSummonerEntry.wallet).slice(0, 2)
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="font-mono text-sm uppercase tracking-[0.3em] text-red-200">
-                          {getDisplayName(selectedSummonerEntry)}
-                        </h4>
-                        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
-                          {truncateWallet(selectedSummonerEntry.wallet)}
-                        </p>
-                        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-400/80">
-                          Total Score: {selectedSummonerEntry.score}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-[11px] uppercase tracking-[0.25em] text-red-200/80">
-                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
-                        <span>Burns · {selectedSummonerEntry.burns}</span>
-                        <span className="text-amber-200">
-                          +{selectedSummonerEntry.burns * SUMMON_BURN_POINTS} pts
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
-                        <span>Hosted · {selectedSummonerEntry.hosted}</span>
-                        <span className="text-amber-200">
-                          +{selectedSummonerEntry.hosted * SUMMON_HOST_POINTS} pts
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border border-red-700/40 bg-black/40 px-3 py-2">
-                        <span>Allies Joined · {selectedSummonerEntry.participated}</span>
-                        <span className="text-amber-200">
-                          +{selectedSummonerEntry.participated * SUMMON_PARTICIPATION_POINTS} pts
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1 rounded-lg border border-red-700/40 bg-black/40 px-3 py-3 text-[10px] uppercase tracking-[0.3em] text-red-300/80">
-                      <div className="flex items-center justify-between">
-                        <span>Last Completed Circle</span>
-                        <span>{formatTimestamp(selectedSummonerEntry.lastParticipatedAt)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Last Hosted</span>
-                        <span>{formatTimestamp(selectedSummonerEntry.lastHostedAt)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Last Burn Recorded</span>
-                        <span>{formatTimestamp(selectedSummonerEntry.lastBurnAt)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-red-400/70">
-                        <span>Confirmed Burns</span>
-                        <span>{selectedSummonerEntry.confirmedBurns}</span>
-                      </div>
-                    </div>
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-red-400/70">
-                      Score is cumulative; keep hosting and sealing circles to climb the rankings.
-                    </p>
-                  </>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[11px] uppercase tracking-[0.3em] text-red-300/70">
-                    <Trophy className="h-8 w-8 text-red-500 drop-shadow-[0_0_18px_rgba(220,38,38,0.4)]" />
-                    Select a summoner to view their contributions.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -87,46 +87,46 @@ export default function HorsePage() {
   }, [])
 
   const updateHorsePositions = useCallback((progress: number) => {
-    const positions = horseStates.map((horse) => {
-      const rankIndex = PRESET_FINISH_ORDER.indexOf(horse.id)
+    setHorseStates((prev) => {
+      const positions = prev.map((horse) => {
+        const rankIndex = PRESET_FINISH_ORDER.indexOf(horse.id)
 
-      if (progress >= FINISH_PHASE_START) {
-        const phaseProgress = Math.min(1, (progress - FINISH_PHASE_START) / (1 - FINISH_PHASE_START))
-        const finishTarget = 1 - rankIndex * 0.02
-        const startOffset = 0.74 - rankIndex * 0.015
-        const interpolated = startOffset + (finishTarget - startOffset) * phaseProgress
-        return Math.min(1, interpolated)
+        if (progress >= FINISH_PHASE_START) {
+          const phaseProgress = Math.min(1, (progress - FINISH_PHASE_START) / (1 - FINISH_PHASE_START))
+          const finishTarget = 1 - rankIndex * 0.02
+          const startOffset = 0.74 - rankIndex * 0.015
+          const interpolated = startOffset + (finishTarget - startOffset) * phaseProgress
+          return Math.min(1, interpolated)
+        }
+
+        const wave = Math.sin(progress * (horse.id + 1) * 7) * 0.08
+        const wobble = Math.cos(progress * (HORSE_COUNT - horse.id + 1) * 5) * 0.05
+        const burst = horse.id === selectedHorse ? Math.sin(progress * 12) * 0.03 : 0
+        const base = progress + wave + wobble + burst
+        return Math.max(0, Math.min(0.74, base))
+      })
+
+      const leaderEntry = positions
+        .map((position, index) => ({ horse: prev[index].id, position }))
+        .sort((a, b) => b.position - a.position)[0]
+
+      if (leaderEntry && leaderEntry.horse !== currentLeader) {
+        setCurrentLeader(leaderEntry.horse)
+        setRaceLog((prev) => {
+          const label = `Horse ${leaderEntry.horse} takes the lead!`
+          if (prev[prev.length - 1] === label) {
+            return prev
+          }
+          return [...prev, label]
+        })
       }
 
-      const wave = Math.sin(progress * (horse.id + 1) * 7) * 0.08
-      const wobble = Math.cos(progress * (HORSE_COUNT - horse.id + 1) * 5) * 0.05
-      const burst = horse.id === selectedHorse ? Math.sin(progress * 12) * 0.03 : 0
-      const base = progress + wave + wobble + burst
-      return Math.max(0, Math.min(0.74, base))
-    })
-
-    setHorseStates((prev) =>
-      prev.map((horse, index) => ({
+      return prev.map((horse, index) => ({
         ...horse,
         position: positions[index],
-      })),
-    )
-
-    const leaderEntry = positions
-      .map((position, index) => ({ horse: horseStates[index].id, position }))
-      .sort((a, b) => b.position - a.position)[0]
-
-    if (leaderEntry && leaderEntry.horse !== currentLeader) {
-      setCurrentLeader(leaderEntry.horse)
-      setRaceLog((prev) => {
-        const label = `Horse ${leaderEntry.horse} takes the lead!`
-        if (prev[prev.length - 1] === label) {
-          return prev
-        }
-        return [...prev, label]
-      })
-    }
-  }, [currentLeader, horseStates, selectedHorse])
+      }))
+    })
+  }, [currentLeader, selectedHorse])
 
   const startRace = useCallback(() => {
     resetRace()

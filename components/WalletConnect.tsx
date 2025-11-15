@@ -117,11 +117,27 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       console.log('🔍 Calling checkForOrdinals for the-damned collection...')
       const hasOrdinals = await checkForOrdinals(address)
       console.log('✅ checkForOrdinals returned:', hasOrdinals)
-      setIsHolder(hasOrdinals)
-      onHolderVerified?.(hasOrdinals, address)
       
-      if (!hasOrdinals) {
-        console.log('❌ Not a holder - skipping verification code flow')
+      // Also check if wallet has abyss_burns records (they deserve access too)
+      let hasBurns = false
+      try {
+        const burnsResponse = await fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`)
+        if (burnsResponse.ok) {
+          const burnsData = await burnsResponse.json()
+          hasBurns = burnsData.success && burnsData.hasBurns
+          console.log('✅ Has abyss burns:', hasBurns)
+        }
+      } catch (error) {
+        console.error('Error checking abyss burns:', error)
+      }
+      
+      // User is considered a holder if they have ordinals OR have burned in the abyss
+      const isHolder = hasOrdinals || hasBurns
+      setIsHolder(isHolder)
+      onHolderVerified?.(isHolder, address)
+      
+      if (!isHolder) {
+        console.log('❌ Not a holder and no abyss burns - skipping verification code flow')
       }
     } catch (error) {
       console.error('Error checking holder status:', error)
