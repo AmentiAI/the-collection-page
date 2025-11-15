@@ -19,6 +19,7 @@ import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
+import ChestCallout from '@/components/ChestCallout'
 import type { CategorisedWalletAssets, InscriptionUtxo } from '@/lib/sandshrew'
 
 const formatSats = (value: number) => `${value.toLocaleString()} sats`
@@ -352,11 +353,13 @@ function SatRecoveryContent() {
       }
 
       const txid = await broadcastResponse.text()
-      setRecoveryTxid(typeof txid === 'string' ? txid : String(txid))
+      const txidStr = typeof txid === 'string' ? txid : String(txid)
+      setRecoveryTxid(txidStr)
       toast.success('Recovery transaction broadcast successfully!')
 
-      // Refresh analysis
-      await analyzeRecoverable()
+      // Set success state - clear analysis and show success message
+      setAnalysis(null)
+      setError(null)
     } catch (err) {
       console.error('Recovery error:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to recover sats'
@@ -547,7 +550,35 @@ function SatRecoveryContent() {
               </div>
             )}
 
-            {analysis && (
+            {recoveryTxid ? (
+              <div className="flex flex-col gap-4">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-6">
+                  <div className="flex items-center gap-3 text-emerald-200">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xl font-semibold">Recovery transaction broadcast successfully!</p>
+                      <p className="text-sm text-emerald-300">
+                        Your transaction has been submitted to the network. The recovery will complete once the transaction confirms.
+                      </p>
+                      <a
+                        href={`https://mempool.space/tx/${recoveryTxid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-emerald-200 underline hover:text-emerald-100 inline-flex items-center gap-2 w-fit"
+                      >
+                        View transaction on mempool.space
+                        <ArrowRight className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                  <p className="text-sm text-slate-400">
+                    To recover more sats, refresh your assets and analyze again.
+                  </p>
+                </div>
+              </div>
+            ) : analysis && (
               <div className="flex flex-col gap-4">
                 {!analysis.worthwhile ? (
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-6">
@@ -621,7 +652,7 @@ function SatRecoveryContent() {
 
                     <Button
                       onClick={handleRecover}
-                      disabled={!canRecover}
+                      disabled={!canRecover || recovering}
                       className="w-full bg-emerald-600 hover:bg-emerald-700"
                     >
                       {recovering ? (
@@ -636,31 +667,17 @@ function SatRecoveryContent() {
                         </>
                       )}
                     </Button>
-
-                    {recoveryTxid && (
-                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-                        <div className="flex items-center gap-2 text-emerald-200">
-                          <CheckCircle2 className="h-5 w-5" />
-                          <div className="flex flex-col gap-1">
-                            <p className="font-semibold">Recovery transaction broadcast!</p>
-                            <a
-                              href={`https://mempool.space/tx/${recoveryTxid}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-emerald-300 underline hover:text-emerald-200"
-                            >
-                              View on mempool.space
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
             )}
           </div>
         )}
+
+        {/* Chest at bottom of page */}
+        <div className="mt-12 pb-8">
+          <ChestCallout eventKey="treasure_chest_sat_recovery" size="sm" className="mt-6" />
+        </div>
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { BadgeCheck, Copy, FileImage, FileText, Flame, Grid3X3, Layers3, Loader2
 
 import BackgroundMusic from '@/components/BackgroundMusic'
 import Header from '@/components/Header'
+import ChestCallout from '@/components/ChestCallout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1733,6 +1734,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             onPreview={handlePreview}
           />
         )}
+      </div>
+
+      {/* Chest at bottom of page */}
+      <div className="mt-12 pb-8">
+        <ChestCallout eventKey="treasure_chest_assets" size="sm" className="mt-6" />
       </div>
     </main>
   )
