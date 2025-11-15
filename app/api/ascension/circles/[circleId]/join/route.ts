@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
+const MAX_ACTIVE_CIRCLES_PER_USER = 6
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
@@ -160,6 +161,33 @@ export async function POST(
       await pool.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You already joined this ascension circle.' },
+        { status: 409 },
+      )
+    }
+
+    // Check if user is already in 6 or more active circles (as creator or participant)
+    const userActiveCirclesRes = await pool.query(
+      `
+        SELECT COUNT(DISTINCT c.id)::int AS active_count
+        FROM summoning_powder_circles c
+        WHERE c.status IN ('open', 'filling', 'ready')
+          AND (
+            LOWER(c.creator_wallet) = LOWER($1)
+            OR EXISTS (
+              SELECT 1 FROM summoning_powder_participants p
+              WHERE p.circle_id = c.id
+                AND LOWER(p.wallet) = LOWER($1)
+            )
+          )
+      `,
+      [wallet],
+    )
+    const userActiveCount = Number(userActiveCirclesRes.rows[0]?.active_count ?? 0)
+    
+    if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user (created or joined). Please wait for a circle to complete or expire.` },
         { status: 409 },
       )
     }
