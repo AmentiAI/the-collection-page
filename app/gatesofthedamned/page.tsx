@@ -16,6 +16,7 @@ export default function GatesOfTheDamnedPage() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [countdown, setCountdown] = useState<string | null>(null)
   const [eventStatus, setEventStatus] = useState<'upcoming' | 'active' | 'ended'>('upcoming')
+  const isCountdownComplete = eventStatus === 'ended'
   const audioSrc = '/gates-audio.mp3'
 
   const handleEnter = () => {
@@ -129,7 +130,7 @@ export default function GatesOfTheDamnedPage() {
       const diff = GATES_EVENT_UTC - now
       if (diff <= 0) {
         setCountdown('00:00:00')
-        setEventStatus('active')
+        setEventStatus('ended')
         return false
       }
       setCountdown(formatCountdown(diff))
@@ -525,7 +526,7 @@ export default function GatesOfTheDamnedPage() {
             </h1>
               <div className="space-y-6">
                 <p className="text-base md:text-lg text-red-500 font-mono tracking-widest uppercase">
-                  UNDER CONSTRUCTION · DETOUR AHEAD
+                  UNDER CONSTRUCTION 
                 </p>
                 <div className="space-y-2">
                   <p className="text-xs md:text-sm text-red-300 font-mono tracking-[0.45em] uppercase">
@@ -536,17 +537,25 @@ export default function GatesOfTheDamnedPage() {
                       Countdown
                     </span>
                     <span className="mt-2 font-mono text-3xl tracking-[0.35em] text-red-200">
-                      {eventStatus === 'active' ? 'Opening Now' : countdown ?? '— — : — — : — —'}
+                      {isCountdownComplete ? '00:00:00' : countdown ?? '— — : — — : — —'}
                     </span>
                   </div>
                 </div>
-           
-                <Link
-                  href="/profile"
-                  className="inline-block w-full rounded-lg border-2 border-red-600/60 bg-red-600 px-8 py-6 text-2xl md:text-3xl font-mono tracking-[0.4em] uppercase text-white transition-colors hover:bg-red-700 hover:border-red-500"
-                >
-                  Enter Detour
-                </Link>
+                {isCountdownComplete && (
+                  <div className="space-y-4">
+                    <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-red-500">
+                      STILL CLOSED!
+                    </p>
+                    <Link
+                      href="https://damnedbets.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block w-full rounded-lg border-2 border-red-600/60 bg-red-600 px-8 py-6 text-2xl md:text-3xl font-mono tracking-[0.4em] uppercase text-white transition-colors hover:bg-red-700 hover:border-red-500"
+                    >
+                      Enter Detour
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>
