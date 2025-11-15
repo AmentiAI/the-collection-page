@@ -282,8 +282,8 @@ export async function POST(
     )
     const participants = participantsRes.rows
     const completedCount = participants.filter((row) => row.completed).length
-    // Allow completion if 9 out of 10 participants have marked complete (or all if fewer than 10)
-    const allCompleted = participants.length >= circle.required_participants && completedCount >= Math.max(1, circle.required_participants - 1)
+    // Require all participants to mark complete
+    const allCompleted = participants.length >= circle.required_participants && completedCount >= circle.required_participants
 
     let rewardGranted = Boolean(circle.reward_granted)
 
