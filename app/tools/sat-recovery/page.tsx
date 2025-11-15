@@ -107,7 +107,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
   } | null>(null)
 
   // Fetch wallet assets
-  const fetchAssets = useCallback(async () => {
+  const fetchAssets = useCallback(async (force = false) => {
     if (isHolder !== true) {
       return
     }
@@ -118,7 +118,8 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
       return
     }
 
-    if (taprootAddress === lastFetchedRef.current) {
+    // Skip if same address and not forcing refresh
+    if (!force && taprootAddress === lastFetchedRef.current) {
       return
     }
 
@@ -523,7 +524,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
                   <h2 className="text-lg font-semibold text-slate-200">
                     Inscriptions with UTXO value &gt; 876 sats
                   </h2>
-                  <Button onClick={fetchAssets} variant="outline">
+                  <Button onClick={() => fetchAssets(true)} variant="outline" disabled={assetsLoading}>
                     <Loader2 className={`mr-2 h-4 w-4 ${assetsLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
