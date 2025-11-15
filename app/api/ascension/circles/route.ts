@@ -6,8 +6,8 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 10
-const CIRCLE_DURATION_MS = 30 * 60 * 1000
-const POWDER_REWARD = 20
+const CIRCLE_DURATION_MS = 10 * 60 * 1000
+const POWDER_REWARD = 2
 
 async function ensurePowderInfrastructure(pool: Pool) {
   await pool.query(`
@@ -95,11 +95,21 @@ function mapCircleRow(row: any) {
   }
 }
 
-function buildCircleSelect(whereClause = '', values: unknown[] = []) {
+function buildCircleSelect(whereClause = '', limitClause = '', values: unknown[] = []) {
   return {
     text: `
       SELECT
-        c.*,
+        c.id,
+        c.creator_wallet,
+        c.creator_inscription_id,
+        c.status,
+        c.required_participants,
+        c.locked_at,
+        c.completed_at,
+        c.expires_at,
+        c.reward_granted,
+        c.created_at,
+        c.updated_at,
         COALESCE(
           json_agg(
             json_build_object(
@@ -118,8 +128,9 @@ function buildCircleSelect(whereClause = '', values: unknown[] = []) {
       FROM summoning_powder_circles c
       LEFT JOIN summoning_powder_participants p ON p.circle_id = c.id
       ${whereClause}
-      GROUP BY c.id
+      GROUP BY c.id, c.creator_wallet, c.creator_inscription_id, c.status, c.required_participants, c.locked_at, c.completed_at, c.expires_at, c.reward_granted, c.created_at, c.updated_at
       ORDER BY c.created_at DESC
+      ${limitClause}
     `,
     values,
   }
@@ -136,7 +147,7 @@ export async function GET(request: NextRequest) {
     const limitParam = Number.parseInt(searchParams.get('limit') ?? '25', 10)
     const limit = Number.isNaN(limitParam) ? 25 : Math.min(Math.max(limitParam, 1), 200)
 
-    const baseQuery = buildCircleSelect('WHERE c.status IN (\'open\', \'filling\', \'ready\') LIMIT $1', [limit])
+    const baseQuery = buildCircleSelect('WHERE c.status IN (\'open\', \'filling\', \'ready\')', 'LIMIT $1', [limit])
     const baseResult = await pool.query(baseQuery)
     const summons = baseResult.rows.map(mapCircleRow)
 
@@ -145,19 +156,17 @@ export async function GET(request: NextRequest) {
     let powderBalance: number | null = null
 
     if (walletParam) {
-      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1) LIMIT 50', [walletParam])
+      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1)', 'LIMIT 50', [walletParam])
       const createdRes = await pool.query(createdQuery)
       createdSummons = createdRes.rows.map(mapCircleRow)
 
       const joinedQuery = buildCircleSelect(
-        `
-          WHERE c.id IN (
+        `WHERE c.id IN (
             SELECT circle_id
             FROM summoning_powder_participants
             WHERE LOWER(wallet) = LOWER($1)
-          )
-          LIMIT 50
-        `,
+          )`,
+        'LIMIT 50',
         [walletParam],
       )
       const joinedRes = await pool.query(joinedQuery)
@@ -209,7 +218,7 @@ export async function POST(request: NextRequest) {
 
     const conflictRes = await pool.query(
       `
-        SELECT id
+        SELECT c.id
         FROM summoning_powder_circles c
         JOIN summoning_powder_participants p ON p.circle_id = c.id
         WHERE p.inscription_id = $1
@@ -265,7 +274,7 @@ export async function POST(request: NextRequest) {
     await pool.query('COMMIT')
 
     const refreshed = await pool.query(
-      buildCircleSelect('WHERE c.id = $1', [circle.id]),
+      buildCircleSelect('WHERE c.id = $1', '', [circle.id]),
     )
 
     return NextResponse.json({

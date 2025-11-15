@@ -57,13 +57,13 @@ type SummonLeaderboardEntry = {
 }
 
 
-const IS_POWDER_MODE = false
+const IS_POWDER_MODE = true
 const SUMMON_REQUIRED_PARTICIPANTS = IS_POWDER_MODE ? 10 : 4
 const SUMMON_API_BASE = IS_POWDER_MODE ? '/api/ascension/circles' : '/api/abyss/summons'
 const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE
-const POWDER_CIRCLE_REWARD = 20
+const POWDER_CIRCLE_REWARD = 2
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
-const SUMMON_DURATION_MS = 30 * 60 * 1000
+const SUMMON_DURATION_MS = IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const SUMMON_BURN_POINTS = 6
 const SUMMON_HOST_POINTS = 2
@@ -122,11 +122,17 @@ export default function AbyssSummonPage() {
   const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
+  const [burnCount, setBurnCount] = useState<number | null>(null)
   const [musicReady, setMusicReady] = useState(false)
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
   const [musicVolume, setMusicVolume] = useState(15)
   const musicControlsDisabled = !musicReady && !musicPlaying
+
+  // Use "rock" instead of "ascension powder" if burn count is 0
+  const useRockTerminology = burnCount === 0
+  const powderTerm = useRockTerminology ? 'rock' : 'ascension powder'
+  const powderTermCapitalized = useRockTerminology ? 'Rock' : 'Ascension Powder'
 
   const selectedOption = useMemo(
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
@@ -313,6 +319,28 @@ export default function AbyssSummonPage() {
     [toast],
   )
 
+  const fetchBurnCount = useCallback(async (address: string) => {
+    if (!address) {
+      setBurnCount(null)
+      return
+    }
+    try {
+      const response = await fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const count = Number(data?.burnCount ?? 0)
+        setBurnCount(Number.isFinite(count) ? count : 0)
+      } else {
+        setBurnCount(null)
+      }
+    } catch (error) {
+      console.error('Failed to fetch burn count', error)
+      setBurnCount(null)
+    }
+  }, [])
+
   const loadDamnedOptions = useCallback(
     async (address: string) => {
       if (!address) {
@@ -452,6 +480,7 @@ export default function AbyssSummonPage() {
     if (ordinalAddress) {
       void refreshSummons(ordinalAddress)
       void loadDamnedOptions(ordinalAddress)
+      void fetchBurnCount(ordinalAddress)
     } else {
       setSummons([])
       setCreatedSummons([])
@@ -459,11 +488,12 @@ export default function AbyssSummonPage() {
       setBonusAllowance(0)
       setDamnedOptions([])
       setSelectedInscriptionId(null)
+      setBurnCount(null)
     }
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
     }
-  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard])
+  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, fetchBurnCount])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -677,7 +707,7 @@ export default function AbyssSummonPage() {
           if (typeof payload?.profilePowder === 'number') {
             setBonusAllowance(Number(payload.profilePowder))
           }
-          toast.success(payload?.message ?? 'Ascension powder channel complete.')
+          toast.success(payload?.message ?? `${powderTermCapitalized} channel complete.`)
         } else {
           if (typeof payload?.bonusAllowance === 'number') {
             setBonusAllowance(Number(payload.bonusAllowance))
@@ -808,14 +838,14 @@ export default function AbyssSummonPage() {
             </div>
             <p className="mx-auto max-w-3xl text-sm uppercase tracking-[0.35em] text-red-200/85">
               {IS_POWDER_MODE
-                ? `Gather ten damned within thirty minutes. Seal the ritual together to transmute ${POWDER_CIRCLE_REWARD.toLocaleString()} ascension powder per acolyte.`
+                ? `Gather ten damned within thirty minutes. Seal the ritual together to transmute ${POWDER_CIRCLE_REWARD.toLocaleString()} ${powderTerm} per acolyte.`
                 : 'Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.'}
             </p>
             <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
               <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
               <span>
                 {IS_POWDER_MODE
-                  ? 'All ten must remain until the final two minutes and confirm completion to claim powder.'
+                  ? `All ten must remain until the final two minutes and confirm completion to claim ${powderTerm}.`
                   : 'More burns are required to keep the summoning circles open.'}
               </span>
             </div>
@@ -828,7 +858,7 @@ export default function AbyssSummonPage() {
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                 <span className="text-[11px] text-amber-300">
-                  {IS_POWDER_MODE ? 'Ascension Powder Banked' : 'Bonus Burns Awaiting'}
+                  {IS_POWDER_MODE ? `${powderTermCapitalized} Banked` : 'Bonus Burns Awaiting'}
                 </span>
                 <div className="mt-1 text-2xl font-black text-amber-100 drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]">
                   {bonusAllowance}

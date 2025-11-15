@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000
-const POWDER_REWARD = 20
+const POWDER_REWARD = 2
 
 async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`

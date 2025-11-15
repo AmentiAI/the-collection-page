@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 10
-const CIRCLE_DURATION_MS = 30 * 60 * 1000
+const CIRCLE_DURATION_MS = 10 * 60 * 1000
 
 async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
@@ -153,6 +153,27 @@ export async function POST(
       )
     }
 
+    // Prevent wallet from joining multiple active circles at once
+    const activeCircleCheck = await pool.query(
+      `
+        SELECT c.id
+        FROM summoning_powder_participants p
+        JOIN summoning_powder_circles c ON c.id = p.circle_id
+        WHERE LOWER(p.wallet) = LOWER($1)
+          AND c.status IN ('open', 'filling', 'ready')
+          AND c.id != $2
+        LIMIT 1
+      `,
+      [wallet, circleId],
+    )
+    if (activeCircleCheck.rows.length > 0) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        { success: false, error: 'You can only participate in one ascension circle at a time.' },
+        { status: 409 },
+      )
+    }
+
     const inscriptionConflict = await pool.query(
       `
         SELECT c.id
@@ -192,10 +213,7 @@ export async function POST(
       `
         INSERT INTO summoning_powder_participants (circle_id, wallet, inscription_id, inscription_image, role)
         VALUES ($1, $2, $3, $4, 'participant')
-        ON CONFLICT (circle_id, wallet) DO UPDATE
-        SET inscription_id = EXCLUDED.inscription_id,
-            inscription_image = COALESCE(EXCLUDED.inscription_image, summoning_powder_participants.inscription_image),
-            joined_at = NOW()
+        ON CONFLICT (circle_id, wallet) DO NOTHING
       `,
       [circleId, wallet, inscriptionId, inscriptionImage],
     )
