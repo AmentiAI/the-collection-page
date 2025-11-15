@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic'
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
-const MAX_ACTIVE_CIRCLES = 6
+const MAX_ACTIVE_CIRCLES_PER_USER = 6
+const MAX_ACTIVE_CIRCLES_GLOBAL = 10
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest) {
     await pool.query('BEGIN')
 
     // Check if this user already has 6 active circles
-    const activeCountRes = await pool.query(
+    const userActiveCountRes = await pool.query(
       `
         SELECT COUNT(*)::int AS active_count
         FROM summoning_powder_circles
@@ -244,12 +245,30 @@ export async function POST(request: NextRequest) {
       `,
       [creatorWallet],
     )
-    const activeCount = Number(activeCountRes.rows[0]?.active_count ?? 0)
+    const userActiveCount = Number(userActiveCountRes.rows[0]?.active_count ?? 0)
     
-    if (activeCount >= MAX_ACTIVE_CIRCLES) {
+    if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES} active circles allowed per user. Please wait for a circle to complete or expire.` },
+        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user. Please wait for a circle to complete or expire.` },
+        { status: 409 },
+      )
+    }
+
+    // Check if there are already 10 active circles globally
+    const globalActiveCountRes = await pool.query(
+      `
+        SELECT COUNT(*)::int AS active_count
+        FROM summoning_powder_circles
+        WHERE status IN ('open', 'filling', 'ready')
+      `,
+    )
+    const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
+    
+    if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active circles allowed globally. Please wait for a circle to complete or expire.` },
         { status: 409 },
       )
     }
