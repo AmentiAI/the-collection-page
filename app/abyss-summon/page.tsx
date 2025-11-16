@@ -1376,8 +1376,9 @@ function SummonList({
         const timeRemainingMs = targetExpiryMs - now
         const isExpired = (timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)) || summon.status === 'expired'
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
-        const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
-        const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
+        const completionWindowMs = isPortalMode ? 3 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+        const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
+        const unlockCountdown = Math.max(0, timeRemainingMs - completionWindowMs)
         // Reduce per-frame style churn on mobile by updating glow once per second
         const isMobile = typeof window !== 'undefined' ? window.innerWidth < 640 : false
         const secondsRemaining = Math.max(0, Math.ceil(timeRemainingMs / 1000))
