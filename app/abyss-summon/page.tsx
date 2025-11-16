@@ -547,7 +547,7 @@ export default function AbyssSummonPage() {
       if (ordinalAddress) {
         void refreshSummons(ordinalAddress)
       }
-    }, 20_000)
+    }, 12_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, refreshSummons])
 
@@ -557,7 +557,7 @@ export default function AbyssSummonPage() {
     }
     const intervalId = window.setInterval(() => {
       void loadDamnedOptions(ordinalAddress)
-    }, 30_000)
+    }, 20_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, loadDamnedOptions])
 
@@ -568,7 +568,7 @@ export default function AbyssSummonPage() {
     void loadSummonLeaderboard()
     const intervalId = window.setInterval(() => {
       void loadSummonLeaderboard()
-    }, 30_000)
+    }, 20_000)
     return () => window.clearInterval(intervalId)
   }, [loadSummonLeaderboard, SUMMON_LEADERBOARD_ENABLED])
 
