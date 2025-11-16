@@ -1351,9 +1351,7 @@ function SummonList({
             ? 10 * 60 * 1000
             : 30 * 60 * 1000
         const localSummonDurationMs = isPortalMode
-          ? totalSlots >= 50
-            ? 30 * 60 * 1000
-            : 20 * 60 * 1000
+          ? 20 * 60 * 1000
           : defaultDurationMs
         const isCreator =
           ordinalAddress.length > 0 && summon.creatorWallet?.toLowerCase() === ordinalAddress.toLowerCase()

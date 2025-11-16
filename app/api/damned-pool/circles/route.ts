@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 50
 const REQUIRED_PARTICIPANTS_BONUS = 30
-const CIRCLE_DURATION_MAIN_MS = 30 * 60 * 1000 // 30 minutes (open_all 50 seats)
+const CIRCLE_DURATION_MAIN_MS = 20 * 60 * 1000 // 20 minutes (open_all 50 seats)
 const CIRCLE_DURATION_BONUS_MS = 20 * 60 * 1000 // 20 minutes (bonus_credits 30 seats)
 const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
 const MIN_COMPLETION_COUNT_BONUS = 27 // 27 out of 30 must complete
@@ -250,15 +250,16 @@ export async function POST(request: NextRequest) {
     try {
       await pool.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
 
-      // Check if this user already has an active damned pool
+      // Check if this user already has an active damned pool in this mode
       await pool.query(
         `
           SELECT id FROM damned_pool_circles
           WHERE LOWER(creator_wallet) = LOWER($1)
             AND status IN ('open', 'filling', 'ready')
+            AND mode = $2
           FOR UPDATE
         `,
-        [creatorWallet],
+        [creatorWallet, circleMode],
       )
       const userActiveCountRes = await pool.query(
         `
@@ -266,8 +267,9 @@ export async function POST(request: NextRequest) {
           FROM damned_pool_circles
           WHERE LOWER(creator_wallet) = LOWER($1)
             AND status IN ('open', 'filling', 'ready')
+            AND mode = $2
         `,
-        [creatorWallet],
+        [creatorWallet, circleMode],
       )
       const userActiveCount = Number(userActiveCountRes.rows[0]?.active_count ?? 0)
 
@@ -315,9 +317,10 @@ export async function POST(request: NextRequest) {
           JOIN damned_pool_participants p ON p.circle_id = c.id
           WHERE p.inscription_id = $1
             AND c.status IN ('open', 'filling', 'ready')
+            AND c.mode = $2
           LIMIT 1
         `,
-        [creatorInscriptionId],
+        [creatorInscriptionId, circleMode],
       )
 
       if (conflictRes.rows.length > 0) {
