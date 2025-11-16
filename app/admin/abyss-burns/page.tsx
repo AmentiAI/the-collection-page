@@ -32,7 +32,7 @@ export default function AbyssBurnsAdminPage() {
   const [records, setRecords] = useState<AbyssBurnRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [limit, setLimit] = useState(333)
+  const [limit, setLimit] = useState(500)
   const [statusFilter, setStatusFilter] = useState('')
   const [txCheckLoading, setTxCheckLoading] = useState<string | null>(null)
   const [copiedMessage, setCopiedMessage] = useState<string | null>(null)
@@ -149,7 +149,7 @@ export default function AbyssBurnsAdminPage() {
                   value={limit}
                   onChange={(event) => setLimit(Number(event.target.value) || 0)}
                   min={1}
-                  max={333}
+                  max={500}
                   className="h-9 w-24 border-red-700/60 bg-black/60 text-red-100"
                 />
               </div>

@@ -76,10 +76,10 @@ export default function AscensionLeaderboardPage() {
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8">
         <div className="mb-6">
           <Link
-            href="/profile"
+            href="/abyss-summon"
             className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-400 hover:text-red-300 transition"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Profile
+            <ArrowLeft className="h-4 w-4" /> Back to Summoning Circles
           </Link>
         </div>
 

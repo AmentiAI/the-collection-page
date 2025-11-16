@@ -138,9 +138,6 @@ function ProfileContent() {
       <Header connected={connected} showMusicControls={false} />
 
       <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
-        <div className="flex justify-center">
-          <TotalSacrifices />
-        </div>
         <section className="flex flex-col items-center gap-6 rounded-3xl border border-red-600/40 bg-black/70 p-8 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur">
           <ProfileAvatar imageUrl={profile.avatarUrl} />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-300 md:text-4xl">
@@ -177,23 +174,29 @@ function ProfileContent() {
               >
                 <Skull className="h-4 w-4" /> Graveyard
               </Link>
-              <Link
-                href="/abyss-summon/leaderboard"
-                className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
-              >
-                <Trophy className="h-4 w-4" /> Summoners Leaderboard
-              </Link>
-              <Link
-                href="/ascension/leaderboard"
-                className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
-              >
-                <Trophy className="h-4 w-4" /> Ascension Leaderboard
-              </Link>
+          
             </div>
           )}
         </section>
 
-        <SummoningOverviewCard summons={summons} />
+        <SummoningOverviewCard />
+
+        {/* Abyss Stats Card */}
+        <section className="rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Abyss</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-red-600/40 bg-black/60 px-6 py-6 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)]">
+              <span className="text-[11px] uppercase tracking-[0.35em] text-red-300/80">Total Sacrifices</span>
+              <div className="mt-2">
+                <TotalSacrifices />
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(251,191,36,0.25)]">
+              <span className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80">Total Ascended / Revived</span>
+              <span className="mt-2 text-3xl font-black text-amber-200">500</span>
+            </div>
+          </div>
+        </section>
 
         <section className="grid gap-5 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur md:grid-cols-2">
           <ConnectDiscord
@@ -609,96 +612,25 @@ function ConnectTwitter({
   )
 }
 
-function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
-  const active = summons.created.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
-  const joined = summons.joined.filter((entry) => ['open', 'filling', 'ready'].includes(entry.status))
-  const completedHosted = summons.created.filter((entry) => entry.status === 'completed').length
-  const completedTouched = completedHosted + summons.joined.filter((entry) => entry.status === 'completed').length
-
-  if (active.length === 0 && joined.length === 0) {
-    return (
-      <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/abyss-summon"
-              className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-            >
-              Enter the Ritual
-            </Link>
-            <Link
-              href="/abyss-summon?type=damned_pool"
-              className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-300 hover:text-red-200"
-            >
-              Summon Abyss Portal
-            </Link>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-amber-400/40 bg-black/60 px-4 py-4 text-center text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
-          No circles yet. Gather four damned to unlock bonus burns.
-        </div>
-      </section>
-    )
-  }
-
+function SummoningOverviewCard() {
   return (
     <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
-            Completed:&nbsp;
-            <span className="text-red-200">{completedHosted}</span> hosted •{' '}
-            <span className="text-red-200">{completedTouched}</span> total touched
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/abyss-summon"
-            className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-          >
-            View Ritual Hall
-          </Link>
-          <Link
-            href="/abyss-summon?type=damned_pool"
-            className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-300 hover:text-red-200"
-          >
-            Summon Abyss Portal
-          </Link>
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+        <Link
+          href="/abyss-summon"
+          className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+        >
+          Enter
+        </Link>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {active.map((record) => (
-          <Link
-            key={record.id}
-            href="/abyss-summon"
-            className="rounded-2xl border border-amber-500/40 bg-amber-900/15 px-4 py-4 shadow-[0_0_18px_rgba(251,191,36,0.25)] transition hover:border-amber-400"
-          >
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">Created</p>
-            <p className="mt-1 text-lg font-black uppercase tracking-[0.3em] text-amber-100">
-              {record.status.toUpperCase()}
-            </p>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-amber-200/70">
-              {record.participants.length}/{record.requiredParticipants} participants
-            </p>
-          </Link>
-        ))}
-        {joined.map((record) => (
-          <Link
-            key={record.id}
-            href="/abyss-summon"
-            className="rounded-2xl border border-red-500/40 bg-red-900/20 px-4 py-4 shadow-[0_0_18px_rgba(220,38,38,0.25)] transition hover:border-red-400"
-          >
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-200">Joined</p>
-            <p className="mt-1 text-lg font-black uppercase tracking-[0.3em] text-red-100">
-              {record.status.toUpperCase()}
-            </p>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
-              {record.participants.length}/{record.requiredParticipants} participants
-            </p>
-          </Link>
-        ))}
+      <div className="mt-2 flex justify-center">
+        <Link
+          href="/abyss-summon"
+          className="inline-flex items-center justify-center rounded-full border border-red-500 bg-red-700/80 px-8 py-3 text-[12px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
+        >
+          Go to Summoning
+        </Link>
       </div>
     </section>
   )

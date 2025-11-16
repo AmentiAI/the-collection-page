@@ -3,7 +3,7 @@ import type { Pool } from 'pg'
 
 import { getPool } from '@/lib/db'
 
-const ABYSS_CAP = 333
+const ABYSS_CAP = 500
 
 async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`

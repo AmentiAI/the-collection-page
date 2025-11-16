@@ -106,7 +106,7 @@ const HORIZONTAL_JITTER_REDUCTION = 0.8
 const MIN_HORIZONTAL_JITTER_PERCENT = 1
 const VERTICAL_STEP_PERCENT = 0.35
 const ROTATION_VARIANCE_DEGREES = 30
-const TOTAL_ABYSS_CAP = 333
+const TOTAL_ABYSS_CAP = 500
 const ABYSS_DISABLED = true
 const ABYSS_DISABLED_MESSAGE = 'The summoning has been completed. Thank you for your efforts!'
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
@@ -1632,27 +1632,15 @@ function AbyssContent() {
   }, [showEntryModal, spawnWalker])
 
   const totalBurns = burnSummary?.total ?? 0
-  const minutesSinceReductionStart = useMemo(() => {
-    if (Number.isNaN(CAP_REDUCTION_START_UTC)) return 0
-    if (capDriftTimestamp < CAP_REDUCTION_START_UTC) return 0
-    return Math.max(0, Math.floor((capDriftTimestamp - CAP_REDUCTION_START_UTC) / 60_000))
-  }, [capDriftTimestamp])
+  const minutesSinceReductionStart = useMemo(() => 0, [])
   const dynamicCap = useMemo(() => {
-    // When burn window is active (damned pool complete), use the true 333 cap
-    if (burnWindowActive) {
-      const bonusCap = bonusAllowance > 0 ? bonusAllowance : 0
-      return Math.max(totalBurns, TOTAL_ABYSS_CAP + bonusCap)
-    }
-    // Otherwise use the normal reduced cap
-    const raw = TOTAL_ABYSS_CAP - minutesSinceReductionStart
-    const reduced = Math.max(raw, 0)
-    const bonusCap = !abyssDisabled && bonusAllowance > 0 ? bonusAllowance : 0
-    return Math.max(totalBurns, reduced + bonusCap)
-  }, [minutesSinceReductionStart, totalBurns, bonusAllowance, abyssDisabled, burnWindowActive])
+    // Fixed display cap of 500; bonus burns allow surpassing without raising the cap
+    return TOTAL_ABYSS_CAP
+  }, [])
   const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
   const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
   const bonusBurnsRemain = bonusAllowance > 0
-  const bonusBurnAvailable = !abyssDisabled && bonusBurnsRemain
+  const bonusBurnAvailable = bonusBurnsRemain
   const userCapReached = abyssDisabled || (globalCapReached && !bonusBurnAvailable)
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
@@ -1704,7 +1692,7 @@ function AbyssContent() {
       />
 
       {/* Burn Counter + Warnings + Controls */}
-      {globalCapReached && !bonusBurnAvailable ? (
+      {!bonusBurnAvailable ? (
         <FullAbyssMenu totalBurns={totalBurns} onOpenLeaderboard={() => setLeaderboardOpen(true)} />
       ) : null}
 
@@ -1743,6 +1731,11 @@ function AbyssContent() {
             <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
               Summoning bonus active — {bonusAllowance} bonus burn
               {bonusAllowance === 1 ? '' : 's'} available despite the cap.
+            </div>
+          )}
+          {!globalCapReached && bonusBurnAvailable && (
+            <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
+              {bonusAllowance} bonus burn{bonusAllowance === 1 ? '' : 's'} available. They will be consumed automatically when the abyss is full.
             </div>
           )}
           {holderAllowed && !userCapReached ? (

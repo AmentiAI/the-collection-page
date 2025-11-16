@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, Flame, Loader2, Sparkles, Trash2, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Flame, Loader2, Sparkles, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2 } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -59,34 +59,14 @@ type SummonLeaderboardEntry = {
 }
 
 
-// Change this to 'abyss', 'powder', or 'damned_pool' to switch modes
-// URL override: abyss-summon?type=damned_pool forces damned_pool mode on the client
-const URL_MODE =
-  typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('type')
-    : null
-const SUMMONING_MODE = (URL_MODE === 'damned_pool' ? 'damned_pool' : 'abyss') as
-  | 'abyss'
-  | 'powder'
-  | 'damned_pool'
-const IS_POWDER_MODE = SUMMONING_MODE === 'powder'
-const IS_DAMNED_POOL_MODE = SUMMONING_MODE === 'damned_pool'
-const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
-const SUMMON_API_BASE = IS_DAMNED_POOL_MODE ? '/api/damned-pool/circles' : IS_POWDER_MODE ? '/api/ascension/circles' : '/api/abyss/summons'
-const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
+// Static defaults; live mode is chosen via tabs in the component
 const POWDER_CIRCLE_REWARD = 2
 const ACTIVE_SUMMON_STATUSES = new Set(['open', 'filling', 'ready'])
-const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
 const SUMMON_COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const SUMMON_BURN_POINTS = 6
 const SUMMON_HOST_POINTS = 2
 const SUMMON_PARTICIPATION_POINTS = 1
-const SUMMONING_DISABLED = IS_POWDER_MODE || IS_DAMNED_POOL_MODE ? false : true
-const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
-  ? 'Ascension circles are currently paused.'
-  : IS_DAMNED_POOL_MODE
-  ? 'Damned pool circles are currently paused.'
-  : 'The summoning has been completed. Thank you for your efforts!'
+// The rest of the mode-dependent values are computed inside the component
 
 function formatCountdown(ms: number) {
   if (ms <= 0) {
@@ -114,6 +94,24 @@ export default function AbyssSummonPage() {
   const toast = useToast()
 
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
+  const [mode, setMode] = useState<'abyss' | 'powder' | 'damned_pool'>('damned_pool')
+  // Derive mode-dependent values locally so tabs switch instantly without reloads
+  const IS_POWDER_MODE = mode === 'powder'
+  const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
+  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
+  const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
+    ? '/api/damned-pool/circles'
+    : IS_POWDER_MODE
+    ? '/api/ascension/circles'
+    : '/api/abyss/summons'
+  const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
+  const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
+  const SUMMONING_DISABLED = IS_POWDER_MODE || IS_DAMNED_POOL_MODE ? false : true
+  const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
+    ? 'Ascension circles are currently paused.'
+    : IS_DAMNED_POOL_MODE
+    ? 'Damned pool circles are currently paused.'
+    : 'The summoning has been completed. Thank you for your efforts!'
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoplayAttemptedRef = useRef(false)
 
@@ -154,6 +152,24 @@ export default function AbyssSummonPage() {
     () => damnedOptions.find((option) => option.inscriptionId === selectedInscriptionId) ?? null,
     [damnedOptions, selectedInscriptionId],
   )
+  const circlesTouchedCount = useMemo(() => {
+    const ids = new Set<string>()
+    for (const s of createdSummons) ids.add(s.id)
+    for (const s of joinedSummons) ids.add(s.id)
+    return ids.size
+  }, [createdSummons, joinedSummons])
+  const confirmedPortalCount = useMemo(() => {
+    if (!IS_DAMNED_POOL_MODE) return 0
+    // Count unique completed portals across created and joined to avoid double counting
+    const completedIds = new Set<string>()
+    for (const s of createdSummons) {
+      if (s.status === 'completed') completedIds.add(s.id)
+    }
+    for (const s of joinedSummons) {
+      if (s.status === 'completed') completedIds.add(s.id)
+    }
+    return completedIds.size
+  }, [IS_DAMNED_POOL_MODE, createdSummons, joinedSummons])
   const truncateWallet = useCallback((value: string) => {
     const normalized = value.trim()
     if (normalized.length <= 8) return normalized
@@ -346,7 +362,7 @@ export default function AbyssSummonPage() {
         setSummonsLoading(false)
       }
     },
-    [toast],
+    [toast, SUMMON_API_BASE],
   )
 
   const fetchBurnCount = useCallback(async (address: string) => {
@@ -523,7 +539,7 @@ export default function AbyssSummonPage() {
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
     }
-  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, fetchBurnCount])
+  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, fetchBurnCount, SUMMON_LEADERBOARD_ENABLED])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -553,7 +569,7 @@ export default function AbyssSummonPage() {
       void loadSummonLeaderboard()
     }, 30_000)
     return () => window.clearInterval(intervalId)
-  }, [loadSummonLeaderboard])
+  }, [loadSummonLeaderboard, SUMMON_LEADERBOARD_ENABLED])
 
   const handleToggleMusic = useCallback(() => {
     const audio = audioRef.current
@@ -648,7 +664,7 @@ export default function AbyssSummonPage() {
     } finally {
       setCreating(false)
     }
-  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast])
+  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED])
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
@@ -713,7 +729,7 @@ export default function AbyssSummonPage() {
         setJoiningSummonId(null)
       }
     },
-    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast],
+    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED],
   )
 
   const handleCompleteSummon = useCallback(
@@ -759,7 +775,7 @@ export default function AbyssSummonPage() {
         setCompletingSummonId(null)
       }
     },
-    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast],
+    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED],
   )
 
   const handleDismissSummon = useCallback(
@@ -794,7 +810,7 @@ export default function AbyssSummonPage() {
         setDismissingSummonId(null)
       }
     },
-    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast],
+    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, SUMMON_LEADERBOARD_ENABLED],
   )
 
   return (
@@ -854,6 +870,70 @@ export default function AbyssSummonPage() {
       <Header connected={Boolean(ordinalAddress)} showMusicControls={false} />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8">
+        {/* Header outside of the card */}
+        <div className="relative flex items-center justify-center gap-3">
+          <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
+          <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
+            Summoning Circles
+          </h1>
+          <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
+        </div>
+        {/* Tabs outside the card, resting on the top-left edge */}
+        <div className="relative z-20 -mb-4 ml-4 flex items-center justify-between gap-4 pr-4">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('abyss')}
+              className={[
+                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
+                  ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
+                  : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
+              ].join(' ')}
+            >
+              Abyss
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('powder')}
+              className={[
+                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                IS_POWDER_MODE
+                  ? 'border-amber-400 bg-amber-600/80 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
+                  : 'border-amber-600/50 bg-black/70 text-amber-200/80 hover:border-amber-400/70',
+              ].join(' ')}
+            >
+              Ascension Powder
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('damned_pool')}
+              className={[
+                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                IS_DAMNED_POOL_MODE
+                  ? 'border-indigo-400 bg-indigo-700/80 text-indigo-100 shadow-[0_0_18px_rgba(99,102,241,0.45)]'
+                  : 'border-indigo-600/50 bg-black/70 text-indigo-200/80 hover:border-indigo-400/70',
+              ].join(' ')}
+            >
+              Portal Summoning
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-200/80">Leaderboards:</span>
+            <Link
+              href="/abyss-summon/leaderboard"
+              className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
+            >
+              Summoning
+            </Link>
+            <Link
+              href="/ascension/leaderboard"
+              className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-600/70 px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-500"
+            >
+              Ascension
+            </Link>
+          </div>
+        </div>
         <section className="relative overflow-hidden rounded-3xl border border-red-600/40 bg-black/75 p-8 shadow-[0_0_40px_rgba(220,38,38,0.45)] backdrop-blur">
           <div className="pointer-events-none absolute inset-0 opacity-60">
             <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-600/40 bg-[radial-gradient(circle,_rgba(220,38,38,0.3)_0%,_rgba(10,0,0,0)_65%)] blur-xl" />
@@ -861,43 +941,19 @@ export default function AbyssSummonPage() {
             <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rotate-12 border border-amber-500/20" />
           </div>
           <div className="relative flex flex-col gap-5 text-center">
-            <div className="flex items-center justify-center gap-3">
-              <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
-              <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
-                {IS_DAMNED_POOL_MODE ? 'Damned Pool' : IS_POWDER_MODE ? 'Ascension Circles' : 'Summoning Circles'}
-              </h1>
-              <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
-            </div>
-            <p className="mx-auto max-w-3xl text-sm uppercase tracking-[0.35em] text-red-200/85">
-              {IS_DAMNED_POOL_MODE
-                ? 'Gather fifty damned within thirty minutes. If forty-five complete the ritual, a one-hour burn window opens for all.'
-                : IS_POWDER_MODE
-                ? `Gather ten damned within thirty minutes. Seal the ritual together to transmute ${POWDER_CIRCLE_REWARD.toLocaleString()} ${powderTerm} per acolyte.`
-                : 'Gather four damned within thirty minutes. Complete the ritual to unlock a bonus burn that slips past the abyssal cap.'}
-            </p>
-            <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-red-100 shadow-[0_0_25px_rgba(220,38,38,0.35)]">
-              <AlertTriangle className="h-4 w-4 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
-              <span>
-                {IS_DAMNED_POOL_MODE
-                  ? 'Forty-five of fifty must mark complete in the final two minutes to unlock the burn window.'
-                  : IS_POWDER_MODE
-                  ? `All ten must remain until the final two minutes and confirm completion to claim ${powderTerm}.`
-                  : 'More burns are required to keep the summoning circles open.'}
-              </span>
-            </div>
-            {SUMMONING_DISABLED && (
-              <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-900/20 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.35)]">
-                <AlertTriangle className="h-4 w-4 text-amber-200 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" />
-                <span>{SUMMONING_DISABLED_MESSAGE}</span>
-              </div>
-            )}
+         
+             
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                 <span className="text-[11px] text-amber-300">
-                  {IS_POWDER_MODE ? `${powderTermCapitalized} Banked` : 'Bonus Burns Awaiting'}
+                  {IS_DAMNED_POOL_MODE
+                    ? 'Confirmed Portals'
+                    : IS_POWDER_MODE
+                    ? `${powderTermCapitalized} Banked`
+                    : 'Bonus Burns Awaiting'}
                 </span>
                 <div className="mt-1 text-2xl font-black text-amber-100 drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]">
-                  {bonusAllowance}
+                  {IS_DAMNED_POOL_MODE ? confirmedPortalCount : bonusAllowance}
                 </div>
               </div>
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
@@ -909,33 +965,12 @@ export default function AbyssSummonPage() {
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                 <span className="text-[11px] text-red-400">Circles Touched</span>
                 <div className="mt-1 text-2xl font-black text-red-200 drop-shadow-[0_0_12px_rgba(220,38,38,0.45)]">
-                  {createdSummons.length + joinedSummons.length}
+                  {circlesTouchedCount}
                 </div>
               </div>
             </div>
-            {bonusAllowance > 0 && (
-              !IS_POWDER_MODE && (
-                <div className="mt-4 flex justify-center">
-                  <Link
-                    href="/abyss"
-                    className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-500/20 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.35)] transition hover:bg-amber-500/30"
-                  >
-                    Spend Bonus Burn
-                  </Link>
-                </div>
-              )
-            )}
-            {SUMMON_LEADERBOARD_ENABLED && (
-              <div className="flex justify-center pt-4">
-                <Link
-                  href="/abyss-summon/leaderboard"
-                  className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
-                >
-                  <Trophy className="h-4 w-4" />
-                  Summoners Leaderboard
-                </Link>
-              </div>
-            )}
+            
+           
           </div>
         </section>
 
@@ -1018,19 +1053,28 @@ export default function AbyssSummonPage() {
           </aside>
 
           <div className="space-y-6">
-            <section className="rounded-2xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur">
+            <section
+              className={[
+                'rounded-2xl border p-6 backdrop-blur',
+                IS_POWDER_MODE
+                  ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_25px_rgba(251,191,36,0.35)]'
+                  : IS_DAMNED_POOL_MODE
+                  ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_25px_rgba(99,102,241,0.35)]'
+                  : 'border-red-600/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]',
+              ].join(' ')}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-[0.35em] text-red-100">
                     <Flame className="h-5 w-5 text-red-400 drop-shadow-[0_0_12px_rgba(220,38,38,0.6)]" />
-                    Start a Summon
+                    Become Host (Optional)
                   </h2>
                   <p className="mt-2 max-w-xl text-[11px] uppercase tracking-[0.3em] text-red-300/70">
                     {IS_DAMNED_POOL_MODE
-                      ? 'Select an ordinal from your inventory and gather forty-nine allies. The pool locks when fifty damned commit their relics.'
+                      ? 'Select an ordinal from your inventory. The pool locks when fifty damned commit.'
                       : IS_POWDER_MODE
-                      ? 'Select an ordinal from your inventory and gather nine allies. The circle locks when ten damned commit their relics.'
-                      : 'Select an ordinal from your inventory and gather three allies. The circle locks when four damned commit their relics.'}
+                      ? 'Select an ordinal from your inventory. The circle locks when ten damned commit.'
+                      : 'Select an ordinal from your inventory. The circle locks when four damned commit.'}
                   </p>
                 </div>
                 <Button
@@ -1100,6 +1144,8 @@ export default function AbyssSummonPage() {
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
                         isPowderMode={IS_POWDER_MODE}
+                        requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
+                        summonDurationMs={SUMMON_DURATION_MS}
                         loading={summonsLoading}
                         now={now}
                         emptyMessage="No active circles. Initiate one or await whispers from the damned."
@@ -1122,6 +1168,8 @@ export default function AbyssSummonPage() {
                       truncateWallet={truncateWallet}
                       assetMap={inscriptionImageCache}
                       isPowderMode={IS_POWDER_MODE}
+                      requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
+                      summonDurationMs={SUMMON_DURATION_MS}
                       highlightCreator
                       now={now}
                       emptyMessage="You haven&rsquo;t founded a summoning circle yet."
@@ -1143,6 +1191,8 @@ export default function AbyssSummonPage() {
                       truncateWallet={truncateWallet}
                       assetMap={inscriptionImageCache}
                       isPowderMode={IS_POWDER_MODE}
+                      requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
+                      summonDurationMs={SUMMON_DURATION_MS}
                       now={now}
                       emptyMessage="You have not joined a summoning circle yet."
                     />
@@ -1174,6 +1224,8 @@ function SummonList({
   now,
   emptyMessage,
   isPowderMode,
+  requiredParticipantsForMode,
+  summonDurationMs,
 }: {
   summons: SummonRecord[]
   ordinalAddress: string
@@ -1190,7 +1242,19 @@ function SummonList({
   now: number
   emptyMessage?: string
   isPowderMode: boolean
+  requiredParticipantsForMode: number
+  summonDurationMs?: number
 }) {
+  const abbreviateName = (value: string): string => {
+    const trimmed = value.trim()
+    return trimmed.length > 12 ? `${trimmed.slice(0, 12)}` : trimmed
+  }
+  const localSummonDurationMs =
+    typeof summonDurationMs === 'number'
+      ? summonDurationMs
+      : requiredParticipantsForMode === 10
+      ? 10 * 60 * 1000
+      : 30 * 60 * 1000
   if (loading && summons.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-red-300">
@@ -1208,7 +1272,7 @@ function SummonList({
   return (
     <div className="space-y-4">
       {summons.map((summon) => {
-        const fallbackSlots = isPowderMode ? SUMMON_REQUIRED_PARTICIPANTS : 4
+        const fallbackSlots = isPowderMode ? requiredParticipantsForMode : 4
         const totalSlots = Math.max(summon.requiredParticipants, fallbackSlots)
         const isCreator =
           ordinalAddress.length > 0 && summon.creatorWallet?.toLowerCase() === ordinalAddress.toLowerCase()
@@ -1226,7 +1290,7 @@ function SummonList({
         const rawExpiryMs = summon.expiresAt && Number.isFinite(Date.parse(summon.expiresAt))
           ? Date.parse(summon.expiresAt)
           : Number.NaN
-        const fallbackExpiryMs = createdAtMs + SUMMON_DURATION_MS
+        const fallbackExpiryMs = createdAtMs + localSummonDurationMs
         const targetExpiryMs = Number.isFinite(rawExpiryMs)
           ? Math.min(rawExpiryMs, fallbackExpiryMs)
           : fallbackExpiryMs
@@ -1242,7 +1306,7 @@ function SummonList({
           ? 0
           : isExpired
           ? 0
-          : Math.min(1, Math.max(0, 1 - (secondsRemaining * 1000) / SUMMON_DURATION_MS))
+          : Math.min(1, Math.max(0, 1 - (secondsRemaining * 1000) / localSummonDurationMs))
         const glowRadius = 18 + glowIntensity * 32
         const glowAlpha = 0.22 + glowIntensity * 0.5
         const borderAlpha = 0.18 + glowIntensity * 0.55
@@ -1276,8 +1340,8 @@ function SummonList({
               willChange: 'transform, box-shadow, border-color',
             }}
           >
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="mx-auto flex w-full max-w-[220px] flex-col items-center gap-3 md:mx-0">
+            <div className="grid gap-6 md:grid-cols-[260px_1fr_auto] md:items-start">
+              <div className="mx-auto flex w-full max-w-[240px] flex-col items-center gap-3 md:mx-0">
                 <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
                   <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     {statusLabel}
@@ -1300,7 +1364,7 @@ function SummonList({
                   {(() => {
                     const creatorParticipant = summon.participants.find((p) => p.role === 'creator')
                     if (creatorParticipant?.username) {
-                      return creatorParticipant.username
+                      return abbreviateName(creatorParticipant.username)
                     }
                     return truncateWallet(summon.creatorWallet)
                   })()}
@@ -1312,15 +1376,15 @@ function SummonList({
                   {summon.participants.map((participant) => {
                     const pillClass = [
                       'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
-                      participant.role === 'creator'
-                        ? 'border-red-500/60 text-red-200'
-                        : participant.completed
+                      participant.completed
                         ? 'border-emerald-500/50 text-emerald-200'
+                        : participant.role === 'creator'
+                        ? 'border-red-500/60 text-red-200'
                         : 'border-red-400/40 text-red-200/80',
                     ].join(' ')
                     const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
                     // Abbreviate on mobile: show only initials on small screens, full name on larger screens
-                    const displayName = fullDisplayName
+                    const displayName = abbreviateName(fullDisplayName)
                     const displayInitials = participant.username
                       ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
                       : truncateWallet(participant.wallet).slice(0, 2)
@@ -1362,48 +1426,6 @@ function SummonList({
                   </div>
                 )}
               </div>
-              {/* Full-width participant row for damned_pool (colspan-style below the two columns) */}
-              {isDamnedPool && (
-                <div className="md:col-span-2">
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {summon.participants.map((participant) => {
-                      const pillClass = [
-                        'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
-                        participant.role === 'creator'
-                          ? 'border-red-500/60 text-red-200'
-                          : participant.completed
-                          ? 'border-emerald-500/50 text-emerald-200'
-                          : 'border-red-400/40 text-red-200/80',
-                      ].join(' ')
-                      const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
-                      const displayName = fullDisplayName
-                      const displayInitials = participant.username
-                        ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
-                        : truncateWallet(participant.wallet).slice(0, 2)
-                      return (
-                        <span key={participant.id} className={pillClass}>
-                          {participant.avatarUrl ? (
-                            <Image
-                              src={participant.avatarUrl}
-                              alt={displayName}
-                              width={16}
-                              height={16}
-                              className="h-4 w-4 rounded-full border border-red-700/50"
-                            />
-                          ) : (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
-                              {displayInitials}
-                            </span>
-                          )}
-                          <span className="hidden sm:inline">{displayName}</span>
-                          <span className="sm:hidden">{displayInitials}</span>
-                          {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
-                        </span>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
               <div className="flex min-w-[190px] flex-col items-stretch gap-2">
                 {isCreator && highlightCreator && (
                   <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Your circle</span>
@@ -1443,24 +1465,6 @@ function SummonList({
                     >
                       Circle Expired
                     </Button>
-                    {isCreator && (
-                      <Button
-                        type="button"
-                        onClick={() => onDismiss(summon)}
-                        disabled={dismissingSummonId === summon.id}
-                        className="flex items-center justify-center gap-2 border border-red-600 bg-red-800/70 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {dismissingSummonId === summon.id ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" /> Dissolving…
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="h-3 w-3" /> Dissolve Circle
-                          </>
-                        )}
-                      </Button>
-                    )}
                   </div>
                 ) : !isPowderMode ? (
                   ready && !completionWindowOpen && !isExpired ? (
@@ -1475,7 +1479,7 @@ function SummonList({
                 ) : null}
                 {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
-                    {IS_DAMNED_POOL_MODE ? 'Fifty seats must be filled before the ritual locks.' : 'Ten seats must be filled before the ritual locks.'}
+                    {isDamnedPool ? 'Fifty seats must be filled before the ritual locks.' : 'Ten seats must be filled before the ritual locks.'}
                   </div>
                 )}
                 {!isExpired && !isParticipant && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
@@ -1499,6 +1503,48 @@ function SummonList({
                   </Button>
                 )}
               </div>
+              {/* Full-width participant row for damned_pool (colspan-style below the two columns) */}
+              {isDamnedPool && (
+                <div className="md:col-span-3">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {summon.participants.map((participant) => {
+                      const pillClass = [
+                        'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
+                        participant.completed
+                          ? 'border-emerald-500/50 text-emerald-200'
+                          : participant.role === 'creator'
+                          ? 'border-red-500/60 text-red-200'
+                          : 'border-red-400/40 text-red-200/80',
+                      ].join(' ')
+                      const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                      const displayName = abbreviateName(fullDisplayName)
+                      const displayInitials = participant.username
+                        ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
+                        : truncateWallet(participant.wallet).slice(0, 2)
+                      return (
+                        <span key={participant.id} className={pillClass}>
+                          {participant.avatarUrl ? (
+                            <Image
+                              src={participant.avatarUrl}
+                              alt={displayName}
+                              width={16}
+                              height={16}
+                              className="h-4 w-4 rounded-full border border-red-700/50"
+                            />
+                          ) : (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
+                              {displayInitials}
+                            </span>
+                          )}
+                          <span className="hidden sm:inline">{displayName}</span>
+                          <span className="sm:hidden">{displayInitials}</span>
+                          {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )

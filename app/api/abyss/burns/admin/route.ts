@@ -3,7 +3,7 @@ import type { Pool } from 'pg'
 
 import { getPool } from '@/lib/db'
 
-const ABYSS_CAP = 333
+const ABYSS_CAP = 500
 const DEFAULT_LIMIT = ABYSS_CAP
 
 export const dynamic = 'force-dynamic'

@@ -3,7 +3,7 @@ import type { Pool } from 'pg'
 
 import { getPool } from '@/lib/db'
 
-const ABYSS_CAP = 333
+const ABYSS_CAP = 500
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
 const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 
