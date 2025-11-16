@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
           circle_id,
           granted_at,
           expires_at,
-          active
+          active,
+          credits_only
         FROM damned_pool_burn_windows
         WHERE active = TRUE
           AND expires_at > NOW()
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
       active: remainingMs > 0,
       expiresAt: window.expires_at,
       remainingMs: Math.max(0, remainingMs),
+      creditsOnly: Boolean(window.credits_only),
     })
   } catch (error) {
     console.error('[abyss/burn-window][GET]', error)

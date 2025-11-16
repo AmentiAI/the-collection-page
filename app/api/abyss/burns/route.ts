@@ -111,6 +111,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const cacheControl = request.headers.get('cache-control')
 
+    // Return total ascended/revived (ascension_powder == 500 and confirmed)
+    if (searchParams.get('ascensionTotal') === 'true') {
+      const res = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM abyss_burns
+          WHERE status = 'confirmed' AND ascension_powder = 500
+        `,
+      )
+      const count = Number(res.rows[0]?.count ?? 0)
+      return NextResponse.json({ success: true, ascensionTotal: count })
+    }
+
     if (searchParams.get('ids') === 'inscriptions') {
       const result = await pool.query(`SELECT inscription_id FROM abyss_burns`)
       const ids = result.rows

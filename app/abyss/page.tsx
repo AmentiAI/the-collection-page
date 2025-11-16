@@ -318,6 +318,7 @@ function AbyssContent() {
   const searchParams = useSearchParams()
   const bypassDisabled = searchParams?.get('bygas') === '1'
   const [burnWindowActive, setBurnWindowActive] = useState(false)
+  const [burnWindowCreditsOnly, setBurnWindowCreditsOnly] = useState(false)
   const [burnWindowExpiresAt, setBurnWindowExpiresAt] = useState<string | null>(null)
   
   // Check for active burn window
@@ -331,6 +332,7 @@ function AbyssContent() {
           const data = await response.json()
           if (data.success) {
             setBurnWindowActive(data.active)
+            setBurnWindowCreditsOnly(Boolean(data.creditsOnly))
             setBurnWindowExpiresAt(data.expiresAt)
           }
         }
@@ -1641,7 +1643,16 @@ function AbyssContent() {
   const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
   const bonusBurnsRemain = bonusAllowance > 0
   const bonusBurnAvailable = bonusBurnsRemain
-  const userCapReached = abyssDisabled || (globalCapReached && !bonusBurnAvailable)
+  const userCapReached = (() => {
+    if (abyssDisabled) return true
+    if (burnWindowActive) {
+      // If the burn window is open and not credits-only, allow burns regardless of cap/bonus
+      if (!burnWindowCreditsOnly) return false
+      // Credits-only window: require bonus burns to bypass cap
+      return globalCapReached && !bonusBurnAvailable
+    }
+    return globalCapReached && !bonusBurnAvailable
+  })()
   const showHolderBlock = isWalletConnected && isHolder === false && !isVerifying
   const holderAllowed = isHolder === true
   const hasPendingBurn = pendingBurnRecords.length > 0

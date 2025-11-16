@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
-const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
+const MIN_COMPLETION_COUNT_DEFAULT = 45 // fallback
 const BURN_WINDOW_DURATION_MS = 60 * 60 * 1000 // 1 hour
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
@@ -16,6 +16,8 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       required_participants INTEGER NOT NULL DEFAULT 50,
+      min_completion_count INTEGER NOT NULL DEFAULT 45,
+      mode TEXT NOT NULL DEFAULT 'open_all',
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,
@@ -45,9 +47,13 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
       granted_at TIMESTAMPTZ DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,
-      active BOOLEAN NOT NULL DEFAULT TRUE
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      credits_only BOOLEAN NOT NULL DEFAULT FALSE
     )
   `)
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT 45`)
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
+  await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
 }
 
@@ -58,6 +64,8 @@ function mapCircleRow(row: any) {
     creatorInscriptionId: row.creator_inscription_id,
     status: row.status,
     requiredParticipants: Number(row.required_participants ?? 50),
+    minCompletionCount: Number(row.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT),
+    mode: row.mode ?? 'open_all',
     lockedAt: row.locked_at,
     completedAt: row.completed_at,
     expiresAt: row.expires_at,
@@ -221,7 +229,8 @@ export async function POST(
     const participants = participantsRes.rows
     const completedCount = participants.filter((row) => row.completed).length
     // Allow completion if 45 out of 50 participants have marked complete
-    const allCompleted = participants.length >= circle.required_participants && completedCount >= MIN_COMPLETION_COUNT
+    const minCount = Number(circle.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT)
+    const allCompleted = participants.length >= circle.required_participants && completedCount >= minCount
 
     let burnWindowGranted = Boolean(circle.burn_window_granted)
 
@@ -241,13 +250,13 @@ export async function POST(
         [circleId],
       )
 
-      // Create burn window record
+      // Create burn window record (credits_only if mode is bonus_credits)
       await pool.query(
         `
-          INSERT INTO damned_pool_burn_windows (circle_id, expires_at)
-          VALUES ($1, $2)
+          INSERT INTO damned_pool_burn_windows (circle_id, expires_at, credits_only)
+          VALUES ($1, $2, $3)
         `,
-        [circleId, burnWindowExpiresAt.toISOString()],
+        [circleId, burnWindowExpiresAt.toISOString(), circle.mode === 'bonus_credits'],
       )
 
       burnWindowGranted = true

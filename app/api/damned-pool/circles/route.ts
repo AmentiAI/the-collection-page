@@ -6,8 +6,10 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 50
+const REQUIRED_PARTICIPANTS_BONUS = 30
 const CIRCLE_DURATION_MS = 30 * 60 * 1000 // 30 minutes
 const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
+const MIN_COMPLETION_COUNT_BONUS = 27 // 27 out of 30 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
 const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Only 1 damned pool globally at a time
 // Set to false to disable damned pool circles at the API level
@@ -21,6 +23,8 @@ async function ensureDamnedPoolInfrastructure(pool: Pool) {
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
+      min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT},
+      mode TEXT NOT NULL DEFAULT 'open_all',
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,
@@ -29,6 +33,9 @@ async function ensureDamnedPoolInfrastructure(pool: Pool) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // Backfill columns if upgrading
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT}`)
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_status ON damned_pool_circles(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_creator ON damned_pool_circles((LOWER(creator_wallet)))`)
 
@@ -57,9 +64,11 @@ async function ensureDamnedPoolInfrastructure(pool: Pool) {
       circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
       granted_at TIMESTAMPTZ DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,
-      active BOOLEAN NOT NULL DEFAULT TRUE
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      credits_only BOOLEAN NOT NULL DEFAULT FALSE
     )
   `)
+  await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
 }
 
@@ -81,6 +90,8 @@ function mapCircleRow(row: any) {
     creatorInscriptionId: row.creator_inscription_id,
     status: row.status,
     requiredParticipants: Number(row.required_participants ?? REQUIRED_PARTICIPANTS),
+    minCompletionCount: Number(row.min_completion_count ?? MIN_COMPLETION_COUNT),
+    mode: row.mode ?? 'open_all',
     lockedAt: row.locked_at,
     completedAt: row.completed_at,
     expiresAt: row.expires_at,
@@ -311,6 +322,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Determine mode and thresholds
+    const circleModeRaw = (body?.circleMode ?? 'open_all').toString().trim().toLowerCase()
+    const circleMode = circleModeRaw === 'bonus_credits' ? 'bonus_credits' : 'open_all'
+    const requiredParticipants =
+      circleMode === 'bonus_credits' ? REQUIRED_PARTICIPANTS_BONUS : REQUIRED_PARTICIPANTS
+    const minCompletion = circleMode === 'bonus_credits' ? MIN_COMPLETION_COUNT_BONUS : MIN_COMPLETION_COUNT
+
     const circleResult = await pool.query(
       `
         INSERT INTO damned_pool_circles (
@@ -318,12 +336,14 @@ export async function POST(request: NextRequest) {
           creator_inscription_id,
           status,
           required_participants,
+          min_completion_count,
+          mode,
           expires_at
         )
-        VALUES ($1, $2, 'open', $3, $4)
+        VALUES ($1, $2, 'open', $3, $4, $5, $6)
         RETURNING *
       `,
-      [creatorWallet, creatorInscriptionId, REQUIRED_PARTICIPANTS, expiresAt.toISOString()],
+      [creatorWallet, creatorInscriptionId, requiredParticipants, minCompletion, circleMode, expiresAt.toISOString()],
     )
 
     const circle = circleResult.rows[0]

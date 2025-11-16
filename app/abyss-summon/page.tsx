@@ -129,6 +129,7 @@ export default function AbyssSummonPage() {
   const [selectedInscriptionId, setSelectedInscriptionId] = useState<string | null>(null)
 
   const [creating, setCreating] = useState(false)
+  const [poolMode, setPoolMode] = useState<'open_all' | 'bonus_credits'>('open_all')
   const [joiningSummonId, setJoiningSummonId] = useState<string | null>(null)
   const [completingSummonId, setCompletingSummonId] = useState<string | null>(null)
   const [dismissingSummonId, setDismissingSummonId] = useState<string | null>(null)
@@ -636,6 +637,7 @@ export default function AbyssSummonPage() {
           creatorWallet: ordinalAddress,
           inscriptionId: selectedOption.inscriptionId,
           inscriptionImage: selectedOption.image ?? null,
+          circleMode: IS_DAMNED_POOL_MODE ? poolMode : undefined,
         }),
       })
       if (!response.ok) {
@@ -664,7 +666,7 @@ export default function AbyssSummonPage() {
     } finally {
       setCreating(false)
     }
-  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED])
+  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED, poolMode])
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
@@ -1044,12 +1046,7 @@ export default function AbyssSummonPage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-red-600/40 bg-black/70 p-5 shadow-[0_0_20px_rgba(220,38,38,0.3)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.35em] text-red-200">Bonus Burns</h2>
-              <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-red-300/70">
-                Completing a summoning circle rewards a single bonus burn that bypasses the abyssal cap. Bonuses stack and are consumed the next time you sacrifice an ordinal while the abyss is full.
-              </p>
-            </section>
+         
           </aside>
 
           <div className="space-y-6">
@@ -1076,6 +1073,35 @@ export default function AbyssSummonPage() {
                       ? 'Select an ordinal from your inventory. The circle locks when ten damned commit.'
                       : 'Select an ordinal from your inventory. The circle locks when four damned commit.'}
                   </p>
+                  {IS_DAMNED_POOL_MODE && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
+                      <span>Mode:</span>
+                      <button
+                        type="button"
+                        onClick={() => setPoolMode('bonus_credits')}
+                        className={[
+                          'rounded-full border px-3 py-1 transition',
+                          poolMode === 'bonus_credits'
+                            ? 'border-amber-400 bg-amber-600/70 text-amber-100'
+                            : 'border-amber-600/40 bg-black/40 text-amber-200/80 hover:border-amber-400/60',
+                        ].join(' ')}
+                      >
+                        Bonus Burn Credits (30 seats, 27 confirm)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPoolMode('open_all')}
+                        className={[
+                          'rounded-full border px-3 py-1 transition',
+                          poolMode === 'open_all'
+                            ? 'border-indigo-400 bg-indigo-700/70 text-indigo-100'
+                            : 'border-indigo-600/40 bg-black/40 text-indigo-200/80 hover:border-indigo-400/60',
+                        ].join(' ')}
+                      >
+                        Open To All (50 seats, 45 confirm)
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <Button
                   type="button"

@@ -193,7 +193,7 @@ function ProfileContent() {
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(251,191,36,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80">Total Ascended / Revived</span>
-              <span className="mt-2 text-3xl font-black text-amber-200">500</span>
+              <AscensionTotal />
             </div>
           </div>
         </section>
@@ -634,6 +634,40 @@ function SummoningOverviewCard() {
       </div>
     </section>
   )
+}
+
+function AscensionTotal() {
+  const [count, setCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/abyss/burns?ascensionTotal=true', { headers: { 'Cache-Control': 'no-store' } })
+        if (!res.ok) {
+          throw new Error(`Failed (${res.status})`)
+        }
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled) {
+          const n = Number(data?.ascensionTotal ?? 0)
+          setCount(Number.isFinite(n) ? n : 0)
+        }
+      } catch {
+        if (!cancelled) setCount(0)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  if (loading && count === null) {
+    return <span className="mt-2 text-3xl font-black text-amber-200">…</span>
+  }
+  return <span className="mt-2 text-3xl font-black text-amber-200">{count ?? 0}</span>
 }
 
 function useProfileState() {
