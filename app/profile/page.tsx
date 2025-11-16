@@ -114,6 +114,7 @@ function ProfileContent() {
     executioner,
     bonusAllowance,
     summons,
+    portalSummary,
     refreshProfile,
     triggerDiscordAuth,
     triggerTwitterAuth,
@@ -1011,6 +1012,7 @@ function useProfileState() {
       executioner,
       bonusAllowance,
       summons,
+      portalSummary,
       refreshProfile: () => {
         if (address) {
           void Promise.all([
@@ -1037,6 +1039,7 @@ function useProfileState() {
       executioner,
       bonusAllowance,
       summons,
+      portalSummary,
       fetchProfile,
       checkDiscordStatus,
       checkTwitterStatus,
