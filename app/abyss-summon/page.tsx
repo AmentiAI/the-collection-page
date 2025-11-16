@@ -1737,7 +1737,7 @@ function SummoningCircleGraphic({
         }}
       >
         <span className="flex h-full w-full items-center justify-center">
-          {isCreator ? 'Host' : 'Rite'}
+          {isCreator ? 'Damned' : 'Damned'}
         </span>
       </div>
       {slots.map((participant, index) => {

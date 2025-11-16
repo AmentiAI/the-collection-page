@@ -203,10 +203,9 @@ export async function POST(
         JOIN damned_pool_circles c ON c.id = p.circle_id
         WHERE p.inscription_id = $1
           AND c.status IN ('open', 'filling', 'ready')
-          AND c.mode = $2
         LIMIT 1
       `,
-      [inscriptionId, circleMode],
+      [inscriptionId],
     )
     if (inscriptionConflict.rows.length > 0) {
       await pool.query('ROLLBACK')

@@ -317,10 +317,9 @@ export async function POST(request: NextRequest) {
           JOIN damned_pool_participants p ON p.circle_id = c.id
           WHERE p.inscription_id = $1
             AND c.status IN ('open', 'filling', 'ready')
-            AND c.mode = $2
           LIMIT 1
         `,
-        [creatorInscriptionId, circleMode],
+        [creatorInscriptionId],
       )
 
       if (conflictRes.rows.length > 0) {

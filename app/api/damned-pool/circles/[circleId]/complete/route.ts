@@ -55,6 +55,13 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
   await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
   await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+      wallet TEXT PRIMARY KEY,
+      available INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
 }
 
 function mapCircleRow(row: any) {
@@ -271,16 +278,45 @@ export async function POST(
         `,
         [circleId],
       )
+
+      // Award +1 bonus burn allowance to the host for 30-man (bonus_credits) circles
+      if ((circle.mode ?? 'open_all') === 'bonus_credits') {
+        const hostWallet = (circle.creator_wallet ?? '').toString()
+        if (hostWallet) {
+          await pool.query(
+            `
+              INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
+              VALUES ($1, 1, NOW())
+              ON CONFLICT (wallet)
+              DO UPDATE SET
+                available = abyss_bonus_allowances.available + 1,
+                updated_at = EXCLUDED.updated_at
+            `,
+            [hostWallet],
+          )
+        }
+      }
     }
 
     await pool.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
 
+    // Include updated bonus allowance (for host) if applicable
+    let bonusAllowance: number | undefined
+    if ((circle.mode ?? 'open_all') === 'bonus_credits') {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [circle.creator_wallet],
+      )
+      bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    }
+
     return NextResponse.json({
       success: true,
       summon: mapCircleRow(refreshed.rows[0]),
       burnWindowGranted,
+      ...(typeof bonusAllowance === 'number' ? { bonusAllowance } : {}),
     })
   } catch (error) {
     await pool.query('ROLLBACK').catch(() => {})
