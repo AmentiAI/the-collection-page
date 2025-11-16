@@ -1359,7 +1359,7 @@ function SummonList({
           (participant) => participant.wallet?.toLowerCase() === ordinalAddress.toLowerCase(),
         )
         const participantCompleted = Boolean(currentParticipant?.completed)
-        const ready = summon.status === 'ready'
+        const ready = summon.status === 'ready' || summon.status === 'locked'
         const createdAtMs = Number.isFinite(Date.parse(summon.createdAt ?? ''))
           ? Date.parse(summon.createdAt ?? '')
           : Date.now()
