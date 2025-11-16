@@ -18,6 +18,7 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
+      mode TEXT NOT NULL DEFAULT 'open_all',
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,
@@ -26,6 +27,7 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS damned_pool_participants (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -135,6 +137,7 @@ export async function POST(
     }
 
     const circle = circleRes.rows[0]
+    const circleMode = (circle.mode ?? 'open_all').toString()
 
     if (circle.expires_at && new Date(circle.expires_at) < new Date()) {
       await pool.query(
@@ -165,12 +168,13 @@ export async function POST(
       )
     }
 
-    // Check if user is already in an active damned pool
+    // Check if user is already in an active damned pool for this mode
     const userActiveCirclesRes = await pool.query(
       `
         SELECT COUNT(DISTINCT c.id)::int AS active_count
         FROM damned_pool_circles c
         WHERE c.status IN ('open', 'filling', 'ready')
+          AND c.mode = $2
           AND (
             LOWER(c.creator_wallet) = LOWER($1)
             OR EXISTS (
@@ -180,7 +184,7 @@ export async function POST(
             )
           )
       `,
-      [wallet],
+      [wallet, circleMode],
     )
     const userActiveCount = Number(userActiveCirclesRes.rows[0]?.active_count ?? 0)
 
@@ -199,9 +203,10 @@ export async function POST(
         JOIN damned_pool_circles c ON c.id = p.circle_id
         WHERE p.inscription_id = $1
           AND c.status IN ('open', 'filling', 'ready')
+          AND c.mode = $2
         LIMIT 1
       `,
-      [inscriptionId],
+      [inscriptionId, circleMode],
     )
     if (inscriptionConflict.rows.length > 0) {
       await pool.query('ROLLBACK')
