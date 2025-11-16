@@ -281,31 +281,29 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if there is already an active damned pool globally for this mode
+      // Check if there is already an active damned pool globally (any mode)
       await pool.query(
         `
           SELECT id FROM damned_pool_circles
           WHERE status IN ('open', 'filling', 'ready')
-            AND mode = $1
           FOR UPDATE
         `,
-        [circleMode],
+        
       )
       const globalActiveCountRes = await pool.query(
         `
           SELECT COUNT(*)::int AS active_count
           FROM damned_pool_circles
           WHERE status IN ('open', 'filling', 'ready')
-            AND mode = $1
         `,
-        [circleMode],
+        
       )
       const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
 
       if (globalActiveCount >= 1) {
         await pool.query('ROLLBACK')
         return NextResponse.json(
-          { success: false, error: `Only one active damned pool allowed globally for this mode.` },
+          { success: false, error: `Only one active damned pool allowed globally at a time.` },
           { status: 409 },
         )
       }
