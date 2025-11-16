@@ -1555,7 +1555,11 @@ function SummonList({
                 ) : null}
                 {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
-                    {isDamnedPool ? 'Fifty seats must be filled before the ritual locks.' : 'Ten seats must be filled before the ritual locks.'}
+                    {usePortalLayout
+                      ? totalSlots >= 50
+                        ? 'Fifty seats must be filled before the ritual locks.'
+                        : 'Thirty seats must be filled before the ritual locks.'
+                      : 'Ten seats must be filled before the ritual locks.'}
                   </div>
                 )}
                 {!isExpired && !isParticipant && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
