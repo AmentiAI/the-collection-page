@@ -4,7 +4,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
+const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
 const MIN_COMPLETION_COUNT_DEFAULT = 45 // fallback
 const BURN_WINDOW_DURATION_MS = 60 * 60 * 1000 // 1 hour
 

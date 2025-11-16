@@ -1414,7 +1414,7 @@ function SummonList({
             // Non-powder: host completes when ready
             (!isPowderMode && ready && isCreator) ||
             // Special case: 30-seat portal allows any participant to complete during window
-            (isThirtyManPortal && isParticipant)
+            (isThirtyManPortal && isParticipant && !participantCompleted)
           )
 
         return (
