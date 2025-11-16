@@ -881,7 +881,7 @@ export default function AbyssSummonPage() {
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
         </div>
         {/* Tabs outside the card, resting on the top-left edge */}
-        <div className="relative z-20 -mb-4 ml-4 flex items-center justify-between gap-4 pr-4">
+        <div className="relative z-20 -mb-4 ml-4 flex flex-wrap items-center justify-between gap-4 pr-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -920,7 +920,7 @@ export default function AbyssSummonPage() {
               Portal Summoning
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex basis-full items-center justify-center gap-2 sm:basis-auto sm:justify-start">
             <span className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-200/80">Leaderboards:</span>
             <Link
               href="/abyss-summon/leaderboard"
@@ -1325,12 +1325,6 @@ function SummonList({
     const trimmed = value.trim()
     return trimmed.length > 12 ? `${trimmed.slice(0, 12)}` : trimmed
   }
-  const localSummonDurationMs =
-    typeof summonDurationMs === 'number'
-      ? summonDurationMs
-      : requiredParticipantsForMode === 10
-      ? 10 * 60 * 1000
-      : 30 * 60 * 1000
   if (loading && summons.length === 0) {
     return (
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-red-300">
@@ -1350,6 +1344,17 @@ function SummonList({
       {summons.map((summon) => {
         const fallbackSlots = isPowderMode ? requiredParticipantsForMode : 4
         const totalSlots = Math.max(summon.requiredParticipants, fallbackSlots)
+        const defaultDurationMs =
+          typeof summonDurationMs === 'number'
+            ? summonDurationMs
+            : requiredParticipantsForMode === 10
+            ? 10 * 60 * 1000
+            : 30 * 60 * 1000
+        const localSummonDurationMs = isPortalMode
+          ? totalSlots >= 50
+            ? 30 * 60 * 1000
+            : 20 * 60 * 1000
+          : defaultDurationMs
         const isCreator =
           ordinalAddress.length > 0 && summon.creatorWallet?.toLowerCase() === ordinalAddress.toLowerCase()
         const isParticipant = summon.participants.some(
@@ -1399,11 +1404,19 @@ function SummonList({
           isExpired ||
           summon.participants.length >= totalSlots
 
+        const isThirtyManPortal = Boolean(isPortalMode) && totalSlots < 50
         const completionAllowed =
           !isExpired &&
           summon.status !== 'expired' &&
           completionWindowOpen &&
-          ((ready && isCreator && !isPowderMode) || (isPowderMode && isParticipant && !participantCompleted))
+          (
+            // Powder: participant confirms during window
+            (isPowderMode && isParticipant && !participantCompleted) ||
+            // Non-powder: host completes when ready
+            (!isPowderMode && ready && isCreator) ||
+            // Special case: 30-seat portal allows any participant to complete during window
+            (isThirtyManPortal && isParticipant)
+          )
 
         return (
           <div
@@ -1586,7 +1599,7 @@ function SummonList({
               {/* Full-width participant row for damned_pool (colspan-style below the two columns) */}
               {usePortalLayout && (
                 <div className="md:col-span-3">
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
                     {summon.participants.map((participant) => {
                       const pillClass = [
                         'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
@@ -1628,7 +1641,7 @@ function SummonList({
               {/* Universal full-width participant row for non-portal on non-founder views */}
               {!usePortalLayout && !highlightCreator && (
                 <div className="md:col-span-3">
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
                     {summon.participants.map((participant) => {
                       const pillClass = [
                         'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
