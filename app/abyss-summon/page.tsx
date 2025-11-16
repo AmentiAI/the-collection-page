@@ -936,7 +936,16 @@ export default function AbyssSummonPage() {
             </Link>
           </div>
         </div>
-        <section className="relative overflow-hidden rounded-3xl border border-red-600/40 bg-black/75 p-8 shadow-[0_0_40px_rgba(220,38,38,0.45)] backdrop-blur">
+        <section
+          className={[
+            'relative overflow-hidden rounded-3xl border p-8 backdrop-blur',
+            IS_POWDER_MODE
+              ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_40px_rgba(251,191,36,0.35)]'
+              : IS_DAMNED_POOL_MODE
+              ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_40px_rgba(99,102,241,0.35)]'
+              : 'border-red-600/40 bg-black/75 shadow-[0_0_40px_rgba(220,38,38,0.45)]',
+          ].join(' ')}
+        >
           <div className="pointer-events-none absolute inset-0 opacity-60">
             <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-600/40 bg-[radial-gradient(circle,_rgba(220,38,38,0.3)_0%,_rgba(10,0,0,0)_65%)] blur-xl" />
             <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-red-600/20" />
@@ -946,7 +955,16 @@ export default function AbyssSummonPage() {
          
              
             <div className="grid gap-4 text-xs uppercase tracking-[0.3em] text-red-200/80 md:grid-cols-3">
-              <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
+              <div
+                className={[
+                  'rounded-2xl border px-4 py-3',
+                  IS_POWDER_MODE
+                    ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_20px_rgba(251,191,36,0.35)]'
+                    : IS_DAMNED_POOL_MODE
+                    ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_20px_rgba(99,102,241,0.35)]'
+                    : 'border-red-600/40 bg-black/60 shadow-[0_0_20px_rgba(220,38,38,0.35)]',
+                ].join(' ')}
+              >
                 <span className="text-[11px] text-amber-300">
                   {IS_DAMNED_POOL_MODE
                     ? 'Confirmed Portals'
@@ -958,13 +976,31 @@ export default function AbyssSummonPage() {
                   {IS_DAMNED_POOL_MODE ? confirmedPortalCount : bonusAllowance}
                 </div>
               </div>
-              <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
+              <div
+                className={[
+                  'rounded-2xl border px-4 py-3',
+                  IS_POWDER_MODE
+                    ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_20px_rgba(251,191,36,0.35)]'
+                    : IS_DAMNED_POOL_MODE
+                    ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_20px_rgba(99,102,241,0.35)]'
+                    : 'border-red-600/40 bg-black/60 shadow-[0_0_20px_rgba(220,38,38,0.35)]',
+                ].join(' ')}
+              >
                 <span className="text-[11px] text-red-400">Active Circles</span>
                 <div className="mt-1 text-2xl font-black text-red-200 drop-shadow-[0_0_12px_rgba(220,38,38,0.45)]">
                   {activeSummons.length}
                 </div>
               </div>
-              <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.35)]">
+              <div
+                className={[
+                  'rounded-2xl border px-4 py-3',
+                  IS_POWDER_MODE
+                    ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_20px_rgba(251,191,36,0.35)]'
+                    : IS_DAMNED_POOL_MODE
+                    ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_20px_rgba(99,102,241,0.35)]'
+                    : 'border-red-600/40 bg-black/60 shadow-[0_0_20px_rgba(220,38,38,0.35)]',
+                ].join(' ')}
+              >
                 <span className="text-[11px] text-red-400">Circles Touched</span>
                 <div className="mt-1 text-2xl font-black text-red-200 drop-shadow-[0_0_12px_rgba(220,38,38,0.45)]">
                   {circlesTouchedCount}
@@ -978,7 +1014,16 @@ export default function AbyssSummonPage() {
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr] lg:items-start">
           <aside className="sticky top-20 space-y-6">
-            <section className="rounded-2xl border border-red-600/40 bg-black/70 p-5 shadow-[0_0_20px_rgba(220,38,38,0.3)] backdrop-blur">
+            <section
+              className={[
+                'rounded-2xl border p-5 backdrop-blur',
+                IS_POWDER_MODE
+                  ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                  : IS_DAMNED_POOL_MODE
+                  ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_20px_rgba(99,102,241,0.3)]'
+                  : 'border-red-600/40 bg-black/70 shadow-[0_0_20px_rgba(220,38,38,0.3)]',
+              ].join(' ')}
+            >
               <h2 className="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.35em] text-red-200">
                 <span>Your Summoning Stockpile</span>
                 {damnedLoading && <Loader2 className="h-4 w-4 animate-spin text-red-300" />}
@@ -1086,10 +1131,10 @@ export default function AbyssSummonPage() {
                           className="w-full rounded border border-red-600/50 bg-black/60 px-3 py-2 text-[11px] uppercase tracking-[0.3em] text-red-100 outline-none focus:border-amber-400"
                         >
                           <option value="bonus_credits">
-                            Bonus Burn Credits (30 seats, 27 confirm)
+                            Bonus Burns Only (30 seats)
                           </option>
                           <option value="open_all">
-                            Open To All (50 seats, 45 confirm)
+                            Open To All (50 seats)
                           </option>
                         </select>
                       </div>
@@ -1118,7 +1163,16 @@ export default function AbyssSummonPage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.35)] backdrop-blur">
+            <section
+              className={[
+                'rounded-2xl border p-6 backdrop-blur',
+                IS_POWDER_MODE
+                  ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_25px_rgba(251,191,36,0.35)]'
+                  : IS_DAMNED_POOL_MODE
+                  ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_25px_rgba(99,102,241,0.35)]'
+                  : 'border-red-600/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]',
+              ].join(' ')}
+            >
               <div className="flex flex-wrap items-center gap-2">
                 {[
                   { key: 'active', label: 'Active Circles' },
