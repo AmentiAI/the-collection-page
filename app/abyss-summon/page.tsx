@@ -1405,9 +1405,15 @@ function SummonList({
                     )}
                   </div>
                 ) : !isPowderMode ? (
-                  <div className="rounded border border-red-600/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Awaiting more allies…
-                  </div>
+                  ready && !completionWindowOpen && !isExpired ? (
+                    <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
+                      Finale unlocks in {formatCountdown(unlockCountdown)}
+                    </div>
+                  ) : summon.participants.length < totalSlots && ACTIVE_SUMMON_STATUSES.has(summon.status) ? (
+                    <div className="rounded border border-red-600/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
+                      Awaiting more allies…
+                    </div>
+                  ) : null
                 ) : null}
                 {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
