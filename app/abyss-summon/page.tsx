@@ -881,7 +881,7 @@ export default function AbyssSummonPage() {
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
         </div>
         {/* Tabs outside the card, resting on the top-left edge */}
-        <div className="relative z-20 -mb-4 ml-4 flex flex-wrap items-center justify-between gap-4 pr-4">
+        <div className="relative z-20 -mb-4 ml-4 flex flex-wrap items-center justify-between gap-4 pr-4 max-w-full overflow-x-hidden">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -920,7 +920,7 @@ export default function AbyssSummonPage() {
               Portal Summoning
             </button>
           </div>
-          <div className="flex basis-full items-center justify-center gap-2 sm:basis-auto sm:justify-start">
+          <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">
             <span className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-200/80">Leaderboards:</span>
             <Link
               href="/abyss-summon/leaderboard"
