@@ -613,24 +613,24 @@ function ConnectTwitter({
 }
 
 function SummoningOverviewCard() {
-  return (
-    <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
-        <Link
-          href="/abyss-summon"
-          className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-        >
+    return (
+      <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+            <Link
+              href="/abyss-summon"
+              className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+            >
           Enter
-        </Link>
-      </div>
+            </Link>
+          </div>
       <div className="mt-2 flex justify-center">
-        <Link
-          href="/abyss-summon"
+          <Link
+            href="/abyss-summon"
           className="inline-flex items-center justify-center rounded-full border border-red-500 bg-red-700/80 px-8 py-3 text-[12px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
-        >
+          >
           Go to Summoning
-        </Link>
+          </Link>
       </div>
     </section>
   )

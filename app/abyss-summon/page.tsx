@@ -1217,6 +1217,7 @@ export default function AbyssSummonPage() {
                         isPowderMode={IS_POWDER_MODE}
                         requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                         summonDurationMs={SUMMON_DURATION_MS}
+                        isPortalMode={IS_DAMNED_POOL_MODE}
                         loading={summonsLoading}
                         now={now}
                         emptyMessage="No active circles. Initiate one or await whispers from the damned."
@@ -1241,6 +1242,7 @@ export default function AbyssSummonPage() {
                       isPowderMode={IS_POWDER_MODE}
                       requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                       summonDurationMs={SUMMON_DURATION_MS}
+                        isPortalMode={IS_DAMNED_POOL_MODE}
                       highlightCreator
                       now={now}
                       emptyMessage="You haven&rsquo;t founded a summoning circle yet."
@@ -1264,6 +1266,7 @@ export default function AbyssSummonPage() {
                       isPowderMode={IS_POWDER_MODE}
                       requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                       summonDurationMs={SUMMON_DURATION_MS}
+                        isPortalMode={IS_DAMNED_POOL_MODE}
                       now={now}
                       emptyMessage="You have not joined a summoning circle yet."
                     />
@@ -1297,6 +1300,7 @@ function SummonList({
   isPowderMode,
   requiredParticipantsForMode,
   summonDurationMs,
+  isPortalMode,
 }: {
   summons: SummonRecord[]
   ordinalAddress: string
@@ -1315,6 +1319,7 @@ function SummonList({
   isPowderMode: boolean
   requiredParticipantsForMode: number
   summonDurationMs?: number
+  isPortalMode?: boolean
 }) {
   const abbreviateName = (value: string): string => {
     const trimmed = value.trim()
@@ -1383,7 +1388,7 @@ function SummonList({
         const borderAlpha = 0.18 + glowIntensity * 0.55
         const backgroundGlowAlpha = 0.08 + glowIntensity * 0.35
         const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition transform-gpu'].join(' ')
-        const isDamnedPool = totalSlots >= 50
+        const usePortalLayout = Boolean(isPortalMode)
 
         const summaryText = `${summon.participants.length}/${totalSlots}`
         const cannotJoin =
@@ -1442,7 +1447,7 @@ function SummonList({
                 </span>
               </div>
               <div className="flex flex-1 flex-col gap-3">
-                {!isDamnedPool && (
+                {highlightCreator && !usePortalLayout && (
                 <div className="flex min-h-10 flex-wrap items-center gap-2 overflow-hidden">
                   {summon.participants.map((participant) => {
                     const pillClass = [
@@ -1575,7 +1580,49 @@ function SummonList({
                 )}
               </div>
               {/* Full-width participant row for damned_pool (colspan-style below the two columns) */}
-              {isDamnedPool && (
+              {usePortalLayout && (
+                <div className="md:col-span-3">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {summon.participants.map((participant) => {
+                      const pillClass = [
+                        'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
+                        participant.completed
+                          ? 'border-emerald-500/50 text-emerald-200'
+                          : participant.role === 'creator'
+                          ? 'border-red-500/60 text-red-200'
+                          : 'border-red-400/40 text-red-200/80',
+                      ].join(' ')
+                      const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                      const displayName = abbreviateName(fullDisplayName)
+                      const displayInitials = participant.username
+                        ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
+                        : truncateWallet(participant.wallet).slice(0, 2)
+                      return (
+                        <span key={participant.id} className={pillClass}>
+                          {participant.avatarUrl ? (
+                            <Image
+                              src={participant.avatarUrl}
+                              alt={displayName}
+                              width={16}
+                              height={16}
+                              className="h-4 w-4 rounded-full border border-red-700/50"
+                            />
+                          ) : (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
+                              {displayInitials}
+                            </span>
+                          )}
+                          <span className="hidden sm:inline">{displayName}</span>
+                          <span className="sm:hidden">{displayInitials}</span>
+                          {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Universal full-width participant row for non-portal on non-founder views */}
+              {!usePortalLayout && !highlightCreator && (
                 <div className="md:col-span-3">
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {summon.participants.map((participant) => {
