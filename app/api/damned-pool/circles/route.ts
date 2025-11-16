@@ -10,7 +10,6 @@ const CIRCLE_DURATION_MS = 30 * 60 * 1000 // 30 minutes
 const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
 const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Only 1 damned pool globally at a time
-const ALLOWED_DAMNED_POOL_CREATOR_PROFILE_ID = '7a1cbbb2-dad9-4d40-97f8-cf2498bbbbba' // Only this profile can create damned pools
 // Set to false to disable damned pool circles at the API level
 const DAMNED_POOL_MODE_ENABLED = process.env.NEXT_PUBLIC_DAMNED_POOL_MODE_ENABLED !== 'false'
 
@@ -211,20 +210,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'creatorWallet and inscriptionId are required.' },
         { status: 400 },
-      )
-    }
-
-    // Check if the creator's profile ID matches the allowed profile ID
-    const profileCheck = await pool.query(
-      `SELECT id FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
-      [creatorWallet],
-    )
-    const creatorProfileId = profileCheck.rows[0]?.id
-
-    if (creatorProfileId !== ALLOWED_DAMNED_POOL_CREATOR_PROFILE_ID) {
-      return NextResponse.json(
-        { success: false, error: 'Only the designated pool creator can initiate damned pool circles.' },
-        { status: 403 },
       )
     }
 

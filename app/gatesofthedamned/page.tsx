@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
-const GATES_EVENT_UTC = Date.parse('2025-11-15T20:00:00Z')
+// Target: Nov 18, 2025 3:00 PM EST = 20:00 UTC
+const GATES_EVENT_UTC = Date.parse('2025-11-18T20:00:00Z')
 
 export default function GatesOfTheDamnedPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -546,14 +547,6 @@ export default function GatesOfTheDamnedPage() {
                     <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-red-500">
                       STILL CLOSED!
                     </p>
-                    <Link
-                      href="https://damnedbets.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block w-full rounded-lg border-2 border-red-600/60 bg-red-600 px-8 py-6 text-2xl md:text-3xl font-mono tracking-[0.4em] uppercase text-white transition-colors hover:bg-red-700 hover:border-red-500"
-                    >
-                      Enter Detour
-                    </Link>
                   </div>
                 )}
               </div>

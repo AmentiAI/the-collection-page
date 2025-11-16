@@ -10,6 +10,7 @@ import Header from '@/components/Header'
 import Filters from '@/components/Filters'
 import Gallery from '@/components/Gallery'
 import BackgroundMusic from '@/components/BackgroundMusic'
+import TotalSacrifices from '@/components/TotalSacrifices'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
 import { Ordinal, Trait } from '@/types'
@@ -151,7 +152,10 @@ export default function Home() {
               isMusicMuted={isMusicMuted}
               onMusicMutedChange={setIsMusicMuted}
             />
-                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">                                                                               
+                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
+              <div className="mb-4 flex justify-center">
+                <TotalSacrifices />
+              </div>                                                                             
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">                                                               
                 <aside className="order-2 lg:order-1">
                   <Filters

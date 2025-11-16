@@ -9,6 +9,7 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
+import TotalSacrifices from '@/components/TotalSacrifices'
 
 type ProfileDetails = {
   username: string | null
@@ -136,6 +137,9 @@ function ProfileContent() {
       <Header connected={connected} showMusicControls={false} />
 
       <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
+        <div className="flex justify-center">
+          <TotalSacrifices />
+        </div>
         <section className="flex flex-col items-center gap-6 rounded-3xl border border-red-600/40 bg-black/70 p-8 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur">
           <ProfileAvatar imageUrl={profile.avatarUrl} />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-300 md:text-4xl">

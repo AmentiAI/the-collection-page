@@ -60,8 +60,15 @@ type SummonLeaderboardEntry = {
 
 
 // Change this to 'abyss', 'powder', or 'damned_pool' to switch modes
-// To use damned pool: change 'powder' below to 'damned_pool'
-const SUMMONING_MODE = 'abyss' as 'abyss' | 'powder' | 'damned_pool'
+// URL override: abyss-summon?type=damned_pool forces damned_pool mode on the client
+const URL_MODE =
+  typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('type')
+    : null
+const SUMMONING_MODE = (URL_MODE === 'damned_pool' ? 'damned_pool' : 'abyss') as
+  | 'abyss'
+  | 'powder'
+  | 'damned_pool'
 const IS_POWDER_MODE = SUMMONING_MODE === 'powder'
 const IS_DAMNED_POOL_MODE = SUMMONING_MODE === 'damned_pool'
 const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
