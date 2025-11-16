@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 50
 const REQUIRED_PARTICIPANTS_BONUS = 30
-const CIRCLE_DURATION_MS = 30 * 60 * 1000 // 30 minutes
+const CIRCLE_DURATION_MAIN_MS = 30 * 60 * 1000 // 30 minutes (open_all 50 seats)
+const CIRCLE_DURATION_BONUS_MS = 20 * 60 * 1000 // 20 minutes (bonus_credits 30 seats)
 const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
 const MIN_COMPLETION_COUNT_BONUS = 27 // 27 out of 30 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
@@ -110,6 +111,7 @@ function buildCircleSelect(whereClause = '', limitClause = '', values: unknown[]
         c.creator_wallet,
         c.creator_inscription_id,
         c.status,
+        c.mode,
         c.required_participants,
         c.locked_at,
         c.completed_at,
@@ -138,7 +140,7 @@ function buildCircleSelect(whereClause = '', limitClause = '', values: unknown[]
       LEFT JOIN damned_pool_participants p ON p.circle_id = c.id
       LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(p.wallet)
       ${whereClause}
-      GROUP BY c.id, c.creator_wallet, c.creator_inscription_id, c.status, c.required_participants, c.locked_at, c.completed_at, c.expires_at, c.burn_window_granted, c.created_at, c.updated_at
+      GROUP BY c.id, c.creator_wallet, c.creator_inscription_id, c.status, c.mode, c.required_participants, c.locked_at, c.completed_at, c.expires_at, c.burn_window_granted, c.created_at, c.updated_at
       ORDER BY c.created_at DESC
       ${limitClause}
     `,
@@ -226,7 +228,15 @@ export async function POST(request: NextRequest) {
 
     await ensureDamnedPoolInfrastructure(pool)
 
-    const expiresAt = new Date(Date.now() + CIRCLE_DURATION_MS)
+    // Determine mode and thresholds early for validations and expiry
+    const circleModeRaw = (body?.circleMode ?? 'open_all').toString().trim().toLowerCase()
+    const circleMode = circleModeRaw === 'bonus_credits' ? 'bonus_credits' : 'open_all'
+    const requiredParticipants =
+      circleMode === 'bonus_credits' ? REQUIRED_PARTICIPANTS_BONUS : REQUIRED_PARTICIPANTS
+    const minCompletion = circleMode === 'bonus_credits' ? MIN_COMPLETION_COUNT_BONUS : MIN_COMPLETION_COUNT
+    const expiresAt = new Date(
+      Date.now() + (circleMode === 'bonus_credits' ? CIRCLE_DURATION_BONUS_MS : CIRCLE_DURATION_MAIN_MS),
+    )
 
     await pool.query('BEGIN')
 
@@ -269,27 +279,31 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if there is already an active damned pool globally
+      // Check if there is already an active damned pool globally for this mode
       await pool.query(
         `
           SELECT id FROM damned_pool_circles
           WHERE status IN ('open', 'filling', 'ready')
+            AND mode = $1
           FOR UPDATE
         `,
+        [circleMode],
       )
       const globalActiveCountRes = await pool.query(
         `
           SELECT COUNT(*)::int AS active_count
           FROM damned_pool_circles
           WHERE status IN ('open', 'filling', 'ready')
+            AND mode = $1
         `,
+        [circleMode],
       )
       const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
 
-      if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
+      if (globalActiveCount >= 1) {
         await pool.query('ROLLBACK')
         return NextResponse.json(
-          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active damned pool allowed globally.` },
+          { success: false, error: `Only one active damned pool allowed globally for this mode.` },
           { status: 409 },
         )
       }
@@ -321,13 +335,6 @@ export async function POST(request: NextRequest) {
         { status: 503 },
       )
     }
-
-    // Determine mode and thresholds
-    const circleModeRaw = (body?.circleMode ?? 'open_all').toString().trim().toLowerCase()
-    const circleMode = circleModeRaw === 'bonus_credits' ? 'bonus_credits' : 'open_all'
-    const requiredParticipants =
-      circleMode === 'bonus_credits' ? REQUIRED_PARTICIPANTS_BONUS : REQUIRED_PARTICIPANTS
-    const minCompletion = circleMode === 'bonus_credits' ? MIN_COMPLETION_COUNT_BONUS : MIN_COMPLETION_COUNT
 
     const circleResult = await pool.query(
       `
