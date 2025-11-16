@@ -827,36 +827,7 @@ export default function AbyssSummonPage() {
         }}
       />
 
-      <div className="fixed bottom-6 left-6 z-[10001] flex items-center gap-3 rounded-2xl border border-red-600/40 bg-black/70 px-4 py-3 shadow-[0_0_20px_rgba(220,38,38,0.4)] backdrop-blur">
-        <button
-          type="button"
-          onClick={handleToggleMusic}
-          className="rounded-full border border-red-600/40 bg-red-800/50 p-2 text-red-100 transition hover:bg-red-600/60"
-          aria-label={musicPlaying ? 'Pause summoning soundtrack' : 'Play summoning soundtrack'}
-        >
-          {musicPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-        </button>
-        <button
-          type="button"
-          onClick={handleToggleMute}
-          className="rounded-full border border-red-600/40 bg-red-800/50 p-2 text-red-100 transition hover:bg-red-600/60"
-          aria-label={isMusicMuted ? 'Unmute soundtrack' : 'Mute soundtrack'}
-        >
-          {isMusicMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={musicVolume}
-          onChange={(event) => handleVolumeChange(Number(event.target.value))}
-          className="h-1 w-32 accent-red-600"
-          disabled={musicControlsDisabled}
-        />
-        <span className="w-16 text-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
-          {musicControlsDisabled ? 'LOADING' : isMusicMuted ? 'MUTED' : `${musicVolume}%`}
-        </span>
-      </div>
+      {/* Music controls rendered in Header; floating controls removed for consistency */}
 
       <div className="pointer-events-none absolute inset-0 -z-10">
         <Image
@@ -869,7 +840,7 @@ export default function AbyssSummonPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/90" />
       </div>
 
-      <Header connected={Boolean(ordinalAddress)} showMusicControls={false} />
+      <Header connected={Boolean(ordinalAddress)} showMusicControls={true} />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
         {/* Header outside of the card */}
