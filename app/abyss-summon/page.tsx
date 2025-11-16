@@ -1303,7 +1303,9 @@ function SummonList({
                         ? 'border-emerald-500/50 text-emerald-200'
                         : 'border-red-400/40 text-red-200/80',
                     ].join(' ')
-                    const displayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                    const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                    // Abbreviate on mobile: show only initials on small screens, full name on larger screens
+                    const displayName = fullDisplayName
                     const displayInitials = participant.username
                       ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
                       : truncateWallet(participant.wallet).slice(0, 2)
@@ -1322,9 +1324,8 @@ function SummonList({
                             {displayInitials}
                           </span>
                         )}
-                        <span>
-                          {displayName}
-                        </span>
+                        <span className="hidden sm:inline">{displayName}</span>
+                        <span className="sm:hidden">{displayInitials}</span>
                         {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
                       </span>
                     )

@@ -1638,11 +1638,17 @@ function AbyssContent() {
     return Math.max(0, Math.floor((capDriftTimestamp - CAP_REDUCTION_START_UTC) / 60_000))
   }, [capDriftTimestamp])
   const dynamicCap = useMemo(() => {
+    // When burn window is active (damned pool complete), use the true 333 cap
+    if (burnWindowActive) {
+      const bonusCap = bonusAllowance > 0 ? bonusAllowance : 0
+      return Math.max(totalBurns, TOTAL_ABYSS_CAP + bonusCap)
+    }
+    // Otherwise use the normal reduced cap
     const raw = TOTAL_ABYSS_CAP - minutesSinceReductionStart
     const reduced = Math.max(raw, 0)
     const bonusCap = !abyssDisabled && bonusAllowance > 0 ? bonusAllowance : 0
     return Math.max(totalBurns, reduced + bonusCap)
-  }, [minutesSinceReductionStart, totalBurns, bonusAllowance, abyssDisabled])
+  }, [minutesSinceReductionStart, totalBurns, bonusAllowance, abyssDisabled, burnWindowActive])
   const progressPercent = dynamicCap > 0 ? Math.min(100, (totalBurns / dynamicCap) * 100) : 100
   const globalCapReached = dynamicCap <= totalBurns && dynamicCap !== 0
   const bonusBurnsRemain = bonusAllowance > 0
