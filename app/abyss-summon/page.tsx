@@ -1228,14 +1228,16 @@ function SummonList({
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
         const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
         const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
+        // Reduce per-frame style churn on mobile by updating glow once per second
+        const secondsRemaining = Math.max(0, Math.ceil(timeRemainingMs / 1000))
         const glowIntensity = isExpired
           ? 0
-          : Math.min(1, Math.max(0, 1 - timeRemainingMs / SUMMON_DURATION_MS))
+          : Math.min(1, Math.max(0, 1 - (secondsRemaining * 1000) / SUMMON_DURATION_MS))
         const glowRadius = 18 + glowIntensity * 32
         const glowAlpha = 0.22 + glowIntensity * 0.5
         const borderAlpha = 0.18 + glowIntensity * 0.55
         const backgroundGlowAlpha = 0.08 + glowIntensity * 0.35
-        const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition'].join(' ')
+        const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition transform-gpu'].join(' ')
 
         const summaryText = `${summon.participants.length}/${totalSlots}`
         const cannotJoin =
@@ -1260,16 +1262,17 @@ function SummonList({
               borderColor: `rgba(248,113,113,${borderAlpha})`,
               boxShadow: `0 0 ${glowRadius}px rgba(220,38,38,${glowAlpha})`,
               backgroundImage: `linear-gradient(135deg, rgba(127,29,29,${backgroundGlowAlpha}) 0%, rgba(12,12,12,0.82) 55%, rgba(17,17,17,0.9) 100%)`,
+              willChange: 'transform, box-shadow, border-color',
             }}
           >
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="mx-auto flex w-full max-w-[220px] flex-col items-center gap-3 md:mx-0">
-                <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
+                <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
                   <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     {statusLabel}
                   </span>
                   <span>{summaryText}</span>
-                  <span className={isExpired ? 'text-red-400' : 'text-amber-200'}>
+                  <span className={(isExpired ? 'text-red-400' : 'text-amber-200') + ' inline-block w-[54px] text-center'}>
                     {formatCountdown(Math.max(0, timeRemainingMs))}
                   </span>
                 </div>
@@ -1293,7 +1296,7 @@ function SummonList({
                 </span>
               </div>
               <div className="flex flex-1 flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-h-10 flex-wrap items-center gap-2 overflow-hidden">
                   {summon.participants.map((participant) => {
                     const pillClass = [
                       'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
