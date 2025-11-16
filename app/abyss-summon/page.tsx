@@ -1599,7 +1599,7 @@ function SummonList({
               {/* Full-width participant row for damned_pool (colspan-style below the two columns) */}
               {usePortalLayout && (
                 <div className="md:col-span-3">
-                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {summon.participants.map((participant) => {
                       const pillClass = [
                         'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
@@ -1641,7 +1641,7 @@ function SummonList({
               {/* Universal full-width participant row for non-portal on non-founder views */}
               {!usePortalLayout && !highlightCreator && (
                 <div className="md:col-span-3">
-                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {summon.participants.map((participant) => {
                       const pillClass = [
                         'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
