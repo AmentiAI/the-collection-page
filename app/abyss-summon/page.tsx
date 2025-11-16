@@ -881,13 +881,13 @@ export default function AbyssSummonPage() {
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
         </div>
         {/* Tabs outside the card, resting on the top-left edge */}
-        <div className="relative z-20 -mb-4 ml-0 md:ml-4 flex flex-wrap items-center justify-between gap-4 pr-4 max-w-full overflow-x-hidden px-2">
-          <div className="flex items-center gap-2">
+        <div className="relative z-20 -mb-4 ml-0 md:ml-4 flex flex-wrap items-center justify-between gap-2 pr-4 max-w-full overflow-x-hidden px-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setMode('abyss')}
               className={[
-                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
                 !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
                   ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
                   : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
@@ -899,7 +899,7 @@ export default function AbyssSummonPage() {
               type="button"
               onClick={() => setMode('powder')}
               className={[
-                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
                 IS_POWDER_MODE
                   ? 'border-amber-400 bg-amber-600/80 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
                   : 'border-amber-600/50 bg-black/70 text-amber-200/80 hover:border-amber-400/70',
@@ -911,7 +911,7 @@ export default function AbyssSummonPage() {
               type="button"
               onClick={() => setMode('damned_pool')}
               className={[
-                'rounded-full border px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] transition',
+                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
                 IS_DAMNED_POOL_MODE
                   ? 'border-indigo-400 bg-indigo-700/80 text-indigo-100 shadow-[0_0_18px_rgba(99,102,241,0.45)]'
                   : 'border-indigo-600/50 bg-black/70 text-indigo-200/80 hover:border-indigo-400/70',
@@ -1013,10 +1013,10 @@ export default function AbyssSummonPage() {
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr] lg:items-start">
-          <aside className="sticky top-20 space-y-6">
+          <aside className="sticky top-20 space-y-6 max-w-full overflow-x-hidden">
             <section
               className={[
-                'rounded-2xl border p-5 backdrop-blur',
+                'rounded-2xl border p-5 backdrop-blur max-w-full overflow-x-hidden',
                 IS_POWDER_MODE
                   ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
                   : IS_DAMNED_POOL_MODE
@@ -1035,12 +1035,12 @@ export default function AbyssSummonPage() {
                   No damned ordinals detected in this wallet. Acquire one to participate.
                 </p>
               ) : (
-                <div className="mt-3 space-y-2">
+                <div className="mt-3 space-y-2 max-w-full">
                   {damnedOptions.map((option: DamnedOption) => {
                     const isActive = selectedInscriptionId === option.inscriptionId
                     const isInCircle = inscriptionsInCircles.has(option.inscriptionId)
                     const buttonClass = [
-                      'flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition',
+                      'flex w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition',
                       isActive
                         ? 'border-red-500 bg-red-900/30 shadow-[0_0_20px_rgba(220,38,38,0.35)]'
                         : isInCircle
@@ -1391,7 +1391,7 @@ function SummonList({
         const glowAlpha = 0.22 + glowIntensity * 0.5
         const borderAlpha = 0.18 + glowIntensity * 0.55
         const backgroundGlowAlpha = 0.08 + glowIntensity * 0.35
-        const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition transform-gpu'].join(' ')
+        const containerClass = ['group relative overflow-hidden rounded-xl border px-4 py-4 transition transform-gpu max-w-full'].join(' ')
         const usePortalLayout = Boolean(isPortalMode)
 
         const summaryText = `${summon.participants.length}/${totalSlots}`
@@ -1458,7 +1458,7 @@ function SummonList({
                   })()}
                 </span>
               </div>
-              <div className="flex flex-1 flex-col gap-3">
+              <div className="flex flex-1 min-w-0 flex-col gap-3 overflow-x-hidden">
                 {highlightCreator && !usePortalLayout && (
                 <div className="flex min-h-10 flex-wrap items-center gap-2 overflow-hidden">
                   {summon.participants.map((participant) => {
@@ -1510,7 +1510,7 @@ function SummonList({
                   </div>
                 )}
               </div>
-              <div className="flex min-w-[190px] flex-col items-stretch gap-2">
+              <div className="flex w-full sm:min-w-[190px] flex-col items-stretch gap-2 min-w-0">
                 {!isExpired && (
                   <div className="rounded border border-red-600/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-300/80">
                     Ends {new Date(targetExpiryMs).toLocaleTimeString()}
