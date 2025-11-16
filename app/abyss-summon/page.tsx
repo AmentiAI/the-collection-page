@@ -1322,7 +1322,9 @@ function SummonList({
             ? 10 * 60 * 1000
             : 30 * 60 * 1000
         const localSummonDurationMs = isPortalMode
-          ? 20 * 60 * 1000
+          ? totalSlots >= 50
+            ? 20 * 60 * 1000
+            : 10 * 60 * 1000
           : defaultDurationMs
         const isCreator =
           ordinalAddress.length > 0 && summon.creatorWallet?.toLowerCase() === ordinalAddress.toLowerCase()

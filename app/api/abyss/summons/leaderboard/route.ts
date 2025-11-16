@@ -71,8 +71,14 @@ export async function GET() {
 
     const result = await pool.query(`
       WITH completed_summons AS (
+        -- Abyss summons completed
         SELECT id, LOWER(creator_wallet) AS wallet, completed_at
         FROM abyss_summons
+        WHERE status = 'completed'
+        UNION ALL
+        -- Damned pool (portal) circles completed
+        SELECT id, LOWER(creator_wallet) AS wallet, completed_at
+        FROM damned_pool_circles
         WHERE status = 'completed'
       ),
       hosted AS (
@@ -81,13 +87,21 @@ export async function GET() {
         GROUP BY wallet
       ),
       participation AS (
-        SELECT LOWER(asp.wallet) AS wallet,
-               COUNT(*) AS participations,
-               MAX(s.completed_at) AS last_participated_at
-        FROM abyss_summon_participants asp
-        INNER JOIN abyss_summons s ON s.id = asp.summon_id
-        WHERE s.status = 'completed'
-        GROUP BY LOWER(asp.wallet)
+        SELECT wallet, COUNT(*) AS participations, MAX(last_participated_at) AS last_participated_at
+        FROM (
+          -- Abyss participants
+          SELECT LOWER(asp.wallet) AS wallet, s.completed_at AS last_participated_at
+          FROM abyss_summon_participants asp
+          INNER JOIN abyss_summons s ON s.id = asp.summon_id
+          WHERE s.status = 'completed'
+          UNION ALL
+          -- Damned pool participants (count those who are in a circle that reached completed)
+          SELECT LOWER(dpp.wallet) AS wallet, dpc.completed_at AS last_participated_at
+          FROM damned_pool_participants dpp
+          INNER JOIN damned_pool_circles dpc ON dpc.id = dpp.circle_id
+          WHERE dpc.status = 'completed'
+        ) t
+        GROUP BY wallet
       ),
       burns AS (
         SELECT LOWER(ordinal_wallet) AS wallet,
