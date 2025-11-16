@@ -61,7 +61,7 @@ type SummonLeaderboardEntry = {
 
 // Change this to 'abyss', 'powder', or 'damned_pool' to switch modes
 // To use damned pool: change 'powder' below to 'damned_pool'
-const SUMMONING_MODE = 'damned_pool' as 'abyss' | 'powder' | 'damned_pool'
+const SUMMONING_MODE = 'abyss' as 'abyss' | 'powder' | 'damned_pool'
 const IS_POWDER_MODE = SUMMONING_MODE === 'powder'
 const IS_DAMNED_POOL_MODE = SUMMONING_MODE === 'damned_pool'
 const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
@@ -1092,7 +1092,7 @@ export default function AbyssSummonPage() {
                         onDismiss={handleDismissSummon}
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
-                        isPowderMode={IS_POWDER_MODE || IS_DAMNED_POOL_MODE}
+                        isPowderMode={IS_POWDER_MODE}
                         loading={summonsLoading}
                         now={now}
                         emptyMessage="No active circles. Initiate one or await whispers from the damned."
