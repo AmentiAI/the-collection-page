@@ -905,7 +905,7 @@ export default function AbyssSummonPage() {
                   : 'border-amber-600/50 bg-black/70 text-amber-200/80 hover:border-amber-400/70',
               ].join(' ')}
             >
-              Ascension Powder
+              Ascension
             </button>
             <button
               type="button"
@@ -917,7 +917,7 @@ export default function AbyssSummonPage() {
                   : 'border-indigo-600/50 bg-black/70 text-indigo-200/80 hover:border-indigo-400/70',
               ].join(' ')}
             >
-              Portal Summoning
+              Portal
             </button>
           </div>
           <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">
