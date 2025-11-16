@@ -1074,32 +1074,25 @@ export default function AbyssSummonPage() {
                       : 'Select an ordinal from your inventory. The circle locks when four damned commit.'}
                   </p>
                   {IS_DAMNED_POOL_MODE && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
-                      <span>Mode:</span>
-                      <button
-                        type="button"
-                        onClick={() => setPoolMode('bonus_credits')}
-                        className={[
-                          'rounded-full border px-3 py-1 transition',
-                          poolMode === 'bonus_credits'
-                            ? 'border-amber-400 bg-amber-600/70 text-amber-100'
-                            : 'border-amber-600/40 bg-black/40 text-amber-200/80 hover:border-amber-400/60',
-                        ].join(' ')}
-                      >
-                        Bonus Burn Credits (30 seats, 27 confirm)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPoolMode('open_all')}
-                        className={[
-                          'rounded-full border px-3 py-1 transition',
-                          poolMode === 'open_all'
-                            ? 'border-indigo-400 bg-indigo-700/70 text-indigo-100'
-                            : 'border-indigo-600/40 bg-black/40 text-indigo-200/80 hover:border-indigo-400/60',
-                        ].join(' ')}
-                      >
-                        Open To All (50 seats, 45 confirm)
-                      </button>
+                    <div className="mt-3 flex flex-col gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
+                      <label htmlFor="pool-mode" className="text-red-200">
+                        Mode
+                      </label>
+                      <div className="inline-flex max-w-xs items-center">
+                        <select
+                          id="pool-mode"
+                          value={poolMode}
+                          onChange={(e) => setPoolMode((e.target.value as 'open_all' | 'bonus_credits') ?? 'open_all')}
+                          className="w-full rounded border border-red-600/50 bg-black/60 px-3 py-2 text-[11px] uppercase tracking-[0.3em] text-red-100 outline-none focus:border-amber-400"
+                        >
+                          <option value="bonus_credits">
+                            Bonus Burn Credits (30 seats, 27 confirm)
+                          </option>
+                          <option value="open_all">
+                            Open To All (50 seats, 45 confirm)
+                          </option>
+                        </select>
+                      </div>
                     </div>
                   )}
                 </div>
