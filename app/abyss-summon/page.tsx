@@ -881,7 +881,7 @@ export default function AbyssSummonPage() {
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
         </div>
         {/* Tabs outside the card, resting on the top-left edge */}
-        <div className="relative z-20 -mb-4 ml-4 flex flex-wrap items-center justify-between gap-4 pr-4 max-w-full overflow-x-hidden">
+        <div className="relative z-20 -mb-4 ml-0 md:ml-4 flex flex-wrap items-center justify-between gap-4 pr-4 max-w-full overflow-x-hidden px-2">
           <div className="flex items-center gap-2">
             <button
               type="button"
