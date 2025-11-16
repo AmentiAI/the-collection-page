@@ -1113,16 +1113,14 @@ export default function AbyssSummonPage() {
                   </h2>
                   <p className="mt-2 max-w-xl text-[11px] uppercase tracking-[0.3em] text-red-300/70">
                     {IS_DAMNED_POOL_MODE
-                      ? 'Select an ordinal from your inventory. The pool locks when fifty damned commit.'
+                      ? 'The pool locks when fifty damned commit.'
                       : IS_POWDER_MODE
-                      ? 'Select an ordinal from your inventory. The circle locks when ten damned commit.'
-                      : 'Select an ordinal from your inventory. The circle locks when four damned commit.'}
+                      ? 'The circle locks when ten damned commit.'
+                      : 'The circle locks when four damned commit.'}
                   </p>
                   {IS_DAMNED_POOL_MODE && (
                     <div className="mt-3 flex flex-col gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
-                      <label htmlFor="pool-mode" className="text-red-200">
-                        Mode
-                      </label>
+                   
                       <div className="inline-flex max-w-xs items-center">
                         <select
                           id="pool-mode"
