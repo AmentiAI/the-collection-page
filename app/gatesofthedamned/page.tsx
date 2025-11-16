@@ -530,9 +530,7 @@ export default function GatesOfTheDamnedPage() {
                   UNDER CONSTRUCTION 
                 </p>
                 <div className="space-y-2">
-                  <p className="text-xs md:text-sm text-red-300 font-mono tracking-[0.45em] uppercase">
-                    Gates reopen November 15 · 3:00 PM EST
-                  </p>
+               
                   <div className="mx-auto flex w-full max-w-sm flex-col items-center justify-center rounded-lg border border-red-600/60 bg-black/60 px-6 py-4">
                     <span className="text-[11px] font-mono uppercase tracking-[0.4em] text-red-400">
                       Countdown
