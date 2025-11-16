@@ -762,7 +762,7 @@ export default function AbyssSummonPage() {
           if (typeof payload?.bonusAllowance === 'number') {
             setBonusAllowance(Number(payload.bonusAllowance))
           }
-          toast.success('Summoning circle completed. Bonus burn granted.')
+          toast.success('Summoning circle completed.')
         }
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
@@ -871,7 +871,7 @@ export default function AbyssSummonPage() {
 
       <Header connected={Boolean(ordinalAddress)} showMusicControls={false} />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8">
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
         {/* Header outside of the card */}
         <div className="relative flex items-center justify-center gap-3">
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
@@ -1105,8 +1105,8 @@ export default function AbyssSummonPage() {
                   : 'border-red-600/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]',
               ].join(' ')}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-4 max-w-full">
+                <div className="flex-1 min-w-0">
                   <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-[0.35em] text-red-100">
                     <Flame className="h-5 w-5 text-red-400 drop-shadow-[0_0_12px_rgba(220,38,38,0.6)]" />
                     Become Host (Optional)
@@ -1143,7 +1143,7 @@ export default function AbyssSummonPage() {
                   type="button"
                   onClick={handleCreateSummon}
                   disabled={!selectedOption || creating}
-                  className="border border-red-500 bg-red-700/80 px-5 py-3 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full sm:w-auto border border-red-500 bg-red-700/80 px-5 py-3 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creating ? (
                     <>
@@ -1429,7 +1429,7 @@ function SummonList({
             }}
           >
               <div className="grid gap-6 md:grid-cols-[360px_1fr_auto] md:items-start">
-              <div className="mx-auto mt-[5px] flex w-full max-w-[320px] md:max-w-[380px] lg:max-w-[460px] flex-col items-center gap-3 md:mx-0">
+              <div className="mx-auto mt-[5px] flex w-full max-w-full md:max-w-[380px] lg:max-w-[460px] flex-col items-center gap-3 md:mx-0">
                 <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
                   <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     {statusLabel}
