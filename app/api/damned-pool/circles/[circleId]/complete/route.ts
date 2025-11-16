@@ -251,6 +251,17 @@ export async function POST(
       )
 
       burnWindowGranted = true
+
+      // For consistency in UI, mark any remaining participants as completed once the pool succeeds
+      await pool.query(
+        `
+          UPDATE damned_pool_participants
+          SET completed = TRUE,
+              completed_at = COALESCE(completed_at, NOW())
+          WHERE circle_id = $1 AND completed = FALSE
+        `,
+        [circleId],
+      )
     }
 
     await pool.query('COMMIT')

@@ -153,6 +153,7 @@ function ProfileContent() {
             executioner={executioner}
             bonusAllowance={bonusAllowance}
             summons={summons}
+            portalSummary={portalSummary}
           />
           {!connected && (
             <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">
@@ -280,6 +281,7 @@ function ProfileStatuses({
   executioner,
   bonusAllowance,
   summons,
+  portalSummary,
 }: {
   connected: boolean
   inventory: InventorySummary
@@ -287,6 +289,7 @@ function ProfileStatuses({
   executioner: boolean | null
   bonusAllowance: number
   summons: SummonOverview
+  portalSummary?: { isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null
 }) {
   if (!connected) {
     return null
@@ -325,6 +328,26 @@ function ProfileStatuses({
       value: 'Checking…',
       subtitle: 'Verifying damned holdings',
       tone: 'neutral' as const,
+    }
+  })()
+
+  const portalCard = (() => {
+    const yes = portalSummary?.isPortalSummoner === true
+    if (yes) {
+      const created = portalSummary?.completedCreated ?? 0
+      const joined = portalSummary?.completedJoined ?? 0
+      return {
+        value: 'Yes',
+        subtitle: `${created} hosted • ${joined} joined`,
+        tone: 'success' as const,
+        href: '/abyss-summon?type=damned_pool',
+      }
+    }
+    return {
+      value: 'No',
+      subtitle: 'No completed portals yet',
+      tone: 'danger' as const,
+      href: '/abyss-summon?type=damned_pool',
     }
   })()
 
@@ -415,6 +438,7 @@ function ProfileStatuses({
     { title: 'Marketplace Listings', ...listingsCard },
     { title: 'Executioner Role', ...executionerCard },
     { title: 'Bonus Burns', ...bonusCard },
+    { title: 'Portal Summoner', ...portalCard },
   ]
 
   if (activeSummonsCount > 0) {
@@ -690,6 +714,7 @@ function useProfileState() {
   const [executioner, setExecutioner] = useState<boolean | null>(null)
   const [bonusAllowance, setBonusAllowance] = useState<number>(0)
   const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
+  const [portalSummary, setPortalSummary] = useState<{ isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null>(null)
 
   const fetchProfile = useCallback(
     async (wallet: string) => {
@@ -889,6 +914,21 @@ function useProfileState() {
         fetchInventory(wallet),
         fetchExecutionerStatus(wallet),
         fetchSummonSummary(wallet),
+        (async () => {
+          try {
+            const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
+              headers: { 'Cache-Control': 'no-store' },
+            })
+            const data = await res.json().catch(() => ({}))
+            setPortalSummary({
+              isPortalSummoner: Boolean(data?.isPortalSummoner),
+              completedCreated: Number(data?.completedCreated ?? 0),
+              completedJoined: Number(data?.completedJoined ?? 0),
+            })
+          } catch {
+            setPortalSummary({ isPortalSummoner: false, completedCreated: 0, completedJoined: 0 })
+          }
+        })(),
       ])
     },
     [
