@@ -1428,8 +1428,8 @@ function SummonList({
               willChange: 'transform, box-shadow, border-color',
             }}
           >
-            <div className="grid gap-6 md:grid-cols-[260px_1fr_auto] md:items-start">
-              <div className="mx-auto flex w-full max-w-[240px] flex-col items-center gap-3 md:mx-0">
+              <div className="grid gap-6 md:grid-cols-[360px_1fr_auto] md:items-start">
+              <div className="mx-auto mt-[5px] flex w-full max-w-[320px] md:max-w-[380px] lg:max-w-[460px] flex-col items-center gap-3 md:mx-0">
                 <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
                   <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     {statusLabel}
@@ -1504,17 +1504,18 @@ function SummonList({
                   )}
                 </div>
                 )}
-                {!isExpired ? (
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-red-300/60">
-                    Ends {new Date(targetExpiryMs).toLocaleTimeString()}
-                  </div>
-                ) : (
+                {!isExpired ? null : (
                   <div className="text-[10px] uppercase tracking-[0.3em] text-red-400">
                     Circle expired — rally a new covenant.
                   </div>
                 )}
               </div>
               <div className="flex min-w-[190px] flex-col items-stretch gap-2">
+                {!isExpired && (
+                  <div className="rounded border border-red-600/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-300/80">
+                    Ends {new Date(targetExpiryMs).toLocaleTimeString()}
+                  </div>
+                )}
                 {isCreator && highlightCreator && (
                   <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Your circle</span>
                 )}
@@ -1712,7 +1713,7 @@ function SummoningCircleGraphic({
   const innerAuraAlpha = 0.12 + glowIntensity * 0.4
 
   return (
-    <div className="relative mx-auto h-44 w-44">
+    <div className="relative mx-auto h-44 w-44 sm:h-48 sm:w-72 md:h-52 md:w-96 lg:h-56 lg:w-[28rem]">
       <div
         className="absolute inset-0 rounded-full border"
         style={{
