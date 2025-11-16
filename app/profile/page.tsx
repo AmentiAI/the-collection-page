@@ -595,12 +595,20 @@ function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
       <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
-          <Link
-            href="/abyss-summon"
-            className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-          >
-            Enter the Ritual
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/abyss-summon"
+              className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+            >
+              Enter the Ritual
+            </Link>
+            <Link
+              href="/abyss-summon?type=damned_pool"
+              className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-300 hover:text-red-200"
+            >
+              Summon Abyss Portal
+            </Link>
+          </div>
         </div>
         <div className="rounded-2xl border border-amber-400/40 bg-black/60 px-4 py-4 text-center text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
           No circles yet. Gather four damned to unlock bonus burns.
@@ -620,12 +628,20 @@ function SummoningOverviewCard({ summons }: { summons: SummonOverview }) {
             <span className="text-red-200">{completedTouched}</span> total touched
           </p>
         </div>
-        <Link
-          href="/abyss-summon"
-          className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-        >
-          View Ritual Hall
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/abyss-summon"
+            className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+          >
+            View Ritual Hall
+          </Link>
+          <Link
+            href="/abyss-summon?type=damned_pool"
+            className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-300 hover:text-red-200"
+          >
+            Summon Abyss Portal
+          </Link>
+        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {active.map((record) => (
