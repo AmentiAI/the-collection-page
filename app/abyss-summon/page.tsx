@@ -1615,7 +1615,7 @@ function SummonList({
                         ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
                         : truncateWallet(participant.wallet).slice(0, 2)
                       return (
-                        <span key={participant.id} className={pillClass}>
+                        <span key={participant.id} className={`${pillClass} w-full min-w-0`}>
                           {participant.avatarUrl ? (
                             <Image
                               src={participant.avatarUrl}
@@ -1657,7 +1657,7 @@ function SummonList({
                         ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
                         : truncateWallet(participant.wallet).slice(0, 2)
                       return (
-                        <span key={participant.id} className={pillClass}>
+                        <span key={participant.id} className={`${pillClass} w-full min-w-0`}>
                           {participant.avatarUrl ? (
                             <Image
                               src={participant.avatarUrl}
