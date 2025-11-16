@@ -129,7 +129,7 @@ export default function AbyssSummonPage() {
   const [selectedInscriptionId, setSelectedInscriptionId] = useState<string | null>(null)
 
   const [creating, setCreating] = useState(false)
-  const [poolMode, setPoolMode] = useState<'open_all' | 'bonus_credits'>('open_all')
+  const [poolMode, setPoolMode] = useState<'open_all' | 'bonus_credits'>('bonus_credits')
   const [joiningSummonId, setJoiningSummonId] = useState<string | null>(null)
   const [completingSummonId, setCompletingSummonId] = useState<string | null>(null)
   const [dismissingSummonId, setDismissingSummonId] = useState<string | null>(null)
