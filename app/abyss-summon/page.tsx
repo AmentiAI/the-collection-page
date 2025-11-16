@@ -1229,8 +1229,11 @@ function SummonList({
         const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= SUMMON_COMPLETION_WINDOW_MS
         const unlockCountdown = Math.max(0, timeRemainingMs - SUMMON_COMPLETION_WINDOW_MS)
         // Reduce per-frame style churn on mobile by updating glow once per second
+        const isMobile = typeof window !== 'undefined' ? window.innerWidth < 640 : false
         const secondsRemaining = Math.max(0, Math.ceil(timeRemainingMs / 1000))
-        const glowIntensity = isExpired
+        const glowIntensity = isMobile
+          ? 0
+          : isExpired
           ? 0
           : Math.min(1, Math.max(0, 1 - (secondsRemaining * 1000) / SUMMON_DURATION_MS))
         const glowRadius = 18 + glowIntensity * 32
@@ -1260,7 +1263,7 @@ function SummonList({
             className={containerClass}
             style={{
               borderColor: `rgba(248,113,113,${borderAlpha})`,
-              boxShadow: `0 0 ${glowRadius}px rgba(220,38,38,${glowAlpha})`,
+              boxShadow: isMobile ? 'none' : `0 0 ${glowRadius}px rgba(220,38,38,${glowAlpha})`,
               backgroundImage: `linear-gradient(135deg, rgba(127,29,29,${backgroundGlowAlpha}) 0%, rgba(12,12,12,0.82) 55%, rgba(17,17,17,0.9) 100%)`,
               willChange: 'transform, box-shadow, border-color',
             }}
