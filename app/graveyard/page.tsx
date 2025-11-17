@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -72,8 +72,6 @@ function GraveyardContent() {
   const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
-  const [inscriptionPrompts, setInscriptionPrompts] = useState<Record<string, string>>({})
-  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set())
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
@@ -184,6 +182,12 @@ function GraveyardContent() {
         return
       }
 
+      // Prevent multiple simultaneous requests for the same entry
+      if (powderSpending === entry.inscriptionId) {
+        return
+      }
+
+      // Prevent any request if another is in progress
       if (powderSpending) {
         return
       }
@@ -228,6 +232,7 @@ function GraveyardContent() {
         const updatedOrdinalPowder = Math.max(0, Number(payload?.ordinalPowder ?? entry.ascensionPowder))
         const updatedProfilePowder = Math.max(0, Number(payload?.profilePowder ?? 0))
 
+        // Update state with functional updates to ensure we have latest values
         setProfile((prev) =>
           prev ? { ...prev, ascension_powder: updatedProfilePowder } : prev,
         )
@@ -242,8 +247,9 @@ function GraveyardContent() {
         const spent = Math.max(0, Number(payload?.spent ?? amountToUse))
         const completed = Boolean(payload?.completed)
         if (completed) {
-          // Trigger final ascension
-          await handleFinalAscend(entry)
+          // Trigger final ascension with updated entry
+          const updatedEntry = { ...entry, ascensionPowder: updatedOrdinalPowder }
+          await handleFinalAscend(updatedEntry)
         } else {
           toast.success(`${spent} powder channeled successfully.`)
         }
@@ -254,7 +260,7 @@ function GraveyardContent() {
         setPowderSpending(null)
       }
     },
-    [ordinalAddress, toast, hasPowder, powderSpending, powderAvailable, MAX_POWDER_PER_USE],
+    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, powderSpending, handleFinalAscend],
   )
 
   const loadLimboAndMintQueue = useCallback(async () => {
@@ -368,58 +374,11 @@ function GraveyardContent() {
     [selectedLimbo, ordinalAddress, choosingLimbo, loadGraveyard, loadLimboAndMintQueue, toast],
   )
 
-  const loadInscriptionPrompts = useCallback(async () => {
-    try {
-      const response = await fetch('/inscription_prompts.json', {
-        headers: { 'Cache-Control': 'no-store' },
-      })
-      const prompts = await response.json().catch(() => [])
-      
-      if (Array.isArray(prompts)) {
-        const promptsMap: Record<string, string> = {}
-        prompts.forEach((item: { inscription_id?: string; prompt?: string }) => {
-          if (item.inscription_id && item.prompt) {
-            const normalizedId = item.inscription_id.trim().toLowerCase()
-            promptsMap[normalizedId] = item.prompt
-            // Also store without i0 suffix for matching
-            if (normalizedId.endsWith('i0')) {
-              promptsMap[normalizedId.slice(0, -2)] = item.prompt
-            }
-          }
-        })
-        setInscriptionPrompts(promptsMap)
-      }
-    } catch (err) {
-      console.error('Failed to load inscription prompts:', err)
-    }
-  }, [])
-
-  const getPromptForInscription = useCallback(
-    (inscriptionId: string): string | null => {
-      const normalized = inscriptionId.trim().toLowerCase()
-      return inscriptionPrompts[normalized] || inscriptionPrompts[normalized.endsWith('i0') ? normalized.slice(0, -2) : `${normalized}i0`] || null
-    },
-    [inscriptionPrompts],
-  )
-
-  const togglePromptExpanded = useCallback((inscriptionId: string) => {
-    setExpandedPrompts((prev) => {
-      const next = new Set(prev)
-      if (next.has(inscriptionId)) {
-        next.delete(inscriptionId)
-      } else {
-        next.add(inscriptionId)
-      }
-      return next
-    })
-  }, [])
-
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
       void loadLimboAndMintQueue()
-      void loadInscriptionPrompts()
     }
-  }, [isWalletConnected, ordinalAddress, loadLimboAndMintQueue, loadInscriptionPrompts])
+  }, [isWalletConnected, ordinalAddress, loadLimboAndMintQueue])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
@@ -637,36 +596,6 @@ function GraveyardContent() {
                             </Button>
                           )}
                         </div>
-                        {/* Prompt Dropdown */}
-                        {(() => {
-                          const prompt = getPromptForInscription(entry.inscriptionId)
-                          const isExpanded = expandedPrompts.has(entry.inscriptionId)
-                          if (!prompt) return null
-                          
-                          return (
-                            <div className="border-t border-red-500/20 bg-black/40">
-                              <button
-                                type="button"
-                                onClick={() => togglePromptExpanded(entry.inscriptionId)}
-                                className="flex w-full items-center justify-between px-3 py-2 text-[9px] font-mono uppercase tracking-[0.3em] text-red-200/70 transition hover:bg-red-900/20"
-                              >
-                                <span>View Prompt</span>
-                                {isExpanded ? (
-                                  <ChevronUp className="h-3 w-3" />
-                                ) : (
-                                  <ChevronDown className="h-3 w-3" />
-                                )}
-                              </button>
-                              {isExpanded && (
-                                <div className="max-h-48 overflow-y-auto border-t border-red-500/10 bg-black/60 px-3 py-2">
-                                  <pre className="whitespace-pre-wrap break-words text-[8px] font-mono leading-relaxed text-red-200/80">
-                                    {prompt}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })()}
                       </article>
                     )
                   })}
