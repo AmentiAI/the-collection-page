@@ -126,7 +126,7 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is gold plated.'
   
   const ANGELIC_TRANSFORMATION_SUFFIX =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all original but making them clean, and beautiful angelic monsters; eliminate legs from view glowing with holy light.'
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all original but making them clean, and beautiful angelic monsters; eliminate legs from view glowing with holy light. keep same border.'
   
   // Choose transformation suffix based on ascension level
   const transformationSuffix = isSecondAscension ? ANGELIC_TRANSFORMATION_SUFFIX : MONSTER_TRANSFORMATION_SUFFIX
