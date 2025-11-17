@@ -499,23 +499,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await pool.query(
-      `
-        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
-        ON CONFLICT (inscription_id) DO UPDATE
-          SET tx_id = EXCLUDED.tx_id,
-              ordinal_wallet = EXCLUDED.ordinal_wallet,
-              payment_wallet = EXCLUDED.payment_wallet,
-              status = 'pending',
-              source = EXCLUDED.source,
-              summon_id = EXCLUDED.summon_id,
-              updated_at = NOW(),
-              confirmed_at = NULL,
-              last_checked_at = NULL
-      `,
-      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
-    )
+    try {
+      await pool.query(
+        `
+          INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+          ON CONFLICT (inscription_id) DO UPDATE
+            SET tx_id = EXCLUDED.tx_id,
+                ordinal_wallet = EXCLUDED.ordinal_wallet,
+                payment_wallet = EXCLUDED.payment_wallet,
+                status = 'pending',
+                source = EXCLUDED.source,
+                summon_id = EXCLUDED.summon_id,
+                updated_at = NOW(),
+                confirmed_at = NULL,
+                last_checked_at = NULL
+        `,
+        [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+      )
+    } catch (err: any) {
+      // Unique violation can happen on tx_id when the same tx is retried with a different inscription_id string casing
+      if (err && err.code === '23505') {
+        await pool.query(
+          `
+            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+            ON CONFLICT (tx_id) DO UPDATE
+              SET inscription_id = EXCLUDED.inscription_id,
+                  ordinal_wallet = EXCLUDED.ordinal_wallet,
+                  payment_wallet = EXCLUDED.payment_wallet,
+                  status = 'pending',
+                  source = EXCLUDED.source,
+                  summon_id = EXCLUDED.summon_id,
+                  updated_at = NOW(),
+                  confirmed_at = NULL,
+                  last_checked_at = NULL
+          `,
+          [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+        )
+      } else {
+        throw err
+      }
+    }
 
     if (allowanceApplied) {
       await pool.query(
