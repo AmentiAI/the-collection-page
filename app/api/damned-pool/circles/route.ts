@@ -300,10 +300,10 @@ export async function POST(request: NextRequest) {
       )
       const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
 
-      if (globalActiveCount >= 1) {
+      if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
         await pool.query('ROLLBACK')
         return NextResponse.json(
-          { success: false, error: `Only one active damned pool allowed globally at a time.` },
+          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active damned pool allowed globally.` },
           { status: 409 },
         )
       }
