@@ -281,7 +281,38 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     // Generate mutant monster image OUTSIDE of transaction to avoid blocking the table
     // Use stored prompt if available (for re-ascended images)
     // isSecondAscension is already determined above
-    const storedPrompt = burnRow?.generation_prompt as string | null | undefined
+    let storedPrompt = burnRow?.generation_prompt as string | null | undefined
+    
+    // For second ascension, if prompt is missing from abyss_burns, look it up from the original limbo entry
+    if (isSecondAscension && !storedPrompt && inscriptionId.startsWith('ascended_')) {
+      // Extract the original source_inscription_id from the pattern: ascended_<original_id>_<timestamp>
+      const lastUnderscoreIndex = inscriptionId.lastIndexOf('_')
+      if (lastUnderscoreIndex > 8) { // 'ascended_' is 8 chars
+        const originalSourceId = inscriptionId.slice(8, lastUnderscoreIndex) // Remove 'ascended_' prefix and timestamp
+        
+        // Look up the limbo entry that created this abyss_burns entry
+        // The limbo entry's source_inscription_id should match the original inscription
+        // Match by both source_inscription_id and wallet to ensure we get the right one
+        const limboRes = await pool.query(
+          `
+            SELECT generation_prompt
+            FROM ascended_images_limbo
+            WHERE source_inscription_id = $1
+              AND LOWER(wallet_address) = LOWER($2)
+              AND status != 'pending_choice'
+              AND generation_prompt IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+          `,
+          [originalSourceId, walletAddressRaw],
+        )
+        
+        if (limboRes.rows.length > 0) {
+          storedPrompt = limboRes.rows[0].generation_prompt as string | null
+        }
+      }
+    }
+    
     let imageUrl: string
     let imageBase64: string
     let imageBlobUrl: string
@@ -371,15 +402,30 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
       const limboId = limboRes.rows[0]?.id
 
-      // Hide the current entry (it's being ascended) and store the generation prompt
-      await client.query(
-        `
-          UPDATE abyss_burns
-          SET hidden = TRUE, ascension_powder = 0, generation_prompt = $1, updated_at = NOW()
-          WHERE id = $2
-        `,
-        [generationPrompt, lockedBurnRow.id],
-      )
+      // Hide the current entry (it's being ascended)
+      // For second ascension, keep the original prompt in abyss_burns (don't overwrite it)
+      // The new prompt (with angelic transformation) is stored in the limbo entry
+      if (lockedIsSecondAscension) {
+        // Keep the original generation_prompt (from first ascension) in abyss_burns
+        await client.query(
+          `
+            UPDATE abyss_burns
+            SET hidden = TRUE, ascension_powder = 0, updated_at = NOW()
+            WHERE id = $1
+          `,
+          [lockedBurnRow.id],
+        )
+      } else {
+        // First ascension: store the generation prompt in abyss_burns
+        await client.query(
+          `
+            UPDATE abyss_burns
+            SET hidden = TRUE, ascension_powder = 0, generation_prompt = $1, updated_at = NOW()
+            WHERE id = $2
+          `,
+          [generationPrompt, lockedBurnRow.id],
+        )
+      }
 
       // If this is an ascended image (source = 'ascension'), also hide previous ascended entries
       // The inscription_id pattern is: ascended_<original_inscription_id>_<timestamp>
