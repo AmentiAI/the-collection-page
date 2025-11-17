@@ -210,11 +210,71 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     const pool = getPool()
     await ensureAscensionInfrastructure(pool)
 
+    // Pre-check without locking (before image generation to avoid blocking)
+    const preCheckRes = await pool.query(
+      `
+        SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, generation_prompt, source
+        FROM abyss_burns
+        WHERE inscription_id = $1
+      `,
+      [inscriptionId],
+    )
+
+    if (preCheckRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Inscription not found in abyss burns.' }, { status: 404 })
+    }
+
+    const burnRow = preCheckRes.rows[0]
+    const ordinalPowderCurrent = Number(burnRow?.ascension_powder ?? 0)
+
+    if (ordinalPowderCurrent < ASCENSION_TARGET) {
+      return NextResponse.json({
+        success: false,
+        error: `This inscription has not reached full ascension (${ordinalPowderCurrent}/500).`,
+        ordinalPowder: ordinalPowderCurrent,
+      }, { status: 400 })
+    }
+
+    // Check if already ascended (has limbo entry)
+    const existingLimbo = await pool.query(
+      `SELECT id FROM ascended_images_limbo WHERE source_inscription_id = $1 AND status = 'pending_choice'`,
+      [inscriptionId],
+    )
+
+    if (existingLimbo.rows.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'This inscription is already in ascension limbo. Check your graveyard for the generated image.',
+      }, { status: 409 })
+    }
+
+    // Generate mutant monster image OUTSIDE of transaction to avoid blocking the table
+    // Use stored prompt if available (for re-ascended images)
+    const storedPrompt = burnRow?.generation_prompt as string | null | undefined
+    let imageUrl: string
+    let imageBase64: string
+    let imageBlobUrl: string
+    let generationPrompt: string
+    try {
+      const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt)
+      imageUrl = generated.imageUrl
+      imageBase64 = generated.imageBase64
+      imageBlobUrl = generated.imageBlobUrl
+      generationPrompt = generated.prompt
+    } catch (genError) {
+      console.error('[final-ascend][image generation]', genError)
+      return NextResponse.json({
+        success: false,
+        error: `Failed to generate mutant monster image: ${genError instanceof Error ? genError.message : 'Unknown error'}`,
+      }, { status: 500 })
+    }
+
+    // Now start transaction for database updates (after image generation is complete)
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
 
-      // Check if burn record exists and has 500 powder
+      // Re-check and lock the row to ensure it still has 500 powder (prevent race conditions)
       const burnRes = await client.query(
         `
           SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, generation_prompt, source
@@ -230,52 +290,30 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
         return NextResponse.json({ success: false, error: 'Inscription not found in abyss burns.' }, { status: 404 })
       }
 
-      const burnRow = burnRes.rows[0]
-      const ordinalPowderCurrent = Number(burnRow?.ascension_powder ?? 0)
+      const lockedBurnRow = burnRes.rows[0]
+      const lockedPowderCurrent = Number(lockedBurnRow?.ascension_powder ?? 0)
 
-      if (ordinalPowderCurrent < ASCENSION_TARGET) {
+      if (lockedPowderCurrent < ASCENSION_TARGET) {
         await client.query('ROLLBACK')
         return NextResponse.json({
           success: false,
-          error: `This inscription has not reached full ascension (${ordinalPowderCurrent}/500).`,
-          ordinalPowder: ordinalPowderCurrent,
+          error: `This inscription no longer has full ascension (${lockedPowderCurrent}/500).`,
+          ordinalPowder: lockedPowderCurrent,
         }, { status: 400 })
       }
 
-      // Check if already ascended (has limbo entry)
-      const existingLimbo = await client.query(
+      // Double-check limbo status
+      const doubleCheckLimbo = await client.query(
         `SELECT id FROM ascended_images_limbo WHERE source_inscription_id = $1 AND status = 'pending_choice'`,
         [inscriptionId],
       )
 
-      if (existingLimbo.rows.length > 0) {
+      if (doubleCheckLimbo.rows.length > 0) {
         await client.query('ROLLBACK')
         return NextResponse.json({
           success: false,
           error: 'This inscription is already in ascension limbo. Check your graveyard for the generated image.',
         }, { status: 409 })
-      }
-
-      // Generate mutant monster image
-      // Use stored prompt if available (for re-ascended images)
-      const storedPrompt = burnRow?.generation_prompt as string | null | undefined
-      let imageUrl: string
-      let imageBase64: string
-      let imageBlobUrl: string
-      let generationPrompt: string
-      try {
-        const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt)
-        imageUrl = generated.imageUrl
-        imageBase64 = generated.imageBase64
-        imageBlobUrl = generated.imageBlobUrl
-        generationPrompt = generated.prompt
-      } catch (genError) {
-        await client.query('ROLLBACK')
-        console.error('[final-ascend][image generation]', genError)
-        return NextResponse.json({
-          success: false,
-          error: `Failed to generate mutant monster image: ${genError instanceof Error ? genError.message : 'Unknown error'}`,
-        }, { status: 500 })
       }
 
       // Create limbo entry
@@ -294,30 +332,30 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
           VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_choice')
           RETURNING id
         `,
-        [inscriptionId, burnRow.tx_id, walletAddressRaw, imageUrl, imageBase64, imageBlobUrl, generationPrompt],
+        [inscriptionId, lockedBurnRow.tx_id, walletAddressRaw, imageUrl, imageBase64, imageBlobUrl, generationPrompt],
       )
 
       const limboId = limboRes.rows[0]?.id
 
-      // Hide the current entry (it's being ascended)
+      // Hide the current entry (it's being ascended) and store the generation prompt
       await client.query(
         `
           UPDATE abyss_burns
-          SET hidden = TRUE, ascension_powder = 0, updated_at = NOW()
-          WHERE id = $1
+          SET hidden = TRUE, ascension_powder = 0, generation_prompt = $1, updated_at = NOW()
+          WHERE id = $2
         `,
-        [burnRow.id],
+        [generationPrompt, lockedBurnRow.id],
       )
 
       // If this is an ascended image (source = 'ascension'), also hide previous ascended entries
       // The inscription_id pattern is: ascended_<original_inscription_id>_<timestamp>
-      if (burnRow.source === 'ascension' && burnRow.inscription_id.startsWith('ascended_')) {
+      if (lockedBurnRow.source === 'ascension' && lockedBurnRow.inscription_id.startsWith('ascended_')) {
         // Extract the original source_inscription_id by removing 'ascended_' prefix and timestamp suffix
         // Pattern: ascended_<original_inscription_id>_<timestamp>
         // We'll find the last underscore and assume everything after it is the timestamp
-        const lastUnderscoreIndex = burnRow.inscription_id.lastIndexOf('_')
+        const lastUnderscoreIndex = lockedBurnRow.inscription_id.lastIndexOf('_')
         if (lastUnderscoreIndex > 8) { // 'ascended_' is 8 chars, so we need at least one more char
-          const originalSourceId = burnRow.inscription_id.slice(8, lastUnderscoreIndex) // Remove 'ascended_' prefix
+          const originalSourceId = lockedBurnRow.inscription_id.slice(8, lastUnderscoreIndex) // Remove 'ascended_' prefix
           
           // Find and hide all previous ascended entries with the same original source_inscription_id
           // This will hide the entire chain of ascended images
@@ -331,7 +369,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
                 AND id != $3
                 AND hidden = FALSE
             `,
-            [burnRow.ordinal_wallet, `ascended_${originalSourceId}_%`, burnRow.id],
+            [lockedBurnRow.ordinal_wallet, `ascended_${originalSourceId}_%`, lockedBurnRow.id],
           )
         }
       }
