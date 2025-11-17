@@ -4,7 +4,8 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ASCENSION_TARGET = 500
+const ASCENSION_TARGET_FIRST = 500
+const ASCENSION_TARGET_SECOND = 1000
 const MAX_POWDER_PER_USE = 20
 
 function buildInscriptionCandidates(inscriptionId: string) {
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
       const burnRes = await client.query(
         `
-          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder
+          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, source
           FROM abyss_burns
           WHERE LOWER(inscription_id) = ANY($1)
           FOR UPDATE
@@ -122,21 +123,24 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
       const burnRow = burnRes.rows[0]
       const ordinalPowderCurrent = Number(burnRow?.ascension_powder ?? 0)
+      const isSecondAscension = burnRow?.source === 'ascension'
+      const ascensionTarget = isSecondAscension ? ASCENSION_TARGET_SECOND : ASCENSION_TARGET_FIRST
 
-      if (ordinalPowderCurrent >= ASCENSION_TARGET) {
+      if (ordinalPowderCurrent >= ascensionTarget) {
         await client.query('ROLLBACK')
         return NextResponse.json({
           success: false,
           error: 'This inscription has already reached full ascension.',
           ordinalPowder: ordinalPowderCurrent,
           profilePowder: currentPowder,
+          target: ascensionTarget,
         }, { status: 400 })
       }
 
-      // Calculate how much powder is needed to reach 500
-      const powderNeeded = ASCENSION_TARGET - ordinalPowderCurrent
+      // Calculate how much powder is needed to reach the target (500 for first, 1000 for second)
+      const powderNeeded = ascensionTarget - ordinalPowderCurrent
       
-      // Use the minimum of: requested amount, available powder, and what's needed to reach 500
+      // Use the minimum of: requested amount, available powder, and what's needed to reach the target
       const amountToUse = Math.min(requestedAmount, currentPowder, powderNeeded)
 
       if (amountToUse <= 0) {
@@ -180,7 +184,8 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
         spent: amountToUse,
         ordinalPowder: finalOrdinalPowder,
         profilePowder: remainingProfilePowder,
-        completed: finalOrdinalPowder >= ASCENSION_TARGET,
+        completed: finalOrdinalPowder >= ascensionTarget,
+        target: ascensionTarget,
       })
     } catch (error) {
       await client.query('ROLLBACK')

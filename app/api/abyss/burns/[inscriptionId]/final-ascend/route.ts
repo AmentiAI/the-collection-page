@@ -8,7 +8,8 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ASCENSION_TARGET = 500
+const ASCENSION_TARGET_FIRST = 500
+const ASCENSION_TARGET_SECOND = 1000
 const INSCRIPTION_PROMPTS_FILE_PATH = path.join(process.cwd(), 'public', 'inscription_prompts.json')
 
 type InscriptionPrompt = {
@@ -104,7 +105,7 @@ async function ensureAscensionInfrastructure(pool: Pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_abyss_wallet ON ascended_images_abyss((LOWER(wallet_address)))`)
 }
 
-async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: string | null): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {
+async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: string | null, isSecondAscension: boolean = false): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error('Missing OpenAI API key')
@@ -120,20 +121,46 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     prompt = findInscriptionPrompt(inscriptionId, prompts) || 'A gothic horror character with dark mystical energy'
   }
 
-  // Build monster transformation prompt (matching MONSTER_TRANSFORMATION_SUFFIX from admin route)
+  // Build transformation prompts (matching from admin route)
   const MONSTER_TRANSFORMATION_SUFFIX =
     '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is gold plated.'
   
-  // Use ensureMonsterPrompt function logic (same as admin route)
-  function ensureMonsterPrompt(promptText: string): string {
+  const ANGELIC_TRANSFORMATION_SUFFIX =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all original but making them clean, and beautiful angelic monsters; eliminate legs from view and keep the same border placement but make the canvas edge with an ornate gold filigree halo border glowing with holy light. character skin is gold plated.'
+  
+  // Choose transformation suffix based on ascension level
+  const transformationSuffix = isSecondAscension ? ANGELIC_TRANSFORMATION_SUFFIX : MONSTER_TRANSFORMATION_SUFFIX
+  
+  // Use ensureTransformationPrompt function logic
+  function ensureTransformationPrompt(promptText: string, suffix: string): string {
     const trimmedPrompt = promptText.trim()
-    if (trimmedPrompt.toLowerCase().includes(MONSTER_TRANSFORMATION_SUFFIX.toLowerCase())) {
-      return trimmedPrompt
+    const lowerPrompt = trimmedPrompt.toLowerCase()
+    const lowerSuffix = suffix.toLowerCase()
+    
+    // Remove any existing transformation suffixes first (simple string replacement)
+    let cleanedPrompt = trimmedPrompt
+    // Remove monster suffix if present
+    const monsterLower = MONSTER_TRANSFORMATION_SUFFIX.toLowerCase()
+    if (lowerPrompt.includes(monsterLower)) {
+      const monsterIndex = lowerPrompt.indexOf(monsterLower)
+      cleanedPrompt = (trimmedPrompt.slice(0, monsterIndex) + trimmedPrompt.slice(monsterIndex + MONSTER_TRANSFORMATION_SUFFIX.length)).trim()
     }
-    return `${trimmedPrompt}\n\n${MONSTER_TRANSFORMATION_SUFFIX}`
+    // Remove angelic suffix if present
+    const angelicLower = ANGELIC_TRANSFORMATION_SUFFIX.toLowerCase()
+    const cleanedLower = cleanedPrompt.toLowerCase()
+    if (cleanedLower.includes(angelicLower)) {
+      const angelicIndex = cleanedLower.indexOf(angelicLower)
+      cleanedPrompt = (cleanedPrompt.slice(0, angelicIndex) + cleanedPrompt.slice(angelicIndex + ANGELIC_TRANSFORMATION_SUFFIX.length)).trim()
+    }
+    
+    // Check if the new suffix is already present
+    if (cleanedPrompt.toLowerCase().includes(lowerSuffix)) {
+      return cleanedPrompt
+    }
+    return `${cleanedPrompt}\n\n${suffix}`
   }
   
-  const augmentedPrompt = ensureMonsterPrompt(prompt)
+  const augmentedPrompt = ensureTransformationPrompt(prompt, transformationSuffix)
 
   const response = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
@@ -225,13 +252,16 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     }
 
     const burnRow = preCheckRes.rows[0]
+    const isSecondAscension = burnRow?.source === 'ascension'
+    const ascensionTarget = isSecondAscension ? ASCENSION_TARGET_SECOND : ASCENSION_TARGET_FIRST
     const ordinalPowderCurrent = Number(burnRow?.ascension_powder ?? 0)
 
-    if (ordinalPowderCurrent < ASCENSION_TARGET) {
+    if (ordinalPowderCurrent < ascensionTarget) {
       return NextResponse.json({
         success: false,
-        error: `This inscription has not reached full ascension (${ordinalPowderCurrent}/500).`,
+        error: `This inscription has not reached full ascension (${ordinalPowderCurrent}/${ascensionTarget}).`,
         ordinalPowder: ordinalPowderCurrent,
+        target: ascensionTarget,
       }, { status: 400 })
     }
 
@@ -250,13 +280,14 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
     // Generate mutant monster image OUTSIDE of transaction to avoid blocking the table
     // Use stored prompt if available (for re-ascended images)
+    // isSecondAscension is already determined above
     const storedPrompt = burnRow?.generation_prompt as string | null | undefined
     let imageUrl: string
     let imageBase64: string
     let imageBlobUrl: string
     let generationPrompt: string
     try {
-      const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt)
+      const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt, isSecondAscension)
       imageUrl = generated.imageUrl
       imageBase64 = generated.imageBase64
       imageBlobUrl = generated.imageBlobUrl
@@ -291,14 +322,17 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
       }
 
       const lockedBurnRow = burnRes.rows[0]
+      const lockedIsSecondAscension = lockedBurnRow?.source === 'ascension'
+      const lockedAscensionTarget = lockedIsSecondAscension ? ASCENSION_TARGET_SECOND : ASCENSION_TARGET_FIRST
       const lockedPowderCurrent = Number(lockedBurnRow?.ascension_powder ?? 0)
 
-      if (lockedPowderCurrent < ASCENSION_TARGET) {
+      if (lockedPowderCurrent < lockedAscensionTarget) {
         await client.query('ROLLBACK')
         return NextResponse.json({
           success: false,
-          error: `This inscription no longer has full ascension (${lockedPowderCurrent}/500).`,
+          error: `This inscription no longer has full ascension (${lockedPowderCurrent}/${lockedAscensionTarget}).`,
           ordinalPowder: lockedPowderCurrent,
+          target: lockedAscensionTarget,
         }, { status: 400 })
       }
 

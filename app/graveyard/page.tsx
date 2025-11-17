@@ -221,8 +221,12 @@ function GraveyardContent() {
         return
       }
 
-      if (entry.ascensionPowder < 500) {
-        toast.error('This offering has not reached full ascension yet.')
+      // Determine target based on ascension level (second ascension if source is 'ascension')
+      const isSecondAscension = entry.source === 'ascension'
+      const ascensionTarget = isSecondAscension ? 1000 : 500
+
+      if (entry.ascensionPowder < ascensionTarget) {
+        toast.error(`This offering has not reached full ascension yet (${entry.ascensionPowder}/${ascensionTarget}).`)
         return
       }
 
@@ -282,13 +286,17 @@ function GraveyardContent() {
         return
       }
 
-      if (entry.ascensionPowder >= 500) {
+      // Determine target based on ascension level (second ascension if source is 'ascension')
+      const isSecondAscension = entry.source === 'ascension'
+      const ascensionTarget = isSecondAscension ? 1000 : 500
+
+      if (entry.ascensionPowder >= ascensionTarget) {
         toast.error('This offering has already reached full ascension.')
         return
       }
 
-      // Calculate how much powder is needed to reach 500
-      const powderNeeded = 500 - entry.ascensionPowder
+      // Calculate how much powder is needed to reach the target
+      const powderNeeded = ascensionTarget - entry.ascensionPowder
       // Use the minimum of: max per use, available powder, and what's needed
       const amountToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable, powderNeeded)
 
@@ -504,9 +512,12 @@ function GraveyardContent() {
                         ? 'border-emerald-400/50 bg-emerald-900/30 text-emerald-200'
                         : 'border-amber-400/40 bg-amber-900/30 text-amber-200'
 
+                    // Determine target based on ascension level (second ascension if source is 'ascension')
+                    const isSecondAscension = entry.source === 'ascension'
+                    const ascensionTarget = isSecondAscension ? 1000 : 500
                     const progressPercent = Math.min(
                       100,
-                      Math.round((Math.max(0, entry.ascensionPowder) / 500) * 100),
+                      Math.round((Math.max(0, entry.ascensionPowder) / ascensionTarget) * 100),
                     )
                     const referenceInstant = entry.confirmedAt ?? entry.createdAt ?? entry.updatedAt ?? null
                     const timeInGraveyard = formatRelativeTime(referenceInstant)
@@ -564,11 +575,11 @@ function GraveyardContent() {
                             </span>
                             <span className="font-mono text-[10px] text-red-100">{powderAvailable.toLocaleString()}</span>
                           </div>
-                          {hasPowder && entry.ascensionPowder < 500 && (
+                          {hasPowder && entry.ascensionPowder < ascensionTarget && (
                             <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-amber-200/70">
                               <span>Use</span>
                               <span className="font-mono text-[10px] text-amber-100">
-                                {Math.min(MAX_POWDER_PER_USE, powderAvailable, 500 - entry.ascensionPowder)} Powder
+                                {Math.min(MAX_POWDER_PER_USE, powderAvailable, ascensionTarget - entry.ascensionPowder)} Powder
                               </span>
                             </div>
                           )}
@@ -577,10 +588,10 @@ function GraveyardContent() {
                               <Sparkles className="h-3 w-3 text-amber-400" /> Ascension
                             </span>
                             <span className="font-mono text-[10px] text-amber-100">
-                              {Math.min(500, entry.ascensionPowder).toLocaleString()} / 500
+                              {Math.min(ascensionTarget, entry.ascensionPowder).toLocaleString()} / {ascensionTarget.toLocaleString()}
                             </span>
                           </div>
-                          {entry.ascensionPowder >= 500 ? (
+                          {entry.ascensionPowder >= ascensionTarget ? (
                             <Button
                               type="button"
                               disabled={
