@@ -91,9 +91,9 @@ export async function GET() {
         FROM (
           -- Abyss participants
           SELECT LOWER(asp.wallet) AS wallet, s.completed_at AS last_participated_at
-          FROM abyss_summon_participants asp
-          INNER JOIN abyss_summons s ON s.id = asp.summon_id
-          WHERE s.status = 'completed'
+        FROM abyss_summon_participants asp
+        INNER JOIN abyss_summons s ON s.id = asp.summon_id
+        WHERE s.status = 'completed'
           UNION ALL
           -- Damned pool participants (count those who are in a circle that reached completed)
           SELECT LOWER(dpp.wallet) AS wallet, dpc.completed_at AS last_participated_at

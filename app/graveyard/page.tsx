@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ type GraveyardEntry = {
   confirmedAt?: string | null
   updatedAt?: string | null
   ascensionPowder: number
+  imageBlobUrl?: string | null
 }
 
 type WalletProfile = {
@@ -66,6 +67,13 @@ function GraveyardContent() {
   const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState<WalletProfile | null>(null)
   const [powderSpending, setPowderSpending] = useState<string | null>(null)
+  const [ascending, setAscending] = useState<string | null>(null)
+  const [limboImages, setLimboImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
+  const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
+  const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
+  const [choosingLimbo, setChoosingLimbo] = useState(false)
+  const [inscriptionPrompts, setInscriptionPrompts] = useState<Record<string, string>>({})
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set())
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
@@ -131,6 +139,7 @@ function GraveyardContent() {
                     0,
                     Number.parseInt((item?.ascensionPowder ?? item?.ascension_powder ?? '0').toString(), 10) || 0,
                   ),
+            imageBlobUrl: (item?.imageBlobUrl ?? item?.image_blob_url ?? null) as string | null | undefined,
           } satisfies GraveyardEntry
         })
         .filter((entry: GraveyardEntry | null): entry is GraveyardEntry => Boolean(entry))
@@ -219,11 +228,12 @@ function GraveyardContent() {
         )
 
         const completed = Boolean(payload?.completed)
-        toast.success(
-          completed
-            ? 'The abyss accepts your tribute. Ascension complete!'
-            : 'Ascension powder channeled successfully.',
-        )
+        if (completed) {
+          // Trigger final ascension
+          await handleFinalAscend(entry)
+        } else {
+          toast.success('Ascension powder channeled successfully.')
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to channel ascension powder.'
         toast.error(message)
@@ -233,6 +243,170 @@ function GraveyardContent() {
     },
     [ordinalAddress, toast, hasPowder, powderSpending],
   )
+
+  const loadLimboAndMintQueue = useCallback(async () => {
+    if (!ordinalAddress) return
+
+    try {
+      const response = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (response.ok && payload?.success) {
+        setLimboImages(payload.limbo || [])
+        setMintQueueImages(payload.mintQueue || [])
+      }
+    } catch (err) {
+      console.error('Failed to load limbo and mint queue:', err)
+    }
+  }, [ordinalAddress])
+
+  const handleFinalAscend = useCallback(
+    async (entry: GraveyardEntry) => {
+      if (!ordinalAddress) {
+        toast.error('Connect your wallet to ascend.')
+        return
+      }
+
+      if (ascending) {
+        return
+      }
+
+      if (entry.ascensionPowder < 500) {
+        toast.error('This offering has not reached full ascension yet.')
+        return
+      }
+
+      setAscending(entry.inscriptionId)
+      try {
+        const response = await fetch(
+          `/api/abyss/burns/${encodeURIComponent(entry.inscriptionId)}/final-ascend`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress: ordinalAddress }),
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to ascend.')
+        }
+
+        // Show limbo modal with generated image
+        setSelectedLimbo({
+          id: payload.limboId,
+          imageUrl: payload.imageUrl,
+          sourceInscriptionId: entry.inscriptionId,
+        })
+
+        // Reload graveyard to show updated powder (should be 0 now)
+        await loadGraveyard()
+        await loadLimboAndMintQueue()
+
+        toast.success('Mutant monster generated! Choose its fate.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to ascend.'
+        toast.error(message)
+      } finally {
+        setAscending(null)
+      }
+    },
+    [ordinalAddress, toast, ascending, loadGraveyard, loadLimboAndMintQueue],
+  )
+
+  const handleLimboChoice = useCallback(
+    async (choice: 'mint' | 'abyss') => {
+      if (!selectedLimbo || !ordinalAddress || choosingLimbo) {
+        return
+      }
+
+      setChoosingLimbo(true)
+      try {
+        const response = await fetch(
+          `/api/abyss/ascended/limbo/${encodeURIComponent(selectedLimbo.id)}/choose`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ choice, walletAddress: ordinalAddress }),
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to process choice.')
+        }
+
+        setSelectedLimbo(null)
+        await loadGraveyard()
+        await loadLimboAndMintQueue()
+
+        toast.success(payload.message || 'Choice processed successfully.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to process choice.'
+        toast.error(message)
+      } finally {
+        setChoosingLimbo(false)
+      }
+    },
+    [selectedLimbo, ordinalAddress, choosingLimbo, loadGraveyard, loadLimboAndMintQueue, toast],
+  )
+
+  const loadInscriptionPrompts = useCallback(async () => {
+    try {
+      const response = await fetch('/inscription_prompts.json', {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      const prompts = await response.json().catch(() => [])
+      
+      if (Array.isArray(prompts)) {
+        const promptsMap: Record<string, string> = {}
+        prompts.forEach((item: { inscription_id?: string; prompt?: string }) => {
+          if (item.inscription_id && item.prompt) {
+            const normalizedId = item.inscription_id.trim().toLowerCase()
+            promptsMap[normalizedId] = item.prompt
+            // Also store without i0 suffix for matching
+            if (normalizedId.endsWith('i0')) {
+              promptsMap[normalizedId.slice(0, -2)] = item.prompt
+            }
+          }
+        })
+        setInscriptionPrompts(promptsMap)
+      }
+    } catch (err) {
+      console.error('Failed to load inscription prompts:', err)
+    }
+  }, [])
+
+  const getPromptForInscription = useCallback(
+    (inscriptionId: string): string | null => {
+      const normalized = inscriptionId.trim().toLowerCase()
+      return inscriptionPrompts[normalized] || inscriptionPrompts[normalized.endsWith('i0') ? normalized.slice(0, -2) : `${normalized}i0`] || null
+    },
+    [inscriptionPrompts],
+  )
+
+  const togglePromptExpanded = useCallback((inscriptionId: string) => {
+    setExpandedPrompts((prev) => {
+      const next = new Set(prev)
+      if (next.has(inscriptionId)) {
+        next.delete(inscriptionId)
+      } else {
+        next.add(inscriptionId)
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isWalletConnected && ordinalAddress) {
+      void loadLimboAndMintQueue()
+      void loadInscriptionPrompts()
+    }
+  }, [isWalletConnected, ordinalAddress, loadLimboAndMintQueue, loadInscriptionPrompts])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
@@ -333,7 +507,7 @@ function GraveyardContent() {
               <div className="max-h-[65vh] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {entries.map((entry: GraveyardEntry) => {
-                    const imageUrl = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(entry.inscriptionId)}`
+                    const imageUrl = entry.imageBlobUrl || `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(entry.inscriptionId)}`
                     const shortInscription =
                       entry.inscriptionId.length > 18
                         ? `${entry.inscriptionId.slice(0, 8)}…${entry.inscriptionId.slice(-6)}`
@@ -411,27 +585,193 @@ function GraveyardContent() {
                               {Math.min(500, entry.ascensionPowder).toLocaleString()} / 500
                             </span>
                           </div>
-                          <Button
-                            type="button"
-                            disabled={!hasPowder || entry.ascensionPowder >= 500 || powderSpending === entry.inscriptionId}
-                            onClick={() => handleUsePowder(entry)}
-                            className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
-                          >
-                            {powderSpending === entry.inscriptionId ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : entry.ascensionPowder >= 500 ? (
-                              'Ascended'
-                            ) : (
-                              'Use Powder'
-                            )}
-                          </Button>
+                          {entry.ascensionPowder >= 500 ? (
+                            <Button
+                              type="button"
+                              disabled={ascending === entry.inscriptionId}
+                              onClick={() => handleFinalAscend(entry)}
+                              className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45 disabled:cursor-not-allowed disabled:border-amber-500/30 disabled:bg-black/40 disabled:text-amber-200/40"
+                            >
+                              {ascending === entry.inscriptionId ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Summoning...
+                                </>
+                              ) : (
+                                'Ascend'
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              disabled={!hasPowder || powderSpending === entry.inscriptionId}
+                              onClick={() => handleUsePowder(entry)}
+                              className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                            >
+                              {powderSpending === entry.inscriptionId ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                'Use Powder'
+                              )}
+                            </Button>
+                          )}
                         </div>
+                        {/* Prompt Dropdown */}
+                        {(() => {
+                          const prompt = getPromptForInscription(entry.inscriptionId)
+                          const isExpanded = expandedPrompts.has(entry.inscriptionId)
+                          if (!prompt) return null
+                          
+                          return (
+                            <div className="border-t border-red-500/20 bg-black/40">
+                              <button
+                                type="button"
+                                onClick={() => togglePromptExpanded(entry.inscriptionId)}
+                                className="flex w-full items-center justify-between px-3 py-2 text-[9px] font-mono uppercase tracking-[0.3em] text-red-200/70 transition hover:bg-red-900/20"
+                              >
+                                <span>View Prompt</span>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3" />
+                                )}
+                              </button>
+                              {isExpanded && (
+                                <div className="max-h-48 overflow-y-auto border-t border-red-500/10 bg-black/60 px-3 py-2">
+                                  <pre className="whitespace-pre-wrap break-words text-[8px] font-mono leading-relaxed text-red-200/80">
+                                    {prompt}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </article>
                     )
                   })}
                 </div>
               </div>
             )}
+          </section>
+        )}
+
+        {/* Limbo Modal */}
+        {selectedLimbo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="relative max-w-2xl rounded-3xl border border-amber-500/60 bg-black/95 p-6 shadow-[0_0_50px_rgba(251,191,36,0.5)]">
+              <h2 className="mb-4 text-center text-xl font-mono uppercase tracking-[0.3em] text-amber-200">
+                Mutant Monster Generated
+              </h2>
+              <div className="mb-4 aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
+                <Image
+                  src={selectedLimbo.imageUrl}
+                  alt="Generated mutant monster"
+                  width={512}
+                  height={512}
+                  className="h-full w-full object-cover"
+                  unoptimized
+                />
+              </div>
+              <p className="mb-6 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
+                Choose the fate of this ascended creature:
+              </p>
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  disabled={choosingLimbo}
+                  onClick={() => handleLimboChoice('mint')}
+                  className="flex-1 rounded-full border border-emerald-500/60 bg-emerald-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-emerald-100 transition hover:bg-emerald-600/45 disabled:opacity-50"
+                >
+                  {choosingLimbo ? (
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                  ) : (
+                    'Save for Mint'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={choosingLimbo}
+                  onClick={() => handleLimboChoice('abyss')}
+                  className="flex-1 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45 disabled:opacity-50"
+                >
+                  {choosingLimbo ? (
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                  ) : (
+                    'Throw in Abyss'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Limbo Section */}
+        {limboImages.length > 0 && (
+          <section className="flex flex-col gap-5">
+            <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-amber-300">
+              Awaiting Choice
+            </h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {limboImages.map((limbo) => (
+                <article
+                  key={limbo.id}
+                  className="group relative flex flex-col overflow-hidden rounded-2xl border border-amber-500/40 bg-black/70 shadow-[0_0_25px_rgba(251,191,36,0.35)]"
+                >
+                  <div className="relative aspect-square">
+                    <Image
+                      src={limbo.imageUrl}
+                      alt="Limbo mutant monster"
+                      fill
+                      sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <div className="border-t border-amber-500/20 bg-black/60 px-3 py-3">
+                    <Button
+                      type="button"
+                      onClick={() => setSelectedLimbo(limbo)}
+                      className="w-full rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45"
+                    >
+                      Choose Fate
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Mint Queue Section */}
+        {mintQueueImages.length > 0 && (
+          <section className="flex flex-col gap-5">
+            <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-emerald-300">
+              Waiting Release (Mint)
+            </h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {mintQueueImages.map((mint) => (
+                <article
+                  key={mint.id}
+                  className="group relative flex flex-col overflow-hidden rounded-2xl border border-emerald-500/40 bg-black/70 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                >
+                  <div className="relative aspect-square">
+                    <Image
+                      src={mint.imageUrl}
+                      alt="Mint queue mutant monster"
+                      fill
+                      sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <div className="border-t border-emerald-500/20 bg-black/60 px-3 py-3">
+                    <p className="text-center text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200/70">
+                      Awaiting Mint
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
         )}
       </main>

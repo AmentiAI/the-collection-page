@@ -27,14 +27,41 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     const walletAddressRaw = (body?.walletAddress ?? '').toString().trim()
 
     if (!inscriptionParam) {
-      return NextResponse.json({ success: false, error: 'inscriptionId is required.' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Missing inscriptionId' }, { status: 400 })
     }
 
     if (!walletAddressRaw) {
-      return NextResponse.json({ success: false, error: 'walletAddress is required.' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'walletAddress is required' }, { status: 400 })
     }
 
     const pool = getPool()
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS profiles (
+        wallet_address TEXT PRIMARY KEY,
+        ascension_powder INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS abyss_burns (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        inscription_id TEXT UNIQUE NOT NULL,
+        tx_id TEXT UNIQUE NOT NULL,
+        ordinal_wallet TEXT NOT NULL,
+        payment_wallet TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        source TEXT NOT NULL DEFAULT 'abyss',
+        summon_id UUID,
+        ascension_powder INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        confirmed_at TIMESTAMPTZ,
+        last_checked_at TIMESTAMPTZ
+      )
+    `)
     await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 
     const client = await pool.connect()
@@ -55,45 +82,40 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
           SELECT ascension_powder
           FROM profiles
           WHERE LOWER(wallet_address) = LOWER($1)
-          FOR UPDATE
         `,
         [walletAddressRaw],
       )
-
       const currentPowder = Number(profileRes.rows[0]?.ascension_powder ?? 0)
-
-      if (!profileRes.rowCount) {
-        await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'Profile not found for wallet.' }, { status: 404 })
-      }
 
       if (currentPowder <= 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'No ascension powder available to channel.' }, { status: 400 })
+        return NextResponse.json({
+          success: false,
+          error: 'No ascension powder available in your reserve.',
+          ordinalPowder: 0,
+          profilePowder: currentPowder,
+        }, { status: 400 })
       }
 
-      const inscriptionCandidates = buildInscriptionCandidates(inscriptionParam)
-      if (inscriptionCandidates.length === 0) {
+      const candidates = buildInscriptionCandidates(inscriptionParam)
+      if (candidates.length === 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'Invalid inscription identifier.' }, { status: 400 })
+        return NextResponse.json({ success: false, error: 'Invalid inscription ID format.' }, { status: 400 })
       }
 
       const burnRes = await client.query(
         `
-          SELECT id, ascension_powder
+          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder
           FROM abyss_burns
           WHERE LOWER(inscription_id) = ANY($1)
-            AND LOWER(ordinal_wallet) = LOWER($2)
-          ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
-          LIMIT 1
           FOR UPDATE
         `,
-        [inscriptionCandidates, walletAddressRaw],
+        [candidates],
       )
 
-      if (burnRes.rowCount === 0) {
+      if (burnRes.rows.length === 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'No matching graveyard inscription found for this wallet.' }, { status: 404 })
+        return NextResponse.json({ success: false, error: 'Inscription not found in abyss burns.' }, { status: 404 })
       }
 
       const burnRow = burnRes.rows[0]

@@ -1220,7 +1220,7 @@ export default function AbyssSummonPage() {
                       isPowderMode={IS_POWDER_MODE}
                       requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                       summonDurationMs={SUMMON_DURATION_MS}
-                        isPortalMode={IS_DAMNED_POOL_MODE}
+                      isPortalMode={IS_DAMNED_POOL_MODE}
                       highlightCreator
                       now={now}
                       emptyMessage="You haven&rsquo;t founded a summoning circle yet."
@@ -1244,7 +1244,7 @@ export default function AbyssSummonPage() {
                       isPowderMode={IS_POWDER_MODE}
                       requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                       summonDurationMs={SUMMON_DURATION_MS}
-                        isPortalMode={IS_DAMNED_POOL_MODE}
+                      isPortalMode={IS_DAMNED_POOL_MODE}
                       now={now}
                       emptyMessage="You have not joined a summoning circle yet."
                     />
@@ -1410,34 +1410,34 @@ function SummonList({
           >
               <div className="grid gap-6 md:grid-cols-[360px_1fr_auto] md:items-start">
               <div className="mx-auto mt-[5px] flex w-full max-w-full md:max-w-[380px] lg:max-w-[460px] flex-col items-center gap-3 md:mx-0">
-                <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
-                  <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    {statusLabel}
-                  </span>
-                  <span>{summaryText}</span>
-                  <span className={(isExpired ? 'text-red-400' : 'text-amber-200') + ' inline-block w-[54px] text-center'}>
-                    {formatCountdown(Math.max(0, timeRemainingMs))}
+                  <div className="flex min-h-[22px] flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/80">
+                    <span className="rounded-full border border-red-600/50 bg-red-900/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
+                      {statusLabel}
+                    </span>
+                    <span>{summaryText}</span>
+                    <span className={(isExpired ? 'text-red-400' : 'text-amber-200') + ' inline-block w-[54px] text-center'}>
+                      {formatCountdown(Math.max(0, timeRemainingMs))}
+                    </span>
+                  </div>
+                  <SummoningCircleGraphic
+                    participants={summon.participants}
+                    totalSlots={totalSlots}
+                    truncateWallet={truncateWallet}
+                    currentWallet={ordinalAddress}
+                    isCreator={isCreator}
+                    assetMap={assetMap}
+                    glowIntensity={glowIntensity}
+                  />
+                  <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
+                    {(() => {
+                      const creatorParticipant = summon.participants.find((p) => p.role === 'creator')
+                      if (creatorParticipant?.username) {
+                        return abbreviateName(creatorParticipant.username)
+                      }
+                      return truncateWallet(summon.creatorWallet)
+                    })()}
                   </span>
                 </div>
-                <SummoningCircleGraphic
-                  participants={summon.participants}
-                  totalSlots={totalSlots}
-                  truncateWallet={truncateWallet}
-                  currentWallet={ordinalAddress}
-                  isCreator={isCreator}
-                  assetMap={assetMap}
-                  glowIntensity={glowIntensity}
-                />
-                <span className="text-[10px] uppercase tracking-[0.3em] text-red-300/70">
-                  {(() => {
-                    const creatorParticipant = summon.participants.find((p) => p.role === 'creator')
-                    if (creatorParticipant?.username) {
-                      return abbreviateName(creatorParticipant.username)
-                    }
-                    return truncateWallet(summon.creatorWallet)
-                  })()}
-                </span>
-              </div>
               <div className="flex flex-1 min-w-0 flex-col gap-3 overflow-x-hidden">
                 {highlightCreator && !usePortalLayout && (
                 <div className="flex min-h-10 flex-wrap items-center gap-2 overflow-hidden">

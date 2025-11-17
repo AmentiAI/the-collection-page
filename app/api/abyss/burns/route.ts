@@ -30,6 +30,7 @@ async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'abyss'`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS summon_id UUID`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
@@ -359,6 +360,7 @@ export async function GET(request: NextRequest) {
                    status,
                    source,
                    ascension_powder,
+                   image_blob_url,
                    created_at,
                    confirmed_at,
                    updated_at
@@ -393,6 +395,7 @@ export async function GET(request: NextRequest) {
                    status,
                    source,
                    ascension_powder,
+                   image_blob_url,
                    created_at,
                    confirmed_at,
                    updated_at
@@ -426,6 +429,7 @@ export async function GET(request: NextRequest) {
         txId: (row?.tx_id ?? '').toString(),
         status: (row?.status ?? 'pending').toString(),
         source: (row?.source ?? 'abyss').toString(),
+        imageBlobUrl: (row?.image_blob_url ?? null) as string | null,
         ascensionPowder:
           typeof row?.ascension_powder === 'number'
             ? Number(row.ascension_powder)
@@ -500,23 +504,23 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await pool.query(
-        `
-          INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
-          ON CONFLICT (inscription_id) DO UPDATE
-            SET tx_id = EXCLUDED.tx_id,
-                ordinal_wallet = EXCLUDED.ordinal_wallet,
-                payment_wallet = EXCLUDED.payment_wallet,
-                status = 'pending',
-                source = EXCLUDED.source,
-                summon_id = EXCLUDED.summon_id,
-                updated_at = NOW(),
-                confirmed_at = NULL,
-                last_checked_at = NULL
-        `,
-        [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
-      )
+    await pool.query(
+      `
+        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+        ON CONFLICT (inscription_id) DO UPDATE
+          SET tx_id = EXCLUDED.tx_id,
+              ordinal_wallet = EXCLUDED.ordinal_wallet,
+              payment_wallet = EXCLUDED.payment_wallet,
+              status = 'pending',
+              source = EXCLUDED.source,
+              summon_id = EXCLUDED.summon_id,
+              updated_at = NOW(),
+              confirmed_at = NULL,
+              last_checked_at = NULL
+      `,
+      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+    )
     } catch (err: any) {
       // Unique violation can happen on tx_id when the same tx is retried with a different inscription_id string casing
       if (err && err.code === '23505') {
