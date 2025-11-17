@@ -132,35 +132,46 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
   const transformationSuffix = isSecondAscension ? ANGELIC_TRANSFORMATION_SUFFIX : MONSTER_TRANSFORMATION_SUFFIX
   
   // Use ensureTransformationPrompt function logic
-  function ensureTransformationPrompt(promptText: string, suffix: string): string {
+  function ensureTransformationPrompt(promptText: string, suffix: string, isSecondAscension: boolean): string {
     const trimmedPrompt = promptText.trim()
     const lowerPrompt = trimmedPrompt.toLowerCase()
     const lowerSuffix = suffix.toLowerCase()
     
-    // Remove any existing transformation suffixes first (simple string replacement)
-    let cleanedPrompt = trimmedPrompt
-    // Remove monster suffix if present
-    const monsterLower = MONSTER_TRANSFORMATION_SUFFIX.toLowerCase()
-    if (lowerPrompt.includes(monsterLower)) {
-      const monsterIndex = lowerPrompt.indexOf(monsterLower)
-      cleanedPrompt = (trimmedPrompt.slice(0, monsterIndex) + trimmedPrompt.slice(monsterIndex + MONSTER_TRANSFORMATION_SUFFIX.length)).trim()
+    // For second ascension, we want to keep MONSTER and add ANGELIC
+    // For first ascension, we want to replace any existing transformation with MONSTER
+    if (isSecondAscension) {
+      // Second ascension: Check if ANGELIC is already present
+      // If not, add it to the end (keep MONSTER)
+      if (lowerPrompt.includes(lowerSuffix)) {
+        return trimmedPrompt // ANGELIC already present
+      }
+      return `${trimmedPrompt}\n\n${suffix}` // Add ANGELIC to existing prompt (which should have MONSTER)
+    } else {
+      // First ascension: Remove any existing transformation suffixes, then add MONSTER
+      let cleanedPrompt = trimmedPrompt
+      // Remove monster suffix if present
+      const monsterLower = MONSTER_TRANSFORMATION_SUFFIX.toLowerCase()
+      if (lowerPrompt.includes(monsterLower)) {
+        const monsterIndex = lowerPrompt.indexOf(monsterLower)
+        cleanedPrompt = (trimmedPrompt.slice(0, monsterIndex) + trimmedPrompt.slice(monsterIndex + MONSTER_TRANSFORMATION_SUFFIX.length)).trim()
+      }
+      // Remove angelic suffix if present
+      const angelicLower = ANGELIC_TRANSFORMATION_SUFFIX.toLowerCase()
+      const cleanedLower = cleanedPrompt.toLowerCase()
+      if (cleanedLower.includes(angelicLower)) {
+        const angelicIndex = cleanedLower.indexOf(angelicLower)
+        cleanedPrompt = (cleanedPrompt.slice(0, angelicIndex) + cleanedPrompt.slice(angelicIndex + ANGELIC_TRANSFORMATION_SUFFIX.length)).trim()
+      }
+      
+      // Check if MONSTER is already present
+      if (cleanedPrompt.toLowerCase().includes(lowerSuffix)) {
+        return cleanedPrompt
+      }
+      return `${cleanedPrompt}\n\n${suffix}`
     }
-    // Remove angelic suffix if present
-    const angelicLower = ANGELIC_TRANSFORMATION_SUFFIX.toLowerCase()
-    const cleanedLower = cleanedPrompt.toLowerCase()
-    if (cleanedLower.includes(angelicLower)) {
-      const angelicIndex = cleanedLower.indexOf(angelicLower)
-      cleanedPrompt = (cleanedPrompt.slice(0, angelicIndex) + cleanedPrompt.slice(angelicIndex + ANGELIC_TRANSFORMATION_SUFFIX.length)).trim()
-    }
-    
-    // Check if the new suffix is already present
-    if (cleanedPrompt.toLowerCase().includes(lowerSuffix)) {
-      return cleanedPrompt
-    }
-    return `${cleanedPrompt}\n\n${suffix}`
   }
   
-  const augmentedPrompt = ensureTransformationPrompt(prompt, transformationSuffix)
+  const augmentedPrompt = ensureTransformationPrompt(prompt, transformationSuffix, isSecondAscension)
 
   const response = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
