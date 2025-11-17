@@ -457,7 +457,7 @@ function GraveyardContent() {
           </section>
         ) : !bypass ? (
           <section className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
-            <Skull className="h-10 w-10 text-red-400" />
+            <Skull className="h-10 w-10 text-red-400" />THE GRAVEYARD HAS GRAVE ROBBERS, PLEASE STAND BY!<Skull className="h-10 w-10 text-red-400" />
           </section>
         ) : (
           <section className="flex flex-col gap-5">
