@@ -186,8 +186,18 @@ function GraveyardContent() {
       const payload = await response.json().catch(() => null)
 
       if (response.ok && payload?.success) {
-        setLimboImages(payload.limbo || [])
+        const limbo = payload.limbo || []
+        setLimboImages(limbo)
         setMintQueueImages(payload.mintQueue || [])
+        
+        // Auto-open modal if there's a pending limbo entry and no modal is currently open
+        // Use functional update to check current state
+        setSelectedLimbo((current) => {
+          if (limbo.length > 0 && !current) {
+            return limbo[0]
+          }
+          return current
+        })
       }
     } catch (err) {
       console.error('Failed to load limbo and mint queue:', err)
@@ -202,6 +212,19 @@ function GraveyardContent() {
       }
 
       if (ascending) {
+        return
+      }
+
+      // Prevent starting new ascension if there's a pending limbo choice
+      // Check current state using functional updates to avoid stale closures
+      let hasPendingLimbo = false
+      setLimboImages((current) => {
+        hasPendingLimbo = current.length > 0
+        return current
+      })
+      
+      if (hasPendingLimbo || selectedLimbo) {
+        toast.error('You have a pending ascension choice. Please complete it first.')
         return
       }
 
@@ -246,7 +269,7 @@ function GraveyardContent() {
         setAscending(null)
       }
     },
-    [ordinalAddress, toast, ascending, loadGraveyard, loadLimboAndMintQueue],
+    [ordinalAddress, toast, ascending, limboImages, selectedLimbo, loadGraveyard, loadLimboAndMintQueue],
   )
 
   const handleUsePowder = useCallback(
@@ -567,7 +590,12 @@ function GraveyardContent() {
                           {entry.ascensionPowder >= 500 ? (
                             <Button
                               type="button"
-                              disabled={ascending === entry.inscriptionId}
+                              disabled={
+                                ascending === entry.inscriptionId ||
+                                Boolean(ascending) ||
+                                limboImages.length > 0 ||
+                                Boolean(selectedLimbo)
+                              }
                               onClick={() => handleFinalAscend(entry)}
                               className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45 disabled:cursor-not-allowed disabled:border-amber-500/30 disabled:bg-black/40 disabled:text-amber-200/40"
                             >
@@ -576,6 +604,8 @@ function GraveyardContent() {
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                   Summoning...
                                 </>
+                              ) : limboImages.length > 0 || selectedLimbo ? (
+                                'Pending Choice'
                               ) : (
                                 'Ascend'
                               )}
