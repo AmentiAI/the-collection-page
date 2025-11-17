@@ -184,7 +184,7 @@ export default function SummonLeaderboardPage() {
                 Summoners Leaderboard
               </h1>
               <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
-                Scores: {SUMMON_BURN_POINTS} points per abyss burn, {SUMMON_HOST_POINTS} points per completed circle you hosted, {SUMMON_PARTICIPATION_POINTS} point per completed circle you joined.
+                Scores: {SUMMON_BURN_POINTS} points per abyss burn, {SUMMON_HOST_POINTS} points per completed circle you hosted (abyss or portal), {SUMMON_PARTICIPATION_POINTS} point per completed circle you joined (abyss or portal).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -212,10 +212,12 @@ export default function SummonLeaderboardPage() {
                 <table className="w-full table-fixed border-collapse text-[11px] font-mono uppercase tracking-[0.25em] text-red-200">
                   <thead className="sticky top-0 border-b border-red-700/40 bg-black/60 text-red-400">
                     <tr>
-                      <th className="w-10 px-4 py-2 text-left font-normal">#</th>
-                      <th className="px-4 py-2 text-left font-normal">Summoner</th>
-                      <th className="w-16 px-4 py-2 text-right font-normal">Score</th>
-                      <th className="w-14 px-4 py-2 text-right font-normal">🔥</th>
+                      <th className="w-10 px-2 py-2 text-left font-normal">#</th>
+                      <th className="px-3 py-2 text-left font-normal">Summoner</th>
+                      <th className="w-16 px-2 py-2 text-right font-normal">Score</th>
+                      <th className="w-14 px-2 py-2 text-right font-normal" title="Abyss Burns">🔥</th>
+                      <th className="w-14 px-2 py-2 text-right font-normal" title="Circles Hosted">Host</th>
+                      <th className="w-14 px-2 py-2 text-right font-normal" title="Circles Joined">Join</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -233,12 +235,14 @@ export default function SummonLeaderboardPage() {
                           className={`${rowClasses} border-b border-red-700/20 transition cursor-pointer`}
                           onClick={() => setSelectedSummonerWallet(entry.wallet)}
                         >
-                          <td className="px-4 py-2 text-left text-red-500">{String(index + 1).padStart(2, '0')}</td>
-                          <td className="px-4 py-2 text-left">
+                          <td className="px-2 py-2 text-left text-red-500">{String(index + 1).padStart(2, '0')}</td>
+                          <td className="px-3 py-2 text-left">
                             {renderSummonerIdentity(entry, isSelf)}
                           </td>
-                          <td className="px-4 py-2 text-right text-amber-200 tabular-nums">{entry.score}</td>
-                          <td className="px-4 py-2 text-right text-red-400 tabular-nums">{entry.burns}</td>
+                          <td className="px-2 py-2 text-right text-amber-200 tabular-nums">{entry.score}</td>
+                          <td className="px-2 py-2 text-right text-red-400 tabular-nums">{entry.burns}</td>
+                          <td className="px-2 py-2 text-right text-red-300 tabular-nums">{entry.hosted}</td>
+                          <td className="px-2 py-2 text-right text-red-300 tabular-nums">{entry.participated}</td>
                         </tr>
                       )
                     })}
