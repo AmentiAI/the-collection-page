@@ -32,6 +32,7 @@ async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
@@ -367,6 +368,7 @@ export async function GET(request: NextRequest) {
                    updated_at
             FROM abyss_burns
             WHERE LOWER(ordinal_wallet) = LOWER($1)
+              AND hidden = FALSE
             ORDER BY created_at DESC
             LIMIT ${graveyardLimit}
           `,
@@ -402,6 +404,7 @@ export async function GET(request: NextRequest) {
                    updated_at
             FROM abyss_burns
             WHERE LOWER(payment_wallet) = LOWER($1)
+              AND hidden = FALSE
             ORDER BY created_at DESC
             LIMIT ${graveyardLimit}
           `,

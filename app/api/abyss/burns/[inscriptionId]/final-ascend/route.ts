@@ -217,7 +217,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
       // Check if burn record exists and has 500 powder
       const burnRes = await client.query(
         `
-          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, generation_prompt
+          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, generation_prompt, source
           FROM abyss_burns
           WHERE inscription_id = $1
           FOR UPDATE
@@ -299,15 +299,42 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
       const limboId = limboRes.rows[0]?.id
 
-      // Reset original ordinal's powder to 0
+      // Hide the current entry (it's being ascended)
       await client.query(
         `
           UPDATE abyss_burns
-          SET ascension_powder = 0, updated_at = NOW()
+          SET hidden = TRUE, ascension_powder = 0, updated_at = NOW()
           WHERE id = $1
         `,
         [burnRow.id],
       )
+
+      // If this is an ascended image (source = 'ascension'), also hide previous ascended entries
+      // The inscription_id pattern is: ascended_<original_inscription_id>_<timestamp>
+      if (burnRow.source === 'ascension' && burnRow.inscription_id.startsWith('ascended_')) {
+        // Extract the original source_inscription_id by removing 'ascended_' prefix and timestamp suffix
+        // Pattern: ascended_<original_inscription_id>_<timestamp>
+        // We'll find the last underscore and assume everything after it is the timestamp
+        const lastUnderscoreIndex = burnRow.inscription_id.lastIndexOf('_')
+        if (lastUnderscoreIndex > 8) { // 'ascended_' is 8 chars, so we need at least one more char
+          const originalSourceId = burnRow.inscription_id.slice(8, lastUnderscoreIndex) // Remove 'ascended_' prefix
+          
+          // Find and hide all previous ascended entries with the same original source_inscription_id
+          // This will hide the entire chain of ascended images
+          await client.query(
+            `
+              UPDATE abyss_burns
+              SET hidden = TRUE, updated_at = NOW()
+              WHERE LOWER(ordinal_wallet) = LOWER($1)
+                AND source = 'ascension'
+                AND inscription_id LIKE $2
+                AND id != $3
+                AND hidden = FALSE
+            `,
+            [burnRow.ordinal_wallet, `ascended_${originalSourceId}_%`, burnRow.id],
+          )
+        }
+      }
 
       await client.query('COMMIT')
 
