@@ -319,9 +319,7 @@ function GraveyardContent() {
         const spent = Math.max(0, Number(payload?.spent ?? amountToUse))
         const completed = Boolean(payload?.completed)
         if (completed) {
-          // Trigger final ascension with updated entry
-          const updatedEntry = { ...entry, ascensionPowder: updatedOrdinalPowder }
-          await handleFinalAscend(updatedEntry)
+          toast.success(`${spent} powder channeled. Ascension complete! Click "Ascend" to proceed.`)
         } else {
           toast.success(`${spent} powder channeled successfully.`)
         }
@@ -514,6 +512,7 @@ function GraveyardContent() {
                               fill
                               sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
                               className="object-cover transition duration-500 ease-out group-hover:scale-105"
+                              unoptimized={imageUrl.includes('blob.vercel-storage.com')}
                             />
                             <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
                               <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">

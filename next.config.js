@@ -16,6 +16,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'media.discordapp.net',
       },
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'public.blob.vercel-storage.com',
+      },
     ],
   },
   experimental: {
