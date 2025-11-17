@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
 
 import Header from '@/components/Header'
@@ -72,6 +72,7 @@ function GraveyardContent() {
   const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
+  const powderRequestInProgress = useRef<string | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
@@ -255,13 +256,8 @@ function GraveyardContent() {
         return
       }
 
-      // Prevent multiple simultaneous requests for the same entry
-      if (powderSpending === entry.inscriptionId) {
-        return
-      }
-
-      // Prevent any request if another is in progress
-      if (powderSpending) {
+      // Prevent multiple simultaneous requests using ref (more reliable than state)
+      if (powderRequestInProgress.current) {
         return
       }
 
@@ -285,7 +281,10 @@ function GraveyardContent() {
         return
       }
 
+      // Set both ref and state for UI updates
+      powderRequestInProgress.current = entry.inscriptionId
       setPowderSpending(entry.inscriptionId)
+
       try {
         const response = await fetch(
           `/api/abyss/burns/${encodeURIComponent(entry.inscriptionId)}/ascend`,
@@ -330,10 +329,11 @@ function GraveyardContent() {
         const message = err instanceof Error ? err.message : 'Failed to channel ascension powder.'
         toast.error(message)
       } finally {
+        powderRequestInProgress.current = null
         setPowderSpending(null)
       }
     },
-    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, powderSpending, handleFinalAscend],
+    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, handleFinalAscend],
   )
 
   const handleLimboChoice = useCallback(
