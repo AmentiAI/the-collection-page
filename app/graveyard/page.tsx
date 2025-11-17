@@ -175,6 +175,79 @@ function GraveyardContent() {
   const MAX_POWDER_PER_USE = 20
   const powderToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable)
 
+  const loadLimboAndMintQueue = useCallback(async () => {
+    if (!ordinalAddress) return
+
+    try {
+      const response = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (response.ok && payload?.success) {
+        setLimboImages(payload.limbo || [])
+        setMintQueueImages(payload.mintQueue || [])
+      }
+    } catch (err) {
+      console.error('Failed to load limbo and mint queue:', err)
+    }
+  }, [ordinalAddress])
+
+  const handleFinalAscend = useCallback(
+    async (entry: GraveyardEntry) => {
+      if (!ordinalAddress) {
+        toast.error('Connect your wallet to ascend.')
+        return
+      }
+
+      if (ascending) {
+        return
+      }
+
+      if (entry.ascensionPowder < 500) {
+        toast.error('This offering has not reached full ascension yet.')
+        return
+      }
+
+      setAscending(entry.inscriptionId)
+      try {
+        const response = await fetch(
+          `/api/abyss/burns/${encodeURIComponent(entry.inscriptionId)}/final-ascend`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress: ordinalAddress }),
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to ascend.')
+        }
+
+        // Show limbo modal with generated image
+        setSelectedLimbo({
+          id: payload.limboId,
+          imageUrl: payload.imageUrl,
+          sourceInscriptionId: entry.inscriptionId,
+        })
+
+        // Reload graveyard to show updated powder (should be 0 now)
+        await loadGraveyard()
+        await loadLimboAndMintQueue()
+
+        toast.success('Mutant monster generated! Choose its fate.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to ascend.'
+        toast.error(message)
+      } finally {
+        setAscending(null)
+      }
+    },
+    [ordinalAddress, toast, ascending, loadGraveyard, loadLimboAndMintQueue],
+  )
+
   const handleUsePowder = useCallback(
     async (entry: GraveyardEntry) => {
       if (!ordinalAddress) {
@@ -261,79 +334,6 @@ function GraveyardContent() {
       }
     },
     [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, powderSpending, handleFinalAscend],
-  )
-
-  const loadLimboAndMintQueue = useCallback(async () => {
-    if (!ordinalAddress) return
-
-    try {
-      const response = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
-        headers: { 'Cache-Control': 'no-store' },
-      })
-      const payload = await response.json().catch(() => null)
-
-      if (response.ok && payload?.success) {
-        setLimboImages(payload.limbo || [])
-        setMintQueueImages(payload.mintQueue || [])
-      }
-    } catch (err) {
-      console.error('Failed to load limbo and mint queue:', err)
-    }
-  }, [ordinalAddress])
-
-  const handleFinalAscend = useCallback(
-    async (entry: GraveyardEntry) => {
-      if (!ordinalAddress) {
-        toast.error('Connect your wallet to ascend.')
-        return
-      }
-
-      if (ascending) {
-        return
-      }
-
-      if (entry.ascensionPowder < 500) {
-        toast.error('This offering has not reached full ascension yet.')
-        return
-      }
-
-      setAscending(entry.inscriptionId)
-      try {
-        const response = await fetch(
-          `/api/abyss/burns/${encodeURIComponent(entry.inscriptionId)}/final-ascend`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ walletAddress: ordinalAddress }),
-          },
-        )
-
-        const payload = await response.json().catch(() => null)
-
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.error ?? 'Failed to ascend.')
-        }
-
-        // Show limbo modal with generated image
-        setSelectedLimbo({
-          id: payload.limboId,
-          imageUrl: payload.imageUrl,
-          sourceInscriptionId: entry.inscriptionId,
-        })
-
-        // Reload graveyard to show updated powder (should be 0 now)
-        await loadGraveyard()
-        await loadLimboAndMintQueue()
-
-        toast.success('Mutant monster generated! Choose its fate.')
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to ascend.'
-        toast.error(message)
-      } finally {
-        setAscending(null)
-      }
-    },
-    [ordinalAddress, toast, ascending, loadGraveyard, loadLimboAndMintQueue],
   )
 
   const handleLimboChoice = useCallback(
@@ -582,18 +582,18 @@ function GraveyardContent() {
                               )}
                             </Button>
                           ) : (
-                            <Button
-                              type="button"
+                          <Button
+                            type="button"
                               disabled={!hasPowder || powderSpending === entry.inscriptionId}
-                              onClick={() => handleUsePowder(entry)}
-                              className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
-                            >
-                              {powderSpending === entry.inscriptionId ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                'Use Powder'
-                              )}
-                            </Button>
+                            onClick={() => handleUsePowder(entry)}
+                            className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                          >
+                            {powderSpending === entry.inscriptionId ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              'Use Powder'
+                            )}
+                          </Button>
                           )}
                         </div>
                       </article>
