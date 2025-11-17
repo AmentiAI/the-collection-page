@@ -840,7 +840,14 @@ export default function AbyssSummonPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/90" />
       </div>
 
-      <Header connected={Boolean(ordinalAddress)} showMusicControls={true} />
+      <Header 
+        connected={Boolean(ordinalAddress)} 
+        showMusicControls={true}
+        musicVolume={musicVolume}
+        onMusicVolumeChange={handleVolumeChange}
+        isMusicMuted={isMusicMuted}
+        onMusicMutedChange={setIsMusicMuted}
+      />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
         {/* Header outside of the card */}
