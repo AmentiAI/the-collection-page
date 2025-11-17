@@ -156,7 +156,7 @@ function GraveyardContent() {
     } finally {
       setLoading(false)
     }
-  }, [ordinalAddress, toast])
+  }, [ordinalAddress])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
