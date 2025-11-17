@@ -102,7 +102,7 @@ export async function POST(
       // Get limbo entry
       const limboRes = await client.query(
         `
-          SELECT id, source_inscription_id, source_tx_id, wallet_address, generated_image_url, generated_image_base64, generated_image_blob_url, status
+          SELECT id, source_inscription_id, source_tx_id, wallet_address, generated_image_url, generated_image_base64, generated_image_blob_url, generation_prompt, status
           FROM ascended_images_limbo
           WHERE id = $1
           FOR UPDATE
@@ -150,15 +150,23 @@ export async function POST(
         )
 
         // Also create an abyss_burns entry so it shows in graveyard
+        // Store the generation_prompt so it can be used if this image is ascended again
         const fakeInscriptionId = `ascended_${limbo.source_inscription_id}_${Date.now()}`
         const fakeTxId = `ascended_tx_${limbo.source_tx_id}_${Date.now()}`
         await client.query(
           `
-            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, ascension_powder, image_blob_url, created_at, updated_at, confirmed_at)
-            VALUES ($1, $2, $3, $4, 'confirmed', 'ascension', 0, $5, NOW(), NOW(), NOW())
+            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, ascension_powder, image_blob_url, generation_prompt, created_at, updated_at, confirmed_at)
+            VALUES ($1, $2, $3, $4, 'confirmed', 'ascension', 0, $5, $6, NOW(), NOW(), NOW())
             ON CONFLICT (inscription_id) DO NOTHING
           `,
-          [fakeInscriptionId, fakeTxId, walletAddressRaw, walletAddressRaw, limbo.generated_image_blob_url || limbo.generated_image_url],
+          [
+            fakeInscriptionId,
+            fakeTxId,
+            walletAddressRaw,
+            walletAddressRaw,
+            limbo.generated_image_blob_url || limbo.generated_image_url,
+            limbo.generation_prompt || null,
+          ],
         )
       }
 

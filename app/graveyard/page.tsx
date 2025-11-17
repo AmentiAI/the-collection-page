@@ -216,14 +216,7 @@ function GraveyardContent() {
       }
 
       // Prevent starting new ascension if there's a pending limbo choice
-      // Check current state using functional updates to avoid stale closures
-      let hasPendingLimbo = false
-      setLimboImages((current) => {
-        hasPendingLimbo = current.length > 0
-        return current
-      })
-      
-      if (hasPendingLimbo || selectedLimbo) {
+      if (limboImages.length > 0 || selectedLimbo) {
         toast.error('You have a pending ascension choice. Please complete it first.')
         return
       }

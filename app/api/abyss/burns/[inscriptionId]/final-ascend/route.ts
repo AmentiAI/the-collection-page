@@ -68,6 +68,7 @@ async function ensureAscensionInfrastructure(pool: Pool) {
     )
   `)
   await pool.query(`ALTER TABLE ascended_images_limbo ADD COLUMN IF NOT EXISTS generated_image_blob_url TEXT`)
+  await pool.query(`ALTER TABLE ascended_images_limbo ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_limbo_wallet ON ascended_images_limbo((LOWER(wallet_address)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_limbo_status ON ascended_images_limbo(status)`)
 
@@ -103,19 +104,20 @@ async function ensureAscensionInfrastructure(pool: Pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_abyss_wallet ON ascended_images_abyss((LOWER(wallet_address)))`)
 }
 
-async function generateMutantMonsterImage(inscriptionId: string): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string }> {
+async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: string | null): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error('Missing OpenAI API key')
   }
 
-  // Load inscription prompts and find matching one
-  const prompts = await loadInscriptionPrompts()
-  let prompt = findInscriptionPrompt(inscriptionId, prompts)
-
-  // Fallback if no prompt found
-  if (!prompt) {
-    prompt = 'A gothic horror character with dark mystical energy'
+  // Use stored prompt if available (for re-ascended images), otherwise load from inscription prompts
+  let prompt: string
+  if (storedPrompt) {
+    prompt = storedPrompt
+  } else {
+    // Load inscription prompts and find matching one
+    const prompts = await loadInscriptionPrompts()
+    prompt = findInscriptionPrompt(inscriptionId, prompts) || 'A gothic horror character with dark mystical energy'
   }
 
   // Build monster transformation prompt (matching MONSTER_TRANSFORMATION_SUFFIX from admin route)
@@ -188,7 +190,7 @@ async function generateMutantMonsterImage(inscriptionId: string): Promise<{ imag
     // Continue with base64 fallback
   }
 
-  return { imageUrl, imageBase64, imageBlobUrl }
+  return { imageUrl, imageBase64, imageBlobUrl, prompt: augmentedPrompt }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { inscriptionId: string } }) {
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
       // Check if burn record exists and has 500 powder
       const burnRes = await client.query(
         `
-          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder
+          SELECT id, inscription_id, tx_id, ordinal_wallet, ascension_powder, generation_prompt
           FROM abyss_burns
           WHERE inscription_id = $1
           FOR UPDATE
@@ -255,14 +257,18 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
       }
 
       // Generate mutant monster image
+      // Use stored prompt if available (for re-ascended images)
+      const storedPrompt = burnRow?.generation_prompt as string | null | undefined
       let imageUrl: string
       let imageBase64: string
       let imageBlobUrl: string
+      let generationPrompt: string
       try {
-        const generated = await generateMutantMonsterImage(inscriptionId)
+        const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt)
         imageUrl = generated.imageUrl
         imageBase64 = generated.imageBase64
         imageBlobUrl = generated.imageBlobUrl
+        generationPrompt = generated.prompt
       } catch (genError) {
         await client.query('ROLLBACK')
         console.error('[final-ascend][image generation]', genError)
@@ -282,12 +288,13 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
             generated_image_url,
             generated_image_base64,
             generated_image_blob_url,
+            generation_prompt,
             status
           )
-          VALUES ($1, $2, $3, $4, $5, $6, 'pending_choice')
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_choice')
           RETURNING id
         `,
-        [inscriptionId, burnRow.tx_id, walletAddressRaw, imageUrl, imageBase64, imageBlobUrl],
+        [inscriptionId, burnRow.tx_id, walletAddressRaw, imageUrl, imageBase64, imageBlobUrl, generationPrompt],
       )
 
       const limboId = limboRes.rows[0]?.id
