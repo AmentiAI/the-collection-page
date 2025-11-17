@@ -13,7 +13,6 @@ import { InscriptionService } from '@/services/inscription-service'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import BackgroundMusic from '@/components/BackgroundMusic'
-import ChestCallout from '@/components/ChestCallout'
 import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 type SpeedupStrategy = 'rbf' | 'cpfp' | 'hybrid'
@@ -1310,11 +1309,6 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
 
           <aside className="space-y-6" />
         </section>
-
-        {/* Chest at bottom of page */}
-        <div className="mt-12 pb-8">
-          <ChestCallout eventKey="treasure_chest_speedup" size="sm" className="mt-6" />
-        </div>
       </div>
     </div>
   )

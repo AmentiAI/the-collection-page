@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const walletAddressRaw = (body?.walletAddress ?? '').toString().trim()
-    const eventKey = (body?.eventKey ?? DEFAULT_EVENT_KEY).toString().trim() || DEFAULT_EVENT_KEY
-    const amountRaw = Number(body?.amount ?? DEFAULT_GRANT_AMOUNT)
-    const grantAmount = Number.isFinite(amountRaw) && amountRaw > 0 ? Math.floor(amountRaw) : DEFAULT_GRANT_AMOUNT
+    // SECURITY: Do not allow users to specify eventKey or amount - use defaults only
+    const eventKey = DEFAULT_EVENT_KEY
+    const grantAmount = DEFAULT_GRANT_AMOUNT
 
     if (!walletAddressRaw) {
       return NextResponse.json({ success: false, error: 'walletAddress is required.' }, { status: 400 })

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import Header from '@/components/Header'
-import ChestCallout from '@/components/ChestCallout'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
@@ -649,11 +648,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
               </div>
             )}
           </div>
-        </div>
-
-        {/* Chest at bottom of page */}
-        <div className="mt-12 pb-8">
-          <ChestCallout eventKey="treasure_chest_cancel" size="sm" className="mt-6" />
         </div>
       </div>
     </div>

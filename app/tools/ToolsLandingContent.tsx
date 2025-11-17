@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Zap, Waves, Undo2, Package, Coins, Send } from 'lucide-react'
 import Header from '@/components/Header'
 import BackgroundMusic from '@/components/BackgroundMusic'
-import ChestCallout from '@/components/ChestCallout'
 
 const liveTools = [
   {
@@ -145,11 +144,6 @@ export default function ToolsLandingContent() {
               ))}
             </div>
           </section>
-
-          {/* Chest at bottom of page */}
-          <div className="mt-12 pb-8">
-            <ChestCallout eventKey="treasure_chest_tools" size="sm" className="mt-6" />
-          </div>
         </div>
       </div>
     </div>

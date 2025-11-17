@@ -22,7 +22,6 @@ import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
-import ChestCallout from '@/components/ChestCallout'
 import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import type { CategorisedWalletAssets, InscriptionUtxo } from '@/lib/sandshrew'
 
@@ -818,11 +817,6 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
             )}
           </div>
         )}
-
-        {/* Chest at bottom of page */}
-        <div className="mt-12 pb-8">
-          <ChestCallout eventKey="treasure_chest_sat_recovery" size="sm" className="mt-6" />
-        </div>
       </div>
     </div>
   )
