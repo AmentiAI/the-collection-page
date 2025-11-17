@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
 
@@ -61,8 +60,6 @@ function formatRelativeTime(value?: string | null) {
 function GraveyardContent() {
   const wallet = useWallet()
   const toast = useToast()
-  const searchParams = useSearchParams()
-  const bypass = searchParams.get('wtf') === '1'
 
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<GraveyardEntry[]>([])
@@ -96,7 +93,7 @@ function GraveyardContent() {
   }, [])
 
   const loadGraveyard = useCallback(async () => {
-    if (!ordinalAddress || !bypass) {
+    if (!ordinalAddress) {
       return
     }
 
@@ -159,13 +156,13 @@ function GraveyardContent() {
     } finally {
       setLoading(false)
     }
-  }, [ordinalAddress, bypass])
+  }, [ordinalAddress])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
       void loadGraveyard()
     }
-  }, [isWalletConnected, ordinalAddress, bypass, loadGraveyard])
+  }, [isWalletConnected, ordinalAddress, loadGraveyard])
 
   const handleRefresh = useCallback(() => {
     if (!ordinalAddress) {
@@ -180,7 +177,7 @@ function GraveyardContent() {
   const powderToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable)
 
   const loadLimboAndMintQueue = useCallback(async () => {
-    if (!ordinalAddress || !bypass) return
+    if (!ordinalAddress) return
 
     try {
       const response = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
@@ -205,7 +202,7 @@ function GraveyardContent() {
     } catch (err) {
       console.error('Failed to load limbo and mint queue:', err)
     }
-  }, [ordinalAddress, bypass])
+  }, [ordinalAddress])
 
   const handleFinalAscend = useCallback(
     async (entry: GraveyardEntry) => {
@@ -403,7 +400,7 @@ function GraveyardContent() {
     if (isWalletConnected && ordinalAddress) {
       void loadLimboAndMintQueue()
     }
-  }, [isWalletConnected, ordinalAddress, bypass, loadLimboAndMintQueue])
+  }, [isWalletConnected, ordinalAddress, loadLimboAndMintQueue])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
@@ -454,10 +451,6 @@ function GraveyardContent() {
                 Link your wallet to discover which sacrifices linger in the abyssal ledger.
               </p>
             </div>
-          </section>
-        ) : !bypass ? (
-          <section className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
-            <Skull className="h-10 w-10 text-red-400" />THE GRAVEYARD HAS GRAVE ROBBERS, PLEASE STAND BY!<Skull className="h-10 w-10 text-red-400" />
           </section>
         ) : (
           <section className="flex flex-col gap-5">
