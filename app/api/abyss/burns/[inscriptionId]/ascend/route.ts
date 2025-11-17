@@ -5,6 +5,7 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const ASCENSION_TARGET = 500
+const MAX_POWDER_PER_USE = 20
 
 function buildInscriptionCandidates(inscriptionId: string) {
   const trimmed = inscriptionId.trim()
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     const inscriptionParam = (params?.inscriptionId ?? '').toString().trim()
     const body = await request.json().catch(() => ({}))
     const walletAddressRaw = (body?.walletAddress ?? '').toString().trim()
+    const requestedAmount = Math.max(1, Math.min(MAX_POWDER_PER_USE, Number(body?.amount ?? MAX_POWDER_PER_USE) || MAX_POWDER_PER_USE))
 
     if (!inscriptionParam) {
       return NextResponse.json({ success: false, error: 'Missing inscriptionId' }, { status: 400 })
@@ -131,15 +133,32 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
         }, { status: 400 })
       }
 
-      const ordinalPowderUpdated = ordinalPowderCurrent + currentPowder
+      // Calculate how much powder is needed to reach 500
+      const powderNeeded = ASCENSION_TARGET - ordinalPowderCurrent
+      
+      // Use the minimum of: requested amount, available powder, and what's needed to reach 500
+      const amountToUse = Math.min(requestedAmount, currentPowder, powderNeeded)
+
+      if (amountToUse <= 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({
+          success: false,
+          error: 'Cannot use powder. Either none available or already at max.',
+          ordinalPowder: ordinalPowderCurrent,
+          profilePowder: currentPowder,
+        }, { status: 400 })
+      }
+
+      const ordinalPowderUpdated = ordinalPowderCurrent + amountToUse
+      const remainingProfilePowder = currentPowder - amountToUse
 
       await client.query(
         `
           UPDATE profiles
-          SET ascension_powder = 0
-          WHERE LOWER(wallet_address) = LOWER($1)
+          SET ascension_powder = $1
+          WHERE LOWER(wallet_address) = LOWER($2)
         `,
-        [walletAddressRaw],
+        [remainingProfilePowder, walletAddressRaw],
       )
 
       const updateBurn = await client.query(
@@ -158,9 +177,9 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
 
       return NextResponse.json({
         success: true,
-        spent: currentPowder,
+        spent: amountToUse,
         ordinalPowder: finalOrdinalPowder,
-        profilePowder: 0,
+        profilePowder: remainingProfilePowder,
         completed: finalOrdinalPowder >= ASCENSION_TARGET,
       })
     } catch (error) {

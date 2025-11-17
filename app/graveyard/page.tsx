@@ -174,6 +174,8 @@ function GraveyardContent() {
 
   const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
   const hasPowder = powderAvailable > 0
+  const MAX_POWDER_PER_USE = 20
+  const powderToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable)
 
   const handleUsePowder = useCallback(
     async (entry: GraveyardEntry) => {
@@ -196,6 +198,16 @@ function GraveyardContent() {
         return
       }
 
+      // Calculate how much powder is needed to reach 500
+      const powderNeeded = 500 - entry.ascensionPowder
+      // Use the minimum of: max per use, available powder, and what's needed
+      const amountToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable, powderNeeded)
+
+      if (amountToUse <= 0) {
+        toast.error('Cannot use powder. Either none available or already at max.')
+        return
+      }
+
       setPowderSpending(entry.inscriptionId)
       try {
         const response = await fetch(
@@ -203,7 +215,7 @@ function GraveyardContent() {
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ walletAddress: ordinalAddress }),
+            body: JSON.stringify({ walletAddress: ordinalAddress, amount: amountToUse }),
           },
         )
 
@@ -227,12 +239,13 @@ function GraveyardContent() {
           ),
         )
 
+        const spent = Math.max(0, Number(payload?.spent ?? amountToUse))
         const completed = Boolean(payload?.completed)
         if (completed) {
           // Trigger final ascension
           await handleFinalAscend(entry)
         } else {
-          toast.success('Ascension powder channeled successfully.')
+          toast.success(`${spent} powder channeled successfully.`)
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to channel ascension powder.'
@@ -241,7 +254,7 @@ function GraveyardContent() {
         setPowderSpending(null)
       }
     },
-    [ordinalAddress, toast, hasPowder, powderSpending],
+    [ordinalAddress, toast, hasPowder, powderSpending, powderAvailable, MAX_POWDER_PER_USE],
   )
 
   const loadLimboAndMintQueue = useCallback(async () => {
@@ -577,6 +590,14 @@ function GraveyardContent() {
                             </span>
                             <span className="font-mono text-[10px] text-red-100">{powderAvailable.toLocaleString()}</span>
                           </div>
+                          {hasPowder && entry.ascensionPowder < 500 && (
+                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-amber-200/70">
+                              <span>Use</span>
+                              <span className="font-mono text-[10px] text-amber-100">
+                                {Math.min(MAX_POWDER_PER_USE, powderAvailable, 500 - entry.ascensionPowder)} Powder
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-amber-200/80">
                             <span className="flex items-center gap-1">
                               <Sparkles className="h-3 w-3 text-amber-400" /> Ascension
