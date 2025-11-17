@@ -62,14 +62,31 @@ async function findOrdinalByInscriptionId(inscriptionId: string) {
 async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardRecord | null> {
   try {
     const pool = getPool()
+    // For ascended images, prioritize exact match since they have unique IDs with timestamps
+    const isAscended = inscriptionId.toLowerCase().startsWith('ascended_')
     const base = stripInscriptionSuffix(inscriptionId)
-    const candidates = Array.from(
-      new Set(
-        [inscriptionId, base, `${base}i0`]
-          .map((value) => value?.trim())
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ).map((value) => value.toLowerCase())
+    
+    // Build candidates - for ascended images, exact match is critical
+    const candidateSet = new Set<string>()
+    
+    // Always include exact match first (most important for ascended images)
+    candidateSet.add(inscriptionId.toLowerCase())
+    
+    if (!isAscended) {
+      // For non-ascended, include variants
+      candidateSet.add(base.toLowerCase())
+      if (base !== inscriptionId) {
+        candidateSet.add(`${base}i0`.toLowerCase())
+      }
+    } else {
+      // For ascended images, also try variants in case of URL encoding issues
+      candidateSet.add(base.toLowerCase())
+      if (base !== inscriptionId) {
+        candidateSet.add(`${base}i0`.toLowerCase())
+      }
+    }
+    
+    const candidates = Array.from(candidateSet)
 
     if (candidates.length === 0) {
       return null
@@ -85,12 +102,14 @@ async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardReco
           b.updated_at,
           b.status,
           b.ascension_powder AS ordinal_ascension_powder,
+          b.image_blob_url,
           p.username,
           p.avatar_url,
           p.ascension_powder
         FROM abyss_burns b
         LEFT JOIN profiles p ON LOWER(p.wallet_address) = LOWER(b.ordinal_wallet)
         WHERE LOWER(b.inscription_id) = ANY($1)
+          AND b.hidden = FALSE
         ORDER BY b.updated_at DESC NULLS LAST, b.created_at DESC NULLS LAST
         LIMIT 1
       `,
@@ -98,17 +117,19 @@ async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardReco
     )
 
     if (result.rows.length === 0) {
+      console.error('[graveyard detail] No record found for inscription:', inscriptionId, 'candidates:', candidates)
       return null
     }
 
     const row = result.rows[0]
-    return {
+    const record = {
       inscription_id: row?.inscription_id ?? '',
       ordinal_wallet: row?.ordinal_wallet ?? null,
       created_at: row?.created_at ?? null,
       confirmed_at: row?.confirmed_at ?? null,
       updated_at: row?.updated_at ?? null,
       status: row?.status ?? null,
+      image_blob_url: row?.image_blob_url ?? null,
       username: row?.username ?? null,
       avatar_url: row?.avatar_url ?? null,
       profile_ascension_powder:
@@ -120,6 +141,17 @@ async function loadGraveyardRecord(inscriptionId: string): Promise<GraveyardReco
           ? Number(row.ordinal_ascension_powder)
           : Number.parseInt(row?.ordinal_ascension_powder ?? '0', 10) || 0,
     }
+    
+    // Debug log for ascended images
+    if (record.inscription_id.toLowerCase().startsWith('ascended_')) {
+      console.log('[graveyard detail] Found ascended record:', {
+        inscription_id: record.inscription_id,
+        has_image_blob_url: !!record.image_blob_url,
+        image_blob_url: record.image_blob_url ? `${record.image_blob_url.substring(0, 50)}...` : null,
+      })
+    }
+    
+    return record
   } catch (error) {
     console.error('[graveyard detail] Failed to load abyss burn record:', error)
     return null
@@ -206,6 +238,7 @@ type GraveyardRecord = {
   confirmed_at: string | null
   updated_at: string | null
   status: string | null
+  image_blob_url: string | null
   username: string | null
   avatar_url: string | null
   profile_ascension_powder: number | null
@@ -219,15 +252,31 @@ type PageProps = {
 export default async function GraveyardInscriptionPage({ params }: PageProps) {
   const rawInscriptionId = params.inscriptionId ?? ''
   const decodedInscriptionId = decodeURIComponent(rawInscriptionId)
-  const ordinal = decodedInscriptionId ? await findOrdinalByInscriptionId(decodedInscriptionId) : null
+  const isAscendedImage = decodedInscriptionId.toLowerCase().startsWith('ascended_')
+  
+  // For ascended images, don't try to find in ordinals.json (they don't exist there)
+  const ordinal = isAscendedImage ? null : (decodedInscriptionId ? await findOrdinalByInscriptionId(decodedInscriptionId) : null)
   const burnRecord = decodedInscriptionId ? await loadGraveyardRecord(decodedInscriptionId) : null
 
-  const imageUrl =
-    ordinal?.image_url ??
-    `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`
-  const downloadUrl =
-    ordinal?.image_url ??
-    `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`
+  // For ascended images, ONLY use blob URL (they're not real inscriptions)
+  // For regular inscriptions, prioritize blob URL, then ordinal image_url, then ord-mirror
+  const imageUrl = isAscendedImage
+    ? (burnRecord?.image_blob_url ?? null)
+    : (burnRecord?.image_blob_url ?? ordinal?.image_url ?? `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`)
+  
+  const downloadUrl = isAscendedImage
+    ? (burnRecord?.image_blob_url ?? null)
+    : (burnRecord?.image_blob_url ?? ordinal?.image_url ?? `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(decodedInscriptionId)}`)
+
+  // Debug logging for ascended images
+  if (isAscendedImage) {
+    console.log('[graveyard detail] Ascended image URL:', {
+      hasBurnRecord: !!burnRecord,
+      imageBlobUrl: burnRecord?.image_blob_url ? `${burnRecord.image_blob_url.substring(0, 50)}...` : null,
+      imageUrl: imageUrl ? `${imageUrl.substring(0, 50)}...` : null,
+      downloadUrl: downloadUrl ? `${downloadUrl.substring(0, 50)}...` : null,
+    })
+  }
 
   const mintedAt = formatTimestamp(ordinal?.minted_at)
   const createdAt = formatTimestamp(ordinal?.created_at)
@@ -272,7 +321,7 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
             )}
             <div className="text-right">
               <p>Graveyard Inscription</p>
-              <p className="font-mono text-[11px] text-red-200/80">{decodedInscriptionId}</p>
+              
               {sacrificerDisplayName && (
                 <p className="text-[10px] uppercase tracking-[0.3em] text-red-200/60">
                   Offered by {sacrificerDisplayName}
@@ -286,36 +335,61 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
         <section className="grid gap-8 lg:grid-cols-[minmax(0,420px)_1fr]">
           <div className="relative overflow-hidden rounded-3xl border border-red-600/50 bg-black/70 shadow-[0_0_40px_rgba(220,38,38,0.3)]">
             <div className="relative aspect-square">
-              <Image
-                src={imageUrl}
-                alt={decodedInscriptionId}
-                fill
-                sizes="(min-width: 1024px) 420px, 100vw"
-                priority
-                className="object-cover"
-              />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.35em] text-red-200/80">
-                  {decodedInscriptionId}
+              {imageUrl ? (
+                // For blob URLs, use regular img tag to avoid Next.js Image optimization issues
+                imageUrl.includes('blob.vercel-storage.com') || imageUrl.includes('blob:') ? (
+                  <img
+                    src={imageUrl}
+                    alt={decodedInscriptionId}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={imageUrl}
+                    alt={decodedInscriptionId}
+                    fill
+                    sizes="(min-width: 1024px) 420px, 100vw"
+                    priority
+                    className="object-cover"
+                  />
+                )
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-black/50">
+                  <p className="text-sm uppercase tracking-[0.3em] text-red-200/60">Image not available</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/60">
-                  {ordinal?.rarity_tier && <span>{ordinal.rarity_tier}</span>}
-                  {rarityScore && <span>Score {rarityScore}</span>}
-                  {mintedAt && <span>Minted {mintedAt}</span>}
+              )}
+              {imageUrl && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-[0.35em] text-red-200/80">
+                    {isAscendedImage ? 'Ascended Abomination' : decodedInscriptionId}
+                  </div>
+                  {!isAscendedImage && (
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-red-200/60">
+                      {ordinal?.rarity_tier && <span>{ordinal.rarity_tier}</span>}
+                      {rarityScore && <span>Score {rarityScore}</span>}
+                      {mintedAt && <span>Minted {mintedAt}</span>}
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
           <div className="space-y-8">
             <header className="space-y-3">
               <h1 className="text-2xl font-semibold uppercase tracking-[0.45em] text-red-200 md:text-3xl">
-                {ordinal?.trait_combination_hash ? 'Damned Artifact Details' : 'Sacrificed Inscription'}
+                {isAscendedImage
+                  ? 'Ascended Abomination'
+                  : ordinal?.trait_combination_hash
+                    ? 'Damned Artifact Details'
+                    : 'Sacrificed Inscription'}
               </h1>
               <p className="text-sm uppercase tracking-[0.3em] text-red-200/70">
-                {ordinal
-                  ? 'Full trait breakdown and summoning metadata for this damned creation.'
-                  : 'Original inscription preview with any available metadata.'}
+                {isAscendedImage
+                  ? 'A creature born from the ascension ritual, transformed through the abyss.'
+                  : ordinal
+                    ? 'Full trait breakdown and summoning metadata for this damned creation.'
+                    : 'Original inscription preview with any available metadata.'}
               </p>
               <div className="rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3 text-xs uppercase tracking-[0.3em] text-red-200/70">
                 <p>
@@ -389,27 +463,46 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
               )}
             </section>
 
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">External Links</h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  href={`https://ordinals.com/inscription/${encodeURIComponent(decodedInscriptionId)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/20"
-                >
-                  View on ordinals.com
-                </Link>
-                <Link
-                  href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/25"
-                >
-                  Download original image
-                </Link>
-              </div>
-            </section>
+            {!isAscendedImage && (
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">External Links</h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`https://ordinals.com/inscription/${encodeURIComponent(decodedInscriptionId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/20"
+                  >
+                    View on ordinals.com
+                  </Link>
+                  {downloadUrl && (
+                    <Link
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/25"
+                    >
+                      Download original image
+                    </Link>
+                  )}
+                </div>
+              </section>
+            )}
+            {isAscendedImage && downloadUrl && (
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Image</h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href={downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/30 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/25"
+                  >
+                    Download ascended image
+                  </Link>
+                </div>
+              </section>
+            )}
           </div>
         </section>
       </div>
