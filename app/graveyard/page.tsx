@@ -643,7 +643,7 @@ function GraveyardContent() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
             <div className="relative max-w-2xl rounded-3xl border border-amber-500/60 bg-black/95 p-6 shadow-[0_0_50px_rgba(251,191,36,0.5)]">
               <h2 className="mb-4 text-center text-xl font-mono uppercase tracking-[0.3em] text-amber-200">
-                Mutant Monster Generated
+                ASCENSION FAILED!
               </h2>
               <div className="mb-4 aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
                 <Image
@@ -656,7 +656,7 @@ function GraveyardContent() {
                 />
               </div>
               <p className="mb-6 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
-                Choose the fate of this ascended creature:
+                Choose the fate of this abomination:
               </p>
               <div className="flex gap-4">
                 <Button
