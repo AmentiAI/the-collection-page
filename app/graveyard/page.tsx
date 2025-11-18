@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -57,6 +57,45 @@ function formatRelativeTime(value?: string | null) {
   return `${diffSeconds}s ago`
 }
 
+function formatTimeUntilGraveRob(updatedAt: string | null | undefined, createdAt: string | null | undefined): string | null {
+  // Grave robbing eligibility: 7 days after updated_at (or created_at if updated_at is null)
+  const STALE_THRESHOLD_DAYS = 7
+  const STALE_THRESHOLD_MS = STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
+
+  // Use updated_at if available, otherwise fallback to created_at
+  const referenceDate = updatedAt || createdAt
+  if (!referenceDate) {
+    return null
+  }
+
+  const date = new Date(referenceDate)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const eligibilityDate = new Date(date.getTime() + STALE_THRESHOLD_MS)
+  const now = Date.now()
+  const timeUntilEligible = eligibilityDate.getTime() - now
+
+  // If already eligible (timeUntilEligible <= 0), show as eligible
+  if (timeUntilEligible <= 0) {
+    return 'Eligible for grave robbing'
+  }
+
+  // Calculate time remaining
+  const days = Math.floor(timeUntilEligible / (24 * 60 * 60 * 1000))
+  const hours = Math.floor((timeUntilEligible % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+  const minutes = Math.floor((timeUntilEligible % (60 * 60 * 1000)) / (60 * 1000))
+
+  if (days > 0) {
+    return `${days}d ${hours}h until grave robbing`
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m until grave robbing`
+  } else {
+    return `${minutes}m until grave robbing`
+  }
+}
+
 function GraveyardContent() {
   const wallet = useWallet()
   const toast = useToast()
@@ -76,8 +115,20 @@ function GraveyardContent() {
   const [selectedLimboToBurn, setSelectedLimboToBurn] = useState<string | null>(null)
   const [isFirstAscensionLimbo, setIsFirstAscensionLimbo] = useState(false)
   const powderRequestInProgress = useRef<string | null>(null)
+  const [graveRobEligibleCount, setGraveRobEligibleCount] = useState<number | null>(null)
+  const [graveRobbing, setGraveRobbing] = useState(false)
+  const [graveRobLoading, setGraveRobLoading] = useState(false)
+  const [now, setNow] = useState(Date.now())
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
+
+  // Update time every minute for grave robbing countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now())
+    }, 60 * 1000) // Update every minute
+    return () => clearInterval(interval)
+  }, [])
 
   const formattedSources = useMemo(() => {
     const sources = new Set(entries.map((entry) => entry.source.replace(/_/g, ' ')))
@@ -161,11 +212,90 @@ function GraveyardContent() {
     }
   }, [ordinalAddress])
 
+  const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
+  const hasPowder = powderAvailable > 0
+  const MAX_POWDER_PER_USE = 20
+  const powderToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable)
+
+  const loadGraveRobEligibleCount = useCallback(async () => {
+    if (!ordinalAddress) {
+      setGraveRobEligibleCount(null)
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/abyss/burns/grave-rob?walletAddress=${encodeURIComponent(ordinalAddress)}`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        console.error('Failed to load grave rob eligible count')
+        return
+      }
+      const data = await response.json()
+      if (data.success) {
+        setGraveRobEligibleCount(data.eligibleCount ?? 0)
+      }
+    } catch (err) {
+      console.error('Failed to load grave rob eligible count:', err)
+    }
+  }, [ordinalAddress])
+
+  const handleGraveRob = useCallback(async () => {
+    if (!ordinalAddress) {
+      toast.error('Connect your wallet to attempt grave robbing.')
+      return
+    }
+
+    if (graveRobbing || graveRobLoading) {
+      return
+    }
+
+    setGraveRobbing(true)
+    setGraveRobLoading(true)
+
+    try {
+      const response = await fetch('/api/abyss/burns/grave-rob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: ordinalAddress }),
+        cache: 'no-store',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        toast.error(data.error || 'Grave robbing attempt failed.')
+        setGraveRobbing(false)
+        setGraveRobLoading(false)
+        return
+      }
+
+      if (data.robbed) {
+        toast.success(data.message || 'Successfully robbed a grave!')
+        // Reload graveyard and profile to reflect changes
+        await loadGraveyard()
+        await loadGraveRobEligibleCount()
+      } else {
+        toast.error(data.message || 'Grave robbing attempt failed. Better luck next time!')
+        // Still reload graveyard to update powder count
+        await loadGraveyard()
+        await loadGraveRobEligibleCount()
+      }
+    } catch (err) {
+      console.error('Grave robbing failed:', err)
+      toast.error('Failed to attempt grave robbing. Please try again.')
+    } finally {
+      setGraveRobbing(false)
+      setGraveRobLoading(false)
+    }
+  }, [ordinalAddress, graveRobbing, graveRobLoading, toast, loadGraveyard])
+
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
       void loadGraveyard()
+      void loadGraveRobEligibleCount()
     }
-  }, [isWalletConnected, ordinalAddress, loadGraveyard])
+  }, [isWalletConnected, ordinalAddress, loadGraveyard, loadGraveRobEligibleCount])
 
   const handleRefresh = useCallback(() => {
     if (!ordinalAddress) {
@@ -173,11 +303,6 @@ function GraveyardContent() {
     }
     void loadGraveyard()
   }, [ordinalAddress, loadGraveyard])
-
-  const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
-  const hasPowder = powderAvailable > 0
-  const MAX_POWDER_PER_USE = 20
-  const powderToUse = Math.min(MAX_POWDER_PER_USE, powderAvailable)
 
   const loadLimboAndMintQueue = useCallback(async () => {
     if (!ordinalAddress) return
@@ -469,7 +594,65 @@ function GraveyardContent() {
             </div>
           </section>
         ) : (
-          <section className="flex flex-col gap-5">
+          <>
+            {/* Grave Robbing Section - Hidden for now */}
+            {false && (
+            <section className="rounded-3xl border border-amber-600/40 bg-amber-950/20 px-6 py-5 shadow-[0_0_35px_rgba(251,191,36,0.25)]">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-amber-200">
+                    Grave Robbing
+                  </h2>
+                  {graveRobEligibleCount !== null && (
+                    <span className="text-sm font-mono uppercase tracking-[0.3em] text-amber-300/80">
+                      {graveRobEligibleCount} Eligible
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
+                    Spend 200 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
+                  </p>
+                  {graveRobEligibleCount !== null && graveRobEligibleCount > 0 && (
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        onClick={handleGraveRob}
+                        disabled={graveRobbing || graveRobLoading || powderAvailable < 200}
+                        className="border border-amber-500 bg-amber-700/80 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {graveRobbing || graveRobLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Robbing...
+                          </>
+                        ) : (
+                          'Attempt Grave Rob (200 Powder)'
+                        )}
+                      </Button>
+                      {powderAvailable < 200 && (
+                        <span className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                          Insufficient powder ({powderAvailable}/200)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {graveRobEligibleCount === 0 && (
+                    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                      No eligible graves to rob at this time.
+                    </p>
+                  )}
+                  {graveRobEligibleCount === null && (
+                    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                      Loading eligible graves...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+            )}
+
+            <section className="flex flex-col gap-5">
             {error && (
               <div className="rounded-3xl border border-red-600/40 bg-red-950/40 px-4 py-3 text-sm text-red-200 shadow-[0_0_25px_rgba(220,38,38,0.25)]">
                 {error}
@@ -537,6 +720,9 @@ function GraveyardContent() {
                     )
                     const referenceInstant = entry.confirmedAt ?? entry.createdAt ?? entry.updatedAt ?? null
                     const timeInGraveyard = formatRelativeTime(referenceInstant)
+                    // Check if this entry can be grave robbed (not ascended_ prefix)
+                    const isGraveRobEligible = !entry.inscriptionId.toLowerCase().startsWith('ascended_')
+                    const timeUntilGraveRob = isGraveRobEligible ? formatTimeUntilGraveRob(entry.updatedAt, entry.createdAt) : null
                     return (
                       <article
                         key={`${entry.inscriptionId}-${entry.txId}`}
@@ -607,6 +793,16 @@ function GraveyardContent() {
                               {Math.min(ascensionTarget, entry.ascensionPowder).toLocaleString()} / {ascensionTarget.toLocaleString()}
                             </span>
                           </div>
+                          {false && isGraveRobEligible && timeUntilGraveRob && (
+                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-amber-300/70 border-t border-amber-500/20 pt-2 mt-2">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-amber-400" /> Grave Rob
+                              </span>
+                              <span className="font-mono text-[10px] text-amber-200">
+                                {timeUntilGraveRob}
+                              </span>
+                            </div>
+                          )}
                           {entry.ascensionPowder >= ascensionTarget ? (
                             <Button
                               type="button"
@@ -652,7 +848,6 @@ function GraveyardContent() {
               </div>
             )}
           </section>
-        )}
 
         {/* Second Ascension Warning Modal */}
         {secondAscensionWarning && (
@@ -1110,6 +1305,8 @@ function GraveyardContent() {
               ))}
             </div>
           </section>
+        )}
+          </>
         )}
       </main>
     </div>

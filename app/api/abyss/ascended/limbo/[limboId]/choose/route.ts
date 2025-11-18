@@ -29,10 +29,12 @@ async function ensureAscensionInfrastructure(pool: Pool) {
       image_url TEXT NOT NULL,
       image_blob_url TEXT,
       source_inscription_id TEXT NOT NULL,
+      generation_prompt TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
   await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+  await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ascended_images_abyss (
@@ -131,13 +133,13 @@ export async function POST(
       const imageUrlToUse = limbo.generated_image_blob_url || limbo.generated_image_url
 
       if (choice === 'mint') {
-        // Add to mint queue
+        // Add to mint queue (include generation_prompt so it can be used if re-ascended)
         await client.query(
           `
-            INSERT INTO ascended_images_mint_queue (limbo_id, wallet_address, image_url, image_blob_url, source_inscription_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO ascended_images_mint_queue (limbo_id, wallet_address, image_url, image_blob_url, source_inscription_id, generation_prompt)
+            VALUES ($1, $2, $3, $4, $5, $6)
           `,
-          [limboId, walletAddressRaw, limbo.generated_image_url, limbo.generated_image_blob_url, limbo.source_inscription_id],
+          [limboId, walletAddressRaw, limbo.generated_image_url, limbo.generated_image_blob_url, limbo.source_inscription_id, limbo.generation_prompt || null],
         )
       } else {
         // Add to abyss (as a new burn entry with 0 powder)

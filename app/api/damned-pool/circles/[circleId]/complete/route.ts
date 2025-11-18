@@ -8,8 +8,8 @@ const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
 const MIN_COMPLETION_COUNT_DEFAULT = 36 // fallback for 40-man circles
 const BURN_WINDOW_DURATION_40_MAN_MS = 60 * 60 * 1000 // 1 hour for 40-man circles
 const BURN_WINDOW_DURATION_20_MAN_MS = 30 * 60 * 1000 // 30 minutes for 20-man circles
-const POWDER_REWARD_HOST = 6
-const POWDER_REWARD_PARTICIPANT = 4
+const POWDER_REWARD_HOST = 8
+const POWDER_REWARD_PARTICIPANT = 6
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
