@@ -346,6 +346,9 @@ export default function AbyssSummonPage() {
     const audio = audioRef.current
     if (!audio) return
 
+    // Set initial src from playlist
+    audio.src = playlist[0]
+
     const handlePlay = () => setMusicPlaying(true)
     const handlePause = () => setMusicPlaying(false)
     const handleCanPlay = () => {
@@ -367,8 +370,8 @@ export default function AbyssSummonPage() {
         // Only play if volume is greater than 0 (not muted)
         if (currentAudio.volume > 0) {
           currentAudio.play().catch(() => {})
+        }
       }
-    }
     }
     
     // Listen for any user interaction to enable playback
@@ -378,6 +381,7 @@ export default function AbyssSummonPage() {
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
     audio.addEventListener('canplay', handleCanPlay, { once: true })
+    audio.load()
 
     return () => {
       audio.removeEventListener('play', handlePlay)
@@ -385,27 +389,44 @@ export default function AbyssSummonPage() {
       document.removeEventListener('click', handleUserInteraction)
       document.removeEventListener('touchstart', handleUserInteraction)
     }
-  }, [])
+  }, [playlist])
 
   // Handle playlist song changes
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
-    const currentSrc = audio.getAttribute('src')
     const newSrc = playlist[currentSongIndex]
+    // Get current src pathname for comparison
+    let currentSrcPath = null
+    try {
+      if (audio.src) {
+        const url = new URL(audio.src, window.location.origin)
+        currentSrcPath = url.pathname
+      }
+    } catch {
+      // If URL parsing fails, use the src directly
+      currentSrcPath = audio.src || null
+    }
     
     // Only change src if it's actually different
-    if (currentSrc !== newSrc) {
+    if (currentSrcPath !== newSrc) {
       const wasPlaying = !audio.paused
       audio.src = newSrc
       audio.load()
       
       // Auto-play the next song if music was playing before
       if (wasPlaying && !isMusicMuted && audio.volume > 0) {
-        audio.addEventListener('loadeddata', () => {
-          audio.play().catch(() => {})
-        }, { once: true })
+        const playOnLoad = () => {
+          const currentAudio = audioRef.current
+          if (currentAudio && currentAudio.paused) {
+            currentAudio.play().catch(() => {})
+          }
+        }
+        audio.addEventListener('loadeddata', playOnLoad, { once: true })
+        
+        // Also try canplay in case loadeddata doesn't fire
+        audio.addEventListener('canplay', playOnLoad, { once: true })
       }
     }
 
