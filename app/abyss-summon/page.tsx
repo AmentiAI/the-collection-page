@@ -140,16 +140,38 @@ function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; time
     return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
   } else {
     // Calculate time until 1:00 AM EST (when it closes)
+    // At 12:14 AM, we have 46 minutes until 1:00 AM
+    // At 1:30 AM, we have 23.5 hours until next day's 1:00 AM
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 1 * 3600 // 1 AM (next day)
+    const targetTotalSeconds = 1 * 3600 // 1 AM = 3600 seconds
     
     let secondsUntil1 = targetTotalSeconds - currentTotalSeconds
+    
+    // If we're at or past 1 AM (hour >= 1), we need tomorrow's 1 AM
+    if (currentHour >= 1) {
+      secondsUntil1 += 24 * 3600
+    }
+    // If we're before 1 AM (hour < 1), secondsUntil1 should already be positive
+    // But if somehow it's negative or zero, add 24 hours as safety
     if (secondsUntil1 <= 0) {
-      // Add 24 hours if we need to go to next day
       secondsUntil1 += 24 * 3600
     }
     
     const timeUntilClose = secondsUntil1 * 1000
+    
+    // Debug logging (remove after testing)
+    if (typeof window !== 'undefined') {
+      console.log('[Abyss Summon] Time calculation:', {
+        estHour: currentHour,
+        estMinute: currentMinute,
+        currentTotalSeconds,
+        targetTotalSeconds,
+        secondsUntil1,
+        timeUntilClose,
+        timeUntilCloseMinutes: Math.floor(secondsUntil1 / 60),
+      })
+    }
+    
     return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
   }
 }
