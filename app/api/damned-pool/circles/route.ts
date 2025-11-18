@@ -281,6 +281,41 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Check if there is an active abyss summoning circle
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS abyss_summons (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          creator_wallet TEXT NOT NULL,
+          creator_inscription_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          required_participants INTEGER NOT NULL DEFAULT 4,
+          locked_at TIMESTAMPTZ,
+          completed_at TIMESTAMPTZ,
+          expires_at TIMESTAMPTZ,
+          bonus_granted BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_status ON abyss_summons(status)`)
+      
+      const abyssActiveRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS active_count
+          FROM abyss_summons
+          WHERE status IN ('open', 'filling', 'ready')
+        `,
+      )
+      const abyssActiveCount = Number(abyssActiveRes.rows[0]?.active_count ?? 0)
+
+      if (abyssActiveCount > 0) {
+        await pool.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Cannot initiate a damned pool circle while an abyss summoning circle is active. Please wait for the abyss circle to complete or expire.' },
+          { status: 409 },
+        )
+      }
+
       // Check if there is already an active damned pool globally (any mode)
       await pool.query(
         `
