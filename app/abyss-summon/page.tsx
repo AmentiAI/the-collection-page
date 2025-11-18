@@ -114,6 +114,7 @@ export default function AbyssSummonPage() {
     : 'The summoning has been completed. Thank you for your efforts!'
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoplayAttemptedRef = useRef(false)
+  const finaleBeepedRef = useRef<Set<string>>(new Set())
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -261,6 +262,76 @@ export default function AbyssSummonPage() {
     return () => window.clearInterval(intervalId)
   }, [])
 
+  // Play beep when finale unlocks for any circle the user is in
+  useEffect(() => {
+    if (!ordinalAddress) return
+
+    const playBeep = () => {
+      try {
+        // Create a simple beep using Web Audio API
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+
+        oscillator.frequency.value = 800 // Beep frequency
+        oscillator.type = 'sine'
+
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2)
+
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.2)
+      } catch (err) {
+        // Fallback: use a simple beep if Web Audio API fails
+        console.warn('Could not play beep sound:', err)
+      }
+    }
+
+    // Check all circles the user is in
+    const allCircles = [...summons, ...createdSummons, ...joinedSummons]
+    const currentTime = now
+
+    for (const summon of allCircles) {
+      const isParticipant = summon.participants.some(
+        (p) => p.wallet?.toLowerCase() === ordinalAddress.toLowerCase(),
+      )
+
+      if (!isParticipant) continue
+
+      // Calculate if completion window is open
+      const createdAtMs = Number.isFinite(Date.parse(summon.createdAt ?? ''))
+        ? Date.parse(summon.createdAt ?? '')
+        : Date.now()
+      const localSummonDurationMs = IS_DAMNED_POOL_MODE
+        ? (summon.requiredParticipants >= 50 ? 20 * 60 * 1000 : 10 * 60 * 1000)
+        : SUMMON_DURATION_MS
+      const rawExpiryMs = summon.expiresAt && Number.isFinite(Date.parse(summon.expiresAt))
+        ? Date.parse(summon.expiresAt)
+        : Number.NaN
+      const fallbackExpiryMs = createdAtMs + localSummonDurationMs
+      const targetExpiryMs = Number.isFinite(rawExpiryMs)
+        ? Math.min(rawExpiryMs, fallbackExpiryMs)
+        : fallbackExpiryMs
+      const timeRemainingMs = targetExpiryMs - currentTime
+      const completionWindowMs = IS_DAMNED_POOL_MODE ? 3 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+      const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
+
+      // Play beep if window just opened and we haven't beeped for this circle yet
+      if (completionWindowOpen && !finaleBeepedRef.current.has(summon.id)) {
+        finaleBeepedRef.current.add(summon.id)
+        playBeep()
+      }
+
+      // Remove from beeped set if window closes (in case circle gets extended or reset)
+      if (!completionWindowOpen && finaleBeepedRef.current.has(summon.id)) {
+        finaleBeepedRef.current.delete(summon.id)
+      }
+    }
+  }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, SUMMON_DURATION_MS, SUMMON_COMPLETION_WINDOW_MS])
+
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -271,11 +342,28 @@ export default function AbyssSummonPage() {
       setMusicReady(true)
       if (!autoplayAttemptedRef.current) {
         autoplayAttemptedRef.current = true
+        // Try to play, but don't worry if blocked (user can start via controls)
         audio.play().catch(() => {
-          // Autoplay blocked; controls remain available
+          // Autoplay blocked; this is normal - user interaction will allow playback
         })
       }
     }
+    
+    const handleUserInteraction = () => {
+      // Once user has interacted, try to play if audio is ready
+      // Check current state directly from audio element
+      const currentAudio = audioRef.current
+      if (currentAudio && currentAudio.readyState >= 2 && currentAudio.paused) {
+        // Only play if volume is greater than 0 (not muted)
+        if (currentAudio.volume > 0) {
+          currentAudio.play().catch(() => {})
+        }
+      }
+    }
+    
+    // Listen for any user interaction to enable playback
+    document.addEventListener('click', handleUserInteraction, { once: true })
+    document.addEventListener('touchstart', handleUserInteraction, { once: true })
 
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
@@ -285,6 +373,8 @@ export default function AbyssSummonPage() {
     return () => {
       audio.removeEventListener('play', handlePlay)
       audio.removeEventListener('pause', handlePause)
+      document.removeEventListener('click', handleUserInteraction)
+      document.removeEventListener('touchstart', handleUserInteraction)
     }
   }, [])
 
@@ -292,7 +382,14 @@ export default function AbyssSummonPage() {
     const audio = audioRef.current
     if (!audio) return
     audio.volume = isMusicMuted ? 0 : musicVolume / 100
-  }, [musicVolume, isMusicMuted])
+    
+    // If unmuted and audio is paused, try to play (user may have interacted)
+    if (!isMusicMuted && audio.paused && musicReady) {
+      audio.play().catch(() => {
+        // Autoplay may still be blocked, that's okay
+      })
+    }
+  }, [musicVolume, isMusicMuted, musicReady])
 
   useEffect(() => () => {
     audioRef.current?.pause()
@@ -597,6 +694,25 @@ export default function AbyssSummonPage() {
     })
   }, [musicVolume])
 
+  const handleMusicMutedChange = useCallback((muted: boolean) => {
+    setIsMusicMuted(muted)
+    const audio = audioRef.current
+    if (!audio) return
+    
+    if (!muted) {
+      // Unmuting: ensure volume is set and play if paused
+      if (musicVolume === 0) {
+        setMusicVolume(30)
+      }
+      if (audio.paused) {
+        audio.play().catch(() => {
+          // Autoplay may be blocked, but user interaction should allow it
+        })
+      }
+    }
+    // When muting, the volume effect will handle setting volume to 0
+  }, [musicVolume])
+
   const handleVolumeChange = useCallback((value: number) => {
     setMusicVolume(value)
     if (value > 0) {
@@ -846,7 +962,7 @@ export default function AbyssSummonPage() {
         musicVolume={musicVolume}
         onMusicVolumeChange={handleVolumeChange}
         isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
+        onMusicMutedChange={handleMusicMutedChange}
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
@@ -1442,7 +1558,7 @@ function SummonList({
                 {!isExpired ? null : (
                   <div className="text-[10px] uppercase tracking-[0.3em] text-red-400">
                     Circle exp.
-                  </div>
+                </div>
                 )}
               </div>
               <div className="flex w-full sm:min-w-[190px] flex-col items-stretch gap-2 min-w-0">
