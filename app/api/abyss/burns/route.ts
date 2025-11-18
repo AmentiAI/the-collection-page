@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const cacheControl = request.headers.get('cache-control')
 
-    // Return total ascended/revived (ascension_powder == 500 and confirmed) + count from mint_queue
+    // Return total ascended/revived (successful ascensions only)
     if (searchParams.get('ascensionTotal') === 'true') {
       // Ensure ascended_images_mint_queue table exists
       await pool.query(`
@@ -131,21 +131,28 @@ export async function GET(request: NextRequest) {
       await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
       
-      // Count ordinals that reached 500 ascension powder (first ascension)
+      // Count ordinals in abyss_burns that:
+      // 1. Have inscription_id starting with "ascended_" (successful ascensions thrown back to abyss)
+      // 2. OR have reached 500+ ascension powder (first ascension completed)
       const abyssBurnsRes = await pool.query(
         `
           SELECT COUNT(*)::int AS count
           FROM abyss_burns
-          WHERE status = 'confirmed' AND ascension_powder >= 500
+          WHERE status = 'confirmed' 
+            AND (
+              LOWER(inscription_id) LIKE 'ascended_%'
+              OR ascension_powder >= 500
+            )
         `,
       )
       const abyssBurnsCount = Number(abyssBurnsRes.rows[0]?.count ?? 0)
       
-      // Count images in mint queue (saved for mint after ascension)
+      // Count images in mint queue where source_inscription_id starts with "ascended_" (successful second ascensions)
       const mintQueueRes = await pool.query(
         `
           SELECT COUNT(*)::int AS count
           FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
         `,
       )
       const mintQueueCount = Number(mintQueueRes.rows[0]?.count ?? 0)
