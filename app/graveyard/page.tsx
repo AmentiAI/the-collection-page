@@ -667,8 +667,8 @@ function GraveyardContent() {
 
         {/* Second Ascension Warning Modal */}
         {secondAscensionWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-            <div className="relative max-w-3xl rounded-3xl border-2 border-red-600/80 bg-black/98 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 overflow-y-auto">
+            <div className="relative max-w-3xl w-full rounded-3xl border-2 border-red-600/80 bg-black/98 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)] my-8">
               <div className="mb-6 text-center">
                 <AlertTriangle className="mx-auto mb-4 h-16 w-16 text-red-500" />
                 <h2 className="mb-3 text-2xl font-mono uppercase tracking-[0.3em] text-red-400">
