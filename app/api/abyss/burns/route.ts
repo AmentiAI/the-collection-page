@@ -131,25 +131,12 @@ export async function GET(request: NextRequest) {
       await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
       
-      // Count ordinals in abyss_burns that:
-      // 1. Have inscription_id starting with "ascended_" (successful ascensions thrown back to abyss)
-      // 2. OR have reached 500+ ascension powder with source != 'ascension' (first ascension completed)
-      // 3. OR have reached 1000+ ascension powder with source = 'ascension' (second ascension completed)
-      const abyssBurnsRes = await pool.query(
-        `
-          SELECT COUNT(*)::int AS count
-          FROM abyss_burns
-          WHERE status = 'confirmed' 
-            AND (
-              LOWER(inscription_id) LIKE 'ascended_%'
-              OR (ascension_powder >= 500 AND source != 'ascension')
-              OR (ascension_powder >= 1000 AND source = 'ascension')
-            )
-        `,
-      )
-      const abyssBurnsCount = Number(abyssBurnsRes.rows[0]?.count ?? 0)
+      // Count successful ascensions:
+      // Only count entries in ascended_images_mint_queue where source_inscription_id starts with "ascended_"
+      // These are successful second ascensions saved for mint
+      // Note: We don't count entries thrown back to abyss or first ascensions in mint queue
+      // because those can be re-ascended, which would cause double counting
       
-      // Count images in mint queue where source_inscription_id starts with "ascended_" (successful second ascensions)
       const mintQueueRes = await pool.query(
         `
           SELECT COUNT(*)::int AS count
@@ -157,9 +144,7 @@ export async function GET(request: NextRequest) {
           WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
         `,
       )
-      const mintQueueCount = Number(mintQueueRes.rows[0]?.count ?? 0)
-      
-      const totalCount = abyssBurnsCount + mintQueueCount
+      const totalCount = Number(mintQueueRes.rows[0]?.count ?? 0)
       return NextResponse.json({ success: true, ascensionTotal: totalCount })
     }
 
