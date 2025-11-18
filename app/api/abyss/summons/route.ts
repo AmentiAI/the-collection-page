@@ -133,13 +133,16 @@ export async function GET(request: NextRequest) {
                 'inscriptionId', sp.inscription_id,
                 'image', sp.inscription_image,
                 'role', sp.role,
-                'joinedAt', sp.joined_at
+                'joinedAt', sp.joined_at,
+                'username', pr.username,
+                'avatarUrl', pr.avatar_url
               )
             ) FILTER (WHERE sp.id IS NOT NULL),
             '[]'::json
           ) AS participants
         FROM abyss_summons s
         LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+        LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
         ${whereClause}
         GROUP BY s.id
         ORDER BY s.created_at DESC
@@ -165,15 +168,18 @@ export async function GET(request: NextRequest) {
                   'id', sp.id,
                   'wallet', sp.wallet,
                   'inscriptionId', sp.inscription_id,
-                'image', sp.inscription_image,
+                  'image', sp.inscription_image,
                   'role', sp.role,
-                  'joinedAt', sp.joined_at
+                  'joinedAt', sp.joined_at,
+                  'username', pr.username,
+                  'avatarUrl', pr.avatar_url
                 )
               ) FILTER (WHERE sp.id IS NOT NULL),
               '[]'::json
             ) AS participants
           FROM abyss_summons s
           LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+          LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
           WHERE LOWER(s.creator_wallet) = LOWER($1)
           GROUP BY s.id
           ORDER BY s.created_at DESC
@@ -193,9 +199,11 @@ export async function GET(request: NextRequest) {
                   'id', sp.id,
                   'wallet', sp.wallet,
                   'inscriptionId', sp.inscription_id,
-                'image', sp.inscription_image,
+                  'image', sp.inscription_image,
                   'role', sp.role,
-                  'joinedAt', sp.joined_at
+                  'joinedAt', sp.joined_at,
+                  'username', pr.username,
+                  'avatarUrl', pr.avatar_url
                 )
               ) FILTER (WHERE sp.id IS NOT NULL),
               '[]'::json
@@ -204,6 +212,7 @@ export async function GET(request: NextRequest) {
           INNER JOIN abyss_summon_participants target
             ON target.summon_id = s.id AND LOWER(target.wallet) = LOWER($1)
           LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+          LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
           GROUP BY s.id
           ORDER BY s.created_at DESC
           LIMIT 25
