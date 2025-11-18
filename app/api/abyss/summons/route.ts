@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
   const expiresAt =
     typeof expiresAtRaw === 'string' || expiresAtRaw instanceof String
       ? new Date(expiresAtRaw as string)
-      : new Date(Date.now() + 20 * 60 * 1000)
+      : new Date(Date.now() + 10 * 60 * 1000)
 
   if (Number.isNaN(expiresAt.getTime())) {
     return NextResponse.json({ success: false, error: 'Invalid expiresAt value' }, { status: 400 })

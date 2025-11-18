@@ -200,7 +200,7 @@ export default function AbyssSummonPage() {
     ? '/api/dead-demons/circles'
     : '/api/abyss/summons'
   const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
-  const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 10 * 60 * 1000 : 20 * 60 * 1000
+  const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 10 * 60 * 1000 : 10 * 60 * 1000
   const SUMMONING_DISABLED = false // All modes enabled
   const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
     ? 'Ascension circles are currently paused.'
@@ -1779,7 +1779,7 @@ function SummonList({
             ? summonDurationMs
             : requiredParticipantsForMode === 10
             ? 10 * 60 * 1000
-            : 20 * 60 * 1000
+            : 10 * 60 * 1000
         const localSummonDurationMs = isPortalMode
           ? totalSlots >= 40
             ? 20 * 60 * 1000

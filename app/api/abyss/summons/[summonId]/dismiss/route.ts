@@ -4,7 +4,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const SUMMON_DURATION_MS = 20 * 60 * 1000
+const SUMMON_DURATION_MS = 10 * 60 * 1000
 
 type RouteParams = {
   params: {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const nowMs = Date.now()
 
     if (!Number.isFinite(effectiveExpiryMs) || Number.isNaN(effectiveExpiryMs)) {
-      // If somehow no expiry is set, fall back to 20 minutes from creation
+      // If somehow no expiry is set, fall back to 10 minutes from creation
       if (nowMs < fallbackExpiryMs) {
         await client.query('ROLLBACK')
         return NextResponse.json({ success: false, error: 'Circle must be expired before dismissal' }, { status: 400 })
