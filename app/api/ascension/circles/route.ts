@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic'
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
-const MAX_ACTIVE_CIRCLES_PER_USER = 6
+const MAX_ACTIVE_CIRCLES_PER_USER = 6 // Total circles user can be in (hosting + participating)
+const MAX_HOSTED_CIRCLES_PER_USER = 3 // Maximum circles user can host
 const MAX_ACTIVE_CIRCLES_GLOBAL = 8
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
@@ -247,7 +248,7 @@ export async function POST(request: NextRequest) {
       // Acquire advisory lock (will wait if another request is processing for this wallet)
       await pool.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
 
-      // Check if this user already has 6 active circles
+      // Check if this user is already hosting too many circles (limit: 3)
       // Lock existing rows to prevent concurrent creation
       await pool.query(
         `
@@ -258,7 +259,7 @@ export async function POST(request: NextRequest) {
         `,
         [creatorWallet],
       )
-      const userActiveCountRes = await pool.query(
+      const userHostedCountRes = await pool.query(
         `
           SELECT COUNT(*)::int AS active_count
           FROM summoning_powder_circles
@@ -267,12 +268,33 @@ export async function POST(request: NextRequest) {
         `,
         [creatorWallet],
       )
-      const userActiveCount = Number(userActiveCountRes.rows[0]?.active_count ?? 0)
+      const userHostedCount = Number(userHostedCountRes.rows[0]?.active_count ?? 0)
       
-      if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
+      if (userHostedCount >= MAX_HOSTED_CIRCLES_PER_USER) {
         await pool.query('ROLLBACK')
         return NextResponse.json(
-          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user. Please wait for a circle to complete or expire.` },
+          { success: false, error: `Maximum of ${MAX_HOSTED_CIRCLES_PER_USER} active hosted circles allowed per user. Please wait for a hosted circle to complete or expire.` },
+          { status: 409 },
+        )
+      }
+
+      // Check if this user is already in too many circles total (hosting + participating, limit: 6)
+      const userTotalActiveCountRes = await pool.query(
+        `
+          SELECT COUNT(DISTINCT c.id)::int AS active_count
+          FROM summoning_powder_circles c
+          LEFT JOIN summoning_powder_participants p ON p.circle_id = c.id
+          WHERE (LOWER(c.creator_wallet) = LOWER($1) OR LOWER(p.wallet) = LOWER($1))
+            AND c.status IN ('open', 'filling', 'ready')
+        `,
+        [creatorWallet],
+      )
+      const userTotalActiveCount = Number(userTotalActiveCountRes.rows[0]?.active_count ?? 0)
+      
+      if (userTotalActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
+        await pool.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user (hosting + participating). Please wait for a circle to complete or expire.` },
           { status: 409 },
         )
       }

@@ -367,8 +367,8 @@ export default function AbyssSummonPage() {
         // Only play if volume is greater than 0 (not muted)
         if (currentAudio.volume > 0) {
           currentAudio.play().catch(() => {})
-        }
       }
+    }
     }
     
     // Listen for any user interaction to enable playback

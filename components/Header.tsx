@@ -341,11 +341,11 @@ export default function Header({
                 </svg>
               )}
             </button>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={musicVolume}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={musicVolume}
                 onChange={(e) => {
                   const newVolume = Number(e.target.value)
                   onMusicVolumeChange?.(newVolume)
@@ -354,8 +354,8 @@ export default function Header({
                     onMusicMutedChange?.(false)
                   }
                 }}
-                className="w-20 accent-red-600"
-              />
+              className="w-20 accent-red-600"
+            />
             <span className="text-xs text-[#ff6b6b] font-mono w-8">
               {isMusicMuted ? 'MUTED' : `${musicVolume}%`}
             </span>
