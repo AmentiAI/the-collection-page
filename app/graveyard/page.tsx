@@ -712,7 +712,7 @@ function GraveyardContent() {
                     <p className="mb-4 text-center text-sm font-mono uppercase tracking-[0.3em] text-red-300/90">
                       Select an image to burn first:
                     </p>
-                    <div className="grid max-h-64 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                    <div className="grid max-h-[500px] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
                       {/* Graveyard entries from abyss_burns */}
                       {burnableGraveyardEntries.map((entry) => {
                         const isSelected = selectedLimboToBurn === `graveyard_${entry.inscriptionId}`
