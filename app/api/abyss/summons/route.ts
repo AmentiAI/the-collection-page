@@ -228,13 +228,22 @@ export async function GET(request: NextRequest) {
       bonusAllowance = allowanceRes.rows[0]?.available ?? 0
     }
 
-    return NextResponse.json({
-      success: true,
-      summons,
-      createdSummons,
-      joinedSummons,
-      bonusAllowance,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        summons,
+        createdSummons,
+        joinedSummons,
+        bonusAllowance,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   } catch (error) {
     console.error('[abyss/summons][GET]', error)
     return NextResponse.json(
@@ -242,7 +251,14 @@ export async function GET(request: NextRequest) {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to load summons',
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
     )
   }
 }

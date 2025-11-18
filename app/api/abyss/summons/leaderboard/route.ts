@@ -155,11 +155,30 @@ export async function GET() {
       lastParticipatedAt: row.last_participated_at ? new Date(row.last_participated_at).toISOString() : null,
     }))
 
-    return NextResponse.json({ success: true, entries })
+    return NextResponse.json(
+      { success: true, entries },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   } catch (error) {
     console.error('[abyss/summons/leaderboard][GET]', error)
     const message = error instanceof Error ? error.message : 'Failed to load summoning leaderboard.'
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: message },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   }
 }
 

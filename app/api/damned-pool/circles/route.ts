@@ -190,15 +190,34 @@ export async function GET(request: NextRequest) {
       joinedSummons = joinedRes.rows.map(mapCircleRow)
     }
 
-    return NextResponse.json({
-      success: true,
-      summons,
-      createdSummons,
-      joinedSummons,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        summons,
+        createdSummons,
+        joinedSummons,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   } catch (error) {
     console.error('[damned-pool/circles][GET]', error)
-    return NextResponse.json({ success: false, error: 'Failed to fetch damned pool circles.' }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch damned pool circles.' },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   }
 }
 

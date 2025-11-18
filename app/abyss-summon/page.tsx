@@ -589,7 +589,7 @@ export default function AbyssSummonPage() {
         const query = params.toString()
         const endpoint = `${SUMMON_API_BASE}${query ? `?${query}` : ''}`
         const response = await fetch(endpoint, {
-          headers: { 'Cache-Control': 'no-store' },
+          cache: 'no-store',
         })
         if (!response.ok) {
           throw new Error(`Summon fetch failed (${response.status})`)
@@ -637,7 +637,7 @@ export default function AbyssSummonPage() {
     }
     try {
       const response = await fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`, {
-        headers: { 'Cache-Control': 'no-store' },
+        cache: 'no-store',
       })
       if (response.ok) {
         const data = await response.json()
@@ -916,6 +916,7 @@ export default function AbyssSummonPage() {
       const response = await fetch(SUMMON_API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({
           creatorWallet: ordinalAddress,
           inscriptionId: selectedOption.inscriptionId,
@@ -985,6 +986,7 @@ export default function AbyssSummonPage() {
         const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({
             wallet: ordinalAddress,
             inscriptionId: selectedOption.inscriptionId,
@@ -1028,6 +1030,7 @@ export default function AbyssSummonPage() {
         const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({ wallet: ordinalAddress }),
         })
         if (!response.ok) {
@@ -1074,6 +1077,7 @@ export default function AbyssSummonPage() {
         const response = await fetch(`${SUMMON_API_BASE}/${summon.id}/dismiss`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({ wallet: ordinalAddress }),
         })
         if (!response.ok) {

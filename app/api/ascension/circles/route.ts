@@ -193,16 +193,35 @@ export async function GET(request: NextRequest) {
       powderBalance = Number(balanceRes.rows[0]?.ascension_powder ?? 0)
     }
 
-    return NextResponse.json({
-      success: true,
-      summons,
-      createdSummons,
-      joinedSummons,
-      powderBalance,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        summons,
+        createdSummons,
+        joinedSummons,
+        powderBalance,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   } catch (error) {
     console.error('[ascension/circles][GET]', error)
-    return NextResponse.json({ success: false, error: 'Failed to fetch ascension circles.' }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch ascension circles.' },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
+    )
   }
 }
 
