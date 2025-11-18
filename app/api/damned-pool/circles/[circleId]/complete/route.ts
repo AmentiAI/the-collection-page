@@ -7,8 +7,28 @@ export const dynamic = 'force-dynamic'
 const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
 const MIN_COMPLETION_COUNT_DEFAULT = 45 // fallback
 const BURN_WINDOW_DURATION_MS = 60 * 60 * 1000 // 1 hour
+const POWDER_REWARD_HOST = 6
+const POWDER_REWARD_PARTICIPANT = 4
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      wallet_address TEXT PRIMARY KEY,
+      ascension_powder INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ascension_powder_events (
+      wallet_address TEXT NOT NULL,
+      event_key TEXT NOT NULL,
+      granted_amount INTEGER NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (wallet_address, event_key)
+    )
+  `)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS damned_pool_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -293,6 +313,52 @@ export async function POST(
                 updated_at = EXCLUDED.updated_at
             `,
             [hostWallet],
+          )
+        }
+      }
+
+      // Grant ascension powder to all participants (host gets 6, others get 4)
+      const creatorWallet = (circle.creator_wallet ?? '').toString().toLowerCase()
+      for (const row of participants) {
+        const participantWallet = (row.wallet ?? '').toString().trim()
+        if (!participantWallet) continue
+
+        const isHost = participantWallet.toLowerCase() === creatorWallet
+        const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
+        const eventKey = `damned_pool_circle:${circleId}`
+
+        // Ensure profile exists
+        await pool.query(
+          `
+            INSERT INTO profiles (wallet_address, ascension_powder, updated_at)
+            VALUES ($1, 0, NOW())
+            ON CONFLICT (wallet_address) DO NOTHING
+          `,
+          [participantWallet],
+        )
+
+        // Record the event (one-time per circle per wallet)
+        const claimRes = await pool.query(
+          `
+            INSERT INTO ascension_powder_events (wallet_address, event_key, granted_amount)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (wallet_address, event_key) DO NOTHING
+            RETURNING granted_amount
+          `,
+          [participantWallet, eventKey, rewardAmount],
+        )
+
+        // Grant the powder (only if event was inserted, meaning first time)
+        const insertedRows = claimRes?.rowCount ?? 0
+        if (insertedRows > 0) {
+          await pool.query(
+            `
+              UPDATE profiles
+              SET ascension_powder = COALESCE(ascension_powder, 0) + $1,
+                  updated_at = NOW()
+              WHERE LOWER(wallet_address) = LOWER($2)
+            `,
+            [rewardAmount, participantWallet],
           )
         }
       }
