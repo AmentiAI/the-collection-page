@@ -212,6 +212,7 @@ export default function AbyssSummonPage() {
   const finaleBeepedRef = useRef<Set<string>>(new Set())
   const lastLoadedSongRef = useRef<string | null>(null)
   const shouldContinuePlaylistRef = useRef(false)
+  const lastLoadedAddressRef = useRef<string | null>(null)
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -483,8 +484,8 @@ export default function AbyssSummonPage() {
         // Only play if volume is greater than 0 (not muted)
         if (currentAudio.volume > 0) {
           currentAudio.play().catch(() => {})
-        }
       }
+    }
     }
     
     // Listen for any user interaction to enable playback
@@ -802,43 +803,46 @@ export default function AbyssSummonPage() {
     }
   }, [ordinalAddress])
 
+  // Load damned options only when address changes (not on every refresh)
+  useEffect(() => {
+    // Only load if address changed (not on every render)
+    if (ordinalAddress && ordinalAddress !== lastLoadedAddressRef.current) {
+      lastLoadedAddressRef.current = ordinalAddress
+      void loadDamnedOptions(ordinalAddress)
+    } else if (!ordinalAddress) {
+      lastLoadedAddressRef.current = null
+      setDamnedOptions([])
+      setSelectedInscriptionId(null)
+    }
+  }, [ordinalAddress, loadDamnedOptions])
+
   useEffect(() => {
     if (ordinalAddress) {
       void refreshSummons(ordinalAddress)
-      void loadDamnedOptions(ordinalAddress)
       void fetchBurnCount(ordinalAddress)
     } else {
       setSummons([])
       setCreatedSummons([])
       setJoinedSummons([])
       setBonusAllowance(0)
-      setDamnedOptions([])
-      setSelectedInscriptionId(null)
       setBurnCount(null)
     }
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
     }
-  }, [ordinalAddress, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, fetchBurnCount, SUMMON_LEADERBOARD_ENABLED])
+  }, [ordinalAddress, refreshSummons, loadSummonLeaderboard, fetchBurnCount, SUMMON_LEADERBOARD_ENABLED])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       if (ordinalAddress) {
         void refreshSummons(ordinalAddress)
       }
-    }, 12_000)
+    }, 15_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, refreshSummons])
 
-  useEffect(() => {
-    if (!ordinalAddress) {
-      return
-    }
-    const intervalId = window.setInterval(() => {
-      void loadDamnedOptions(ordinalAddress)
-    }, 20_000)
-    return () => window.clearInterval(intervalId)
-  }, [ordinalAddress, loadDamnedOptions])
+  // Removed interval - only load damned options on initial load or address change
+  // No need to refresh ordinals list every 23 seconds
 
   useEffect(() => {
     if (!SUMMON_LEADERBOARD_ENABLED) {
@@ -847,7 +851,7 @@ export default function AbyssSummonPage() {
     void loadSummonLeaderboard()
     const intervalId = window.setInterval(() => {
       void loadSummonLeaderboard()
-    }, 20_000)
+    }, 23_000)
     return () => window.clearInterval(intervalId)
   }, [loadSummonLeaderboard, SUMMON_LEADERBOARD_ENABLED])
 
@@ -1177,8 +1181,8 @@ export default function AbyssSummonPage() {
         {/* Main Content - Only show if not closed */}
         {!abyssClosed.isClosed && (
           <>
-            {/* Header outside of the card */}
-            <div className="relative flex items-center justify-center gap-3">
+        {/* Header outside of the card */}
+        <div className="relative flex items-center justify-center gap-3">
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
             Summoning Circles

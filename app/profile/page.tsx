@@ -753,11 +753,11 @@ function useProfileState() {
         // Check both Magic Eden ordinals and abyss_burns records
         const [ordinalsResponse, burnsResponse] = await Promise.all([
           fetch(
-            `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
-            {
-              method: 'GET',
-              headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
-            },
+          `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
+          {
+            method: 'GET',
+            headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
+          },
           ),
           fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(wallet)}`).catch(() => 
             ({ ok: false, json: async () => ({ success: false, hasBurns: false }) })

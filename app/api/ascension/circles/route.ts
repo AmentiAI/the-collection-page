@@ -195,11 +195,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        success: true,
-        summons,
-        createdSummons,
-        joinedSummons,
-        powderBalance,
+      success: true,
+      summons,
+      createdSummons,
+      joinedSummons,
+      powderBalance,
       },
       {
         headers: {
