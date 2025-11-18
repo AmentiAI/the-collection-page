@@ -750,19 +750,25 @@ function useProfileState() {
       setInventory((prev) => ({ ...prev, loading: true, error: null }))
       setIsHolder(null)
       try {
-        const response = await fetch(
-          `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
-          {
-            method: 'GET',
-            headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
-          },
-        )
+        // Check both Magic Eden ordinals and abyss_burns records
+        const [ordinalsResponse, burnsResponse] = await Promise.all([
+          fetch(
+            `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
+            },
+          ),
+          fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(wallet)}`).catch(() => 
+            ({ ok: false, json: async () => ({ success: false, hasBurns: false }) })
+          ),
+        ])
 
-        if (!response.ok) {
-          throw new Error(`Magic Eden request failed (${response.status})`)
+        if (!ordinalsResponse.ok) {
+          throw new Error(`Magic Eden request failed (${ordinalsResponse.status})`)
         }
 
-        const payload = await response.json().catch(() => ({ tokens: [] }))
+        const payload = await ordinalsResponse.json().catch(() => ({ tokens: [] }))
         const rawTokens =
           Array.isArray(payload?.tokens) ? payload.tokens : Array.isArray(payload) ? payload : []
 
@@ -777,13 +783,25 @@ function useProfileState() {
         }
 
         const tokenCount = rawTokens.length
+        const hasOrdinals = tokenCount > 0
+
+        // Check abyss_burns
+        let hasBurns = false
+        if (burnsResponse.ok) {
+          const burnsData = await burnsResponse.json()
+          hasBurns = burnsData.success && burnsData.hasBurns
+        }
+
+        // User is a holder if they have ordinals OR have burned in the abyss
+        const isHolder = hasOrdinals || hasBurns
+
         setInventory({
           loading: false,
           error: null,
           tokenCount,
           listedCount,
         })
-        setIsHolder(tokenCount > 0)
+        setIsHolder(isHolder)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load holdings'
         setInventory({

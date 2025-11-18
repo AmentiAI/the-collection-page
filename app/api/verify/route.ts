@@ -8,37 +8,57 @@ function generateCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase()
 }
 
-// Check if address is a holder using Magic Eden API for The Damned collection
+// Check if address is a holder using Magic Eden API for The Damned collection OR has abyss_burns records
 async function checkForOrdinals(address: string): Promise<boolean> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(address)}&showAll=true&sortBy=priceAsc`
     
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-        'Authorization': `Bearer ${apiKey}`
-      }
-    })
+    // Check both Magic Eden ordinals and abyss_burns in parallel
+    const [ordinalsResponse, pool] = await Promise.all([
+      fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      }),
+      getPool(),
+    ])
     
-    if (!response.ok) {
-      console.error('Magic Eden API error:', response.status)
-      return false
+    let hasOrdinals = false
+    if (ordinalsResponse.ok) {
+      const data = await ordinalsResponse.json()
+      // Check multiple possible response formats
+      const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
+      hasOrdinals = total > 0
+      console.log('Verify route - Total The Damned ordinals:', total, 'Has ordinals:', hasOrdinals)
+    } else {
+      console.error('Magic Eden API error:', ordinalsResponse.status)
     }
     
-    const data = await response.json()
+    // Check abyss_burns records
+    let hasBurns = false
+    try {
+      const burnsResult = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1)`,
+        [address],
+      )
+      const burnCount = burnsResult.rows[0]?.count ?? 0
+      hasBurns = burnCount > 0
+      console.log('Verify route - Abyss burns count:', burnCount, 'Has burns:', hasBurns)
+    } catch (error) {
+      console.error('Error checking abyss_burns:', error)
+    }
     
-    // Check multiple possible response formats
-    const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
-    const hasOrdinals = total > 0
+    // User is a holder if they have ordinals OR have burned in the abyss
+    const isHolder = hasOrdinals || hasBurns
+    console.log('Verify route - Final holder status:', isHolder)
     
-    console.log('Verify route - Total The Damned ordinals:', total, 'Is holder:', hasOrdinals)
-    
-    return hasOrdinals
+    return isHolder
   } catch (error) {
-    console.error('Error fetching ordinals from Magic Eden:', error)
+    console.error('Error checking holder status:', error)
     return false
   }
 }
