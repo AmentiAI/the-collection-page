@@ -5,12 +5,12 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const REQUIRED_PARTICIPANTS = 50
-const REQUIRED_PARTICIPANTS_BONUS = 30
-const CIRCLE_DURATION_MAIN_MS = 20 * 60 * 1000 // 20 minutes (open_all 50 seats)
-const CIRCLE_DURATION_BONUS_MS = 10 * 60 * 1000 // 10 minutes (bonus_credits 30 seats)
-const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
-const MIN_COMPLETION_COUNT_BONUS = 27 // 27 out of 30 must complete
+const REQUIRED_PARTICIPANTS = 40
+const REQUIRED_PARTICIPANTS_BONUS = 20
+const CIRCLE_DURATION_MAIN_MS = 20 * 60 * 1000 // 20 minutes (open_all 40 seats)
+const CIRCLE_DURATION_BONUS_MS = 10 * 60 * 1000 // 10 minutes (bonus_credits 20 seats)
+const MIN_COMPLETION_COUNT = 36 // 36 out of 40 must complete
+const MIN_COMPLETION_COUNT_BONUS = 18 // 18 out of 20 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
 const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global circle allowed)
 // Set to false to disable damned pool circles at the API level

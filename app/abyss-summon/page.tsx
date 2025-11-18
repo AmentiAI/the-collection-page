@@ -98,7 +98,7 @@ export default function AbyssSummonPage() {
   // Derive mode-dependent values locally so tabs switch instantly without reloads
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
-  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 50 : IS_POWDER_MODE ? 10 : 4
+  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : 4
   const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
     ? '/api/damned-pool/circles'
     : IS_POWDER_MODE
@@ -317,7 +317,7 @@ export default function AbyssSummonPage() {
         ? Date.parse(summon.createdAt ?? '')
         : Date.now()
       const localSummonDurationMs = IS_DAMNED_POOL_MODE
-        ? (summon.requiredParticipants >= 50 ? 20 * 60 * 1000 : 10 * 60 * 1000)
+        ? (summon.requiredParticipants >= 40 ? 20 * 60 * 1000 : 10 * 60 * 1000)
         : SUMMON_DURATION_MS
       const rawExpiryMs = summon.expiresAt && Number.isFinite(Date.parse(summon.expiresAt))
         ? Date.parse(summon.expiresAt)
@@ -1290,10 +1290,10 @@ export default function AbyssSummonPage() {
                           className="w-full rounded border border-red-600/50 bg-black/60 px-3 py-2 text-[11px] uppercase tracking-[0.3em] text-red-100 outline-none focus:border-amber-400"
                         >
                           <option value="bonus_credits">
-                            Bonus Burns Only (30 seats)
+                            Bonus Burns Only (20 seats)
                           </option>
                           <option value="open_all">
-                            Open To All (50 seats)
+                            Open To All (40 seats)
                           </option>
                         </select>
                       </div>
@@ -1512,7 +1512,7 @@ function SummonList({
             ? 10 * 60 * 1000
             : 20 * 60 * 1000
         const localSummonDurationMs = isPortalMode
-          ? totalSlots >= 50
+          ? totalSlots >= 40
             ? 20 * 60 * 1000
             : 10 * 60 * 1000
           : defaultDurationMs
@@ -1566,7 +1566,7 @@ function SummonList({
           isExpired ||
           summon.participants.length >= totalSlots
 
-        const isThirtyManPortal = Boolean(isPortalMode) && totalSlots < 50
+        const isTwentyManPortal = Boolean(isPortalMode) && totalSlots < 40
         const completionAllowed =
           !isExpired &&
           summon.status !== 'expired' &&
@@ -1576,8 +1576,8 @@ function SummonList({
             (isPowderMode && isParticipant && !participantCompleted) ||
             // Non-powder: host completes when ready
             (!isPowderMode && ready && isCreator) ||
-            // Special case: 30-seat portal allows any participant to complete during window
-            (isThirtyManPortal && isParticipant && !participantCompleted)
+            // Special case: 20-seat portal allows any participant to complete during window
+            (isTwentyManPortal && isParticipant && !participantCompleted)
           )
 
         return (
@@ -1687,9 +1687,9 @@ function SummonList({
                 {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
                     {usePortalLayout
-                      ? totalSlots >= 50
-                        ? 'Fifty seats must be filled before the ritual locks.'
-                        : 'Thirty seats must be filled before the ritual locks.'
+                      ? totalSlots >= 40
+                        ? 'Forty seats must be filled before the ritual locks.'
+                        : 'Twenty seats must be filled before the ritual locks.'
                       : 'Ten seats must be filled before the ritual locks.'}
                   </div>
                 )}

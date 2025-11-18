@@ -5,9 +5,9 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
-const MIN_COMPLETION_COUNT_DEFAULT = 45 // fallback
-const BURN_WINDOW_DURATION_50_MAN_MS = 60 * 60 * 1000 // 1 hour for 50-man circles
-const BURN_WINDOW_DURATION_30_MAN_MS = 30 * 60 * 1000 // 30 minutes for 30-man circles
+const MIN_COMPLETION_COUNT_DEFAULT = 36 // fallback for 40-man circles
+const BURN_WINDOW_DURATION_40_MAN_MS = 60 * 60 * 1000 // 1 hour for 40-man circles
+const BURN_WINDOW_DURATION_20_MAN_MS = 30 * 60 * 1000 // 30 minutes for 20-man circles
 const POWDER_REWARD_HOST = 6
 const POWDER_REWARD_PARTICIPANT = 4
 
@@ -36,8 +36,8 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       creator_wallet TEXT NOT NULL,
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 50,
-      min_completion_count INTEGER NOT NULL DEFAULT 45,
+      required_participants INTEGER NOT NULL DEFAULT 40,
+      min_completion_count INTEGER NOT NULL DEFAULT 36,
       mode TEXT NOT NULL DEFAULT 'open_all',
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
@@ -72,7 +72,7 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       credits_only BOOLEAN NOT NULL DEFAULT FALSE
     )
   `)
-  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT 45`)
+  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT 36`)
   await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
   await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
@@ -91,7 +91,7 @@ function mapCircleRow(row: any) {
     creatorWallet: row.creator_wallet,
     creatorInscriptionId: row.creator_inscription_id,
     status: row.status,
-    requiredParticipants: Number(row.required_participants ?? 50),
+    requiredParticipants: Number(row.required_participants ?? 40),
     minCompletionCount: Number(row.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT),
     mode: row.mode ?? 'open_all',
     lockedAt: row.locked_at,
@@ -256,17 +256,17 @@ export async function POST(
     )
     const participants = participantsRes.rows
     const completedCount = participants.filter((row) => row.completed).length
-    // Allow completion if 45 out of 50 participants have marked complete
+    // Allow completion if 36 out of 40 participants have marked complete (or 18 out of 20 for bonus_credits)
     const minCount = Number(circle.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT)
     const allCompleted = participants.length >= circle.required_participants && completedCount >= minCount
 
     let burnWindowGranted = Boolean(circle.burn_window_granted)
 
     if (allCompleted && !burnWindowGranted) {
-      // Grant burn window: 30 minutes for 30-man (bonus_credits), 1 hour for 50-man (open_all)
+      // Grant burn window: 30 minutes for 20-man (bonus_credits), 1 hour for 40-man (open_all)
       const burnWindowDuration = (circle.mode ?? 'open_all') === 'bonus_credits' 
-        ? BURN_WINDOW_DURATION_30_MAN_MS 
-        : BURN_WINDOW_DURATION_50_MAN_MS
+        ? BURN_WINDOW_DURATION_20_MAN_MS 
+        : BURN_WINDOW_DURATION_40_MAN_MS
       const burnWindowExpiresAt = new Date(now.getTime() + burnWindowDuration)
 
       await pool.query(
@@ -303,7 +303,7 @@ export async function POST(
         [circleId],
       )
 
-      // Award +1 bonus burn allowance to the host for 30-man (bonus_credits) circles
+      // Award +1 bonus burn allowance to the host for 20-man (bonus_credits) circles
       if ((circle.mode ?? 'open_all') === 'bonus_credits') {
         const hostWallet = (circle.creator_wallet ?? '').toString()
         if (hostWallet) {
