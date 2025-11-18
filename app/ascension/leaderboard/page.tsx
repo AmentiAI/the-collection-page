@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { Loader2, Trophy, ArrowLeft } from 'lucide-react'
 
 import Header from '@/components/Header'
-import ChestCallout from '@/components/ChestCallout'
 import { useWallet } from '@/lib/wallet/compatibility'
 
 type LeaderboardEntry = {
@@ -164,14 +163,6 @@ export default function AscensionLeaderboardPage() {
               <p className="max-w-xl font-mono text-xs uppercase tracking-[0.3em] text-red-400/80">
                 Rankings by total ascension powder (available + spent). Available is current balance, spent is total used on graveyard ordinals.
               </p>
-            </div>
-            <div className="flex-shrink-0">
-              <ChestCallout 
-                eventKey="treasure_chest_leaderboard" 
-                size="md" 
-                grantEndpoint="/api/ascension/grant-leaderboard"
-                grantAmount={40}
-              />
             </div>
             {currentUserRank >= 0 && (
               <div className="rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-2">
