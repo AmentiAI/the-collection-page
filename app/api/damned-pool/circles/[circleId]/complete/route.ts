@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
 const MIN_COMPLETION_COUNT_DEFAULT = 45 // fallback
-const BURN_WINDOW_DURATION_MS = 60 * 60 * 1000 // 1 hour
+const BURN_WINDOW_DURATION_50_MAN_MS = 60 * 60 * 1000 // 1 hour for 50-man circles
+const BURN_WINDOW_DURATION_30_MAN_MS = 30 * 60 * 1000 // 30 minutes for 30-man circles
 const POWDER_REWARD_HOST = 6
 const POWDER_REWARD_PARTICIPANT = 4
 
@@ -262,8 +263,11 @@ export async function POST(
     let burnWindowGranted = Boolean(circle.burn_window_granted)
 
     if (allCompleted && !burnWindowGranted) {
-      // Grant 1 hour burn window
-      const burnWindowExpiresAt = new Date(now.getTime() + BURN_WINDOW_DURATION_MS)
+      // Grant burn window: 30 minutes for 30-man (bonus_credits), 1 hour for 50-man (open_all)
+      const burnWindowDuration = (circle.mode ?? 'open_all') === 'bonus_credits' 
+        ? BURN_WINDOW_DURATION_30_MAN_MS 
+        : BURN_WINDOW_DURATION_50_MAN_MS
+      const burnWindowExpiresAt = new Date(now.getTime() + burnWindowDuration)
 
       await pool.query(
         `
