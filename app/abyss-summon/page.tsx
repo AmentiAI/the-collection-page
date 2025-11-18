@@ -1238,6 +1238,18 @@ export default function AbyssSummonPage() {
             >
               Portal
             </button>
+            <button
+              type="button"
+              onClick={() => setMode('dead_demons')}
+              className={[
+                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
+                IS_DEAD_DEMONS_MODE
+                  ? 'border-purple-400 bg-purple-700/80 text-purple-100 shadow-[0_0_18px_rgba(168,85,247,0.45)]'
+                  : 'border-purple-600/50 bg-black/70 text-purple-200/80 hover:border-purple-400/70',
+              ].join(' ')}
+            >
+              Dead Demons
+            </button>
           </div>
           <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">
             <span className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-200/80">Leaderboards:</span>
