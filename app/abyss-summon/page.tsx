@@ -1319,7 +1319,7 @@ export default function AbyssSummonPage() {
                   <p className="font-semibold uppercase tracking-[0.2em]">Ascension Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires 9 out of 10 participants to complete in the last 2 minutes</li>
-                    <li>Gives ascension_powder (2 for host, 1 for participants)</li>
+                    <li>Gives ascension_powder (3 for host, 2 for participants)</li>
                   </ul>
                 </div>
               ) : IS_DAMNED_POOL_MODE ? (
@@ -1328,7 +1328,7 @@ export default function AbyssSummonPage() {
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li><strong>20 seats:</strong> Opens the burning abyss to people with burn tokens</li>
                     <li><strong>40 seats:</strong> Opens it to anyone to burn</li>
-                    <li>Also gives ascension_powder (6 for host, 4 for participants)</li>
+                    <li>Also gives ascension_powder (8 for host, 6 for participants)</li>
                   </ul>
                 </div>
               ) : IS_DEAD_DEMONS_MODE ? (
