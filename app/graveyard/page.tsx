@@ -542,6 +542,7 @@ function GraveyardContent() {
                     return (
                       <article
                         key={`${entry.inscriptionId}-${entry.txId}`}
+                        data-inscription-id={entry.inscriptionId}
                         className="group relative flex flex-col overflow-hidden rounded-2xl border border-red-500/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)] transition focus-within:outline-none focus-within:ring-2 focus-within:ring-red-400 focus-within:ring-offset-2 focus-within:ring-offset-black"
                       >
                         <Link
@@ -685,8 +686,19 @@ function GraveyardContent() {
               {(() => {
                 // Filter graveyard entries from abyss_burns table with summon_bonus or abyss sources (not ascension)
                 const burnableGraveyardEntries = entries.filter(
-                  (entry) => entry.source === 'summon_bonus' || entry.source === 'abyss'
+                  (entry) => {
+                    const source = entry.source?.toLowerCase() || ''
+                    return source === 'summon_bonus' || source === 'summon bonus' || source === 'abyss'
+                  }
                 )
+                
+                // Debug logging
+                console.log('[second ascension warning] Available entries:', {
+                  totalEntries: entries.length,
+                  entrySources: entries.map(e => e.source),
+                  burnableCount: burnableGraveyardEntries.length,
+                  burnableSources: burnableGraveyardEntries.map(e => e.source),
+                })
                 
                 // Filter limbo images (already ascended, waiting for choice)
                 const burnableLimboImages = limboImages.filter(
@@ -862,15 +874,28 @@ function GraveyardContent() {
                               setSelectedLimboToBurn(null)
                             }
                           } else if (selectedLimboToBurn.startsWith('graveyard_')) {
-                            // Handle graveyard entry selection - need to ascend it first, then throw in abyss
+                            // Handle graveyard entry selection - close modal and scroll to the selected entry
                             const inscriptionId = selectedLimboToBurn.replace('graveyard_', '')
                             const selectedEntry = burnableGraveyardEntries.find((e) => e.inscriptionId === inscriptionId)
                             if (selectedEntry) {
-                              // For graveyard entries, we need to ascend them first
-                              // This will require ascending the entry, then when it's in limbo, choosing "throw in abyss"
-                              toast.info('You must first ascend this ordinal to 500 powder, then choose to throw it in the abyss.')
+                              // Close the warning modal
                               setSecondAscensionWarning(null)
                               setSelectedLimboToBurn(null)
+                              
+                              // Scroll to the selected entry and highlight it
+                              setTimeout(() => {
+                                const element = document.querySelector(`[data-inscription-id="${inscriptionId}"]`)
+                                if (element) {
+                                  element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                  // Add a temporary highlight class
+                                  element.classList.add('ring-4', 'ring-amber-500', 'ring-offset-2')
+                                  setTimeout(() => {
+                                    element.classList.remove('ring-4', 'ring-amber-500', 'ring-offset-2')
+                                  }, 3000)
+                                }
+                              }, 100)
+                              
+                              toast.info('Selected entry highlighted. Ascend this ordinal to 500 powder, then choose "Throw in Abyss" when prompted.')
                             }
                           }
                         }
