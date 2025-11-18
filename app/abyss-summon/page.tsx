@@ -93,6 +93,11 @@ function formatTimestamp(value: string | null | undefined) {
 function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; timeUntilClose: number } {
   const now = new Date()
   
+  // Debug: log that function is being called
+  if (typeof window !== 'undefined') {
+    console.log('[Abyss Summon] isAbyssSummonClosed called at:', now.toISOString())
+  }
+  
   // Get current time in EST/EDT using Intl.DateTimeFormat
   const estFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -357,7 +362,13 @@ export default function AbyssSummonPage() {
     })
   }, [damnedOptions])
   useEffect(() => {
-    const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+      // Check if abyss-summon is closed (1 AM to 9 AM EST)
+      setAbyssClosed(isAbyssSummonClosed())
+    }, 1000)
+    // Initial check
+    setAbyssClosed(isAbyssSummonClosed())
     return () => window.clearInterval(intervalId)
   }, [])
 
