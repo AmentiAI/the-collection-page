@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       FROM information_schema.columns 
       WHERE table_name='profiles' AND column_name='payment_address'
     `)
-
+    
     // SECURITY: Do NOT allow ascension_powder to be updated via this endpoint
     // ascension_powder can only be modified through specific game mechanics
     let result

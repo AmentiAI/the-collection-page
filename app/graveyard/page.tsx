@@ -73,6 +73,7 @@ function GraveyardContent() {
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
   const [secondAscensionWarning, setSecondAscensionWarning] = useState<GraveyardEntry | null>(null)
+  const [selectedLimboToBurn, setSelectedLimboToBurn] = useState<string | null>(null)
   const [isFirstAscensionLimbo, setIsFirstAscensionLimbo] = useState(false)
   const powderRequestInProgress = useRef<string | null>(null)
 
@@ -656,7 +657,7 @@ function GraveyardContent() {
         {/* Second Ascension Warning Modal */}
         {secondAscensionWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-            <div className="relative max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/98 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
+            <div className="relative max-w-3xl rounded-3xl border-2 border-red-600/80 bg-black/98 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
               <div className="mb-6 text-center">
                 <AlertTriangle className="mx-auto mb-4 h-16 w-16 text-red-500" />
                 <h2 className="mb-3 text-2xl font-mono uppercase tracking-[0.3em] text-red-400">
@@ -670,24 +671,111 @@ function GraveyardContent() {
                   You must first burn a selected choice from your other available ascended images before proceeding.
                 </p>
               </div>
+              
+              {limboImages.length > 0 ? (
+                <div className="mb-6">
+                  <p className="mb-4 text-center text-sm font-mono uppercase tracking-[0.3em] text-red-300/90">
+                    Select an ascended image to burn first:
+                  </p>
+                  <div className="grid max-h-64 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                    {limboImages.map((limbo) => {
+                      const isSelected = selectedLimboToBurn === limbo.id
+                      return (
+                        <label
+                          key={limbo.id}
+                          className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border-2 border-amber-500/40 bg-black/70 transition hover:border-amber-500/80"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            className="sr-only"
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedLimboToBurn(limbo.id)
+                              } else {
+                                setSelectedLimboToBurn(null)
+                              }
+                            }}
+                          />
+                          <div className="relative aspect-square">
+                            <Image
+                              src={limbo.imageUrl}
+                              alt="Limbo mutant monster"
+                              fill
+                              sizes="(min-width: 640px) 33vw, 50vw"
+                              className="object-cover"
+                              unoptimized
+                            />
+                            {isSelected && (
+                              <div className="absolute inset-0 flex items-center justify-center border-4 border-red-500 bg-red-500/30">
+                                <div className="rounded-full border-4 border-white bg-red-600 p-2">
+                                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="border-t border-amber-500/20 bg-black/80 px-2 py-2 text-center">
+                            <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-amber-200/70">
+                              {isSelected ? 'Selected' : 'Select to Burn'}
+                            </p>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 rounded-xl border border-amber-500/40 bg-black/70 p-6 text-center">
+                  <p className="text-sm text-amber-200/70">
+                    No other ascended images available to burn. You must first ascend another ordinal and choose to throw it in the abyss.
+                  </p>
+                </div>
+              )}
+              
               <div className="flex gap-4">
-                <Button
-                  type="button"
-                  onClick={() => setSecondAscensionWarning(null)}
-                  className="flex-1 rounded-full border border-gray-500/60 bg-gray-800/50 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-gray-300 transition hover:bg-gray-800/70"
-                >
-                  Cancel
-                </Button>
                 <Button
                   type="button"
                   onClick={() => {
                     setSecondAscensionWarning(null)
-                    toast.error('You must burn another ascended image first before attempting a second ascension.')
+                    setSelectedLimboToBurn(null)
                   }}
-                  className="flex-1 rounded-full border border-red-500/80 bg-red-700/40 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-700/60"
+                  className="flex-1 rounded-full border border-gray-500/60 bg-gray-800/50 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-gray-300 transition hover:bg-gray-800/70"
                 >
-                  I Understand
+                  Cancel
                 </Button>
+                {limboImages.length > 0 ? (
+                  <Button
+                    type="button"
+                    disabled={!selectedLimboToBurn}
+                    onClick={() => {
+                      if (selectedLimboToBurn) {
+                        const selectedLimbo = limboImages.find((l) => l.id === selectedLimboToBurn)
+                        if (selectedLimbo) {
+                          setSelectedLimbo(selectedLimbo)
+                          setSecondAscensionWarning(null)
+                          setSelectedLimboToBurn(null)
+                        }
+                      }
+                    }}
+                    className="flex-1 rounded-full border border-red-500/80 bg-red-700/40 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-700/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Proceed to Burn Selected
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setSecondAscensionWarning(null)
+                      setSelectedLimboToBurn(null)
+                      toast.error('You must have another ascended image in limbo to burn before attempting a second ascension.')
+                    }}
+                    className="flex-1 rounded-full border border-red-500/80 bg-red-700/40 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-700/60"
+                  >
+                    I Understand
+                  </Button>
+                )}
               </div>
             </div>
           </div>
