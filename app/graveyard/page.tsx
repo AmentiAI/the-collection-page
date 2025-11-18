@@ -674,9 +674,7 @@ function GraveyardContent() {
                 <h2 className="mb-3 text-2xl font-mono uppercase tracking-[0.3em] text-red-400">
                   WARNING: ASCENSION FAILURE
                 </h2>
-                <p className="mb-4 text-lg font-mono uppercase tracking-[0.2em] text-red-300/90">
-                  The First Ascension Was A Failure
-                </p>
+            
                 <p className="mb-6 text-sm leading-relaxed text-red-200/80">
                   The first ascension was a failure. Attempting a second ascension on this already-ascended abomination could bring about the end of the world. 
                   You must first burn a selected choice from your other available ascended images before proceeding.
