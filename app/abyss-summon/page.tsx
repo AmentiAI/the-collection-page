@@ -186,6 +186,8 @@ export default function AbyssSummonPage() {
   const toast = useToast()
 
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
+  const [isHolder, setIsHolder] = useState<boolean | null>(null)
+  const [checkingHolder, setCheckingHolder] = useState(false)
   const [mode, setMode] = useState<'abyss' | 'powder' | 'damned_pool' | 'dead_demons'>('damned_pool')
   // Derive mode-dependent values locally so tabs switch instantly without reloads
   const IS_POWDER_MODE = mode === 'powder'
@@ -345,6 +347,44 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     previousSelectionRef.current = selectedInscriptionId
   }, [selectedInscriptionId])
+
+  // Check holder status
+  useEffect(() => {
+    if (!ordinalAddress) {
+      setIsHolder(null)
+      return
+    }
+
+    let cancelled = false
+    setCheckingHolder(true)
+    
+    Promise.all([
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true`).then(async (res) => {
+        if (!res.ok) return { tokens: [] }
+        return res.json()
+      }).catch(() => ({ tokens: [] })),
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(ordinalAddress)}`).then(async (res) => {
+        if (!res.ok) return { success: false, hasBurns: false }
+        return res.json()
+      }).catch(() => ({ success: false, hasBurns: false }))
+    ]).then(([ordinalsData, burnsData]) => {
+      if (cancelled) return
+      const tokens = Array.isArray(ordinalsData.tokens) ? ordinalsData.tokens : (Array.isArray(ordinalsData) ? ordinalsData : [])
+      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
+      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
+      const hasUnlistedOrdinals = hasUnlisted && !hasAnyListed
+      const hasBurns = burnsData.success && burnsData.hasBurns
+      setIsHolder(hasUnlistedOrdinals || hasBurns)
+    }).catch(() => {
+      if (!cancelled) setIsHolder(false)
+    }).finally(() => {
+      if (!cancelled) setCheckingHolder(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ordinalAddress])
 
   useEffect(() => {
     if (damnedOptions.length === 0) {
@@ -1178,6 +1218,24 @@ export default function AbyssSummonPage() {
           </div>
         )}
 
+        {/* Show locked page if not a holder */}
+        {checkingHolder ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-red-400" />
+          </div>
+        ) : isHolder === false ? (
+          <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+              <AlertTriangle className="h-3.5 w-3.5 text-emerald-400" />
+              Holder Access Only
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Summoning Circles Locked</h1>
+            <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+              You must have at least one unlisted Damned ordinal in your wallet to access summoning circles. Only holders with unlisted NFTs can participate in summoning rituals.
+            </p>
+          </div>
+        ) : (
+          <>
         {/* Main Content - Only show if not closed */}
         {!abyssClosed.isClosed && (
           <>
@@ -1704,6 +1762,8 @@ export default function AbyssSummonPage() {
             </section>
           </div>
         </div>
+          </>
+        )}
           </>
         )}
       </main>

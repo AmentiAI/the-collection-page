@@ -9,9 +9,11 @@ interface ChestCalloutProps {
   eventKey: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  grantEndpoint?: string
+  grantAmount?: number
 }
 
-export default function ChestCallout({ eventKey, size = 'md', className = '' }: ChestCalloutProps) {
+export default function ChestCallout({ eventKey, size = 'md', className = '', grantEndpoint = '/api/ascension/grant', grantAmount = 20 }: ChestCalloutProps) {
   const [chestOpen, setChestOpen] = useState(false)
   const [chestTooltipVisible, setChestTooltipVisible] = useState(false)
   const [chestGrantStatus, setChestGrantStatus] = useState<'idle' | 'loading' | 'granted' | 'claimed' | 'error'>(
@@ -59,7 +61,7 @@ export default function ChestCallout({ eventKey, size = 'md', className = '' }: 
 
     setChestGrantStatus('loading')
     try {
-      const response = await fetch('/api/ascension/grant', {
+      const response = await fetch(grantEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: wallet.currentAddress, eventKey }),
@@ -79,7 +81,7 @@ export default function ChestCallout({ eventKey, size = 'md', className = '' }: 
 
       if (payload.granted) {
         setChestGrantStatus('granted')
-        toast.success('The chest reveals 20 ascension powder!')
+        toast.success(`The chest reveals ${grantAmount} ascension powder!`)
       } else {
         setChestGrantStatus('claimed')
         toast.info('You have already claimed the treasure from this chest.')

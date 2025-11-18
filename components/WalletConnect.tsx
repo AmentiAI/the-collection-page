@@ -198,34 +198,13 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       console.log('📊 Response keys:', Object.keys(data))
       
       // Check multiple possible response formats
-      let total = 0
-      if (typeof data.total === 'number') {
-        total = data.total
-        console.log('✓ Found data.total:', total)
-      } else if (Array.isArray(data.tokens)) {
-        total = data.tokens.length
-        console.log('✓ Found data.tokens array with length:', total)
-      } else if (Array.isArray(data)) {
-        total = data.length
-        console.log('✓ Response is array with length:', total)
-      } else if (typeof data.count === 'number') {
-        total = data.count
-        console.log('✓ Found data.count:', total)
-      } else {
-        // If no total/count, check if tokens array exists
-        if (Array.isArray(data.tokens) && data.tokens.length > 0) {
-          total = data.tokens.length
-          console.log('✓ Found tokens array with items:', total)
-        } else {
-          console.warn('⚠️ Could not find total in response structure')
-          console.log('📋 Full data structure:', JSON.stringify(data, null, 2))
-          // If we have any data, assume they might be a holder
-          total = Object.keys(data).length > 0 ? 1 : 0
-        }
-      }
-      
-      const hasOrdinals = total > 0
-      console.log('🎯 FINAL RESULT - Total ordinals:', total, '| Is holder:', hasOrdinals)
+      const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
+      // Must have at least one NFT with listed: false AND no listed ordinals at all
+      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
+      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
+      const hasOrdinals = hasUnlisted && !hasAnyListed
+      const total = tokens.length
+      console.log('🎯 FINAL RESULT - Total ordinals:', total, '| Has unlisted:', hasUnlisted, '| Has any listed:', hasAnyListed, '| Is holder:', hasOrdinals)
       
       return hasOrdinals
     } catch (error) {

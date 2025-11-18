@@ -105,6 +105,8 @@ function GraveyardContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState<WalletProfile | null>(null)
+  const [isHolder, setIsHolder] = useState<boolean | null>(null)
+  const [checkingHolder, setCheckingHolder] = useState(false)
   const [powderSpending, setPowderSpending] = useState<string | null>(null)
   const [ascending, setAscending] = useState<string | null>(null)
   const [limboImages, setLimboImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
@@ -121,6 +123,44 @@ function GraveyardContent() {
   const [now, setNow] = useState(Date.now())
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
+
+  // Check holder status
+  useEffect(() => {
+    if (!ordinalAddress) {
+      setIsHolder(null)
+      return
+    }
+
+    let cancelled = false
+    setCheckingHolder(true)
+    
+    Promise.all([
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true`).then(async (res) => {
+        if (!res.ok) return { tokens: [] }
+        return res.json()
+      }).catch(() => ({ tokens: [] })),
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(ordinalAddress)}`).then(async (res) => {
+        if (!res.ok) return { success: false, hasBurns: false }
+        return res.json()
+      }).catch(() => ({ success: false, hasBurns: false }))
+    ]).then(([ordinalsData, burnsData]) => {
+      if (cancelled) return
+      const tokens = Array.isArray(ordinalsData.tokens) ? ordinalsData.tokens : (Array.isArray(ordinalsData) ? ordinalsData : [])
+      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
+      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
+      const hasUnlistedOrdinals = hasUnlisted && !hasAnyListed
+      const hasBurns = burnsData.success && burnsData.hasBurns
+      setIsHolder(hasUnlistedOrdinals || hasBurns)
+    }).catch(() => {
+      if (!cancelled) setIsHolder(false)
+    }).finally(() => {
+      if (!cancelled) setCheckingHolder(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ordinalAddress])
 
   // Update time every minute for grave robbing countdown
   useEffect(() => {
@@ -542,6 +582,36 @@ function GraveyardContent() {
       void loadLimboAndMintQueue()
     }
   }, [isWalletConnected, ordinalAddress, loadLimboAndMintQueue])
+
+  // Show locked page if not a holder
+  if (checkingHolder) {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
+        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
+        <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center justify-center px-4 py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-red-400" />
+        </main>
+      </div>
+    )
+  }
+
+  if (isHolder === false) {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
+        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
+        <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center px-4 py-20">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
+            <AlertTriangle className="h-3.5 w-3.5 text-emerald-400" />
+            Holder Access Only
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-[0.45em] text-red-100">Graveyard Locked</h1>
+          <p className="max-w-2xl text-sm uppercase tracking-[0.3em] text-red-200/80">
+            You must have at least one unlisted Damned ordinal in your wallet to access the graveyard. Only holders with unlisted NFTs can view and interact with their graveyard.
+          </p>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">

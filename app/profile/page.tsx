@@ -168,18 +168,28 @@ function ProfileContent() {
               >
                 Refresh Profile
               </Button>
-              <Link
-                href="/graveyard"
-                className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
-              >
-                <Skull className="h-4 w-4" /> Graveyard
-              </Link>
-              <Link
-                href="/abyss"
-                className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
-              >
-                <Flame className="h-4 w-4" /> Abyss
-              </Link>
+              {isHolder === true && inventory.listedCount === 0 && (
+                <>
+                  <Link
+                    href="/graveyard"
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
+                  >
+                    <Skull className="h-4 w-4" /> Graveyard
+                  </Link>
+                  <Link
+                    href="/abyss-summon"
+                    className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
+                  >
+                    Summoning Circles
+                  </Link>
+                  <Link
+                    href="/abyss"
+                    className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
+                  >
+                    <Flame className="h-4 w-4" /> Abyss
+                  </Link>
+                </>
+              )}
             </div>
           )}
         </section>
@@ -618,24 +628,31 @@ function ConnectTwitter({
 }
 
 function SummoningOverviewCard() {
-    return (
-      <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
-            <Link
-              href="/abyss-summon"
-              className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
-            >
+  const { isHolder, inventory } = useProfileState()
+  
+  // Only show the card if user is a holder AND has no listings
+  if (isHolder !== true || inventory.listedCount > 0) {
+    return null
+  }
+  
+  return (
+    <section className="space-y-4 rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Summoning Circles</h2>
+        <Link
+          href="/abyss-summon"
+          className="text-[11px] font-mono uppercase tracking-[0.35em] text-amber-200 hover:text-amber-300"
+        >
           Enter
-            </Link>
-          </div>
+        </Link>
+      </div>
       <div className="mt-2 flex justify-center">
-          <Link
-            href="/abyss-summon"
+        <Link
+          href="/abyss-summon"
           className="inline-flex items-center justify-center rounded-full border border-red-500 bg-red-700/80 px-8 py-3 text-[12px] font-mono uppercase tracking-[0.4em] text-red-100 shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
-          >
+        >
           Go to Summoning
-          </Link>
+        </Link>
       </div>
     </section>
   )
@@ -774,16 +791,21 @@ function useProfileState() {
 
         let listedCount = 0
         for (const token of rawTokens as Array<Record<string, any>>) {
+          // Check if token is listed (either via listed flag or price)
+          const isListed = token?.listed === true
           const rawPrice = Number(
-            token?.priceInfo?.price ?? token?.listingPrice ?? token?.price ?? token?.listing?.price ?? 0,
+            token?.priceInfo?.price ?? token?.listedPrice ?? token?.listingPrice ?? token?.price ?? token?.listing?.price ?? 0,
           )
-          if (Number.isFinite(rawPrice) && rawPrice > 0) {
+          if (isListed || (Number.isFinite(rawPrice) && rawPrice > 0)) {
             listedCount += 1
           }
         }
 
         const tokenCount = rawTokens.length
-        const hasOrdinals = tokenCount > 0
+        // Must have at least one NFT with listed: false AND no listed ordinals at all
+        const hasUnlisted = rawTokens.some((token: Record<string, any>) => token.listed === false)
+        const hasAnyListed = rawTokens.some((token: Record<string, any>) => token.listed === true)
+        const hasOrdinals = hasUnlisted && !hasAnyListed
 
         // Check abyss_burns
         let hasBurns = false
@@ -792,7 +814,7 @@ function useProfileState() {
           hasBurns = burnsData.success && burnsData.hasBurns
         }
 
-        // User is a holder if they have ordinals OR have burned in the abyss
+        // User is a holder if they have unlisted ordinals (and no listed ones) OR have burned in the abyss
         const isHolder = hasOrdinals || hasBurns
 
         setInventory({

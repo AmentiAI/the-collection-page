@@ -31,9 +31,13 @@ async function checkForOrdinals(address: string): Promise<boolean> {
     if (ordinalsResponse.ok) {
       const data = await ordinalsResponse.json()
       // Check multiple possible response formats
-      const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
-      hasOrdinals = total > 0
-      console.log('Verify route - Total The Damned ordinals:', total, 'Has ordinals:', hasOrdinals)
+      const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
+      // Must have at least one NFT with listed: false AND no listed ordinals at all
+      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
+      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
+      hasOrdinals = hasUnlisted && !hasAnyListed
+      const total = data.total ?? tokens.length
+      console.log('Verify route - Total The Damned ordinals:', total, 'Has unlisted ordinals:', hasUnlisted, 'Has any listed:', hasAnyListed, 'Is holder:', hasOrdinals)
     } else {
       console.error('Magic Eden API error:', ordinalsResponse.status)
     }
