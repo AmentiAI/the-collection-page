@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
 // Target: Nov 18, 2025 3:00 PM EST = 20:00 UTC
@@ -427,7 +428,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '0s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-            <img src="/damned-character-1.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-1.png" alt="" fill className="object-contain" />
           </div>
         </div>
 
@@ -437,7 +438,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <img src="/damned-character-2.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-2.png" alt="" fill className="object-contain" />
           </div>
         </div>
 
@@ -447,10 +448,11 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '5s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-            <img
+            <Image
               src="/damned-character-3.png"
               alt=""
-              className="absolute top-0 left-0 w-full h-full object-contain"
+              fill
+              className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
           </div>
@@ -462,7 +464,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '7.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <img src="/damned-character-4.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-4.png" alt="" fill className="object-contain" />
           </div>
         </div>
 
@@ -472,10 +474,11 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '10s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-            <img
+            <Image
               src="/damned-character-6.png"
               alt=""
-              className="absolute top-0 left-0 w-full h-full object-contain"
+              fill
+              className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
           </div>
@@ -487,7 +490,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12.5s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <img src="/damned-character-7.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-7.png" alt="" fill className="object-contain" />
           </div>
         </div>
 
@@ -497,7 +500,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <img src="/damned-character-8.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-8.png" alt="" fill className="object-contain" />
           </div>
         </div>
 
@@ -507,7 +510,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-            <img src="/damned-character-9.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-9.png" alt="" fill className="object-contain" />
           </div>
         </div>
       </div>

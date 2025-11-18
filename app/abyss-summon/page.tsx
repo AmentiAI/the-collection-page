@@ -1319,7 +1319,7 @@ export default function AbyssSummonPage() {
                 <div className="space-y-2">
                   <p className="font-semibold uppercase tracking-[0.2em]">Dead Demons Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
-                    <li>Requires ascended inscriptions (inscription_id starting with "ascended_")</li>
+                    <li>Requires ascended inscriptions (inscription_id starting with &quot;ascended_&quot;)</li>
                     <li>All 10 participants must complete in the last 1 minute</li>
                     <li>Gives ascension_powder (5 for host, 4 for participants)</li>
                   </ul>
@@ -1525,7 +1525,7 @@ export default function AbyssSummonPage() {
                         </p>
                       ) : (
                         <p className="text-[11px] uppercase tracking-[0.3em] text-purple-300/80">
-                          You must have at least one ascended inscription (inscription_id starting with "ascended_") in your abyss_burns to participate in Dead Demons circles.
+                          You must have at least one ascended inscription (inscription_id starting with &quot;ascended_&quot;) in your abyss_burns to participate in Dead Demons circles.
                         </p>
                       )}
                     </div>
@@ -1587,7 +1587,7 @@ export default function AbyssSummonPage() {
                 {[
                   { key: 'active', label: 'Active Circles' },
                   { key: 'created', label: 'Circles You Founded' },
-                  { key: 'joined', label: "Circles You've Joined" },
+                  { key: 'joined', label: 'Circles You&apos;ve Joined' },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key
                   return (
