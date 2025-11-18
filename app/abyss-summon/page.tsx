@@ -116,6 +116,7 @@ export default function AbyssSummonPage() {
   const autoplayAttemptedRef = useRef(false)
   const finaleBeepedRef = useRef<Set<string>>(new Set())
   const lastLoadedSongRef = useRef<string | null>(null)
+  const shouldContinuePlaylistRef = useRef(false)
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -347,8 +348,18 @@ export default function AbyssSummonPage() {
     const audio = audioRef.current
     if (!audio) return
 
-    const handlePlay = () => setMusicPlaying(true)
-    const handlePause = () => setMusicPlaying(false)
+    const handlePlay = () => {
+      setMusicPlaying(true)
+      shouldContinuePlaylistRef.current = true
+    }
+    const handlePause = () => {
+      setMusicPlaying(false)
+      // Only stop playlist continuation if user manually paused
+      // (not if it paused due to song ending)
+      if (audioRef.current && audioRef.current.ended === false) {
+        shouldContinuePlaylistRef.current = false
+      }
+    }
     const handleCanPlay = () => {
       setMusicReady(true)
       if (!autoplayAttemptedRef.current) {
@@ -397,16 +408,15 @@ export default function AbyssSummonPage() {
     
     // Only change src if it's actually different from what we last loaded
     if (lastLoadedSongRef.current !== newSrc) {
-      const wasPlaying = !audio.paused
       lastLoadedSongRef.current = newSrc
       audio.src = newSrc
       audio.load()
       
-      // Auto-play if music was playing before
-      if (wasPlaying && !isMusicMuted && audio.volume > 0) {
+      // Auto-play if we should continue the playlist (user started it and it hasn't been manually paused)
+      if (shouldContinuePlaylistRef.current && !isMusicMuted && audio.volume > 0) {
         const playOnLoad = () => {
           const currentAudio = audioRef.current
-          if (currentAudio && currentAudio.paused) {
+          if (currentAudio && currentAudio.paused && shouldContinuePlaylistRef.current) {
             currentAudio.play().catch(() => {})
           }
         }
@@ -414,9 +424,17 @@ export default function AbyssSummonPage() {
         audio.addEventListener('canplay', playOnLoad, { once: true })
       }
     }
+  }, [currentSongIndex, playlist, isMusicMuted, musicPlaying])
+
+  // Set up ended handler separately to avoid re-attaching on every change
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
 
     const handleEnded = () => {
       // When song ends, move to next song in playlist
+      // Keep playlist continuation flag true so next song auto-plays
+      shouldContinuePlaylistRef.current = true
       const nextIndex = (currentSongIndex + 1) % playlist.length
       setCurrentSongIndex(nextIndex)
     }
@@ -426,7 +444,7 @@ export default function AbyssSummonPage() {
     return () => {
       audio.removeEventListener('ended', handleEnded)
     }
-  }, [currentSongIndex, playlist, isMusicMuted])
+  }, [currentSongIndex, playlist])
 
   useEffect(() => {
     const audio = audioRef.current
