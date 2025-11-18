@@ -613,7 +613,7 @@ function GraveyardContent() {
                   <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
                     Spend 200 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
                   </p>
-                  {graveRobEligibleCount !== null && graveRobEligibleCount > 0 && (
+                  {(graveRobEligibleCount ?? 0) > 0 && (
                     <div className="flex items-center gap-3">
                       <Button
                         type="button"

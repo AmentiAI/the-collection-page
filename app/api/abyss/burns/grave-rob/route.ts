@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 
 import { getPool } from '@/lib/db'
 
@@ -9,7 +9,7 @@ const GRAVE_ROB_COST = 200
 const GRAVE_ROB_CHANCE = 0.1 // 10%
 const STALE_THRESHOLD_DAYS = 7 // 1 week
 
-async function ensureAbyssBurnsTable(pool: Pool) {
+async function ensureAbyssBurnsTable(pool: Pool | PoolClient) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,7 +33,7 @@ async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`)
 }
 
-async function ensureProfilesTable(pool: Pool) {
+async function ensureProfilesTable(pool: Pool | PoolClient) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS profiles (
       wallet_address TEXT PRIMARY KEY,
