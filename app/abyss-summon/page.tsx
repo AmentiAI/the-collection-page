@@ -106,7 +106,7 @@ export default function AbyssSummonPage() {
     : '/api/abyss/summons'
   const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
   const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : 30 * 60 * 1000
-  const SUMMONING_DISABLED = IS_POWDER_MODE || IS_DAMNED_POOL_MODE ? false : true
+  const SUMMONING_DISABLED = false // All modes enabled
   const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
     ? 'Ascension circles are currently paused.'
     : IS_DAMNED_POOL_MODE
@@ -1441,7 +1441,7 @@ function SummonList({
               <div className="flex flex-1 min-w-0 flex-col gap-3 overflow-x-hidden">
                 {!isExpired ? null : (
                   <div className="text-[10px] uppercase tracking-[0.3em] text-red-400">
-                    Circle expired — rally a new covenant.
+                    Circle exp.
                   </div>
                 )}
               </div>
