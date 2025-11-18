@@ -876,8 +876,12 @@ function GraveyardContent() {
                             const inscriptionId = selectedLimboToBurn.replace('graveyard_', '')
                             const selectedEntry = burnableGraveyardEntries.find((e) => e.inscriptionId === inscriptionId)
                             if (selectedEntry && secondAscensionWarning) {
+                              // Capture the original entry before closing modal
+                              const originalEntry = secondAscensionWarning
+                              
                               // Mark the selected entry as hidden (burned)
                               try {
+                                console.log('[Second Ascension] Hiding selected entry:', inscriptionId)
                                 const hideResponse = await fetch(
                                   `/api/abyss/burns/${encodeURIComponent(inscriptionId)}/hide`,
                                   {
@@ -888,20 +892,21 @@ function GraveyardContent() {
                                 )
                                 
                                 const hidePayload = await hideResponse.json().catch(() => null)
+                                console.log('[Second Ascension] Hide response:', hidePayload)
                                 
                                 if (!hideResponse.ok || !hidePayload?.success) {
                                   throw new Error(hidePayload?.error ?? 'Failed to mark entry as burned.')
                                 }
                                 
-                                // Reload graveyard to reflect the hidden entry
-                                await loadGraveyard()
-                                
                                 // Close the warning modal
                                 setSecondAscensionWarning(null)
                                 setSelectedLimboToBurn(null)
                                 
+                                // Reload graveyard to reflect the hidden entry
+                                await loadGraveyard()
+                                
                                 // Now proceed with the second ascension on the original entry
-                                const originalEntry = secondAscensionWarning
+                                console.log('[Second Ascension] Starting ascension for:', originalEntry.inscriptionId)
                                 setAscending(originalEntry.inscriptionId)
                                 
                                 const ascendResponse = await fetch(
@@ -914,6 +919,7 @@ function GraveyardContent() {
                                 )
                                 
                                 const ascendPayload = await ascendResponse.json().catch(() => null)
+                                console.log('[Second Ascension] Ascend response:', ascendPayload)
                                 
                                 if (!ascendResponse.ok || !ascendPayload?.success) {
                                   throw new Error(ascendPayload?.error ?? 'Failed to ascend.')
@@ -932,6 +938,7 @@ function GraveyardContent() {
                                 
                                 toast.success('Entry burned. Mutant monster generated! Choose its fate.')
                               } catch (err) {
+                                console.error('[Second Ascension] Error:', err)
                                 const message = err instanceof Error ? err.message : 'Failed to process burn and ascension.'
                                 toast.error(message)
                                 setAscending(null)
