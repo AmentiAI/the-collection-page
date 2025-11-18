@@ -1602,8 +1602,8 @@ export default function AbyssSummonPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {[
                   { key: 'active', label: 'Active Circles' },
-                  { key: 'created', label: 'Circles You Founded' },
-                  { key: 'joined', label: 'Circles You&apos;ve Joined' },
+                  { key: 'created', label: 'Circles Founded' },
+                  { key: 'joined', label: 'Circles Joined' },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key
                   return (
