@@ -34,7 +34,7 @@ async function ensureSummonInfrastructure(pool: Pool) {
       creator_wallet TEXT NOT NULL,
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 4,
+      required_participants INTEGER NOT NULL DEFAULT 8,
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,

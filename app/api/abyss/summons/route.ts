@@ -34,7 +34,7 @@ async function ensureSummonInfrastructure(pool: Pool) {
       creator_wallet TEXT NOT NULL,
       creator_inscription_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 4,
+      required_participants INTEGER NOT NULL DEFAULT 8,
       locked_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,
@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
     const summonResult = await pool.query(
       `
         INSERT INTO abyss_summons (creator_wallet, creator_inscription_id, status, required_participants, expires_at)
-        VALUES ($1, $2, 'open', 4, $3)
+        VALUES ($1, $2, 'open', 8, $3)
         RETURNING *
       `,
       [creatorWallet, creatorInscriptionId, expiresAt.toISOString()],

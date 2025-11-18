@@ -191,7 +191,7 @@ export default function AbyssSummonPage() {
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
   const IS_DEAD_DEMONS_MODE = mode === 'dead_demons'
-  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : IS_DEAD_DEMONS_MODE ? 10 : 4
+  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : IS_DEAD_DEMONS_MODE ? 10 : 8
   const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
     ? '/api/damned-pool/circles'
     : IS_POWDER_MODE
@@ -1527,7 +1527,7 @@ export default function AbyssSummonPage() {
                       ? 'The pool locks when fifty damned commit.'
                       : IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
                       ? 'The circle locks when ten damned commit.'
-                      : 'The circle locks when four damned commit.'}
+                      : 'The circle locks when eight damned commit.'}
                   </p>
                   {IS_DEAD_DEMONS_MODE && (
                     <div className="mt-3 rounded-lg border border-purple-500/40 bg-purple-900/20 p-3">
@@ -1772,7 +1772,7 @@ function SummonList({
   return (
     <div className="space-y-4">
       {summons.map((summon) => {
-        const fallbackSlots = isPowderMode ? requiredParticipantsForMode : 4
+        const fallbackSlots = isPowderMode ? requiredParticipantsForMode : 8
         const totalSlots = Math.max(summon.requiredParticipants, fallbackSlots)
         const defaultDurationMs =
           typeof summonDurationMs === 'number'
