@@ -5,7 +5,8 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000
-const POWDER_REWARD = 2
+const POWDER_REWARD_HOST = 2
+const POWDER_REWARD_PARTICIPANT = 1
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
@@ -113,8 +114,10 @@ async function grantAscensionPowder(
   wallet: string,
   circleId: string,
   client: ReturnType<typeof getPool>,
+  isHost: boolean = false,
 ) {
   const eventKey = `powder_circle:${circleId}`
+  const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
 
   await client.query(
     `
@@ -132,7 +135,7 @@ async function grantAscensionPowder(
       ON CONFLICT (wallet_address, event_key) DO NOTHING
       RETURNING granted_amount
     `,
-    [wallet, eventKey, POWDER_REWARD],
+    [wallet, eventKey, rewardAmount],
   )
 
   const insertedRows = claimRes?.rowCount ?? 0
@@ -145,7 +148,7 @@ async function grantAscensionPowder(
             updated_at = NOW()
         WHERE LOWER(wallet_address) = LOWER($2)
       `,
-      [POWDER_REWARD, wallet],
+      [rewardAmount, wallet],
     )
   }
 }
@@ -309,8 +312,10 @@ export async function POST(
       )
       rewardGranted = true
 
+      const creatorWallet = circle.creator_wallet?.toLowerCase() || ''
       for (const row of participants) {
-        await grantAscensionPowder(row.wallet, circleId, pool)
+        const isHost = row.wallet?.toLowerCase() === creatorWallet
+        await grantAscensionPowder(row.wallet, circleId, pool, isHost)
       }
     }
 
