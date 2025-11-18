@@ -537,8 +537,6 @@ function GraveyardContent() {
                     )
                     const referenceInstant = entry.confirmedAt ?? entry.createdAt ?? entry.updatedAt ?? null
                     const timeInGraveyard = formatRelativeTime(referenceInstant)
-                    const isSummonBonus = entry.source === 'summon_bonus'
-
                     return (
                       <article
                         key={`${entry.inscriptionId}-${entry.txId}`}
@@ -559,15 +557,6 @@ function GraveyardContent() {
                               className="object-cover transition duration-500 ease-out group-hover:scale-105"
                               unoptimized={imageUrl.includes('blob.vercel-storage.com')}
                             />
-                            {isSummonBonus && (
-                              <div className="absolute right-2 top-2 z-10">
-                                <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-amber-500 bg-amber-600/80">
-                                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
                             <div className="pointer-events-none absolute inset-x-0 top-0 px-3 pt-3">
                               <div className="rounded-lg border border-red-500/40 bg-black/45 px-3 py-2 shadow-[0_0_15px_rgba(220,38,38,0.3)] backdrop-blur-sm">
                                 <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.35em] text-red-200/70">
