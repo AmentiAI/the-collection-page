@@ -9,8 +9,8 @@ const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
 const MAX_ACTIVE_CIRCLES_PER_USER = 6 // Total circles user can be in (hosting + participating)
-const MAX_HOSTED_CIRCLES_PER_USER = 3 // Maximum circles user can host
-const MAX_ACTIVE_CIRCLES_GLOBAL = 8
+const MAX_HOSTED_CIRCLES_PER_USER = 2 // Maximum circles user can host
+const MAX_ACTIVE_CIRCLES_GLOBAL = 10
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
