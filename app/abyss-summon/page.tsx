@@ -144,6 +144,15 @@ export default function AbyssSummonPage() {
   const [isMusicMuted, setIsMusicMuted] = useState(false)
   const [musicVolume, setMusicVolume] = useState(15)
   const musicControlsDisabled = !musicReady && !musicPlaying
+  
+  // Playlist of 4 songs to cycle through
+  const playlist = [
+    '/music/abysssummon2.mp3',
+    '/music/summon2.mp3',
+    '/music/summon.mp3',
+    '/music/The Damned 3.mp3',
+  ]
+  const [currentSongIndex, setCurrentSongIndex] = useState(0)
 
   // Use "rock" instead of "ascension powder" if burn count is 0
   const useRockTerminology = burnCount === 0
@@ -332,6 +341,7 @@ export default function AbyssSummonPage() {
     }
   }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, SUMMON_DURATION_MS, SUMMON_COMPLETION_WINDOW_MS])
 
+  // Set up audio element once on mount
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -368,7 +378,6 @@ export default function AbyssSummonPage() {
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
     audio.addEventListener('canplay', handleCanPlay, { once: true })
-    audio.load()
 
     return () => {
       audio.removeEventListener('play', handlePlay)
@@ -377,6 +386,41 @@ export default function AbyssSummonPage() {
       document.removeEventListener('touchstart', handleUserInteraction)
     }
   }, [])
+
+  // Handle playlist song changes
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const currentSrc = audio.getAttribute('src')
+    const newSrc = playlist[currentSongIndex]
+    
+    // Only change src if it's actually different
+    if (currentSrc !== newSrc) {
+      const wasPlaying = !audio.paused
+      audio.src = newSrc
+      audio.load()
+      
+      // Auto-play the next song if music was playing before
+      if (wasPlaying && !isMusicMuted && audio.volume > 0) {
+        audio.addEventListener('loadeddata', () => {
+          audio.play().catch(() => {})
+        }, { once: true })
+      }
+    }
+
+    const handleEnded = () => {
+      // When song ends, move to next song in playlist
+      const nextIndex = (currentSongIndex + 1) % playlist.length
+      setCurrentSongIndex(nextIndex)
+    }
+
+    audio.addEventListener('ended', handleEnded)
+
+    return () => {
+      audio.removeEventListener('ended', handleEnded)
+    }
+  }, [currentSongIndex, playlist, isMusicMuted])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -935,9 +979,8 @@ export default function AbyssSummonPage() {
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
       <audio
         ref={audioRef}
-        src="/music/abysssummon2.mp3"
+        src={playlist[currentSongIndex]}
         preload="auto"
-        loop
         onError={(event) => {
           console.error('Summon audio failed to load', event.currentTarget.error)
         }}
@@ -1443,7 +1486,7 @@ function SummonList({
             ? summonDurationMs
             : requiredParticipantsForMode === 10
             ? 10 * 60 * 1000
-            : 30 * 60 * 1000
+            : 20 * 60 * 1000
         const localSummonDurationMs = isPortalMode
           ? totalSlots >= 50
             ? 20 * 60 * 1000
