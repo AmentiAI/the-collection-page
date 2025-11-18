@@ -89,6 +89,71 @@ function formatTimestamp(value: string | null | undefined) {
   return date.toLocaleString()
 }
 
+// EST/EDT timezone handling
+function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; timeUntilClose: number } {
+  const now = new Date()
+  
+  // Get current time in EST/EDT using Intl.DateTimeFormat
+  const estFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    hour12: false,
+  })
+  
+  const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
+  
+  // Closed from 1:00 AM to 9:00 AM EST
+  const isClosed = estHour >= 1 && estHour < 9
+  
+  // Get full EST date components
+  const estDateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  
+  const estParts = estDateFormatter.formatToParts(now)
+  const year = parseInt(estParts.find(p => p.type === 'year')?.value || '0')
+  const month = parseInt(estParts.find(p => p.type === 'month')?.value || '0') - 1
+  const day = parseInt(estParts.find(p => p.type === 'day')?.value || '0')
+  const currentHour = parseInt(estParts.find(p => p.type === 'hour')?.value || '0')
+  const currentMinute = parseInt(estParts.find(p => p.type === 'minute')?.value || '0')
+  const currentSecond = parseInt(estParts.find(p => p.type === 'second')?.value || '0')
+  
+  if (isClosed) {
+    // Calculate time until 9:00 AM EST (when it opens)
+    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
+    const targetTotalSeconds = 9 * 3600 // 9 AM
+    
+    let secondsUntil9 = targetTotalSeconds - currentTotalSeconds
+    if (secondsUntil9 <= 0) {
+      // Add 24 hours if we need to go to next day
+      secondsUntil9 += 24 * 3600
+    }
+    
+    const timeUntilOpen = secondsUntil9 * 1000
+    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
+  } else {
+    // Calculate time until 1:00 AM EST (when it closes)
+    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
+    const targetTotalSeconds = 1 * 3600 // 1 AM (next day)
+    
+    let secondsUntil1 = targetTotalSeconds - currentTotalSeconds
+    if (secondsUntil1 <= 0) {
+      // Add 24 hours if we need to go to next day
+      secondsUntil1 += 24 * 3600
+    }
+    
+    const timeUntilClose = secondsUntil1 * 1000
+    return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
+  }
+}
+
 export default function AbyssSummonPage() {
   const wallet = useWallet()
   const toast = useToast()
@@ -139,6 +204,7 @@ export default function AbyssSummonPage() {
   const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
+  const [abyssClosed, setAbyssClosed] = useState({ isClosed: false, timeUntilOpen: 0, timeUntilClose: 0 })
   const [burnCount, setBurnCount] = useState<number | null>(null)
   const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
   const [musicReady, setMusicReady] = useState(false)
@@ -1033,8 +1099,48 @@ export default function AbyssSummonPage() {
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
-        {/* Header outside of the card */}
-        <div className="relative flex items-center justify-center gap-3">
+        {/* Closed State - Show if abyss-summon is closed (midnight to 10AM EST) */}
+        {abyssClosed.isClosed && (
+          <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
+            <div className="flex flex-col items-center justify-center gap-6 text-center">
+              <AlertTriangle className="h-16 w-16 text-red-500 animate-pulse" />
+              <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-red-200 md:text-3xl">
+                Summoning Closed
+              </h2>
+              <p className="text-sm font-mono uppercase tracking-[0.3em] text-red-300/80">
+                The abyss-summon area is closed from 1:00 AM to 9:00 AM EST each day.
+              </p>
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">
+                  Opens in:
+                </p>
+                <div className="text-4xl font-mono font-bold text-red-200 tabular-nums">
+                  {formatCountdown(abyssClosed.timeUntilOpen)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content - Only show if not closed */}
+        {!abyssClosed.isClosed && (
+          <>
+            {/* Countdown until shutdown */}
+            {abyssClosed.timeUntilClose > 0 && (
+              <div className="relative z-20 mx-auto w-full max-w-2xl rounded-2xl border border-amber-600/60 bg-black/80 p-4 shadow-[0_0_40px_rgba(251,191,36,0.4)]">
+                <div className="flex flex-col items-center justify-center gap-2 text-center">
+                  <p className="text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
+                    Summoning closes in:
+                  </p>
+                  <div className="text-2xl font-mono font-bold text-amber-200 tabular-nums">
+                    {formatCountdown(abyssClosed.timeUntilClose)}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Header outside of the card */}
+            <div className="relative flex items-center justify-center gap-3">
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-100 md:text-4xl">
             Summoning Circles
@@ -1437,6 +1543,8 @@ export default function AbyssSummonPage() {
             </section>
           </div>
         </div>
+          </>
+        )}
       </main>
 
     </div>
