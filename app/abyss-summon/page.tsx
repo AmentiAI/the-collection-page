@@ -115,6 +115,7 @@ export default function AbyssSummonPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoplayAttemptedRef = useRef(false)
   const finaleBeepedRef = useRef<Set<string>>(new Set())
+  const lastLoadedSongRef = useRef<string | null>(null)
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -346,9 +347,6 @@ export default function AbyssSummonPage() {
     const audio = audioRef.current
     if (!audio) return
 
-    // Set initial src from playlist
-    audio.src = playlist[0]
-
     const handlePlay = () => setMusicPlaying(true)
     const handlePause = () => setMusicPlaying(false)
     const handleCanPlay = () => {
@@ -381,7 +379,6 @@ export default function AbyssSummonPage() {
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
     audio.addEventListener('canplay', handleCanPlay, { once: true })
-    audio.load()
 
     return () => {
       audio.removeEventListener('play', handlePlay)
@@ -389,33 +386,23 @@ export default function AbyssSummonPage() {
       document.removeEventListener('click', handleUserInteraction)
       document.removeEventListener('touchstart', handleUserInteraction)
     }
-  }, [playlist])
+  }, [])
 
-  // Handle playlist song changes
+  // Handle playlist song changes and initial load
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
     const newSrc = playlist[currentSongIndex]
-    // Get current src pathname for comparison
-    let currentSrcPath = null
-    try {
-      if (audio.src) {
-        const url = new URL(audio.src, window.location.origin)
-        currentSrcPath = url.pathname
-      }
-    } catch {
-      // If URL parsing fails, use the src directly
-      currentSrcPath = audio.src || null
-    }
     
-    // Only change src if it's actually different
-    if (currentSrcPath !== newSrc) {
+    // Only change src if it's actually different from what we last loaded
+    if (lastLoadedSongRef.current !== newSrc) {
       const wasPlaying = !audio.paused
+      lastLoadedSongRef.current = newSrc
       audio.src = newSrc
       audio.load()
       
-      // Auto-play the next song if music was playing before
+      // Auto-play if music was playing before
       if (wasPlaying && !isMusicMuted && audio.volume > 0) {
         const playOnLoad = () => {
           const currentAudio = audioRef.current
@@ -424,8 +411,6 @@ export default function AbyssSummonPage() {
           }
         }
         audio.addEventListener('loadeddata', playOnLoad, { once: true })
-        
-        // Also try canplay in case loadeddata doesn't fire
         audio.addEventListener('canplay', playOnLoad, { once: true })
       }
     }
