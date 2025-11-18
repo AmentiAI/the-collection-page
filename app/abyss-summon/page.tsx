@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, Flame, Loader2, Sparkles, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Flame, Loader2, Sparkles, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2, Info, ChevronDown } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -186,18 +186,21 @@ export default function AbyssSummonPage() {
   const toast = useToast()
 
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
-  const [mode, setMode] = useState<'abyss' | 'powder' | 'damned_pool'>('damned_pool')
+  const [mode, setMode] = useState<'abyss' | 'powder' | 'damned_pool' | 'dead_demons'>('damned_pool')
   // Derive mode-dependent values locally so tabs switch instantly without reloads
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
-  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : 4
+  const IS_DEAD_DEMONS_MODE = mode === 'dead_demons'
+  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : IS_DEAD_DEMONS_MODE ? 10 : 4
   const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
     ? '/api/damned-pool/circles'
     : IS_POWDER_MODE
     ? '/api/ascension/circles'
+    : IS_DEAD_DEMONS_MODE
+    ? '/api/dead-demons/circles'
     : '/api/abyss/summons'
-  const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
-  const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : 20 * 60 * 1000
+  const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
+  const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 10 * 60 * 1000 : 20 * 60 * 1000
   const SUMMONING_DISABLED = false // All modes enabled
   const SUMMONING_DISABLED_MESSAGE = IS_POWDER_MODE
     ? 'Ascension circles are currently paused.'
@@ -232,6 +235,8 @@ export default function AbyssSummonPage() {
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
   const [abyssClosed, setAbyssClosed] = useState({ isClosed: false, timeUntilOpen: 0, timeUntilClose: 0 })
+  const [isDeadDemonsEligible, setIsDeadDemonsEligible] = useState<boolean | null>(null)
+  const [tipsOpen, setTipsOpen] = useState(false)
   const [burnCount, setBurnCount] = useState<number | null>(null)
   const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
   const [musicReady, setMusicReady] = useState(false)
@@ -596,21 +601,31 @@ export default function AbyssSummonPage() {
         }
         const data = await response.json()
         const openSummons = Array.isArray(data?.summons) ? (data.summons as SummonRecord[]) : []
+        const openCircles = Array.isArray(data?.circles) ? (data.circles as SummonRecord[]) : []
         const created = Array.isArray(data?.createdSummons) ? (data.createdSummons as SummonRecord[]) : []
+        const createdCircles = Array.isArray(data?.createdCircles) ? (data.createdCircles as SummonRecord[]) : []
         const joined = Array.isArray(data?.joinedSummons) ? (data.joinedSummons as SummonRecord[]) : []
+        const joinedCircles = Array.isArray(data?.joinedCircles) ? (data.joinedCircles as SummonRecord[]) : []
 
-        setSummons(openSummons)
-        setCreatedSummons(created)
-        setJoinedSummons(joined)
-        const rewardBalance = IS_POWDER_MODE
+        setSummons(openSummons.length > 0 ? openSummons : openCircles)
+        setCreatedSummons(created.length > 0 ? created : createdCircles)
+        setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
+        const rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
           ? Number(data?.powderBalance ?? 0)
           : Number(data?.bonusAllowance ?? 0)
         setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
+        
+        // Set eligibility for Dead Demons mode
+        if (IS_DEAD_DEMONS_MODE && typeof data?.isEligible === 'boolean') {
+          setIsDeadDemonsEligible(data.isEligible)
+        }
 
         // Track which inscriptions are already in active circles
-        const allActiveSummons = [...openSummons, ...created, ...joined].filter((s) =>
-          ACTIVE_SUMMON_STATUSES.has(s.status),
-        )
+        const allActiveSummons = [
+          ...(openSummons.length > 0 ? openSummons : openCircles),
+          ...(created.length > 0 ? created : createdCircles),
+          ...(joined.length > 0 ? joined : joinedCircles),
+        ].filter((s) => ACTIVE_SUMMON_STATUSES.has(s.status))
         const inUseInscriptions = new Set<string>()
         for (const summon of allActiveSummons) {
           for (const participant of summon.participants) {
@@ -1192,7 +1207,7 @@ export default function AbyssSummonPage() {
               onClick={() => setMode('abyss')}
               className={[
                 'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE
+                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
                   ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
                   : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
               ].join(' ')}
@@ -1240,6 +1255,80 @@ export default function AbyssSummonPage() {
             </Link>
           </div>
         </div>
+        
+        {/* Tips Button and Dropdown */}
+        <div className="relative mx-auto w-full max-w-4xl mb-6">
+          <button
+            type="button"
+            onClick={() => setTipsOpen(!tipsOpen)}
+            className={[
+              'flex w-full items-center justify-between rounded-xl border px-4 py-3 transition',
+              IS_POWDER_MODE
+                ? 'border-amber-500/40 bg-amber-900/20 text-amber-200 hover:bg-amber-900/30'
+                : IS_DAMNED_POOL_MODE
+                ? 'border-indigo-500/40 bg-indigo-900/20 text-indigo-200 hover:bg-indigo-900/30'
+                : IS_DEAD_DEMONS_MODE
+                ? 'border-purple-500/40 bg-purple-900/20 text-purple-200 hover:bg-purple-900/30'
+                : 'border-red-600/40 bg-black/70 text-red-200 hover:bg-black/80',
+            ].join(' ')}
+          >
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              <span className="text-sm font-mono uppercase tracking-[0.3em]">Tips</span>
+            </div>
+            <ChevronDown className={`h-4 w-4 transition-transform ${tipsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {tipsOpen && (
+            <div className={[
+              'mt-2 rounded-xl border p-4 text-sm',
+              IS_POWDER_MODE
+                ? 'border-amber-500/40 bg-amber-900/20 text-amber-200'
+                : IS_DAMNED_POOL_MODE
+                ? 'border-indigo-500/40 bg-indigo-900/20 text-indigo-200'
+                : IS_DEAD_DEMONS_MODE
+                ? 'border-purple-500/40 bg-purple-900/20 text-purple-200'
+                : 'border-red-600/40 bg-black/70 text-red-200',
+            ].join(' ')}>
+              {!IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE ? (
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-[0.2em]">Abyss Summoning</p>
+                  <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
+                    <li>Only requires host to confirm in the last 2 minutes</li>
+                    <li>Awards summoning points</li>
+                  </ul>
+                </div>
+              ) : IS_POWDER_MODE ? (
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-[0.2em]">Ascension Circles</p>
+                  <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
+                    <li>Requires 9 out of 10 participants to complete in the last 2 minutes</li>
+                    <li>Gives ascension_powder (2 for host, 1 for participants)</li>
+                  </ul>
+                </div>
+              ) : IS_DAMNED_POOL_MODE ? (
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-[0.2em]">Portal Summoning</p>
+                  <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
+                    <li><strong>20 seats:</strong> Opens the burning abyss to people with burn tokens</li>
+                    <li><strong>40 seats:</strong> Opens it to anyone to burn</li>
+                    <li>Also gives ascension_powder (6 for host, 4 for participants)</li>
+                  </ul>
+                </div>
+              ) : IS_DEAD_DEMONS_MODE ? (
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-[0.2em]">Dead Demons Circles</p>
+                  <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
+                    <li>Requires ascended inscriptions (inscription_id starting with "ascended_")</li>
+                    <li>All 10 participants must complete in the last 1 minute</li>
+                    <li>Gives ascension_powder (5 for host, 4 for participants)</li>
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+        
         <section
           className={[
             'relative overflow-hidden rounded-3xl border p-8 backdrop-blur',
@@ -1247,6 +1336,8 @@ export default function AbyssSummonPage() {
               ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_40px_rgba(251,191,36,0.35)]'
               : IS_DAMNED_POOL_MODE
               ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_40px_rgba(99,102,241,0.35)]'
+              : IS_DEAD_DEMONS_MODE
+              ? 'border-purple-500/40 bg-purple-900/20 shadow-[0_0_40px_rgba(168,85,247,0.35)]'
               : 'border-red-600/40 bg-black/75 shadow-[0_0_40px_rgba(220,38,38,0.45)]',
           ].join(' ')}
         >
@@ -1418,10 +1509,27 @@ export default function AbyssSummonPage() {
                   <p className="mt-2 max-w-xl text-[11px] uppercase tracking-[0.3em] text-red-300/70">
                     {IS_DAMNED_POOL_MODE
                       ? 'The pool locks when fifty damned commit.'
-                      : IS_POWDER_MODE
+                      : IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
                       ? 'The circle locks when ten damned commit.'
                       : 'The circle locks when four damned commit.'}
                   </p>
+                  {IS_DEAD_DEMONS_MODE && (
+                    <div className="mt-3 rounded-lg border border-purple-500/40 bg-purple-900/20 p-3">
+                      {isDeadDemonsEligible === null ? (
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-purple-200/80">
+                          Checking eligibility...
+                        </p>
+                      ) : isDeadDemonsEligible ? (
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-purple-200">
+                          ✓ You are eligible to host/join Dead Demons circles (you have ascended inscriptions).
+                        </p>
+                      ) : (
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-purple-300/80">
+                          You must have at least one ascended inscription (inscription_id starting with "ascended_") in your abyss_burns to participate in Dead Demons circles.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {IS_DAMNED_POOL_MODE && (
                     <div className="mt-3 flex flex-col gap-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200">
                    
@@ -1446,7 +1554,7 @@ export default function AbyssSummonPage() {
                 <Button
                   type="button"
                   onClick={handleCreateSummon}
-                  disabled={!selectedOption || creating}
+                  disabled={!selectedOption || creating || (IS_DEAD_DEMONS_MODE && isDeadDemonsEligible === false)}
                   className="w-full sm:w-auto border border-red-500 bg-red-700/80 px-5 py-3 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creating ? (

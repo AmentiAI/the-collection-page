@@ -4,16 +4,14 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const COMPLETION_WINDOW_MS = 2 * 60 * 1000
-const POWDER_REWARD_HOST = 2
-const POWDER_REWARD_PARTICIPANT = 1
-const MIN_COMPLETION_COUNT = 9 // Only need 9 out of 10 to complete
-// Set to false to disable powder circles at the API level
-const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
+const COMPLETION_WINDOW_MS = 1 * 60 * 1000 // Last 1 minute
+const REQUIRED_COMPLETIONS = 10 // All 10 must complete
+const POWDER_REWARD_HOST = 5
+const POWDER_REWARD_PARTICIPANT = 4
 
-async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
+async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_circles (
+    CREATE TABLE IF NOT EXISTS dead_demons_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       creator_wallet TEXT NOT NULL,
       creator_inscription_id TEXT NOT NULL,
@@ -28,9 +26,9 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     )
   `)
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_participants (
+    CREATE TABLE IF NOT EXISTS dead_demons_participants (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES summoning_powder_circles(id) ON DELETE CASCADE,
+      circle_id UUID NOT NULL REFERENCES dead_demons_circles(id) ON DELETE CASCADE,
       wallet TEXT NOT NULL,
       inscription_id TEXT NOT NULL,
       inscription_image TEXT,
@@ -43,15 +41,6 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     )
   `)
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascension_powder_events (
-      wallet_address TEXT NOT NULL,
-      event_key TEXT NOT NULL,
-      granted_amount INTEGER NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (wallet_address, event_key)
-    )
-  `)
-  await pool.query(`
     CREATE TABLE IF NOT EXISTS profiles (
       wallet_address TEXT PRIMARY KEY,
       ascension_powder INTEGER NOT NULL DEFAULT 0,
@@ -60,6 +49,15 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     )
   `)
   await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ascension_powder_events (
+      wallet_address TEXT NOT NULL,
+      event_key TEXT NOT NULL,
+      granted_amount INTEGER NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (wallet_address, event_key)
+    )
+  `)
 }
 
 function mapCircleRow(row: any) {
@@ -101,8 +99,8 @@ function buildCircleSelect(whereClause = '', values: unknown[] = []) {
           ) FILTER (WHERE p.id IS NOT NULL),
           '[]'::json
         ) AS participants
-      FROM summoning_powder_circles c
-      LEFT JOIN summoning_powder_participants p ON p.circle_id = c.id
+      FROM dead_demons_circles c
+      LEFT JOIN dead_demons_participants p ON p.circle_id = c.id
       LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(p.wallet)
       ${whereClause}
       GROUP BY c.id
@@ -117,9 +115,10 @@ async function grantAscensionPowder(
   client: ReturnType<typeof getPool>,
   isHost: boolean = false,
 ) {
-  const eventKey = `powder_circle:${circleId}`
+  const eventKey = `dead_demons_circle:${circleId}`
   const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
 
+  // Ensure profile exists
   await client.query(
     `
       INSERT INTO profiles (wallet_address, ascension_powder, updated_at)
@@ -129,6 +128,7 @@ async function grantAscensionPowder(
     [wallet],
   )
 
+  // Record the event (one-time per circle per wallet)
   const claimRes = await client.query(
     `
       INSERT INTO ascension_powder_events (wallet_address, event_key, granted_amount)
@@ -139,8 +139,8 @@ async function grantAscensionPowder(
     [wallet, eventKey, rewardAmount],
   )
 
+  // Grant the powder (only if event was inserted, meaning first time)
   const insertedRows = claimRes?.rowCount ?? 0
-
   if (insertedRows > 0) {
     await client.query(
       `
@@ -152,25 +152,26 @@ async function grantAscensionPowder(
       [rewardAmount, wallet],
     )
   }
+
+  // Get updated balance
+  const balanceRes = await client.query(
+    `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
+    [wallet],
+  )
+  return Number(balanceRes.rows[0]?.ascension_powder ?? 0)
 }
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { circleId: string } },
 ) {
-  if (!POWDER_MODE_ENABLED) {
-    return NextResponse.json(
-      { success: false, error: 'Powder circles are currently disabled.' },
-      { status: 503 },
-    )
-  }
   const { circleId } = params
   if (!circleId) {
     return NextResponse.json({ success: false, error: 'Missing circleId' }, { status: 400 })
   }
 
   const pool = getPool()
-  await ensurePowderInfrastructure(pool)
+  await ensureDeadDemonsInfrastructure(pool)
 
   const body = await request.json().catch(() => ({}))
   const wallet = (body?.wallet ?? '').toString().trim()
@@ -182,36 +183,40 @@ export async function POST(
   try {
     await pool.query('BEGIN')
 
-    const circleRes = await pool.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
+    const circleRes = await pool.query(
+      buildCircleSelect('WHERE c.id = $1', [circleId]),
+    )
     if (circleRes.rows.length === 0) {
       await pool.query('ROLLBACK')
-      return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
+      return NextResponse.json({ success: false, error: 'Dead Demons circle not found' }, { status: 404 })
     }
 
-    const circle = circleRes.rows[0]
+    const circle = mapCircleRow(circleRes.rows[0])
+
+    if (circle.status === 'completed') {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        { success: true, message: 'Dead Demons circle already completed.', summon: circle },
+      )
+    }
 
     if (circle.status !== 'ready') {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'This ascension circle cannot be completed.' },
+        { success: false, error: 'Dead Demons circle is not ready for completion.' },
         { status: 409 },
       )
     }
 
     const participantRes = await pool.query(
-      `
-        SELECT *
-        FROM summoning_powder_participants
-        WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
-        FOR UPDATE
-      `,
+      `SELECT id, wallet, completed FROM dead_demons_participants WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2) FOR UPDATE`,
       [circleId, wallet],
     )
 
     if (participantRes.rows.length === 0) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'You are not part of this ascension circle.' },
+        { success: false, error: 'You are not a participant in this Dead Demons circle.' },
         { status: 403 },
       )
     }
@@ -222,20 +227,19 @@ export async function POST(
       const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
       return NextResponse.json({
         success: true,
-        message: 'Ascension already recorded for this wallet.',
+        message: 'Completion already recorded for this wallet.',
         profilePowder: undefined,
         summon: mapCircleRow(refreshed.rows[0]),
       })
     }
 
     const now = new Date()
-    const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
-    const lockedAt = circle.locked_at ? new Date(circle.locked_at) : null
+    const expiresAt = circle.expiresAt ? new Date(circle.expiresAt) : null
 
     if (!expiresAt) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'Ascension circle has not entered completion phase yet.' },
+        { success: false, error: 'Dead Demons circle has not entered completion phase yet.' },
         { status: 409 },
       )
     }
@@ -243,22 +247,12 @@ export async function POST(
     const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
     const timeUntilExpiry = expiresAt.getTime() - now.getTime()
     const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
-    
-    // Debug logging
-    console.log('[ascension/circles/complete]', {
-      now: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      finalWindowStart: finalWindowStart.toISOString(),
-      timeUntilExpiry: Math.floor(timeUntilExpiry / 1000),
-      timeUntilWindow: Math.floor(timeUntilWindow / 1000),
-      completionWindowMs: COMPLETION_WINDOW_MS,
-    })
-    
+
     if (now < finalWindowStart) {
       await pool.query('ROLLBACK')
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: `Final ritual window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
           timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
         },
@@ -267,20 +261,17 @@ export async function POST(
     }
 
     if (now > expiresAt) {
-      await pool.query(
-        `UPDATE summoning_powder_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
-        [circleId],
-      )
-      await pool.query('COMMIT')
+      await pool.query('ROLLBACK')
       return NextResponse.json(
-        { success: false, error: 'Ascension circle has expired.' },
+        { success: false, error: 'Dead Demons circle has expired.' },
         { status: 410 },
       )
     }
 
+    // Mark participant as completed
     await pool.query(
       `
-        UPDATE summoning_powder_participants
+        UPDATE dead_demons_participants
         SET completed = TRUE,
             completed_at = NOW()
         WHERE id = $1
@@ -289,20 +280,22 @@ export async function POST(
     )
 
     const participantsRes = await pool.query(
-      `SELECT wallet, completed FROM summoning_powder_participants WHERE circle_id = $1 FOR UPDATE`,
+      `SELECT wallet, completed FROM dead_demons_participants WHERE circle_id = $1 FOR UPDATE`,
       [circleId],
     )
     const participants = participantsRes.rows
     const completedCount = participants.filter((row) => row.completed).length
-    // Require 9 out of 10 participants to mark complete
-    const allCompleted = participants.length >= circle.required_participants && completedCount >= MIN_COMPLETION_COUNT
 
-    let rewardGranted = Boolean(circle.reward_granted)
+    // All 10 must complete
+    const allCompleted = participants.length >= REQUIRED_COMPLETIONS && completedCount >= REQUIRED_COMPLETIONS
+
+    let rewardGranted = Boolean(circle.bonusGranted)
 
     if (allCompleted && !rewardGranted) {
+      // Update circle status
       await pool.query(
         `
-          UPDATE summoning_powder_circles
+          UPDATE dead_demons_circles
           SET status = 'completed',
               completed_at = NOW(),
               reward_granted = TRUE,
@@ -311,38 +304,52 @@ export async function POST(
         `,
         [circleId],
       )
-      rewardGranted = true
 
-      const creatorWallet = circle.creator_wallet?.toLowerCase() || ''
+      // Grant ascension powder to all participants (host gets 5, others get 4)
+      const creatorWallet = circle.creatorWallet?.toLowerCase() || ''
       for (const row of participants) {
-        const isHost = row.wallet?.toLowerCase() === creatorWallet
-        await grantAscensionPowder(row.wallet, circleId, pool, isHost)
+        const participantWallet = (row.wallet ?? '').toString().trim()
+        if (!participantWallet) continue
+
+        const isHost = participantWallet.toLowerCase() === creatorWallet
+        await grantAscensionPowder(participantWallet, circleId, pool, isHost)
       }
+
+      rewardGranted = true
     }
 
     await pool.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-    const profileRes = await pool.query(
-      `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
-      [wallet],
-    )
-    const profilePowder = Number(profileRes.rows[0]?.ascension_powder ?? 0)
+    const updatedCircle = mapCircleRow(refreshed.rows[0])
+    
+    // Get updated powder balance for the current user
+    let profilePowder: number | undefined = undefined
+    if (allCompleted) {
+      const balanceRes = await pool.query(
+        `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
+        [wallet],
+      )
+      profilePowder = Number(balanceRes.rows[0]?.ascension_powder ?? 0)
+    }
 
     return NextResponse.json({
       success: true,
-      message: rewardGranted
-        ? 'Ascension circle complete. Powder surges through every participant.'
-        : 'Ascension attested. Await the remaining allies.',
+      message: allCompleted
+        ? 'Dead Demons circle completed! All participants have been rewarded.'
+        : `Completion recorded. ${completedCount}/${REQUIRED_COMPLETIONS} participants have completed.`,
+      summon: updatedCircle,
       profilePowder,
-      summon: mapCircleRow(refreshed.rows[0]),
+      completedCount,
+      requiredCompletions: REQUIRED_COMPLETIONS,
     })
   } catch (error) {
     await pool.query('ROLLBACK').catch(() => {})
-    console.error('[ascension/circles/complete][POST]', error)
+    console.error('[dead-demons/circles/complete][POST]', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to complete ascension circle.' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to complete Dead Demons circle.' },
       { status: 500 },
     )
   }
 }
+
