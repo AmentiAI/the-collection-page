@@ -72,6 +72,8 @@ function GraveyardContent() {
   const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
+  const [secondAscensionWarning, setSecondAscensionWarning] = useState<GraveyardEntry | null>(null)
+  const [isFirstAscensionLimbo, setIsFirstAscensionLimbo] = useState(false)
   const powderRequestInProgress = useRef<string | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
@@ -190,6 +192,13 @@ function GraveyardContent() {
         setLimboImages(limbo)
         setMintQueueImages(payload.mintQueue || [])
         
+        // Check if limbo entry is from a first ascension (source_inscription_id doesn't start with 'ascended_')
+        if (limbo.length > 0) {
+          const firstLimbo = limbo[0]
+          const isFirstAscension = !firstLimbo.sourceInscriptionId.toLowerCase().startsWith('ascended_')
+          setIsFirstAscensionLimbo(isFirstAscension)
+        }
+        
         // Auto-open modal if there's a pending limbo entry and no modal is currently open
         // Use functional update to check current state
         setSelectedLimbo((current) => {
@@ -227,6 +236,12 @@ function GraveyardContent() {
 
       if (entry.ascensionPowder < ascensionTarget) {
         toast.error(`This offering has not reached full ascension yet (${entry.ascensionPowder}/${ascensionTarget}).`)
+        return
+      }
+
+      // Show warning modal for second ascension
+      if (isSecondAscension) {
+        setSecondAscensionWarning(entry)
         return
       }
 
@@ -638,6 +653,46 @@ function GraveyardContent() {
           </section>
         )}
 
+        {/* Second Ascension Warning Modal */}
+        {secondAscensionWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+            <div className="relative max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/98 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
+              <div className="mb-6 text-center">
+                <AlertTriangle className="mx-auto mb-4 h-16 w-16 text-red-500" />
+                <h2 className="mb-3 text-2xl font-mono uppercase tracking-[0.3em] text-red-400">
+                  WARNING: ASCENSION FAILURE
+                </h2>
+                <p className="mb-4 text-lg font-mono uppercase tracking-[0.2em] text-red-300/90">
+                  The First Ascension Was A Failure
+                </p>
+                <p className="mb-6 text-sm leading-relaxed text-red-200/80">
+                  The first ascension was a failure. Attempting a second ascension on this already-ascended abomination could bring about the end of the world. 
+                  You must first burn a selected choice from your other available ascended images before proceeding.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  onClick={() => setSecondAscensionWarning(null)}
+                  className="flex-1 rounded-full border border-gray-500/60 bg-gray-800/50 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-gray-300 transition hover:bg-gray-800/70"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setSecondAscensionWarning(null)
+                    toast.error('You must burn another ascended image first before attempting a second ascension.')
+                  }}
+                  className="flex-1 rounded-full border border-red-500/80 bg-red-700/40 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-700/60"
+                >
+                  I Understand
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Limbo Modal */}
         {selectedLimbo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
@@ -655,9 +710,15 @@ function GraveyardContent() {
                   unoptimized
                 />
               </div>
-              <p className="mb-6 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
+              <p className="mb-2 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
                 Choose the fate of this abomination:
               </p>
+              {isFirstAscensionLimbo && (
+                <p className="mb-4 text-center text-xs leading-relaxed text-red-300/70">
+                  ⚠️ WARNING: Sending this back to the abyss could bring about the end of the world. 
+                  Ascension would require sacrificing a second Damned Ordinal, to attempt another ascend.
+                </p>
+              )}
               <div className="flex gap-4">
                 <Button
                   type="button"
@@ -675,7 +736,13 @@ function GraveyardContent() {
                   type="button"
                   disabled={choosingLimbo}
                   onClick={() => handleLimboChoice('abyss')}
-                  className="flex-1 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45 disabled:opacity-50"
+                  className={`flex-1 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45 disabled:opacity-50 ${
+                    isFirstAscensionLimbo ? 'animate-pulse' : ''
+                  }`}
+                  style={isFirstAscensionLimbo ? {
+                    animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    boxShadow: '0 0 20px rgba(220, 38, 38, 0.8)',
+                  } : {}}
                 >
                   {choosingLimbo ? (
                     <Loader2 className="mx-auto h-4 w-4 animate-spin" />
