@@ -1125,20 +1125,6 @@ export default function AbyssSummonPage() {
         {/* Main Content - Only show if not closed */}
         {!abyssClosed.isClosed && (
           <>
-            {/* Countdown until shutdown */}
-            {abyssClosed.timeUntilClose > 0 && (
-              <div className="relative z-20 mx-auto w-full max-w-2xl rounded-2xl border border-amber-600/60 bg-black/80 p-4 shadow-[0_0_40px_rgba(251,191,36,0.4)]">
-                <div className="flex flex-col items-center justify-center gap-2 text-center">
-                  <p className="text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
-                    Summoning closes in:
-                  </p>
-                  <div className="text-2xl font-mono font-bold text-amber-200 tabular-nums">
-                    {formatCountdown(abyssClosed.timeUntilClose)}
-                  </div>
-                </div>
-              </div>
-            )}
-            
             {/* Header outside of the card */}
             <div className="relative flex items-center justify-center gap-3">
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
@@ -1147,6 +1133,20 @@ export default function AbyssSummonPage() {
           </h1>
           <Sparkles className="h-8 w-8 text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
         </div>
+        
+        {/* Countdown until shutdown - right below header */}
+        {abyssClosed.timeUntilClose > 0 && (
+          <div className="relative z-20 mx-auto w-full max-w-xl rounded-2xl border border-amber-600/60 bg-black/80 p-4 shadow-[0_0_40px_rgba(251,191,36,0.4)]">
+            <div className="flex flex-col items-center justify-center gap-2 text-center">
+              <p className="text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
+                Summoning closes in:
+              </p>
+              <div className="text-2xl font-mono font-bold text-amber-200 tabular-nums">
+                {formatCountdown(abyssClosed.timeUntilClose)}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Tabs outside the card, resting on the top-left edge */}
         <div className="relative z-20 -mb-4 ml-0 md:ml-4 flex flex-wrap items-center justify-between gap-2 pr-4 max-w-full overflow-x-hidden px-2">
           <div className="flex flex-wrap items-center gap-2">
