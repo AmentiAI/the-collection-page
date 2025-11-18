@@ -12,7 +12,7 @@ const CIRCLE_DURATION_BONUS_MS = 10 * 60 * 1000 // 10 minutes (bonus_credits 30 
 const MIN_COMPLETION_COUNT = 45 // 45 out of 50 must complete
 const MIN_COMPLETION_COUNT_BONUS = 27 // 27 out of 30 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
-const MAX_ACTIVE_CIRCLES_GLOBAL = 0 // Portal summoning disabled (0 = no circles allowed)
+const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global circle allowed)
 // Set to false to disable damned pool circles at the API level
 const DAMNED_POOL_MODE_ENABLED = process.env.NEXT_PUBLIC_DAMNED_POOL_MODE_ENABLED !== 'false'
 
