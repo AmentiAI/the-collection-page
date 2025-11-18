@@ -971,66 +971,87 @@ function GraveyardContent() {
         )}
 
         {/* Limbo Modal */}
-        {selectedLimbo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-            <div className="relative max-w-2xl rounded-3xl border border-amber-500/60 bg-black/95 p-6 shadow-[0_0_50px_rgba(251,191,36,0.5)]">
-              <h2 className="mb-4 text-center text-xl font-mono uppercase tracking-[0.3em] text-amber-200">
-                ASCENSION FAILED!
-              </h2>
-              <div className="mb-4 aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
-                <Image
-                  src={selectedLimbo.imageUrl}
-                  alt="Generated mutant monster"
-                  width={512}
-                  height={512}
-                  className="h-full w-full object-cover"
-                  unoptimized
-                />
-              </div>
-              <p className="mb-2 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
-                Choose the fate of this abomination:
-              </p>
-              {isFirstAscensionLimbo && (
-                <p className="mb-4 text-center text-xs leading-relaxed text-red-300/70">
-                  ⚠️ WARNING: Sending this back to the abyss could bring about the end of the world. 
-                  Ascension would require sacrificing a second Damned Ordinal, to attempt another ascend.
-                </p>
-              )}
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  disabled={choosingLimbo}
-                  onClick={() => handleLimboChoice('mint')}
-                  className="flex-1 rounded-full border border-emerald-500/60 bg-emerald-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-emerald-100 transition hover:bg-emerald-600/45 disabled:opacity-50"
-                >
-                  {choosingLimbo ? (
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                  ) : (
-                    'Save for Mint'
+        {selectedLimbo && (() => {
+          // Check if this is a second ascension (sourceInscriptionId starts with "ascended_")
+          const isSecondAscension = selectedLimbo.sourceInscriptionId.toLowerCase().startsWith('ascended_')
+          
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+              <div className={`relative max-w-2xl rounded-3xl border bg-black/95 p-6 ${
+                isSecondAscension 
+                  ? 'border-emerald-500/60 shadow-[0_0_50px_rgba(16,185,129,0.5)]' 
+                  : 'border-amber-500/60 shadow-[0_0_50px_rgba(251,191,36,0.5)]'
+              }`}>
+                <h2 className={`mb-4 text-center text-xl font-mono uppercase tracking-[0.3em] ${
+                  isSecondAscension ? 'text-emerald-200' : 'text-amber-200'
+                }`}>
+                  {isSecondAscension ? 'ASCENSION SUCCESSFUL!' : 'ASCENSION FAILED!'}
+                </h2>
+                <div className="mb-4 aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
+                  <Image
+                    src={selectedLimbo.imageUrl}
+                    alt="Generated mutant monster"
+                    width={512}
+                    height={512}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
+                </div>
+                {isSecondAscension ? (
+                  <p className="mb-4 text-center text-sm uppercase tracking-[0.3em] text-emerald-200/80">
+                    The second ascension has succeeded! Save this ascended image for mint.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-center text-sm uppercase tracking-[0.3em] text-red-200/80">
+                      Choose the fate of this abomination:
+                    </p>
+                    {isFirstAscensionLimbo && (
+                      <p className="mb-4 text-center text-xs leading-relaxed text-red-300/70">
+                        ⚠️ WARNING: Sending this back to the abyss could bring about the end of the world. 
+                        Ascension would require sacrificing a second Damned Ordinal, to attempt another ascend.
+                      </p>
+                    )}
+                  </>
+                )}
+                <div className="flex gap-4">
+                  <Button
+                    type="button"
+                    disabled={choosingLimbo}
+                    onClick={() => handleLimboChoice('mint')}
+                    className="flex-1 rounded-full border border-emerald-500/60 bg-emerald-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-emerald-100 transition hover:bg-emerald-600/45 disabled:opacity-50"
+                  >
+                    {choosingLimbo ? (
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    ) : (
+                      'Save for Mint'
+                    )}
+                  </Button>
+                  {!isSecondAscension && (
+                    <Button
+                      type="button"
+                      disabled={choosingLimbo}
+                      onClick={() => handleLimboChoice('abyss')}
+                      className={`flex-1 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45 disabled:opacity-50 ${
+                        isFirstAscensionLimbo ? 'animate-pulse' : ''
+                      }`}
+                      style={isFirstAscensionLimbo ? {
+                        animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        boxShadow: '0 0 20px rgba(220, 38, 38, 0.8)',
+                      } : {}}
+                    >
+                      {choosingLimbo ? (
+                        <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                      ) : (
+                        'Throw in Abyss'
+                      )}
+                    </Button>
                   )}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={choosingLimbo}
-                  onClick={() => handleLimboChoice('abyss')}
-                  className={`flex-1 rounded-full border border-red-500/60 bg-red-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-600/45 disabled:opacity-50 ${
-                    isFirstAscensionLimbo ? 'animate-pulse' : ''
-                  }`}
-                  style={isFirstAscensionLimbo ? {
-                    animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    boxShadow: '0 0 20px rgba(220, 38, 38, 0.8)',
-                  } : {}}
-                >
-                  {choosingLimbo ? (
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                  ) : (
-                    'Throw in Abyss'
-                  )}
-                </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Limbo Section */}
         {limboImages.length > 0 && (

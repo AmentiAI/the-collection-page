@@ -1532,45 +1532,45 @@ function SummonList({
                 )}
               </div>
               {/* Universal full-width participant row for all modes */}
-              <div className="md:col-span-3">
+                <div className="md:col-span-3">
                 <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {summon.participants.map((participant) => {
-                    const pillClass = [
-                      'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
-                      participant.completed
-                        ? 'border-emerald-500/50 text-emerald-200'
-                        : participant.role === 'creator'
-                        ? 'border-red-500/60 text-red-200'
-                        : 'border-red-400/40 text-red-200/80',
-                    ].join(' ')
-                    const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
-                    const displayName = abbreviateName(fullDisplayName)
-                    const displayInitials = participant.username
-                      ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
-                      : truncateWallet(participant.wallet).slice(0, 2)
-                    return (
+                    {summon.participants.map((participant) => {
+                      const pillClass = [
+                        'rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-1.5',
+                        participant.completed
+                          ? 'border-emerald-500/50 text-emerald-200'
+                          : participant.role === 'creator'
+                          ? 'border-red-500/60 text-red-200'
+                          : 'border-red-400/40 text-red-200/80',
+                      ].join(' ')
+                      const fullDisplayName = participant.username?.trim() || truncateWallet(participant.wallet)
+                      const displayName = abbreviateName(fullDisplayName)
+                      const displayInitials = participant.username
+                        ? participant.username.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || truncateWallet(participant.wallet).slice(0, 2)
+                        : truncateWallet(participant.wallet).slice(0, 2)
+                      return (
                       <span key={participant.id} className={`${pillClass} w-full min-w-0`}>
-                        {participant.avatarUrl ? (
-                          <Image
-                            src={participant.avatarUrl}
-                            alt={displayName}
-                            width={16}
-                            height={16}
-                            className="h-4 w-4 rounded-full border border-red-700/50"
-                          />
-                        ) : (
-                          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
-                            {displayInitials}
-                          </span>
-                        )}
-                        <span className="hidden sm:inline">{displayName}</span>
-                        <span className="sm:hidden">{displayInitials}</span>
-                        {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
-                      </span>
-                    )
-                  })}
+                          {participant.avatarUrl ? (
+                            <Image
+                              src={participant.avatarUrl}
+                              alt={displayName}
+                              width={16}
+                              height={16}
+                              className="h-4 w-4 rounded-full border border-red-700/50"
+                            />
+                          ) : (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-700/50 bg-black/70 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
+                              {displayInitials}
+                            </span>
+                          )}
+                          <span className="hidden sm:inline">{displayName}</span>
+                          <span className="sm:hidden">{displayInitials}</span>
+                          {participant.completed && <CheckCircle2 className="ml-1 h-3 w-3" />}
+                        </span>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
             </div>
           </div>
         )
