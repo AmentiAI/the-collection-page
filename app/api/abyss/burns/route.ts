@@ -133,7 +133,8 @@ export async function GET(request: NextRequest) {
       
       // Count ordinals in abyss_burns that:
       // 1. Have inscription_id starting with "ascended_" (successful ascensions thrown back to abyss)
-      // 2. OR have reached 500+ ascension powder (first ascension completed)
+      // 2. OR have reached 500+ ascension powder with source != 'ascension' (first ascension completed)
+      // 3. OR have reached 1000+ ascension powder with source = 'ascension' (second ascension completed)
       const abyssBurnsRes = await pool.query(
         `
           SELECT COUNT(*)::int AS count
@@ -141,7 +142,8 @@ export async function GET(request: NextRequest) {
           WHERE status = 'confirmed' 
             AND (
               LOWER(inscription_id) LIKE 'ascended_%'
-              OR ascension_powder >= 500
+              OR (ascension_powder >= 500 AND source != 'ascension')
+              OR (ascension_powder >= 1000 AND source = 'ascension')
             )
         `,
       )
