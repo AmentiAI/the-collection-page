@@ -860,7 +860,7 @@ function GraveyardContent() {
                     <Button
                       type="button"
                       disabled={!selectedLimboToBurn}
-                      onClick={() => {
+                      onClick={async () => {
                         if (selectedLimboToBurn) {
                           if (selectedLimboToBurn.startsWith('limbo_')) {
                             // Handle limbo selection
@@ -872,28 +872,70 @@ function GraveyardContent() {
                               setSelectedLimboToBurn(null)
                             }
                           } else if (selectedLimboToBurn.startsWith('graveyard_')) {
-                            // Handle graveyard entry selection - close modal and scroll to the selected entry
+                            // Handle graveyard entry selection - mark as hidden (burned), then proceed with second ascension
                             const inscriptionId = selectedLimboToBurn.replace('graveyard_', '')
                             const selectedEntry = burnableGraveyardEntries.find((e) => e.inscriptionId === inscriptionId)
-                            if (selectedEntry) {
-                              // Close the warning modal
-                              setSecondAscensionWarning(null)
-                              setSelectedLimboToBurn(null)
-                              
-                              // Scroll to the selected entry and highlight it
-                              setTimeout(() => {
-                                const element = document.querySelector(`[data-inscription-id="${inscriptionId}"]`)
-                                if (element) {
-                                  element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                  // Add a temporary highlight class
-                                  element.classList.add('ring-4', 'ring-amber-500', 'ring-offset-2')
-                                  setTimeout(() => {
-                                    element.classList.remove('ring-4', 'ring-amber-500', 'ring-offset-2')
-                                  }, 3000)
+                            if (selectedEntry && secondAscensionWarning) {
+                              // Mark the selected entry as hidden (burned)
+                              try {
+                                const hideResponse = await fetch(
+                                  `/api/abyss/burns/${encodeURIComponent(inscriptionId)}/hide`,
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ walletAddress: ordinalAddress }),
+                                  },
+                                )
+                                
+                                const hidePayload = await hideResponse.json().catch(() => null)
+                                
+                                if (!hideResponse.ok || !hidePayload?.success) {
+                                  throw new Error(hidePayload?.error ?? 'Failed to mark entry as burned.')
                                 }
-                              }, 100)
-                              
-                              toast.info('Selected entry highlighted. Ascend this ordinal to 500 powder, then choose "Throw in Abyss" when prompted.')
+                                
+                                // Reload graveyard to reflect the hidden entry
+                                await loadGraveyard()
+                                
+                                // Close the warning modal
+                                setSecondAscensionWarning(null)
+                                setSelectedLimboToBurn(null)
+                                
+                                // Now proceed with the second ascension on the original entry
+                                const originalEntry = secondAscensionWarning
+                                setAscending(originalEntry.inscriptionId)
+                                
+                                const ascendResponse = await fetch(
+                                  `/api/abyss/burns/${encodeURIComponent(originalEntry.inscriptionId)}/final-ascend`,
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ walletAddress: ordinalAddress }),
+                                  },
+                                )
+                                
+                                const ascendPayload = await ascendResponse.json().catch(() => null)
+                                
+                                if (!ascendResponse.ok || !ascendPayload?.success) {
+                                  throw new Error(ascendPayload?.error ?? 'Failed to ascend.')
+                                }
+                                
+                                // Show limbo modal with generated image
+                                setSelectedLimbo({
+                                  id: ascendPayload.limboId,
+                                  imageUrl: ascendPayload.imageUrl,
+                                  sourceInscriptionId: originalEntry.inscriptionId,
+                                })
+                                
+                                // Reload graveyard and limbo
+                                await loadGraveyard()
+                                await loadLimboAndMintQueue()
+                                
+                                toast.success('Entry burned. Mutant monster generated! Choose its fate.')
+                              } catch (err) {
+                                const message = err instanceof Error ? err.message : 'Failed to process burn and ascension.'
+                                toast.error(message)
+                                setAscending(null)
+                              }
                             }
                           }
                         }
