@@ -107,8 +107,8 @@ function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; time
   
   const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
   
-  // Closed from 1:00 AM to 9:00 AM EST
-  const isClosed = estHour >= 1 && estHour < 9
+  // Closed from 10:00 PM to 9:00 AM EST
+  const isClosed = estHour >= 22 || estHour < 9
   
   // Get full EST date components
   const estDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -144,25 +144,23 @@ function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; time
     const timeUntilOpen = secondsUntil9 * 1000
     return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
   } else {
-    // Calculate time until 1:00 AM EST (when it closes)
-    // At 12:14 AM, we have 46 minutes until 1:00 AM
-    // At 1:30 AM, we have 23.5 hours until next day's 1:00 AM
+    // Calculate time until 10:00 PM EST (when it closes)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 1 * 3600 // 1 AM = 3600 seconds
+    const targetTotalSeconds = 22 * 3600 // 10 PM = 79200 seconds
     
-    let secondsUntil1 = targetTotalSeconds - currentTotalSeconds
+    let secondsUntil10 = targetTotalSeconds - currentTotalSeconds
     
-    // If we're at or past 1 AM (hour >= 1), we need tomorrow's 1 AM
-    if (currentHour >= 1) {
-      secondsUntil1 += 24 * 3600
+    // If we're at or past 10 PM (hour >= 22), we need tomorrow's 10 PM
+    if (currentHour >= 22) {
+      secondsUntil10 += 24 * 3600
     }
-    // If we're before 1 AM (hour < 1), secondsUntil1 should already be positive
+    // If we're before 10 PM, secondsUntil10 should already be positive
     // But if somehow it's negative or zero, add 24 hours as safety
-    if (secondsUntil1 <= 0) {
-      secondsUntil1 += 24 * 3600
+    if (secondsUntil10 <= 0) {
+      secondsUntil10 += 24 * 3600
     }
     
-    const timeUntilClose = secondsUntil1 * 1000
+    const timeUntilClose = secondsUntil10 * 1000
     
     // Debug logging (remove after testing)
     if (typeof window !== 'undefined') {
@@ -171,9 +169,9 @@ function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; time
         estMinute: currentMinute,
         currentTotalSeconds,
         targetTotalSeconds,
-        secondsUntil1,
+        secondsUntil10,
         timeUntilClose,
-        timeUntilCloseMinutes: Math.floor(secondsUntil1 / 60),
+        timeUntilCloseMinutes: Math.floor(secondsUntil10 / 60),
       })
     }
     
@@ -422,7 +420,7 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setNow(Date.now())
-      // Check if abyss-summon is closed (1 AM to 9 AM EST)
+      // Check if abyss-summon is closed (10 PM to 9 AM EST)
       setAbyssClosed(isAbyssSummonClosed())
     }, 1000)
     // Initial check
@@ -1319,7 +1317,7 @@ export default function AbyssSummonPage() {
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
-        {/* Closed State - Show if abyss-summon is closed (midnight to 10AM EST) */}
+        {/* Closed State - Show if abyss-summon is closed (10 PM to 9 AM EST) */}
         {abyssClosed.isClosed && (
           <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
             <div className="flex flex-col items-center justify-center gap-6 text-center">
@@ -1328,7 +1326,7 @@ export default function AbyssSummonPage() {
                 Summoning Closed
               </h2>
               <p className="text-sm font-mono uppercase tracking-[0.3em] text-red-300/80">
-                The abyss-summon area is closed from 1:00 AM to 9:00 AM EST each day.
+                The abyss-summon area is closed from 10:00 PM to 9:00 AM EST each day.
               </p>
               <div className="mt-4 flex flex-col items-center gap-2">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">
