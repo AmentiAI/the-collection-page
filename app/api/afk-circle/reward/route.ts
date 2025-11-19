@@ -4,6 +4,9 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
+const MAX_AFK_PARTICIPANTS = 100
+
 // Cron job endpoint: Grant +1 ascension_powder per ordinal in AFK circle
 // Should be called hourly
 export async function GET(request: NextRequest) {
@@ -22,14 +25,31 @@ export async function GET(request: NextRequest) {
 
     // Ensure infrastructure exists
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS afk_circles (
+        id UUID PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'open',
+        required_participants INTEGER NOT NULL DEFAULT ${MAX_AFK_PARTICIPANTS},
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    
+    await pool.query(`
+      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+      VALUES ($1, 'open', $2, NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `, [AFK_CIRCLE_ID, MAX_AFK_PARTICIPANTS])
+    
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS afk_circle_participants (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
         wallet TEXT NOT NULL,
         inscription_id TEXT NOT NULL,
         inscription_image TEXT,
         joined_at TIMESTAMPTZ DEFAULT NOW(),
         last_reward_at TIMESTAMPTZ,
-        UNIQUE(wallet, inscription_id)
+        UNIQUE(circle_id, wallet, inscription_id)
       )
     `)
     await pool.query(`
@@ -45,11 +65,12 @@ export async function GET(request: NextRequest) {
     await pool.query('BEGIN')
 
     try {
-      // Get all participants
+      // Get all participants from the AFK circle
       const participantsRes = await pool.query(`
         SELECT wallet, inscription_id
         FROM afk_circle_participants
-      `)
+        WHERE circle_id = $1
+      `, [AFK_CIRCLE_ID])
 
       const participants = participantsRes.rows
       let granted = 0
@@ -85,9 +106,9 @@ export async function GET(request: NextRequest) {
           `
             UPDATE afk_circle_participants
             SET last_reward_at = NOW()
-            WHERE LOWER(wallet) = LOWER($1) AND inscription_id = $2
+            WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2) AND inscription_id = $3
           `,
-          [wallet, participant.inscription_id],
+          [AFK_CIRCLE_ID, wallet, participant.inscription_id],
         )
 
         granted++

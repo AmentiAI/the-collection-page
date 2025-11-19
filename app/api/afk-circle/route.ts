@@ -6,21 +6,43 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const MAX_AFK_PARTICIPANTS = 100
+const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
 
 async function ensureAfkCircleInfrastructure(pool: Pool) {
+  // Create the single AFK circle table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS afk_circles (
+      id UUID PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'open',
+      required_participants INTEGER NOT NULL DEFAULT ${MAX_AFK_PARTICIPANTS},
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  
+  // Create the default AFK circle if it doesn't exist
+  await pool.query(`
+    INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+    VALUES ($1, 'open', $2, NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING
+  `, [AFK_CIRCLE_ID, MAX_AFK_PARTICIPANTS])
+  
+  // Create participants table that references the circle
   await pool.query(`
     CREATE TABLE IF NOT EXISTS afk_circle_participants (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
       wallet TEXT NOT NULL,
       inscription_id TEXT NOT NULL,
       inscription_image TEXT,
       joined_at TIMESTAMPTZ DEFAULT NOW(),
       last_reward_at TIMESTAMPTZ,
-      UNIQUE(wallet, inscription_id)
+      UNIQUE(circle_id, wallet, inscription_id)
     )
   `)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_wallet ON afk_circle_participants((LOWER(wallet)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_inscription ON afk_circle_participants(inscription_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_circle_id ON afk_circle_participants(circle_id)`)
 }
 
 // GET: Fetch AFK circle status and user's participants
@@ -32,11 +54,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const walletParam = searchParams.get('wallet')?.trim()
 
-    // Get total count
+    // Get total count for the AFK circle
     const totalRes = await pool.query(`
       SELECT COUNT(*)::int AS total
       FROM afk_circle_participants
-    `)
+      WHERE circle_id = $1
+    `, [AFK_CIRCLE_ID])
     const totalCount = Number(totalRes.rows[0]?.total ?? 0)
 
     // Get user's participants if wallet provided
@@ -52,10 +75,10 @@ export async function GET(request: NextRequest) {
             joined_at,
             last_reward_at
           FROM afk_circle_participants
-          WHERE LOWER(wallet) = LOWER($1)
+          WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
           ORDER BY joined_at DESC
         `,
-        [walletParam],
+        [AFK_CIRCLE_ID, walletParam],
       )
       userParticipants = userRes.rows.map((row) => ({
         id: row.id,
@@ -126,7 +149,8 @@ export async function POST(request: NextRequest) {
       const countRes = await pool.query(`
         SELECT COUNT(*)::int AS total
         FROM afk_circle_participants
-      `)
+        WHERE circle_id = $1
+      `, [AFK_CIRCLE_ID])
       const currentCount = Number(countRes.rows[0]?.total ?? 0)
       
       if (currentCount >= MAX_AFK_PARTICIPANTS) {
@@ -141,9 +165,9 @@ export async function POST(request: NextRequest) {
       const existingRes = await pool.query(
         `
           SELECT id FROM afk_circle_participants
-          WHERE inscription_id = $1
+          WHERE circle_id = $1 AND inscription_id = $2
         `,
-        [inscriptionId],
+        [AFK_CIRCLE_ID, inscriptionId],
       )
 
       if (existingRes.rows.length > 0) {
@@ -190,13 +214,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Add to AFK circle
+      // Add to AFK circle (the single default circle)
       await pool.query(
         `
-          INSERT INTO afk_circle_participants (wallet, inscription_id, inscription_image)
-          VALUES ($1, $2, $3)
+          INSERT INTO afk_circle_participants (circle_id, wallet, inscription_id, inscription_image)
+          VALUES ($1, $2, $3, $4)
         `,
-        [wallet, inscriptionId, inscriptionImage],
+        [AFK_CIRCLE_ID, wallet, inscriptionId, inscriptionImage],
       )
 
       await pool.query('COMMIT')
@@ -238,10 +262,10 @@ export async function DELETE(request: NextRequest) {
     const result = await pool.query(
       `
         DELETE FROM afk_circle_participants
-        WHERE LOWER(wallet) = LOWER($1) AND inscription_id = $2
+        WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2) AND inscription_id = $3
         RETURNING id
       `,
-      [wallet, inscriptionId],
+      [AFK_CIRCLE_ID, wallet, inscriptionId],
     )
 
     if (result.rows.length === 0) {
