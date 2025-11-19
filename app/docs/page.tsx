@@ -213,7 +213,7 @@ export default function DocsPage() {
                   <li>30 minute duration for 40-man, 20 minutes for 20-man</li>
                   <li>Burn window opens in last 3 minutes</li>
                   <li>36 of 40 must complete (or 18 of 20)</li>
-                  <li><strong>Rewards:</strong> 16 powder (host) • 12 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 14 powder (host) • 10 powder (participants)</li>
                 </ul>
               </div>
 
@@ -233,7 +233,7 @@ export default function DocsPage() {
                 <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
                   <li>Single permanent circle (max 100 participants)</li>
                   <li>No time limit, no completion required</li>
-                  <li>Deposit ordinals to earn +1 powder per ordinal every hour</li>
+                  <li>Deposit ordinals to earn +2 powder per ordinal every hour</li>
                   <li>Can add/remove ordinals anytime</li>
                   <li>Ordinals in AFK circle cannot be used in other circles</li>
                   <li>Automatically rewards every hour on the hour</li>

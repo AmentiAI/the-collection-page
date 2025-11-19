@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
 const MAX_AFK_PARTICIPANTS = 100
 
-// Cron job endpoint: Grant +1 ascension_powder per ordinal in AFK circle
+// Cron job endpoint: Grant +2 ascension_powder per ordinal in AFK circle
 // Should be called hourly
 export async function GET(request: NextRequest) {
   try {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       let granted = 0
       let errors = 0
 
-      // Grant +1 powder per ordinal
+      // Grant +2 powder per ordinal
       for (const participant of participants) {
         const wallet = participant.wallet
 
@@ -90,11 +90,11 @@ export async function GET(request: NextRequest) {
           [wallet],
         )
 
-        // Grant +1 ascension powder
+        // Grant +2 ascension powder
         await pool.query(
           `
             UPDATE profiles
-            SET ascension_powder = COALESCE(ascension_powder, 0) + 1,
+            SET ascension_powder = COALESCE(ascension_powder, 0) + 2,
                 updated_at = NOW()
             WHERE LOWER(wallet_address) = LOWER($1)
           `,
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Granted +1 ascension powder to ${granted} participants.`,
+        message: `Granted +2 ascension powder to ${granted} participants.`,
         granted,
         errors,
       })

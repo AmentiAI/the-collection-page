@@ -8,8 +8,8 @@ const COMPLETION_WINDOW_MS = 3 * 60 * 1000 // Last 3 minutes
 const MIN_COMPLETION_COUNT_DEFAULT = 36 // fallback for 40-man circles
 const BURN_WINDOW_DURATION_40_MAN_MS = 60 * 60 * 1000 // 1 hour for 40-man circles
 const BURN_WINDOW_DURATION_20_MAN_MS = 30 * 60 * 1000 // 30 minutes for 20-man circles
-const POWDER_REWARD_HOST = 16
-const POWDER_REWARD_PARTICIPANT = 12
+const POWDER_REWARD_HOST = 14
+const POWDER_REWARD_PARTICIPANT = 10
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
@@ -321,7 +321,7 @@ export async function POST(
         }
       }
 
-      // Grant ascension powder to all participants (host gets 6, others get 4)
+      // Grant ascension powder to all participants (host gets 14, others get 10)
       const creatorWallet = (circle.creator_wallet ?? '').toString().toLowerCase()
       for (const row of participants) {
         const participantWallet = (row.wallet ?? '').toString().trim()

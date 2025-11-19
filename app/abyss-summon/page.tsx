@@ -1508,7 +1508,7 @@ export default function AbyssSummonPage() {
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li><strong>20 seats:</strong> Opens the burning abyss to people with burn tokens</li>
                     <li><strong>40 seats:</strong> Opens it to anyone to burn</li>
-                    <li>Also gives ascension_powder (8 for host, 6 for participants)</li>
+                    <li>Also gives ascension_powder (14 for host, 10 for participants)</li>
                   </ul>
                 </div>
               ) : IS_DEAD_DEMONS_MODE ? (
@@ -1893,7 +1893,7 @@ export default function AbyssSummonPage() {
                       AFK Circle
                     </h2>
                     <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                      Deposit ordinals to earn +1 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
+                      Deposit ordinals to earn +2 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
                     </p>
           </div>
                   {afkCircleLoading && <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />}
@@ -1949,7 +1949,7 @@ export default function AbyssSummonPage() {
                                   {participant.inscriptionId.slice(0, 12)}…{participant.inscriptionId.slice(-8)}
                                 </p>
                                 <p className="text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
-                                  Earns +1/hour
+                                  Earns +2/hour
                                 </p>
                               </div>
                               <Button
