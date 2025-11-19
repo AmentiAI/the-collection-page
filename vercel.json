@@ -3,6 +3,10 @@
     {
       "path": "/api/holders/cron-check",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/afk-circle/reward",
+      "schedule": "0 * * * *"
     }
   ]
 }

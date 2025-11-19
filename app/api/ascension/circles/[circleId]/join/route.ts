@@ -192,6 +192,34 @@ export async function POST(
       )
     }
 
+    // Check if inscription is in AFK circle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS afk_circle_participants (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        wallet TEXT NOT NULL,
+        inscription_id TEXT NOT NULL,
+        inscription_image TEXT,
+        joined_at TIMESTAMPTZ DEFAULT NOW(),
+        last_reward_at TIMESTAMPTZ,
+        UNIQUE(wallet, inscription_id)
+      )
+    `)
+    
+    const afkConflict = await pool.query(
+      `SELECT 1 FROM afk_circle_participants WHERE inscription_id = $1 LIMIT 1`,
+      [inscriptionId],
+    )
+    if (afkConflict.rows.length > 0) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'This ordinal is currently in the AFK circle. Remove it from the AFK circle first.',
+        },
+        { status: 409 },
+      )
+    }
+
     const inscriptionConflict = await pool.query(
       `
         SELECT c.id
