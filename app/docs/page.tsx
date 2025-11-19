@@ -220,7 +220,7 @@ export default function DocsPage() {
               <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
                 <h4 className="mb-2 text-base font-semibold text-purple-300">Dead Demons Circles</h4>
                 <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
-                  <li>Requires ascended inscriptions</li>
+                  <li>Requires a dead graveyard unminted demon.</li>
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
                   <li>All 10 must complete in the last 1 minute</li>
@@ -303,7 +303,7 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
-              <li>Must have at least one unlisted Damned ordinal to view</li>
+              <li>Must have at least one unlisted Damned ordinal, or no listing and at least 1 graveyard ordinal</li>
               <li>Your rank is highlighted if you&apos;re on the leaderboard</li>
               <li>Shows username, avatar (if Discord linked), and wallet address</li>
             </ul>
