@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         const { calculateOrdinalKarmaForWallet } = await import('@/lib/karma-utils')
         
         // 1. Scan activity history for purchases/creates
-        const scanResult = await scanActivitiesForWallet(walletAddress, chosenSide, profileId, pool)
+        const scanResult = await scanActivitiesForWallet(walletAddress, chosenSide, String(profileId), pool)
         console.log(`✅ Scanned activities:`, scanResult)
         
         // 2. Recalculate ordinal ownership karma (force recalculation since we just reset)

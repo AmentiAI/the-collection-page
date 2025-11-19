@@ -199,7 +199,7 @@ function ProfileContent() {
         {/* Abyss Stats Card */}
         <section className="rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
           <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Abyss</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div className="flex flex-col items-center justify-center rounded-2xl border border-red-600/40 bg-black/60 px-6 py-6 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-red-300/80">Total Sacrifices</span>
               <div className="mt-2">
@@ -209,6 +209,10 @@ function ProfileContent() {
             <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(251,191,36,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80">Total Ascended / Revived</span>
               <AscensionTotal />
+            </div>
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-purple-500/40 bg-purple-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(168,85,247,0.25)]">
+              <span className="text-[11px] uppercase tracking-[0.35em] text-purple-200/80">Total Demons Revived</span>
+              <DemonsRevivedTotal />
             </div>
           </div>
         </section>
@@ -690,6 +694,40 @@ function AscensionTotal() {
     return <span className="mt-2 text-3xl font-black text-amber-200">…</span>
   }
   return <span className="mt-2 text-3xl font-black text-amber-200">{count ?? 0}</span>
+}
+
+function DemonsRevivedTotal() {
+  const [count, setCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/abyss/burns?demonsRevived=true', { headers: { 'Cache-Control': 'no-store' } })
+        if (!res.ok) {
+          throw new Error(`Failed (${res.status})`)
+        }
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled) {
+          const n = Number(data?.demonsRevived ?? 0)
+          setCount(Number.isFinite(n) ? n : 0)
+        }
+      } catch {
+        if (!cancelled) setCount(0)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  if (loading && count === null) {
+    return <span className="mt-2 text-3xl font-black text-purple-200">…</span>
+  }
+  return <span className="mt-2 text-3xl font-black text-purple-200">{count ?? 0}</span>
 }
 
 function useProfileState() {

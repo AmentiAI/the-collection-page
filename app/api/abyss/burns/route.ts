@@ -150,6 +150,40 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, ascensionTotal: totalCount })
     }
 
+    // Return total demons revived (first ascensions only - source_inscription_id doesn't start with "ascended_")
+    if (searchParams.get('demonsRevived') === 'true') {
+      // Ensure ascended_images_mint_queue table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+          wallet_address TEXT NOT NULL,
+          image_url TEXT NOT NULL,
+          image_blob_url TEXT,
+          source_inscription_id TEXT NOT NULL,
+          generation_prompt TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      
+      // Count demons revived:
+      // Count entries in ascended_images_mint_queue where source_inscription_id does NOT start with "ascended_"
+      // These are first ascensions (revived demons) saved for mint
+      
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demonsCount = Number(demonsRes.rows[0]?.count ?? 0)
+      return NextResponse.json({ success: true, demonsRevived: demonsCount })
+    }
+
     if (searchParams.get('ids') === 'inscriptions') {
       const result = await pool.query(`SELECT inscription_id FROM abyss_burns`)
       const ids = result.rows
