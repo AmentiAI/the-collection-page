@@ -1787,6 +1787,7 @@ export default function AbyssSummonPage() {
                   { key: 'afk', label: 'AFK Circle' },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key
+                  const isAfkTab = tab.key === 'afk'
                   return (
                     <button
                       key={tab.key}
@@ -1794,7 +1795,11 @@ export default function AbyssSummonPage() {
                       onClick={() => setActiveTab(tab.key as typeof activeTab)}
                       className={`rounded-full border px-4 py-2 text-[11px] font-mono uppercase tracking-[0.35em] transition ${
                         isActive
-                          ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
+                          ? isAfkTab
+                            ? 'border-cyan-500 bg-cyan-700/80 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.45)]'
+                            : 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
+                          : isAfkTab
+                          ? 'border-cyan-700/50 bg-black/40 text-cyan-200/80 hover:border-cyan-500/70'
                           : 'border-red-700/50 bg-black/40 text-red-200/80 hover:border-red-500/70'
                       }`}
                     >
