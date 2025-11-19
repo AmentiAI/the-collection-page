@@ -526,8 +526,8 @@ export default function AbyssSummonPage() {
           }
         } else {
           rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE || IS_AFK_MODE
-            ? Number(data?.powderBalance ?? 0)
-            : Number(data?.bonusAllowance ?? 0)
+          ? Number(data?.powderBalance ?? 0)
+          : Number(data?.bonusAllowance ?? 0)
         }
         setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
         

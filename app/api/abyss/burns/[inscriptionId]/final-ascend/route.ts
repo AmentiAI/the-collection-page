@@ -7,6 +7,7 @@ import { put } from '@vercel/blob'
 import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 180
 
 const ASCENSION_TARGET_FIRST = 500
 const ASCENSION_TARGET_SECOND = 1000
@@ -127,11 +128,25 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
   const MONSTER_TRANSFORMATION_SUFFIX =
     '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is gold plated.'
   
-  const ANGELIC_TRANSFORMATION_SUFFIX =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving some monsterous features but making them clean, and beautiful angelic monster; eliminate legs from view glowing with holy light; has angelic hair; same head trait but halo added; border starts at first pixel'
+  const MONSTER_TRANSFORMATION_SUFFIX_SILVER =
+    '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is silver plated.'
+  
+  // Angelic transformation variants: 90% standard, 10% with holy light
+  const ANGELIC_TRANSFORMATION_SUFFIX_STANDARD =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving some monsterous features but making them clean, and beautiful angelic monster; eliminate legs from view; has angelic hair; same head trait but halo added; border starts at first pixel'
+  
+  const ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving some monsterous features but making them clean, and beautiful angelic monster; eliminate legs from view; glowing with holy light; has angelic hair; same head trait but halo added; border starts at first pixel'
   
   // Choose transformation suffix based on ascension level
-  const transformationSuffix = isSecondAscension ? ANGELIC_TRANSFORMATION_SUFFIX : MONSTER_TRANSFORMATION_SUFFIX
+  // For second ascension, 90% standard, 10% holy light variant
+  let transformationSuffix: string
+  const random = Math.random()
+  if (isSecondAscension) {
+    transformationSuffix = random < 0.1 ? ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT : ANGELIC_TRANSFORMATION_SUFFIX_STANDARD
+  } else {
+    transformationSuffix = random < 0.1 ? MONSTER_TRANSFORMATION_SUFFIX_SILVER : MONSTER_TRANSFORMATION_SUFFIX
+  }
   
   // Use ensureTransformationPrompt function logic
   function ensureTransformationPrompt(promptText: string, suffix: string, isSecondAscension: boolean): string {
@@ -143,33 +158,11 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     // For first ascension, we want to replace any existing transformation with MONSTER
     if (isSecondAscension) {
       // Second ascension: Check if ANGELIC is already present
-      // If not, add it to the end (keep MONSTER)
-      if (lowerPrompt.includes(lowerSuffix)) {
-        return trimmedPrompt // ANGELIC already present
-      }
       return `${trimmedPrompt}\n\n${suffix}` // Add ANGELIC to existing prompt (which should have MONSTER)
     } else {
-      // First ascension: Remove any existing transformation suffixes, then add MONSTER
-      let cleanedPrompt = trimmedPrompt
-      // Remove monster suffix if present
-      const monsterLower = MONSTER_TRANSFORMATION_SUFFIX.toLowerCase()
-      if (lowerPrompt.includes(monsterLower)) {
-        const monsterIndex = lowerPrompt.indexOf(monsterLower)
-        cleanedPrompt = (trimmedPrompt.slice(0, monsterIndex) + trimmedPrompt.slice(monsterIndex + MONSTER_TRANSFORMATION_SUFFIX.length)).trim()
-      }
-      // Remove angelic suffix if present
-      const angelicLower = ANGELIC_TRANSFORMATION_SUFFIX.toLowerCase()
-      const cleanedLower = cleanedPrompt.toLowerCase()
-      if (cleanedLower.includes(angelicLower)) {
-        const angelicIndex = cleanedLower.indexOf(angelicLower)
-        cleanedPrompt = (cleanedPrompt.slice(0, angelicIndex) + cleanedPrompt.slice(angelicIndex + ANGELIC_TRANSFORMATION_SUFFIX.length)).trim()
-      }
-      
-      // Check if MONSTER is already present
-      if (cleanedPrompt.toLowerCase().includes(lowerSuffix)) {
-        return cleanedPrompt
-      }
-      return `${cleanedPrompt}\n\n${suffix}`
+      // First ascension: Just add the MONSTER suffix
+      // (No cleanup needed - there would never be an existing monster transformation on first ascension)
+      return `${trimmedPrompt}\n\n${suffix}`
     }
   }
   
