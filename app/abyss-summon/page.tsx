@@ -220,7 +220,7 @@ export default function AbyssSummonPage() {
   const [joinedSummons, setJoinedSummons] = useState<SummonRecord[]>([])
   const [summonsLoading, setSummonsLoading] = useState(false)
   const [bonusAllowance, setBonusAllowance] = useState(0)
-  const [activeTab, setActiveTab] = useState<'active' | 'created' | 'joined'>('active')
+  const [activeTab, setActiveTab] = useState<'active' | 'created' | 'joined' | 'afk'>('active')
 
   const [damnedOptions, setDamnedOptions] = useState<DamnedOption[]>([])
   const [damnedLoading, setDamnedLoading] = useState(false)
@@ -1784,6 +1784,7 @@ export default function AbyssSummonPage() {
                   { key: 'active', label: 'Active Circles' },
                   { key: 'created', label: 'Circles Founded' },
                   { key: 'joined', label: 'Circles Joined' },
+                  { key: 'afk', label: 'AFK Circle' },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key
                   return (
@@ -1880,172 +1881,175 @@ export default function AbyssSummonPage() {
                     />
                   </>
                 )}
-              </div>
-            </section>
+                {activeTab === 'afk' && (
+                  <>
+                    <h3 className="text-xs uppercase tracking-[0.35em] text-cyan-200">AFK Circle</h3>
+                    <div className="rounded-2xl border border-cyan-500/40 bg-cyan-900/20 p-6 shadow-[0_0_25px_rgba(34,211,238,0.35)] backdrop-blur">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-[0.35em] text-cyan-100">
+                              <Sparkles className="h-5 w-5 text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.6)]" />
+                              AFK Circle
+                            </h2>
+                            <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
+                              Deposit ordinals to earn +2 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
+                            </p>
+                          </div>
+                          {afkCircleLoading && <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />}
+                        </div>
 
-            {/* AFK Circle Section */}
-            <section className="rounded-2xl border border-cyan-500/40 bg-cyan-900/20 p-6 shadow-[0_0_25px_rgba(34,211,238,0.35)] backdrop-blur">
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-[0.35em] text-cyan-100">
-                      <Sparkles className="h-5 w-5 text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.6)]" />
-                      AFK Circle
-                    </h2>
-                    <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                      Deposit ordinals to earn +2 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
-                    </p>
-          </div>
-                  {afkCircleLoading && <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />}
-        </div>
-
-                <div className="rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-200">Total Participants</span>
-                    <span className="text-lg font-black text-cyan-100">{afkCircleTotal} / 100</span>
-                  </div>
-                  {ordinalAddress && (
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-200">Your Ordinals</span>
-                      <span className="text-lg font-black text-cyan-100">{afkCircleUserParticipants.length}</span>
-                    </div>
-                  )}
-                </div>
-
-                {ordinalAddress && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-200">
-                      Your AFK Circle Ordinals
-                    </h3>
-                    {afkCircleUserParticipants.length === 0 ? (
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                        No ordinals in AFK circle. Add ordinals from your stockpile below.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {afkCircleUserParticipants.map((participant) => {
-                          const isLeaving = afkCircleLeaving === participant.inscriptionId
-                          return (
-                            <div
-                              key={participant.id}
-                              className="flex items-center gap-3 rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-3 py-2"
-                            >
-                              <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded border border-cyan-700/40 bg-black/40">
-                                {participant.inscriptionImage ? (
-                                  <Image
-                                    src={participant.inscriptionImage}
-                                    alt={participant.inscriptionId}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                ) : (
-                                  <span className="flex h-full w-full items-center justify-center text-[8px] font-mono uppercase tracking-[0.3em] text-cyan-300">
-                                    NO IMG
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-200">
-                                  {participant.inscriptionId.slice(0, 12)}…{participant.inscriptionId.slice(-8)}
-                                </p>
-                                <p className="text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
-                                  Earns +2/hour
-                                </p>
-                              </div>
-                              <Button
-                                type="button"
-                                onClick={() => handleLeaveAfkCircle(participant.inscriptionId)}
-                                disabled={isLeaving}
-                                className="flex-shrink-0 border border-cyan-500/60 bg-cyan-700/80 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-100 hover:bg-cyan-600 disabled:opacity-50"
-                              >
-                                {isLeaving ? (
-                                  <>
-                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Removing…
-                                  </>
-                                ) : (
-                                  'Remove'
-                                )}
-                              </Button>
+                        <div className="rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-4 py-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-200">Total Participants</span>
+                            <span className="text-lg font-black text-cyan-100">{afkCircleTotal} / 100</span>
+                          </div>
+                          {ordinalAddress && (
+                            <div className="mt-2 flex items-center justify-between">
+                              <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-200">Your Ordinals</span>
+                              <span className="text-lg font-black text-cyan-100">{afkCircleUserParticipants.length}</span>
                             </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                          )}
+                        </div>
 
-                    <div className="mt-4 space-y-2">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-200">
-                        Add Ordinals to AFK Circle
-                      </h3>
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                        Select ordinals from your stockpile that are not in other circles:
-                      </p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {damnedOptions
-                          .filter((option) => {
-                            const inAfk = afkCircleUserParticipants.some((p) => p.inscriptionId === option.inscriptionId)
-                            const inOtherCircle = inscriptionsInCircles.has(option.inscriptionId) && !inAfk
-                            return !inAfk && !inOtherCircle
-                          })
-                          .map((option) => {
-                            const isJoining = afkCircleJoining === option.inscriptionId
-                            return (
-                              <button
-                                key={option.inscriptionId}
-                                type="button"
-                                onClick={() => handleJoinAfkCircle(option.inscriptionId)}
-                                disabled={isJoining || afkCircleTotal >= 100}
-                                className="flex w-full items-center gap-3 rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-3 py-2 text-left transition hover:border-cyan-400/60 hover:bg-cyan-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded border border-cyan-700/40 bg-black/40">
-                                  {option.image ? (
-                                    <Image
-                                      src={option.image}
-                                      alt={option.name ?? option.inscriptionId}
-                                      fill
-                                      className="object-cover"
-                                    />
-                                  ) : (
-                                    <span className="flex h-full w-full items-center justify-center text-[8px] font-mono uppercase tracking-[0.3em] text-cyan-300">
-                                      NO IMG
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                                    {option.name ?? option.inscriptionId.slice(0, 12)}
+                        {ordinalAddress && (
+                          <div className="space-y-3">
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-200">
+                              Your AFK Circle Ordinals
+                            </h3>
+                            {afkCircleUserParticipants.length === 0 ? (
+                              <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
+                                No ordinals in AFK circle. Add ordinals from your stockpile below.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {afkCircleUserParticipants.map((participant) => {
+                                  const isLeaving = afkCircleLeaving === participant.inscriptionId
+                                  return (
+                                    <div
+                                      key={participant.id}
+                                      className="flex items-center gap-3 rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-3 py-2"
+                                    >
+                                      <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded border border-cyan-700/40 bg-black/40">
+                                        {participant.inscriptionImage ? (
+                                          <Image
+                                            src={participant.inscriptionImage}
+                                            alt={participant.inscriptionId}
+                                            fill
+                                            className="object-cover"
+                                          />
+                                        ) : (
+                                          <span className="flex h-full w-full items-center justify-center text-[8px] font-mono uppercase tracking-[0.3em] text-cyan-300">
+                                            NO IMG
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="truncate text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-200">
+                                          {participant.inscriptionId.slice(0, 12)}…{participant.inscriptionId.slice(-8)}
+                                        </p>
+                                        <p className="text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
+                                          Earns +2/hour
+                                        </p>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        onClick={() => handleLeaveAfkCircle(participant.inscriptionId)}
+                                        disabled={isLeaving}
+                                        className="flex-shrink-0 border border-cyan-500/60 bg-cyan-700/80 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-100 hover:bg-cyan-600 disabled:opacity-50"
+                                      >
+                                        {isLeaving ? (
+                                          <>
+                                            <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Removing…
+                                          </>
+                                        ) : (
+                                          'Remove'
+                                        )}
+                                      </Button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+
+                            <div className="mt-4 space-y-2">
+                              <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-200">
+                                Add Ordinals to AFK Circle
+                              </h3>
+                              <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
+                                Select ordinals from your stockpile that are not in other circles:
+                              </p>
+                              <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {damnedOptions
+                                  .filter((option) => {
+                                    const inAfk = afkCircleUserParticipants.some((p) => p.inscriptionId === option.inscriptionId)
+                                    const inOtherCircle = inscriptionsInCircles.has(option.inscriptionId) && !inAfk
+                                    return !inAfk && !inOtherCircle
+                                  })
+                                  .map((option) => {
+                                    const isJoining = afkCircleJoining === option.inscriptionId
+                                    return (
+                                      <button
+                                        key={option.inscriptionId}
+                                        type="button"
+                                        onClick={() => handleJoinAfkCircle(option.inscriptionId)}
+                                        disabled={isJoining || afkCircleTotal >= 100}
+                                        className="flex w-full items-center gap-3 rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-3 py-2 text-left transition hover:border-cyan-400/60 hover:bg-cyan-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded border border-cyan-700/40 bg-black/40">
+                                          {option.image ? (
+                                            <Image
+                                              src={option.image}
+                                              alt={option.name ?? option.inscriptionId}
+                                              fill
+                                              className="object-cover"
+                                            />
+                                          ) : (
+                                            <span className="flex h-full w-full items-center justify-center text-[8px] font-mono uppercase tracking-[0.3em] text-cyan-300">
+                                              NO IMG
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
+                                            {option.name ?? option.inscriptionId.slice(0, 12)}
+                                          </p>
+                                          <p className="truncate text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
+                                            {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                                          </p>
+                                        </div>
+                                        {isJoining ? (
+                                          <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />
+                                        ) : (
+                                          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">
+                                            + Add
+                                          </span>
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                {damnedOptions.filter((option) => {
+                                  const inAfk = afkCircleUserParticipants.some((p) => p.inscriptionId === option.inscriptionId)
+                                  const inOtherCircle = inscriptionsInCircles.has(option.inscriptionId) && !inAfk
+                                  return !inAfk && !inOtherCircle
+                                }).length === 0 && (
+                                  <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
+                                    No available ordinals to add. All ordinals are either in the AFK circle or other active circles.
                                   </p>
-                                  <p className="truncate text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
-                                    {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
-                                  </p>
-                                </div>
-                                {isJoining ? (
-                                  <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />
-                                ) : (
-                                  <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">
-                                    + Add
-                                  </span>
                                 )}
-                              </button>
-                            )
-                          })}
-                        {damnedOptions.filter((option) => {
-                          const inAfk = afkCircleUserParticipants.some((p) => p.inscriptionId === option.inscriptionId)
-                          const inOtherCircle = inscriptionsInCircles.has(option.inscriptionId) && !inAfk
-                          return !inAfk && !inOtherCircle
-                        }).length === 0 && (
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {!ordinalAddress && (
                           <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                            No available ordinals to add. All ordinals are either in the AFK circle or other active circles.
+                            Connect your wallet to manage your AFK circle ordinals.
                           </p>
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {!ordinalAddress && (
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                    Connect your wallet to manage your AFK circle ordinals.
-                  </p>
+                  </>
                 )}
               </div>
             </section>

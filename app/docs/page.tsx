@@ -278,6 +278,40 @@ export default function DocsPage() {
       ),
     },
     {
+      id: 'summoners-leaderboard',
+      title: 'Summoners Leaderboard',
+      icon: <Trophy className="h-5 w-5 text-red-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              The Summoners Leaderboard tracks participation in summoning circles. Rankings are based on burns, hosting, and participation statistics. The reason for this leaderboard has not been announced yet.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ranking System</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Tracks total burns and confirmed burns</li>
+              <li>Counts circles hosted and participated in</li>
+              <li>Score calculated from these statistics</li>
+              <li>Leaderboard updates every 30 seconds</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Available on the Abyss Summoning page</li>
+              <li>Only active for standard summoning circles (not powder, portal, or dead demons modes)</li>
+              <li>Shows username, avatar (if Discord linked), and wallet address</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
       id: 'leaderboard',
       title: 'Ascension Leaderboard',
       icon: <Trophy className="h-5 w-5 text-amber-400" />,
