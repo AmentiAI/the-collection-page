@@ -23,7 +23,7 @@ function AccordionSection({ section, isOpen, onToggle }: { section: DocSection; 
       >
         <div className="flex items-center gap-3">
           {section.icon}
-          <h2 className="text-lg font-bold uppercase tracking-[0.2em] text-red-200">{section.title}</h2>
+          <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-red-200">{section.title}</h2>
         </div>
         {isOpen ? (
           <ChevronDown className="h-5 w-5 text-red-400" />
@@ -31,7 +31,7 @@ function AccordionSection({ section, isOpen, onToggle }: { section: DocSection; 
           <ChevronRight className="h-5 w-5 text-red-400" />
         )}
       </button>
-      {isOpen && <div className="px-4 pb-4 text-sm text-red-200/80">{section.content}</div>}
+      {isOpen && <div className="px-4 pb-4 text-base text-red-200/80">{section.content}</div>}
     </div>
   )
 }
@@ -59,14 +59,14 @@ export default function DocsPage() {
       content: (
         <div className="space-y-4">
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               Your profile tracks your karma, chosen side (Good or Evil), holder status, and social connections. Connect your wallet to view and manage your profile.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Holder Status</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Holder Status</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>You must have at least one unlisted Damned ordinal in your wallet to access certain features</li>
               <li>Marketplace listings are detected automatically</li>
@@ -76,7 +76,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Choosing a Side</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Choosing a Side</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Choose Good or Evil on the Dashboard</li>
               <li>Choosing a side <strong>wipes all existing karma records</strong> for your wallet</li>
@@ -86,7 +86,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Karma System</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Karma System</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Earn karma by completing tasks aligned with your chosen side</li>
               <li>Good karma: positive points for Good-aligned actions</li>
@@ -96,7 +96,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Social Connections</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Social Connections</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Link Discord to sync your username and avatar</li>
               <li>Link Twitter/X to bind your handle</li>
@@ -113,14 +113,14 @@ export default function DocsPage() {
       content: (
         <div className="space-y-4">
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               The Graveyard displays ordinals that have been sacrificed to the Abyss. Here you can spend ascension powder to revive and ascend them.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Ascension Powder</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ascension Powder</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Earned by participating in Summoning Circles</li>
               <li>Also earned hourly in the AFK Circle (1 per ordinal)</li>
@@ -130,7 +130,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">First Ascension</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">First Ascension</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>When an ordinal reaches 500 ascension powder, it can ascend</li>
               <li>Creates a new ascended image in &quot;Limbo&quot; status</li>
@@ -140,7 +140,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Second Ascension</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Second Ascension</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>After burning a first ascension, the original needs 1000 powder total for second ascension</li>
               <li>This creates a more powerful ascended version</li>
@@ -149,7 +149,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Grave Robbing</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Grave Robbing</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Costs 200 ascension powder per attempt</li>
               <li>Can only target ordinals that haven&apos;t been updated in 7+ days</li>
@@ -160,7 +160,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Limbo & Mint Queue</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Limbo & Mint Queue</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Limbo: Ascended images awaiting your choice (keep or burn)</li>
               <li>Mint Queue: Ordinals waiting to be minted as ascended inscriptions</li>
@@ -177,19 +177,19 @@ export default function DocsPage() {
       content: (
         <div className="space-y-4">
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 9 AM - 10 PM EST daily.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Circle Types</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Circle Types</h3>
             
             <div className="ml-4 space-y-3">
               <div className="rounded border border-amber-500/40 bg-amber-900/20 p-3">
-                <h4 className="mb-1 font-semibold text-amber-300">Ascension Circles (Powder Mode)</h4>
-                <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
+                <h4 className="mb-2 text-base font-semibold text-amber-300">Ascension Circles (Powder Mode)</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
                   <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
@@ -199,8 +199,8 @@ export default function DocsPage() {
               </div>
 
               <div className="rounded border border-indigo-500/40 bg-indigo-900/20 p-3">
-                <h4 className="mb-1 font-semibold text-indigo-300">Portal Circles (Damned Pool)</h4>
-                <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
+                <h4 className="mb-2 text-base font-semibold text-indigo-300">Portal Circles (Damned Pool)</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
                   <li><strong>20 seats:</strong> Bonus burns only (requires burn tokens)</li>
                   <li><strong>40 seats:</strong> Open to all</li>
                   <li>30 minute duration for 40-man, 20 minutes for 20-man</li>
@@ -211,8 +211,8 @@ export default function DocsPage() {
               </div>
 
               <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
-                <h4 className="mb-1 font-semibold text-purple-300">Dead Demons Circles</h4>
-                <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
+                <h4 className="mb-2 text-base font-semibold text-purple-300">Dead Demons Circles</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
                   <li>Requires ascended inscriptions (ID starts with &quot;ascended_&quot;)</li>
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
@@ -222,8 +222,8 @@ export default function DocsPage() {
               </div>
 
               <div className="rounded border border-cyan-500/40 bg-cyan-900/20 p-3">
-                <h4 className="mb-1 font-semibold text-cyan-300">AFK Circle</h4>
-                <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
+                <h4 className="mb-2 text-base font-semibold text-cyan-300">AFK Circle</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
                   <li>Single permanent circle (max 100 participants)</li>
                   <li>No time limit, no completion required</li>
                   <li>Deposit ordinals to earn +1 powder per ordinal every hour</li>
@@ -236,7 +236,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">How to Participate</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">How to Participate</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li><strong>Host:</strong> Select an ordinal and click &quot;Initiate Circle&quot;</li>
               <li><strong>Join:</strong> Browse active circles and click &quot;Join&quot; with an available ordinal</li>
@@ -248,7 +248,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Completing Circles</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Completing Circles</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>When a circle reaches capacity, it locks and enters completion phase</li>
               <li>Mark yourself &quot;Ready&quot; during the completion window</li>
@@ -259,7 +259,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Restrictions</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Restrictions</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Cannot join if you have active marketplace listings</li>
               <li>Must be a holder (unlisted ordinals or past burns)</li>
@@ -277,14 +277,14 @@ export default function DocsPage() {
       content: (
         <div className="space-y-4">
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               The Ascension Leaderboard ranks all players by total ascension powder (available + spent). Only holders can view the leaderboard.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Ranking System</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ranking System</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li><strong>Available:</strong> Current ascension powder in your profile</li>
               <li><strong>Spent:</strong> Total powder used on graveyard ordinals (cumulative)</li>
@@ -294,7 +294,7 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Must have at least one unlisted Damned ordinal to view</li>
               <li>Your rank is highlighted if you&apos;re on the leaderboard</li>
