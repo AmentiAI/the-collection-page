@@ -11,6 +11,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') || 'remove' // 'remove' or 'add'
     
+    // Log for debugging
+    if (action?.includes('dead-demon')) {
+      console.log('[discord/roles/list] Action received:', action)
+    }
+    
     const pool = getPool()
     
     if (action === 'remove') {
@@ -128,9 +133,10 @@ export async function GET(request: Request) {
         INNER JOIN profiles p ON du.profile_id = p.id
         INNER JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address)
         WHERE ab.inscription_id LIKE 'ascended_%'
+          AND du.discord_user_id IS NOT NULL
       `)
 
-      const discordIds = result.rows.map((row) => row.discord_user_id)
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
 
       return NextResponse.json({
         success: true,
@@ -146,9 +152,10 @@ export async function GET(request: Request) {
         INNER JOIN profiles p ON du.profile_id = p.id
         LEFT JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address) AND ab.inscription_id LIKE 'ascended_%'
         WHERE ab.id IS NULL
+          AND du.discord_user_id IS NOT NULL
       `)
 
-      const discordIds = result.rows.map((row) => row.discord_user_id)
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
 
       return NextResponse.json({
         success: true,
@@ -157,8 +164,9 @@ export async function GET(request: Request) {
         count: discordIds.length,
       })
     } else {
+      console.error('[discord/roles/list] Invalid action received:', action)
       return NextResponse.json(
-        { error: 'Invalid action. Use "remove" or "add"' },
+        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove` },
         { status: 400 }
       )
     }

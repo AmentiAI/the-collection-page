@@ -1655,6 +1655,7 @@ export default function AbyssSummonPage() {
                           truncateWallet={truncateWallet}
                           assetMap={inscriptionImageCache}
                           isPowderMode={IS_POWDER_MODE}
+                          isDeadDemonsMode={IS_DEAD_DEMONS_MODE}
                           requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                           summonDurationMs={SUMMON_DURATION_MS}
                           isPortalMode={IS_DAMNED_POOL_MODE}
@@ -1911,6 +1912,7 @@ function SummonList({
   now,
   emptyMessage,
   isPowderMode,
+  isDeadDemonsMode = false,
   requiredParticipantsForMode,
   summonDurationMs,
   isPortalMode,
@@ -1930,6 +1932,7 @@ function SummonList({
   now: number
   emptyMessage?: string
   isPowderMode: boolean
+  isDeadDemonsMode?: boolean
   requiredParticipantsForMode: number
   summonDurationMs?: number
   isPortalMode?: boolean
@@ -2027,8 +2030,10 @@ function SummonList({
           (
             // Powder: participant confirms during window
             (isPowderMode && isParticipant && !participantCompleted) ||
+            // Dead Demons: all participants must complete during window (same as powder)
+            (isDeadDemonsMode && isParticipant && !participantCompleted) ||
             // Non-powder: host completes when ready
-            (!isPowderMode && ready && isCreator) ||
+            (!isPowderMode && !isDeadDemonsMode && ready && isCreator) ||
             // Special case: 20-seat portal allows any participant to complete during window
             (isTwentyManPortal && isParticipant && !participantCompleted) ||
             // Special case: 40-seat portal allows any participant to complete during window

@@ -1283,6 +1283,86 @@ async function handleFlashnetInteraction(interaction) {
   }
 }
 
+// Helper function to batch process role operations
+async function batchProcessRoleOperations(guild, discordIds, role, operation, operationName) {
+  if (!discordIds || discordIds.length === 0) {
+    return { success: 0, failed: 0 };
+  }
+
+  const BATCH_SIZE = 10; // Process 10 members at a time to respect rate limits
+  let successCount = 0;
+  let failedCount = 0;
+
+  // Process in batches
+  for (let i = 0; i < discordIds.length; i += BATCH_SIZE) {
+    const batch = discordIds.slice(i, i + BATCH_SIZE);
+    
+    // Fetch all members in this batch in parallel
+    const memberPromises = batch.map(async (discordId) => {
+      try {
+        const member = await guild.members.fetch(discordId);
+        return { success: true, member, discordId };
+      } catch (error) {
+        // Skip "Unknown Member" errors (user left server) - this is expected
+        if (error.code === 10007) {
+          return { success: false, error: null, discordId }; // Silently skip
+        }
+        return { success: false, error, discordId };
+      }
+    });
+
+    const memberResults = await Promise.allSettled(memberPromises);
+    
+    // Process role operations for successfully fetched members
+    const roleOperationPromises = memberResults.map(async (result) => {
+      if (result.status === 'rejected') {
+        failedCount++;
+        return;
+      }
+
+      const { success, member, error, discordId } = result.value;
+      
+      if (!success || !member) {
+        // Silently skip users who left the server
+        return;
+      }
+
+      try {
+        const needsOperation = operation === 'add' 
+          ? !member.roles.cache.has(role.id)
+          : member.roles.cache.has(role.id);
+
+        if (needsOperation) {
+          if (operation === 'add') {
+            await member.roles.add(role);
+          } else {
+            await member.roles.remove(role);
+          }
+          successCount++;
+          console.log(`✅ ${operation === 'add' ? 'Added' : 'Removed'} ${operationName} role ${operation === 'add' ? 'to' : 'from'} ${member.user.tag} (${discordId})`);
+        }
+      } catch (error) {
+        // Skip "Unknown Member" errors (user left server) - this is expected
+        if (error.code === 10007) {
+          // Silently skip - user is no longer in the server
+          return;
+        }
+        console.error(`Error ${operation}ing ${operationName} role ${operation === 'add' ? 'to' : 'from'} ${discordId}:`, error);
+        failedCount++;
+      }
+    });
+
+    await Promise.allSettled(roleOperationPromises);
+    
+    // Small delay between batches to respect rate limits
+    if (i + BATCH_SIZE < discordIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return { success: successCount, failed: failedCount };
+}
+
 async function syncHolderAndSpecialRoles() {
   try {
     console.log('🔄 Running holder/special role sync...');
@@ -1302,57 +1382,29 @@ async function syncHolderAndSpecialRoles() {
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz';
 
-    const removeResponse = await fetch(`${baseUrl}/api/discord/roles/list?action=remove`);
+    const [removeResponse, addResponse] = await Promise.all([
+      fetch(`${baseUrl}/api/discord/roles/list?action=remove`),
+      fetch(`${baseUrl}/api/discord/roles/list?action=add`),
+    ]);
 
     if (!removeResponse.ok) {
       console.error('Failed to fetch users to remove roles:', removeResponse.status);
-      return;
     }
-
-    const removeData = await removeResponse.json();
-    let removedCount = 0;
-
-    if (removeData.discordIds && removeData.discordIds.length > 0) {
-      for (const discordId of removeData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (member.roles.cache.has(holderRole.id)) {
-            await member.roles.remove(holderRole);
-            removedCount++;
-            console.log(`✅ Removed holder role from ${member.user.tag} (${discordId}) - no longer has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error removing role from ${discordId}:`, error);
-        }
-      }
-    }
-
-    const addResponse = await fetch(`${baseUrl}/api/discord/roles/list?action=add`);
 
     if (!addResponse.ok) {
       console.error('Failed to fetch users to add roles:', addResponse.status);
-      return;
     }
 
-    const addData = await addResponse.json();
-    let addedCount = 0;
+    const removeData = removeResponse.ok ? await removeResponse.json() : { discordIds: [] };
+    const addData = addResponse.ok ? await addResponse.json() : { discordIds: [] };
 
-    if (addData.discordIds && addData.discordIds.length > 0) {
-      for (const discordId of addData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (!member.roles.cache.has(holderRole.id)) {
-            await member.roles.add(holderRole);
-            addedCount++;
-            console.log(`✅ Added holder role to ${member.user.tag} (${discordId}) - has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error adding role to ${discordId}:`, error);
-        }
-      }
-    }
+    // Process removals and additions in parallel
+    const [removeResult, addResult] = await Promise.all([
+      batchProcessRoleOperations(guild, removeData.discordIds, holderRole, 'remove', 'holder'),
+      batchProcessRoleOperations(guild, addData.discordIds, holderRole, 'add', 'holder'),
+    ]);
 
-    console.log(`✅ Holder role sync complete: Removed ${removedCount} roles, Added ${addedCount} roles`);
+    console.log(`✅ Holder role sync complete: Removed ${removeResult.success} roles, Added ${addResult.success} roles`);
 
     if (EXECUTIONER_ROLE_ID) {
       const executionerRole = guild.roles.cache.get(EXECUTIONER_ROLE_ID);
@@ -1376,40 +1428,12 @@ async function syncHolderAndSpecialRoles() {
           const execAddData = execAddResponse.ok ? await execAddResponse.json() : { discordIds: [] };
           const execRemoveData = execRemoveResponse.ok ? await execRemoveResponse.json() : { discordIds: [] };
 
-          let execAdded = 0;
-          let execRemoved = 0;
+          const [execAddResult, execRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, execAddData.discordIds, executionerRole, 'add', 'executioner'),
+            batchProcessRoleOperations(guild, execRemoveData.discordIds, executionerRole, 'remove', 'executioner'),
+          ]);
 
-          if (Array.isArray(execAddData.discordIds)) {
-            for (const discordId of execAddData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (!member.roles.cache.has(executionerRole.id)) {
-                  await member.roles.add(executionerRole);
-                  execAdded++;
-                  console.log(`✅ Added executioner role to ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error adding executioner role to ${discordId}:`, error);
-              }
-            }
-          }
-
-          if (Array.isArray(execRemoveData.discordIds)) {
-            for (const discordId of execRemoveData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (member.roles.cache.has(executionerRole.id)) {
-                  await member.roles.remove(executionerRole);
-                  execRemoved++;
-                  console.log(`✅ Removed executioner role from ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error removing executioner role from ${discordId}:`, error);
-              }
-            }
-          }
-
-          console.log(`✅ Executioner sync complete: Added ${execAdded} roles, Removed ${execRemoved} roles`);
+          console.log(`✅ Executioner sync complete: Added ${execAddResult.success} roles, Removed ${execRemoveResult.success} roles`);
         } catch (error) {
           console.error('Error syncing executioner roles:', error);
         }
@@ -1438,40 +1462,12 @@ async function syncHolderAndSpecialRoles() {
           const summonerAddData = summonerAddResponse.ok ? await summonerAddResponse.json() : { discordIds: [] };
           const summonerRemoveData = summonerRemoveResponse.ok ? await summonerRemoveResponse.json() : { discordIds: [] };
 
-          let summonerAdded = 0;
-          let summonerRemoved = 0;
+          const [summonerAddResult, summonerRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, summonerAddData.discordIds, summonerRole, 'add', 'summoner'),
+            batchProcessRoleOperations(guild, summonerRemoveData.discordIds, summonerRole, 'remove', 'summoner'),
+          ]);
 
-          if (Array.isArray(summonerAddData.discordIds)) {
-            for (const discordId of summonerAddData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (!member.roles.cache.has(summonerRole.id)) {
-                  await member.roles.add(summonerRole);
-                  summonerAdded++;
-                  console.log(`✅ Added summoner role to ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error adding summoner role to ${discordId}:`, error);
-              }
-            }
-          }
-
-          if (Array.isArray(summonerRemoveData.discordIds)) {
-            for (const discordId of summonerRemoveData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (member.roles.cache.has(summonerRole.id)) {
-                  await member.roles.remove(summonerRole);
-                  summonerRemoved++;
-                  console.log(`✅ Removed summoner role from ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error removing summoner role from ${discordId}:`, error);
-              }
-            }
-          }
-
-          console.log(`✅ Summoner sync complete: Added ${summonerAdded} roles, Removed ${summonerRemoved} roles`);
+          console.log(`✅ Summoner sync complete: Added ${summonerAddResult.success} roles, Removed ${summonerRemoveResult.success} roles`);
         } catch (error) {
           console.error('Error syncing summoner roles:', error);
         }
@@ -1500,40 +1496,12 @@ async function syncHolderAndSpecialRoles() {
           const deadDemonAddData = deadDemonAddResponse.ok ? await deadDemonAddResponse.json() : { discordIds: [] };
           const deadDemonRemoveData = deadDemonRemoveResponse.ok ? await deadDemonRemoveResponse.json() : { discordIds: [] };
 
-          let deadDemonAdded = 0;
-          let deadDemonRemoved = 0;
+          const [deadDemonAddResult, deadDemonRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, deadDemonAddData.discordIds, deadDemonRole, 'add', 'dead demon'),
+            batchProcessRoleOperations(guild, deadDemonRemoveData.discordIds, deadDemonRole, 'remove', 'dead demon'),
+          ]);
 
-          if (Array.isArray(deadDemonAddData.discordIds)) {
-            for (const discordId of deadDemonAddData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (!member.roles.cache.has(deadDemonRole.id)) {
-                  await member.roles.add(deadDemonRole);
-                  deadDemonAdded++;
-                  console.log(`✅ Added dead demon role to ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error adding dead demon role to ${discordId}:`, error);
-              }
-            }
-          }
-
-          if (Array.isArray(deadDemonRemoveData.discordIds)) {
-            for (const discordId of deadDemonRemoveData.discordIds) {
-              try {
-                const member = await guild.members.fetch(discordId);
-                if (member.roles.cache.has(deadDemonRole.id)) {
-                  await member.roles.remove(deadDemonRole);
-                  deadDemonRemoved++;
-                  console.log(`✅ Removed dead demon role from ${member.user.tag} (${discordId})`);
-                }
-              } catch (error) {
-                console.error(`Error removing dead demon role from ${discordId}:`, error);
-              }
-            }
-          }
-
-          console.log(`✅ Dead Demon sync complete: Added ${deadDemonAdded} roles, Removed ${deadDemonRemoved} roles`);
+          console.log(`✅ Dead Demon sync complete: Added ${deadDemonAddResult.success} roles, Removed ${deadDemonRemoveResult.success} roles`);
         } catch (error) {
           console.error('Error syncing dead demon roles:', error);
         }
@@ -2069,6 +2037,11 @@ client.on(Events.InteractionCreate, async interaction => {
             console.log(`Removed holder role from ${member.user.tag} (${user.discordUserId})`);
           }
         } catch (error) {
+          // Skip "Unknown Member" errors (user left server) - this is expected
+          if (error.code === 10007) {
+            // Silently skip - user is no longer in the server
+            continue;
+          }
           console.error(`Error removing role from ${user.discordUserId}:`, error);
           errorCount++;
         }
