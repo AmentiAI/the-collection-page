@@ -1389,10 +1389,13 @@ export default function AbyssSummonPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setMode('abyss')}
+              onClick={() => {
+                setMode('abyss')
+                setActiveTab('active')
+              }}
               className={[
                 'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
+                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE && !IS_AFK_MODE
                   ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
                   : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
               ].join(' ')}
@@ -1401,7 +1404,10 @@ export default function AbyssSummonPage() {
             </button>
             <button
               type="button"
-              onClick={() => setMode('powder')}
+              onClick={() => {
+                setMode('powder')
+                setActiveTab('active')
+              }}
               className={[
                 'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
                 IS_POWDER_MODE
@@ -1413,7 +1419,10 @@ export default function AbyssSummonPage() {
             </button>
             <button
               type="button"
-              onClick={() => setMode('damned_pool')}
+              onClick={() => {
+                setMode('damned_pool')
+                setActiveTab('active')
+              }}
               className={[
                 'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
                 IS_DAMNED_POOL_MODE
@@ -1425,7 +1434,10 @@ export default function AbyssSummonPage() {
             </button>
             <button
               type="button"
-              onClick={() => setMode('dead_demons')}
+              onClick={() => {
+                setMode('dead_demons')
+                setActiveTab('active')
+              }}
               className={[
                 'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
                 IS_DEAD_DEMONS_MODE
