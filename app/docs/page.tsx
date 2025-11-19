@@ -70,7 +70,7 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>You must have at least one unlisted Damned ordinal in your wallet to access certain features</li>
               <li>Marketplace listings are detected automatically</li>
-              <li>If you have active listings, links to Graveyard, Summoning Circles, and Abyss are hidden</li>
+              <li>If you have active listings, links to Graveyard, Summoning Circles, and Abyss are disabled</li>
               <li>Remove all listings to regain full access</li>
             </ul>
           </div>

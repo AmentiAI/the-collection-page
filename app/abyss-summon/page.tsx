@@ -1895,9 +1895,9 @@ export default function AbyssSummonPage() {
                     <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
                       Deposit ordinals to earn +1 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
                     </p>
-                  </div>
+          </div>
                   {afkCircleLoading && <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />}
-                </div>
+        </div>
 
                 <div className="rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-4 py-3">
                   <div className="flex items-center justify-between">
