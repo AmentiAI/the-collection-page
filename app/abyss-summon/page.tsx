@@ -1499,7 +1499,7 @@ export default function AbyssSummonPage() {
                   <p className="font-semibold uppercase tracking-[0.2em]">Ascension Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires 9 out of 10 participants to complete in the last 2 minutes</li>
-                    <li>Gives ascension_powder (3 for host, 2 for participants)</li>
+                    <li>Gives ascension_powder (4 for host, 3 for participants)</li>
                   </ul>
                 </div>
               ) : IS_DAMNED_POOL_MODE ? (
@@ -1517,7 +1517,7 @@ export default function AbyssSummonPage() {
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires ascended inscriptions (inscription_id starting with &quot;ascended_&quot;)</li>
                     <li>All 10 participants must complete in the last 1 minute</li>
-                    <li>Gives ascension_powder (5 for host, 4 for participants)</li>
+                    <li>Gives ascension_powder (10 for host, 8 for participants)</li>
                   </ul>
                 </div>
               ) : null}

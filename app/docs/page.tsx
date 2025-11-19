@@ -103,6 +103,13 @@ export default function DocsPage() {
               <li>Both are optional and can be disconnected anytime</li>
             </ul>
           </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">How to Get Discord Role</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Auth Discord on the Profile page</li>
+            </ul>
+          </div>
         </div>
       ),
     },
@@ -179,7 +186,7 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
-              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 9 AM - 10 PM EST daily.
+              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 9 AM - 10 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
             </p>
           </div>
 
@@ -194,7 +201,7 @@ export default function DocsPage() {
                   <li>10 minute duration</li>
                   <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
                   <li>9 of 10 must complete to succeed</li>
-                  <li><strong>Rewards:</strong> 6 powder (host) • 4 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 4 powder (host) • 3 powder (participants)</li>
                 </ul>
               </div>
 
@@ -217,7 +224,7 @@ export default function DocsPage() {
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
                   <li>All 10 must complete in the last 1 minute</li>
-                  <li><strong>Rewards:</strong> 5 powder (host) • 4 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 10 powder (host) • 8 powder (participants)</li>
                 </ul>
               </div>
 

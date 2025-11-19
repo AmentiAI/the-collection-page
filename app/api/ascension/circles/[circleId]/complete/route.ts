@@ -5,8 +5,8 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000
-const POWDER_REWARD_HOST = 6
-const POWDER_REWARD_PARTICIPANT = 4
+const POWDER_REWARD_HOST = 4
+const POWDER_REWARD_PARTICIPANT = 3
 const MIN_COMPLETION_COUNT = 9 // Only need 9 out of 10 to complete
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
@@ -189,6 +189,15 @@ export async function POST(
     }
 
     const circle = circleRes.rows[0]
+
+    if (circle.status === 'completed') {
+      await pool.query('ROLLBACK')
+      const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+      return NextResponse.json(
+        { success: false, error: 'Circle already completed.', summon: mapCircleRow(refreshed.rows[0]) },
+        { status: 409 },
+      )
+    }
 
     if (circle.status !== 'ready') {
       await pool.query('ROLLBACK')
