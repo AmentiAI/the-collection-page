@@ -506,9 +506,29 @@ export default function AbyssSummonPage() {
         setSummons(openSummons.length > 0 ? openSummons : openCircles)
         setCreatedSummons(created.length > 0 ? created : createdCircles)
         setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
-        const rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE || IS_AFK_MODE
-          ? Number(data?.powderBalance ?? 0)
-          : Number(data?.bonusAllowance ?? 0)
+        
+        // For AFK mode, fetch powder balance from ascension circles API since abyss API doesn't return it
+        let rewardBalance = 0
+        if (IS_AFK_MODE && address) {
+          try {
+            const powderParams = new URLSearchParams()
+            powderParams.set('wallet', address)
+            powderParams.set('limit', '1')
+            const powderResponse = await fetch(`/api/ascension/circles?${powderParams.toString()}`, {
+              cache: 'no-store',
+            })
+            if (powderResponse.ok) {
+              const powderData = await powderResponse.json()
+              rewardBalance = Number(powderData?.powderBalance ?? 0)
+            }
+          } catch (error) {
+            console.error('Failed to fetch powder balance for AFK mode', error)
+          }
+        } else {
+          rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE || IS_AFK_MODE
+            ? Number(data?.powderBalance ?? 0)
+            : Number(data?.bonusAllowance ?? 0)
+        }
         setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
         
         // Set eligibility for Dead Demons mode
@@ -546,7 +566,7 @@ export default function AbyssSummonPage() {
         setSummonsLoading(false)
       }
     },
-    [toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DEAD_DEMONS_MODE],
+    [toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DEAD_DEMONS_MODE, IS_AFK_MODE],
   )
 
   const fetchAfkCircle = useCallback(
