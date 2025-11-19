@@ -169,6 +169,50 @@ export async function POST(
       )
     }
 
+    // Check if inscription is in AFK circle
+    const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS afk_circles (
+        id UUID PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'open',
+        required_participants INTEGER NOT NULL DEFAULT 100,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await pool.query(`
+      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+      VALUES ($1, 'open', 100, NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `, [AFK_CIRCLE_ID])
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS afk_circle_participants (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
+        wallet TEXT NOT NULL,
+        inscription_id TEXT NOT NULL,
+        inscription_image TEXT,
+        joined_at TIMESTAMPTZ DEFAULT NOW(),
+        last_reward_at TIMESTAMPTZ,
+        UNIQUE(circle_id, wallet, inscription_id)
+      )
+    `)
+    
+    const afkConflict = await pool.query(
+      `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
+      [AFK_CIRCLE_ID, inscriptionId],
+    )
+    if (afkConflict.rows.length > 0) {
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'This ordinal is currently in the AFK circle. Remove it from the AFK circle first.',
+        },
+        { status: 409 },
+      )
+    }
+
     const inscriptionConflict = await pool.query(
       `
         SELECT s.id

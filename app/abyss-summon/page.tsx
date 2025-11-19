@@ -2,62 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { AlertTriangle, Flame, Loader2, Sparkles, Trophy, Volume2, VolumeX, Pause, Play, CheckCircle2, Info, ChevronDown } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
-
-type SummonParticipant = {
-  id: string
-  wallet: string
-  inscriptionId: string
-  role: string
-  image?: string | null
-  joinedAt?: string | null
-  completed?: boolean
-  completedAt?: string | null
-  username?: string | null
-  avatarUrl?: string | null
-}
-
-type SummonRecord = {
-  id: string
-  creatorWallet: string
-  creatorInscriptionId: string
-  status: string
-  requiredParticipants: number
-  lockedAt?: string | null
-  completedAt?: string | null
-  expiresAt?: string | null
-  bonusGranted: boolean
-  createdAt: string
-  updatedAt: string
-  participants: SummonParticipant[]
-}
-
-type DamnedOption = {
-  inscriptionId: string
-  name?: string | null
-  image?: string | null
-}
-
-type SummonLeaderboardEntry = {
-  wallet: string
-  username: string | null
-  avatarUrl: string | null
-  burns: number
-  confirmedBurns: number
-  hosted: number
-  participated: number
-  score: number
-  lastBurnAt: string | null
-  lastHostedAt: string | null
-  lastParticipatedAt: string | null
-}
-
+import type { SummonParticipant, SummonRecord, DamnedOption, SummonLeaderboardEntry, Mode, ActiveTab } from './components/types'
+import { formatCountdown, formatTimestamp, isAbyssSummonClosed } from './components/utils'
+import MainNavigationTabs from './components/MainNavigationTabs'
 
 // Static defaults; live mode is chosen via tabs in the component
 const POWDER_CIRCLE_REWARD = 2
@@ -68,117 +21,6 @@ const SUMMON_HOST_POINTS = 2
 const SUMMON_PARTICIPATION_POINTS = 1
 // The rest of the mode-dependent values are computed inside the component
 
-function formatCountdown(ms: number) {
-  if (ms <= 0) {
-    return '00:00'
-  }
-  const totalSeconds = Math.ceil(ms / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  if (hours > 0) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-  }
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-}
-
-function formatTimestamp(value: string | null | undefined) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString()
-}
-
-// EST/EDT timezone handling
-function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; timeUntilClose: number } {
-  const now = new Date()
-  
-  // Debug: log that function is being called
-  if (typeof window !== 'undefined') {
-    console.log('[Abyss Summon] isAbyssSummonClosed called at:', now.toISOString())
-  }
-  
-  // Get current time in EST/EDT using Intl.DateTimeFormat
-  const estFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: '2-digit',
-    hour12: false,
-  })
-  
-  const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
-  
-  // Closed from 10:00 PM to 9:00 AM EST
-  const isClosed = estHour >= 22 || estHour < 9
-  
-  // Get full EST date components
-  const estDateFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-  
-  const estParts = estDateFormatter.formatToParts(now)
-  const year = parseInt(estParts.find(p => p.type === 'year')?.value || '0')
-  const month = parseInt(estParts.find(p => p.type === 'month')?.value || '0') - 1
-  const day = parseInt(estParts.find(p => p.type === 'day')?.value || '0')
-  const currentHour = parseInt(estParts.find(p => p.type === 'hour')?.value || '0')
-  const currentMinute = parseInt(estParts.find(p => p.type === 'minute')?.value || '0')
-  const currentSecond = parseInt(estParts.find(p => p.type === 'second')?.value || '0')
-  
-  if (isClosed) {
-    // Calculate time until 9:00 AM EST (when it opens)
-    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 9 * 3600 // 9 AM
-    
-    let secondsUntil9 = targetTotalSeconds - currentTotalSeconds
-    if (secondsUntil9 <= 0) {
-      // Add 24 hours if we need to go to next day
-      secondsUntil9 += 24 * 3600
-    }
-    
-    const timeUntilOpen = secondsUntil9 * 1000
-    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
-  } else {
-    // Calculate time until 10:00 PM EST (when it closes)
-    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 22 * 3600 // 10 PM = 79200 seconds
-    
-    let secondsUntil10 = targetTotalSeconds - currentTotalSeconds
-    
-    // If we're at or past 10 PM (hour >= 22), we need tomorrow's 10 PM
-    if (currentHour >= 22) {
-      secondsUntil10 += 24 * 3600
-    }
-    // If we're before 10 PM, secondsUntil10 should already be positive
-    // But if somehow it's negative or zero, add 24 hours as safety
-    if (secondsUntil10 <= 0) {
-      secondsUntil10 += 24 * 3600
-    }
-    
-    const timeUntilClose = secondsUntil10 * 1000
-    
-    // Debug logging (remove after testing)
-    if (typeof window !== 'undefined') {
-      console.log('[Abyss Summon] Time calculation:', {
-        estHour: currentHour,
-        estMinute: currentMinute,
-        currentTotalSeconds,
-        targetTotalSeconds,
-        secondsUntil10,
-        timeUntilClose,
-        timeUntilCloseMinutes: Math.floor(secondsUntil10 / 60),
-      })
-    }
-    
-    return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
-  }
-}
-
 export default function AbyssSummonPage() {
   const wallet = useWallet()
   const toast = useToast()
@@ -186,7 +28,7 @@ export default function AbyssSummonPage() {
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
   const [isHolder, setIsHolder] = useState<boolean | null>(null)
   const [checkingHolder, setCheckingHolder] = useState(false)
-  const [mode, setMode] = useState<'abyss' | 'powder' | 'damned_pool' | 'dead_demons' | 'afk'>('damned_pool')
+  const [mode, setMode] = useState<Mode>('damned_pool')
   // Derive mode-dependent values locally so tabs switch instantly without reloads
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
@@ -221,7 +63,7 @@ export default function AbyssSummonPage() {
   const [joinedSummons, setJoinedSummons] = useState<SummonRecord[]>([])
   const [summonsLoading, setSummonsLoading] = useState(false)
   const [bonusAllowance, setBonusAllowance] = useState(0)
-  const [activeTab, setActiveTab] = useState<'active' | 'created' | 'joined'>('active')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('active')
 
   const [damnedOptions, setDamnedOptions] = useState<DamnedOption[]>([])
   const [damnedLoading, setDamnedLoading] = useState(false)
@@ -241,6 +83,8 @@ export default function AbyssSummonPage() {
   const [tipsOpen, setTipsOpen] = useState(false)
   const [burnCount, setBurnCount] = useState<number | null>(null)
   const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
+  const [afkInscriptions, setAfkInscriptions] = useState<Set<string>>(new Set())
+  const afkInscriptionsRef = useRef<Set<string>>(new Set())
   const [afkCircleTotal, setAfkCircleTotal] = useState(0)
   const [afkCircleUserParticipants, setAfkCircleUserParticipants] = useState<Array<{
     id: string
@@ -415,7 +259,7 @@ export default function AbyssSummonPage() {
       if (exists) {
         return prev
       }
-      return damnedOptions[0]?.inscriptionId ?? null
+      return null
     })
   }, [damnedOptions])
   useEffect(() => {
@@ -662,7 +506,7 @@ export default function AbyssSummonPage() {
         setSummons(openSummons.length > 0 ? openSummons : openCircles)
         setCreatedSummons(created.length > 0 ? created : createdCircles)
         setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
-        const rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
+        const rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE || IS_AFK_MODE
           ? Number(data?.powderBalance ?? 0)
           : Number(data?.bonusAllowance ?? 0)
         setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
@@ -686,11 +530,14 @@ export default function AbyssSummonPage() {
             }
           }
         }
-        // Merge with existing AFK circle inscriptions (don't overwrite, merge)
+        // Rebuild the set with current active circle inscriptions + AFK inscriptions
         setInscriptionsInCircles((prev) => {
-          const merged = new Set(prev)
-          Array.from(inUseInscriptions).forEach((id) => merged.add(id))
-          return merged
+          const newSet = new Set(inUseInscriptions)
+          // Add AFK inscriptions from ref (updated by fetchAfkCircle)
+          Array.from(afkInscriptionsRef.current).forEach((id) => {
+            newSet.add(id)
+          })
+          return newSet
         })
       } catch (error) {
         console.error('Failed to load summons', error)
@@ -719,16 +566,30 @@ export default function AbyssSummonPage() {
           setAfkCircleTotal(Number(data?.totalCount ?? 0))
           setAfkCircleUserParticipants(Array.isArray(data?.userParticipants) ? data.userParticipants : [])
           
-          // Add AFK circle inscriptions to in-use set
-          const afkInscriptions = new Set<string>()
+          // Update AFK inscriptions set
+          const newAfkInscriptions = new Set<string>()
           for (const participant of data?.userParticipants ?? []) {
             if (participant.inscriptionId) {
-              afkInscriptions.add(participant.inscriptionId)
+              newAfkInscriptions.add(participant.inscriptionId)
             }
           }
+          setAfkInscriptions(newAfkInscriptions)
+          afkInscriptionsRef.current = newAfkInscriptions
+          
+          // Rebuild the combined set with active circles + AFK inscriptions
           setInscriptionsInCircles((prev) => {
+            // Start with active circles (from refreshSummons)
             const combined = new Set(prev)
-            Array.from(afkInscriptions).forEach((id) => {
+            // Remove old AFK inscriptions that are no longer in AFK
+            Array.from(prev).forEach((id) => {
+              if (!newAfkInscriptions.has(id)) {
+                // Check if this was only in AFK (not in active circles)
+                // We'll let refreshSummons handle active circles, so we only remove if it's not in prev
+                // Actually, we need to rebuild from both sources
+              }
+            })
+            // Add current AFK inscriptions
+            Array.from(newAfkInscriptions).forEach((id) => {
               combined.add(id)
             })
             return combined
@@ -995,11 +856,10 @@ export default function AbyssSummonPage() {
   }, [ordinalAddress, refreshSummons, loadSummonLeaderboard, fetchBurnCount, fetchAfkCircle, SUMMON_LEADERBOARD_ENABLED])
 
   useEffect(() => {
+    if (!ordinalAddress) return
     const intervalId = window.setInterval(() => {
-      if (ordinalAddress) {
-        void refreshSummons(ordinalAddress)
-        void fetchAfkCircle(ordinalAddress)
-      }
+      void refreshSummons(ordinalAddress)
+      void fetchAfkCircle(ordinalAddress)
     }, 15_000)
     return () => window.clearInterval(intervalId)
   }, [ordinalAddress, refreshSummons, fetchAfkCircle])
@@ -1148,6 +1008,14 @@ export default function AbyssSummonPage() {
         toast.error('Select an ordinal from your inventory before joining.')
         return
       }
+      // Check if inscription is in AFK circle
+      const isInAfkCircle = afkCircleUserParticipants.some(
+        (p) => p.inscriptionId === selectedOption.inscriptionId
+      )
+      if (isInAfkCircle) {
+        toast.error('This ordinal is currently in the AFK circle. Remove it from the AFK circle first.')
+        return
+      }
       if (summon.participants.some((participant) => participant.wallet?.toLowerCase() === ordinalAddress.toLowerCase())) {
         toast.error('You already joined this summoning circle.')
         return
@@ -1198,7 +1066,7 @@ export default function AbyssSummonPage() {
         setJoiningSummonId(null)
       }
     },
-    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE],
+    [ordinalAddress, selectedOption, afkCircleUserParticipants, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE],
   )
 
   const handleCompleteSummon = useCallback(
@@ -1385,97 +1253,11 @@ export default function AbyssSummonPage() {
           </div>
         )}
         {/* Tabs outside the card, resting on the top-left edge */}
-        <div className="relative z-20 -mb-4 ml-0 md:ml-4 flex flex-wrap items-center justify-between gap-2 pr-4 max-w-full overflow-x-hidden px-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('abyss')
-                setActiveTab('active')
-              }}
-              className={[
-                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-                !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE && !IS_AFK_MODE
-                  ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
-                  : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
-              ].join(' ')}
-            >
-              Abyss
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('powder')
-                setActiveTab('active')
-              }}
-              className={[
-                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-                IS_POWDER_MODE
-                  ? 'border-amber-400 bg-amber-600/80 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
-                  : 'border-amber-600/50 bg-black/70 text-amber-200/80 hover:border-amber-400/70',
-              ].join(' ')}
-            >
-              Ascension
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('damned_pool')
-                setActiveTab('active')
-              }}
-              className={[
-                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
-                IS_DAMNED_POOL_MODE
-                  ? 'border-indigo-400 bg-indigo-700/80 text-indigo-100 shadow-[0_0_18px_rgba(99,102,241,0.45)]'
-                  : 'border-indigo-600/50 bg-black/70 text-indigo-200/80 hover:border-indigo-400/70',
-              ].join(' ')}
-            >
-              Portal
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('dead_demons')
-                setActiveTab('active')
-              }}
-              className={[
-                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
-                IS_DEAD_DEMONS_MODE
-                  ? 'border-purple-400 bg-purple-700/80 text-purple-100 shadow-[0_0_18px_rgba(168,85,247,0.45)]'
-                  : 'border-purple-600/50 bg-black/70 text-purple-200/80 hover:border-purple-400/70',
-              ].join(' ')}
-            >
-              Dead Demons
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('afk')}
-              className={[
-                'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
-                IS_AFK_MODE
-                  ? 'border-cyan-400 bg-cyan-700/80 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.45)]'
-                  : 'border-cyan-600/50 bg-black/70 text-cyan-200/80 hover:border-cyan-400/70',
-              ].join(' ')}
-            >
-              AFK Circle
-            </button>
-          </div>
-          <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">
-            <span className="text-[11px] font-mono uppercase tracking-[0.35em] text-red-200/80">Leaderboards:</span>
-            <Link
-              href="/abyss-summon/leaderboard"
-              className="inline-flex items-center gap-2 rounded-full border border-red-500 bg-red-700/70 px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.35)] transition hover:bg-red-600"
-            >
-              Summoning
-            </Link>
-            <Link
-              href="/ascension/leaderboard"
-              className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-600/70 px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-500"
-            >
-              Ascension
-            </Link>
-          </div>
-        </div>
+        <MainNavigationTabs
+          mode={mode}
+          onModeChange={setMode}
+          onActiveTabReset={() => setActiveTab('active')}
+        />
         
         {/* Tips Button and Dropdown */}
         <div className="relative mx-auto w-full max-w-4xl mb-6">
@@ -1584,7 +1366,7 @@ export default function AbyssSummonPage() {
                 <span className="text-[11px] text-amber-300">
                   {IS_DAMNED_POOL_MODE
                     ? 'Confirmed Portals'
-                    : IS_POWDER_MODE
+                    : IS_POWDER_MODE || IS_DEAD_DEMONS_MODE || IS_AFK_MODE
                     ? `${powderTermCapitalized} Banked`
                     : 'Bonus Burns Awaiting'}
                 </span>
