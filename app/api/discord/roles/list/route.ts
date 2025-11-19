@@ -119,6 +119,43 @@ export async function GET(request: Request) {
         discordIds,
         count: discordIds.length,
       })
+    } else if (action === 'dead-demon-add') {
+      // Get Discord IDs with ascended inscriptions (should receive dead demon role)
+      // Check if wallet has at least one inscription_id starting with 'ascended_' in abyss_burns
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address)
+        WHERE ab.inscription_id LIKE 'ascended_%'
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'dead-demon-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'dead-demon-remove') {
+      // Get Discord IDs without ascended inscriptions (should have dead demon role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address) AND ab.inscription_id LIKE 'ascended_%'
+        WHERE ab.id IS NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'dead-demon-remove',
+        discordIds,
+        count: discordIds.length,
+      })
     } else {
       return NextResponse.json(
         { error: 'Invalid action. Use "remove" or "add"' },

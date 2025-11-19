@@ -34,6 +34,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const SITE_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.thedamned.xyz';
 const EXECUTIONER_ROLE_ID = process.env.EXECUTIONER_ROLE_ID || '1437820365991837859';
 const SUMMONER_ROLE_ID = process.env.SUMMONER_ROLE_ID || '1437895763308052601';
+const DEAD_DEMON_ROLE_ID = process.env.DEAD_DEMON_ROLE_ID || '1440686851542352003';
 
 const FLASHNET_MNEMONIC = process.env.FLASHNET_MNEMONIC || process.env.SPARK_MNEMONIC;
 const FLASHNET_NETWORK = (process.env.FLASHNET_NETWORK || 'MAINNET').toUpperCase();
@@ -1473,6 +1474,68 @@ async function syncHolderAndSpecialRoles() {
           console.log(`✅ Summoner sync complete: Added ${summonerAdded} roles, Removed ${summonerRemoved} roles`);
         } catch (error) {
           console.error('Error syncing summoner roles:', error);
+        }
+      }
+    }
+
+    if (DEAD_DEMON_ROLE_ID) {
+      const deadDemonRole = guild.roles.cache.get(DEAD_DEMON_ROLE_ID);
+      if (!deadDemonRole) {
+        console.warn(`Dead Demon role with ID ${DEAD_DEMON_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [deadDemonAddResponse, deadDemonRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-remove`),
+          ]);
+
+          if (!deadDemonAddResponse.ok) {
+            console.error('Failed to fetch dead demon add list:', deadDemonAddResponse.status);
+          }
+
+          if (!deadDemonRemoveResponse.ok) {
+            console.error('Failed to fetch dead demon remove list:', deadDemonRemoveResponse.status);
+          }
+
+          const deadDemonAddData = deadDemonAddResponse.ok ? await deadDemonAddResponse.json() : { discordIds: [] };
+          const deadDemonRemoveData = deadDemonRemoveResponse.ok ? await deadDemonRemoveResponse.json() : { discordIds: [] };
+
+          let deadDemonAdded = 0;
+          let deadDemonRemoved = 0;
+
+          if (Array.isArray(deadDemonAddData.discordIds)) {
+            for (const discordId of deadDemonAddData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (!member.roles.cache.has(deadDemonRole.id)) {
+                  await member.roles.add(deadDemonRole);
+                  deadDemonAdded++;
+                  console.log(`✅ Added dead demon role to ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error adding dead demon role to ${discordId}:`, error);
+              }
+            }
+          }
+
+          if (Array.isArray(deadDemonRemoveData.discordIds)) {
+            for (const discordId of deadDemonRemoveData.discordIds) {
+              try {
+                const member = await guild.members.fetch(discordId);
+                if (member.roles.cache.has(deadDemonRole.id)) {
+                  await member.roles.remove(deadDemonRole);
+                  deadDemonRemoved++;
+                  console.log(`✅ Removed dead demon role from ${member.user.tag} (${discordId})`);
+                }
+              } catch (error) {
+                console.error(`Error removing dead demon role from ${discordId}:`, error);
+              }
+            }
+          }
+
+          console.log(`✅ Dead Demon sync complete: Added ${deadDemonAdded} roles, Removed ${deadDemonRemoved} roles`);
+        } catch (error) {
+          console.error('Error syncing dead demon roles:', error);
         }
       }
     }

@@ -2019,6 +2019,7 @@ function SummonList({
           summon.participants.length >= totalSlots
 
         const isTwentyManPortal = Boolean(isPortalMode) && totalSlots < 40
+        const isFortyManPortal = Boolean(isPortalMode) && totalSlots >= 40
         const completionAllowed =
           !isExpired &&
           summon.status !== 'expired' &&
@@ -2029,7 +2030,9 @@ function SummonList({
             // Non-powder: host completes when ready
             (!isPowderMode && ready && isCreator) ||
             // Special case: 20-seat portal allows any participant to complete during window
-            (isTwentyManPortal && isParticipant && !participantCompleted)
+            (isTwentyManPortal && isParticipant && !participantCompleted) ||
+            // Special case: 40-seat portal allows any participant to complete during window
+            (isFortyManPortal && isParticipant && !participantCompleted)
           )
 
         return (
