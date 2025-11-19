@@ -78,7 +78,7 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Choosing a Side</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
-              <li>Choose Good or Evil on the <Link href="/dashboard" className="text-red-400 underline hover:text-red-300">Dashboard</Link></li>
+              <li>Choose Good or Evil on the Dashboard</li>
               <li>Choosing a side <strong>wipes all existing karma records</strong> for your wallet</li>
               <li>Once chosen, you can reset and switch sides anytime</li>
               <li>Resetting clears all karma and task completions</li>

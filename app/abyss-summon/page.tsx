@@ -259,12 +259,12 @@ export default function AbyssSummonPage() {
   const musicControlsDisabled = !musicReady && !musicPlaying
   
   // Playlist of 4 songs to cycle through
-  const playlist = [
+  const playlist = useMemo(() => [
     '/music/abysssummon2.mp3',
     '/music/summon2.mp3',
     '/music/summon.mp3',
     '/music/The Damned 3.mp3',
-  ]
+  ], [])
   const [currentSongIndex, setCurrentSongIndex] = useState(0)
 
   // Use "rock" instead of "ascension powder" if burn count is 0
@@ -496,7 +496,7 @@ export default function AbyssSummonPage() {
         finaleBeepedRef.current.delete(summon.id)
       }
     }
-  }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, SUMMON_DURATION_MS, SUMMON_COMPLETION_WINDOW_MS])
+  }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, SUMMON_DURATION_MS])
 
   // Set up audio element once on mount
   useEffect(() => {
@@ -698,7 +698,7 @@ export default function AbyssSummonPage() {
         setSummonsLoading(false)
       }
     },
-    [toast, SUMMON_API_BASE],
+    [toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DEAD_DEMONS_MODE],
   )
 
   const fetchAfkCircle = useCallback(
@@ -959,7 +959,7 @@ export default function AbyssSummonPage() {
     } finally {
       setSummonLeaderboardLoading(false)
     }
-  }, [ordinalAddress])
+  }, [ordinalAddress, SUMMON_LEADERBOARD_ENABLED])
 
   // Load damned options only when address changes (not on every refresh)
   useEffect(() => {
@@ -1131,7 +1131,7 @@ export default function AbyssSummonPage() {
     } finally {
       setCreating(false)
     }
-  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED, poolMode])
+  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED, poolMode, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE])
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
@@ -1197,7 +1197,7 @@ export default function AbyssSummonPage() {
         setJoiningSummonId(null)
       }
     },
-    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED],
+    [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE],
   )
 
   const handleCompleteSummon = useCallback(
@@ -1244,7 +1244,7 @@ export default function AbyssSummonPage() {
         setCompletingSummonId(null)
       }
     },
-    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED],
+    [ordinalAddress, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, powderTermCapitalized],
   )
 
   const handleDismissSummon = useCallback(
