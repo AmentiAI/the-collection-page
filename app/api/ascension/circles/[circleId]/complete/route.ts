@@ -5,8 +5,8 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000
-const POWDER_REWARD_HOST = 3
-const POWDER_REWARD_PARTICIPANT = 2
+const POWDER_REWARD_HOST = 6
+const POWDER_REWARD_PARTICIPANT = 4
 const MIN_COMPLETION_COUNT = 9 // Only need 9 out of 10 to complete
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
