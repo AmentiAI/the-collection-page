@@ -125,7 +125,7 @@ export default function DocsPage() {
               <li>Earned by participating in Summoning Circles</li>
               <li>Also earned hourly in the AFK Circle (1 per ordinal)</li>
               <li>Spend powder to add power to ordinals in the graveyard</li>
-              <li>Each spend adds 1 powder to an ordinal's ascension power</li>
+              <li>Each spend adds 1 powder to an ordinal&apos;s ascension power</li>
             </ul>
           </div>
 
@@ -133,7 +133,7 @@ export default function DocsPage() {
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">First Ascension</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>When an ordinal reaches 500 ascension powder, it can ascend</li>
-              <li>Creates a new ascended image in "Limbo" status</li>
+              <li>Creates a new ascended image in &quot;Limbo&quot; status</li>
               <li>You must choose to keep the ascended version or burn it for a second ascension</li>
               <li>If you burn it, the original ordinal becomes eligible for a second ascension</li>
             </ul>
@@ -152,8 +152,8 @@ export default function DocsPage() {
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Grave Robbing</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Costs 200 ascension powder per attempt</li>
-              <li>Can only target ordinals that haven't been updated in 7+ days</li>
-              <li>10% success chance to steal ownership of someone else's ordinal</li>
+              <li>Can only target ordinals that haven&apos;t been updated in 7+ days</li>
+              <li>10% success chance to steal ownership of someone else&apos;s ordinal</li>
               <li>Powder is deducted even if the attempt fails</li>
               <li>Cannot rob already ascended ordinals</li>
             </ul>
@@ -192,7 +192,7 @@ export default function DocsPage() {
                 <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
-                  <li>Must mark "Ready" in the last 2 minutes</li>
+                  <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
                   <li>9 of 10 must complete to succeed</li>
                   <li><strong>Rewards:</strong> 6 powder (host) • 4 powder (participants)</li>
                 </ul>
@@ -213,7 +213,7 @@ export default function DocsPage() {
               <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
                 <h4 className="mb-1 font-semibold text-purple-300">Dead Demons Circles</h4>
                 <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed">
-                  <li>Requires ascended inscriptions (ID starts with "ascended_")</li>
+                  <li>Requires ascended inscriptions (ID starts with &quot;ascended_&quot;)</li>
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
                   <li>All 10 must complete in the last 1 minute</li>
@@ -238,8 +238,8 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">How to Participate</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
-              <li><strong>Host:</strong> Select an ordinal and click "Initiate Circle"</li>
-              <li><strong>Join:</strong> Browse active circles and click "Join" with an available ordinal</li>
+              <li><strong>Host:</strong> Select an ordinal and click &quot;Initiate Circle&quot;</li>
+              <li><strong>Join:</strong> Browse active circles and click &quot;Join&quot; with an available ordinal</li>
               <li>Each ordinal can only be in one circle at a time</li>
               <li>Maximum 6 active circles per user (hosting + participating)</li>
               <li>Maximum 2 hosted circles per user</li>
@@ -251,7 +251,7 @@ export default function DocsPage() {
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Completing Circles</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>When a circle reaches capacity, it locks and enters completion phase</li>
-              <li>Mark yourself "Ready" during the completion window</li>
+              <li>Mark yourself &quot;Ready&quot; during the completion window</li>
               <li>If enough participants complete, rewards are granted automatically</li>
               <li>If too few complete, the circle expires with no rewards</li>
               <li>Check countdown timers to know when to mark ready</li>
@@ -297,7 +297,7 @@ export default function DocsPage() {
             <h3 className="mb-2 font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Must have at least one unlisted Damned ordinal to view</li>
-              <li>Your rank is highlighted if you're on the leaderboard</li>
+              <li>Your rank is highlighted if you&apos;re on the leaderboard</li>
               <li>Shows username, avatar (if Discord linked), and wallet address</li>
             </ul>
           </div>
