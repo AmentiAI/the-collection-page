@@ -327,7 +327,7 @@ export default function AbyssSummonPage() {
         ? Math.min(rawExpiryMs, fallbackExpiryMs)
         : fallbackExpiryMs
       const timeRemainingMs = targetExpiryMs - currentTime
-      const completionWindowMs = IS_DAMNED_POOL_MODE ? 3 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+      const completionWindowMs = IS_DAMNED_POOL_MODE ? 3 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 1 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
       const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
 
       // Play beep if window just opened and we haven't beeped for this circle yet
@@ -1994,7 +1994,7 @@ function SummonList({
         const timeRemainingMs = targetExpiryMs - now
         const isExpired = (timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)) || summon.status === 'expired'
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
-        const completionWindowMs = isPortalMode ? 3 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+        const completionWindowMs = isPortalMode ? 3 * 60 * 1000 : isDeadDemonsMode ? 1 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
         const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
         const unlockCountdown = Math.max(0, timeRemainingMs - completionWindowMs)
         // Reduce per-frame style churn on mobile by updating glow once per second
