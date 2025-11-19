@@ -1002,6 +1002,7 @@ export default function AbyssSummonPage() {
       setSelectedInscriptionId(null)
       if (ordinalAddress) {
         await refreshSummons(ordinalAddress)
+        await loadDamnedOptions(ordinalAddress)
         if (SUMMON_LEADERBOARD_ENABLED) {
           await loadSummonLeaderboard()
         }
@@ -1012,7 +1013,7 @@ export default function AbyssSummonPage() {
     } finally {
       setCreating(false)
     }
-  }, [ordinalAddress, selectedOption, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED, poolMode, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE])
+  }, [ordinalAddress, selectedOption, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, IS_DAMNED_POOL_MODE, SUMMON_LEADERBOARD_ENABLED, poolMode, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE])
 
   const handleJoinSummon = useCallback(
     async (summon: SummonRecord) => {
@@ -1075,6 +1076,7 @@ export default function AbyssSummonPage() {
         setSelectedInscriptionId(null)
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress)
+          await loadDamnedOptions(ordinalAddress)
           if (SUMMON_LEADERBOARD_ENABLED) {
             await loadSummonLeaderboard()
           }
@@ -1086,7 +1088,7 @@ export default function AbyssSummonPage() {
         setJoiningSummonId(null)
       }
     },
-    [ordinalAddress, selectedOption, afkCircleUserParticipants, refreshSummons, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE],
+    [ordinalAddress, selectedOption, afkCircleUserParticipants, refreshSummons, loadDamnedOptions, loadSummonLeaderboard, toast, SUMMON_API_BASE, IS_POWDER_MODE, SUMMON_LEADERBOARD_ENABLED, SUMMONING_DISABLED, SUMMONING_DISABLED_MESSAGE],
   )
 
   const handleCompleteSummon = useCallback(
