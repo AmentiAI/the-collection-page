@@ -40,6 +40,51 @@ async function ensureAfkCircleInfrastructure(pool: Pool) {
       UNIQUE(circle_id, wallet, inscription_id)
     )
   `)
+  
+  // Check if circle_id column exists, if not add it (migration for existing tables)
+  const columnCheck = await pool.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name = 'afk_circle_participants' AND column_name = 'circle_id'
+  `)
+  
+  if (columnCheck.rows.length === 0) {
+    // Column doesn't exist, add it
+    // First add as nullable, update existing rows, then make it NOT NULL
+    await pool.query(`
+      ALTER TABLE afk_circle_participants 
+      ADD COLUMN circle_id UUID REFERENCES afk_circles(id) ON DELETE CASCADE
+    `)
+    
+    // Update all existing rows to use the AFK circle ID
+    await pool.query(`
+      UPDATE afk_circle_participants 
+      SET circle_id = $1 
+      WHERE circle_id IS NULL
+    `, [AFK_CIRCLE_ID])
+    
+    // Now make it NOT NULL
+    await pool.query(`
+      ALTER TABLE afk_circle_participants 
+      ALTER COLUMN circle_id SET NOT NULL
+    `)
+    
+    // Recreate unique constraint if it doesn't exist
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint 
+          WHERE conname = 'afk_circle_participants_circle_id_wallet_inscription_id_key'
+        ) THEN
+          ALTER TABLE afk_circle_participants 
+          ADD CONSTRAINT afk_circle_participants_circle_id_wallet_inscription_id_key 
+          UNIQUE(circle_id, wallet, inscription_id);
+        END IF;
+      END $$;
+    `)
+  }
+  
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_wallet ON afk_circle_participants((LOWER(wallet)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_inscription ON afk_circle_participants(inscription_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_circle_id ON afk_circle_participants(circle_id)`)
