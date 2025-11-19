@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Search, Wand2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -292,11 +293,12 @@ export default function OrdinalsAdminPage() {
 
                     {imageSource ? (
                       <div className="relative aspect-square overflow-hidden rounded-lg border border-red-900/60 bg-black/80">
-                        <img
+                        <Image
                           src={imageSource}
                           alt={ordinal.id}
-                          className="h-full w-full object-cover object-center"
-                          loading="lazy"
+                          fill
+                          className="object-cover object-center"
+                          unoptimized
                         />
                       </div>
                     ) : (
@@ -452,11 +454,14 @@ export default function OrdinalsAdminPage() {
             ) : lastGeneration ? (
               <div className="mt-6 grid gap-6 lg:grid-cols-[380px_1fr]">
                 <div className="flex flex-col gap-4">
-                  <div className="overflow-hidden rounded-lg border border-red-900/60 bg-black/80">
-                    <img
+                  <div className="relative overflow-hidden rounded-lg border border-red-900/60 bg-black/80">
+                    <Image
                       src={lastGeneration.imageDataUrl}
                       alt={`Generated chromatic foil ordinal ${lastGeneration.ordinalId}`}
+                      width={380}
+                      height={380}
                       className="h-auto w-full"
+                      unoptimized
                     />
                   </div>
                   <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-red-300">

@@ -959,7 +959,7 @@ export default function AbyssSummonPage() {
     } finally {
       setSummonLeaderboardLoading(false)
     }
-  }, [ordinalAddress, SUMMON_LEADERBOARD_ENABLED])
+  }, [SUMMON_LEADERBOARD_ENABLED])
 
   // Load damned options only when address changes (not on every refresh)
   useEffect(() => {

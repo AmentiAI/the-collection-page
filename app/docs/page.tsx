@@ -208,7 +208,7 @@ export default function DocsPage() {
               <div className="rounded border border-indigo-500/40 bg-indigo-900/20 p-3">
                 <h4 className="mb-2 text-base font-semibold text-indigo-300">Portal Circles (Damned Pool)</h4>
                 <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
-                  <li><strong>20 seats:</strong> Bonus burns only (requires burn tokens)</li>
+                  <li><strong>20 seats:</strong> Bonus burns only (host receives 1 burn bonus token as reward)</li>
                   <li><strong>40 seats:</strong> Open to all</li>
                   <li>30 minute duration for 40-man, 20 minutes for 20-man</li>
                   <li>Burn window opens in last 3 minutes</li>
@@ -220,7 +220,7 @@ export default function DocsPage() {
               <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
                 <h4 className="mb-2 text-base font-semibold text-purple-300">Dead Demons Circles</h4>
                 <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
-                  <li>Requires ascended inscriptions (ID starts with &quot;ascended_&quot;)</li>
+                  <li>Requires ascended inscriptions</li>
                   <li>10 participants required</li>
                   <li>10 minute duration</li>
                   <li>All 10 must complete in the last 1 minute</li>
