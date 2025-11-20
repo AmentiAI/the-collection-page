@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Check if abyss-summon is currently closed (7:00 PM to 10:00 AM EST)
+    // Check if abyss-summon is currently closed (7:00 PM to 12:00 PM EST)
     const now = new Date()
     const estFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/New_York',
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       hour12: false,
     })
     const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
-    const isAbyssClosed = estHour >= 19 || estHour < 10
+    const isAbyssClosed = estHour >= 19 || estHour < 12
     
     // Don't grant rewards during closed hours
     if (isAbyssClosed) {
