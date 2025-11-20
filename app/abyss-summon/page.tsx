@@ -103,6 +103,8 @@ export default function AbyssSummonPage() {
   const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
   const [afkInscriptions, setAfkInscriptions] = useState<Set<string>>(new Set())
   const afkInscriptionsRef = useRef<Set<string>>(new Set())
+  const lastAccessCheckAddressRef = useRef<string | null>(null)
+  const leaderboardLoadingRef = useRef(false)
   const [afkCircleTotal, setAfkCircleTotal] = useState(0)
   const [afkCircleUserParticipants, setAfkCircleUserParticipants] = useState<Array<{
     id: string
@@ -817,6 +819,11 @@ export default function AbyssSummonPage() {
       setSummonLeaderboard([])
       return
     }
+    // Prevent duplicate concurrent calls
+    if (leaderboardLoadingRef.current) {
+      return
+    }
+    leaderboardLoadingRef.current = true
     setSummonLeaderboardLoading(true)
     try {
       const response = await fetch('/api/abyss/summons/leaderboard', { cache: 'no-store' })
@@ -872,6 +879,7 @@ export default function AbyssSummonPage() {
       setSummonLeaderboard([])
     } finally {
       setSummonLeaderboardLoading(false)
+      leaderboardLoadingRef.current = false
     }
   }, [SUMMON_LEADERBOARD_ENABLED])
 
@@ -890,10 +898,12 @@ export default function AbyssSummonPage() {
 
   // Fetch burn count and AFK circle only when address changes (not on mode change)
   useEffect(() => {
-    if (ordinalAddress) {
+    if (ordinalAddress && ordinalAddress !== lastAccessCheckAddressRef.current) {
+      lastAccessCheckAddressRef.current = ordinalAddress
       void fetchBurnCount(ordinalAddress)
       void fetchAfkCircle(ordinalAddress)
-    } else {
+    } else if (!ordinalAddress) {
+      lastAccessCheckAddressRef.current = null
       setBurnCount(null)
       setAfkCircleTotal(0)
       setAfkCircleUserParticipants([])
@@ -908,9 +918,6 @@ export default function AbyssSummonPage() {
       setCreatedSummons([])
       setJoinedSummons([])
       setBonusAllowance(0)
-    }
-    if (SUMMON_LEADERBOARD_ENABLED) {
-      void loadSummonLeaderboard()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordinalAddress, mode])

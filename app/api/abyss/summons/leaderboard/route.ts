@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureSummonInfrastructure(pool: Pool) {
+  // Skip if already initialized in this process to avoid slow DDL operations
+  if (isTableInitialized('abyss_summons_leaderboard')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -62,6 +67,9 @@ async function ensureSummonInfrastructure(pool: Pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_summon ON abyss_summon_participants(summon_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_wallet ON abyss_summon_participants((LOWER(wallet)))`)
   await pool.query(`ALTER TABLE abyss_summon_participants ADD COLUMN IF NOT EXISTS inscription_image TEXT`)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('abyss_summons_leaderboard')
 }
 
 export async function GET() {
@@ -159,9 +167,7 @@ export async function GET() {
       { success: true, entries },
       {
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'public, max-age=3, s-maxage=3, stale-while-revalidate=1',
         },
       },
     )
@@ -173,9 +179,7 @@ export async function GET() {
       {
         status: 500,
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'no-store',
         },
       },
     )
