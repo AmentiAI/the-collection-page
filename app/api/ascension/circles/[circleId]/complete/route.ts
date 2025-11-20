@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { PoolClient } from 'pg'
 
 import { getPool } from '@/lib/db'
 
@@ -114,7 +115,7 @@ function buildCircleSelect(whereClause = '', values: unknown[] = []) {
 async function grantAscensionPowder(
   wallet: string,
   circleId: string,
-  client: ReturnType<typeof getPool>,
+  client: PoolClient,
   isHost: boolean = false,
 ) {
   const eventKey = `powder_circle:${circleId}`
@@ -170,187 +171,203 @@ export async function POST(
   }
 
   const pool = getPool()
-  await ensurePowderInfrastructure(pool)
-
-  const body = await request.json().catch(() => ({}))
-  const wallet = (body?.wallet ?? '').toString().trim()
-
-  if (!wallet) {
-    return NextResponse.json({ success: false, error: 'wallet is required' }, { status: 400 })
-  }
-
   try {
-    await pool.query('BEGIN')
+    await ensurePowderInfrastructure(pool)
 
-    const circleRes = await pool.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
-    if (circleRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
+    const body = await request.json().catch(() => ({}))
+    const wallet = (body?.wallet ?? '').toString().trim()
+
+    if (!wallet) {
+      return NextResponse.json({ success: false, error: 'wallet is required' }, { status: 400 })
     }
 
-    const circle = circleRes.rows[0]
+    let client
+    try {
+      client = await pool.connect()
+      await client.query('BEGIN')
 
-    if (circle.status === 'completed') {
-      await pool.query('ROLLBACK')
-      const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-      return NextResponse.json(
-        { success: false, error: 'Circle already completed.', summon: mapCircleRow(refreshed.rows[0]) },
-        { status: 409 },
-      )
-    }
+      const circleRes = await client.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
+      if (circleRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
+      }
 
-    if (circle.status !== 'ready') {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'This ascension circle cannot be completed.' },
-        { status: 409 },
-      )
-    }
+      const circle = circleRes.rows[0]
 
-    const participantRes = await pool.query(
-      `
-        SELECT *
-        FROM summoning_powder_participants
-        WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
-        FOR UPDATE
-      `,
-      [circleId, wallet],
-    )
+      if (circle.status === 'completed') {
+        await client.query('ROLLBACK')
+        const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+        return NextResponse.json(
+          { success: false, error: 'Circle already completed.', summon: mapCircleRow(refreshed.rows[0]) },
+          { status: 409 },
+        )
+      }
 
-    if (participantRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'You are not part of this ascension circle.' },
-        { status: 403 },
-      )
-    }
+      if (circle.status !== 'ready') {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'This ascension circle cannot be completed.' },
+          { status: 409 },
+        )
+      }
 
-    const participant = participantRes.rows[0]
-    if (participant.completed) {
-      await pool.query('ROLLBACK')
-      const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-      return NextResponse.json({
-        success: true,
-        message: 'Ascension already recorded for this wallet.',
-        profilePowder: undefined,
-        summon: mapCircleRow(refreshed.rows[0]),
-      })
-    }
-
-    const now = new Date()
-    const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
-    const lockedAt = circle.locked_at ? new Date(circle.locked_at) : null
-
-    if (!expiresAt) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'Ascension circle has not entered completion phase yet.' },
-        { status: 409 },
-      )
-    }
-
-    const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
-    const timeUntilExpiry = expiresAt.getTime() - now.getTime()
-    const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
-    
-    // Debug logging
-    console.log('[ascension/circles/complete]', {
-      now: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      finalWindowStart: finalWindowStart.toISOString(),
-      timeUntilExpiry: Math.floor(timeUntilExpiry / 1000),
-      timeUntilWindow: Math.floor(timeUntilWindow / 1000),
-      completionWindowMs: COMPLETION_WINDOW_MS,
-    })
-    
-    if (now < finalWindowStart) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Final ritual window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
-          timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
-        },
-        { status: 409 },
-      )
-    }
-
-    if (now > expiresAt) {
-      await pool.query(
-        `UPDATE summoning_powder_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
-        [circleId],
-      )
-      await pool.query('COMMIT')
-      return NextResponse.json(
-        { success: false, error: 'Ascension circle has expired.' },
-        { status: 410 },
-      )
-    }
-
-    await pool.query(
-      `
-        UPDATE summoning_powder_participants
-        SET completed = TRUE,
-            completed_at = NOW()
-        WHERE id = $1
-      `,
-      [participant.id],
-    )
-
-    const participantsRes = await pool.query(
-      `SELECT wallet, completed FROM summoning_powder_participants WHERE circle_id = $1 FOR UPDATE`,
-      [circleId],
-    )
-    const participants = participantsRes.rows
-    const completedCount = participants.filter((row) => row.completed).length
-    // Require 9 out of 10 participants to mark complete
-    const allCompleted = participants.length >= circle.required_participants && completedCount >= MIN_COMPLETION_COUNT
-
-    let rewardGranted = Boolean(circle.reward_granted)
-
-    if (allCompleted && !rewardGranted) {
-      await pool.query(
+      const participantRes = await client.query(
         `
-          UPDATE summoning_powder_circles
-          SET status = 'completed',
-              completed_at = NOW(),
-              reward_granted = TRUE,
-              updated_at = NOW()
+          SELECT *
+          FROM summoning_powder_participants
+          WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
+          FOR UPDATE
+        `,
+        [circleId, wallet],
+      )
+
+      if (participantRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'You are not part of this ascension circle.' },
+          { status: 403 },
+        )
+      }
+
+      const participant = participantRes.rows[0]
+      if (participant.completed) {
+        await client.query('ROLLBACK')
+        const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+        return NextResponse.json({
+          success: true,
+          message: 'Ascension already recorded for this wallet.',
+          profilePowder: undefined,
+          summon: mapCircleRow(refreshed.rows[0]),
+        })
+      }
+
+      const now = new Date()
+      const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
+      const lockedAt = circle.locked_at ? new Date(circle.locked_at) : null
+
+      if (!expiresAt) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Ascension circle has not entered completion phase yet.' },
+          { status: 409 },
+        )
+      }
+
+      const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
+      const timeUntilExpiry = expiresAt.getTime() - now.getTime()
+      const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
+      
+      // Debug logging
+      console.log('[ascension/circles/complete]', {
+        now: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        finalWindowStart: finalWindowStart.toISOString(),
+        timeUntilExpiry: Math.floor(timeUntilExpiry / 1000),
+        timeUntilWindow: Math.floor(timeUntilWindow / 1000),
+        completionWindowMs: COMPLETION_WINDOW_MS,
+      })
+      
+      if (now < finalWindowStart) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `Final ritual window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
+            timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
+          },
+          { status: 409 },
+        )
+      }
+
+      if (now > expiresAt) {
+        await client.query(
+          `UPDATE summoning_powder_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+          [circleId],
+        )
+        await client.query('COMMIT')
+        return NextResponse.json(
+          { success: false, error: 'Ascension circle has expired.' },
+          { status: 410 },
+        )
+      }
+
+      await client.query(
+        `
+          UPDATE summoning_powder_participants
+          SET completed = TRUE,
+              completed_at = NOW()
           WHERE id = $1
         `,
+        [participant.id],
+      )
+
+      const participantsRes = await client.query(
+        `SELECT wallet, completed FROM summoning_powder_participants WHERE circle_id = $1 FOR UPDATE`,
         [circleId],
       )
-      rewardGranted = true
+      const participants = participantsRes.rows
+      const completedCount = participants.filter((row) => row.completed).length
+      // Require 9 out of 10 participants to mark complete
+      const allCompleted = participants.length >= circle.required_participants && completedCount >= MIN_COMPLETION_COUNT
 
-      const creatorWallet = circle.creator_wallet?.toLowerCase() || ''
-      for (const row of participants) {
-        const isHost = row.wallet?.toLowerCase() === creatorWallet
-        await grantAscensionPowder(row.wallet, circleId, pool, isHost)
+      let rewardGranted = Boolean(circle.reward_granted)
+
+      if (allCompleted && !rewardGranted) {
+        await client.query(
+          `
+            UPDATE summoning_powder_circles
+            SET status = 'completed',
+                completed_at = NOW(),
+                reward_granted = TRUE,
+                updated_at = NOW()
+            WHERE id = $1
+          `,
+          [circleId],
+        )
+        rewardGranted = true
+
+        const creatorWallet = circle.creator_wallet?.toLowerCase() || ''
+        for (const row of participants) {
+          const isHost = row.wallet?.toLowerCase() === creatorWallet
+          await grantAscensionPowder(row.wallet, circleId, client, isHost)
+        }
+      }
+
+      await client.query('COMMIT')
+
+      const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+      const profileRes = await client.query(
+        `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
+        [wallet],
+      )
+      const profilePowder = Number(profileRes.rows[0]?.ascension_powder ?? 0)
+
+      return NextResponse.json({
+        success: true,
+        message: rewardGranted
+          ? 'Ascension circle complete. Powder surges through every participant.'
+          : 'Ascension attested. Await the remaining allies.',
+        profilePowder,
+        summon: mapCircleRow(refreshed.rows[0]),
+      })
+    } catch (error) {
+      if (client) {
+        await client.query('ROLLBACK').catch(() => {})
+      }
+      console.error('[ascension/circles/complete][POST]', error)
+      return NextResponse.json(
+        { success: false, error: error instanceof Error ? error.message : 'Failed to complete ascension circle.' },
+        { status: 500 },
+      )
+    } finally {
+      if (client) {
+        client.release()
       }
     }
-
-    await pool.query('COMMIT')
-
-    const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-    const profileRes = await pool.query(
-      `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
-      [wallet],
-    )
-    const profilePowder = Number(profileRes.rows[0]?.ascension_powder ?? 0)
-
-    return NextResponse.json({
-      success: true,
-      message: rewardGranted
-        ? 'Ascension circle complete. Powder surges through every participant.'
-        : 'Ascension attested. Await the remaining allies.',
-      profilePowder,
-      summon: mapCircleRow(refreshed.rows[0]),
-    })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
-    console.error('[ascension/circles/complete][POST]', error)
+    console.error('[ascension/circles/complete] Infrastructure error:', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to complete ascension circle.' },
+      { success: false, error: 'Failed to initialize infrastructure.' },
       { status: 500 },
     )
   }

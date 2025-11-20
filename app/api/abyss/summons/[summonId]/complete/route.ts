@@ -112,124 +112,140 @@ export async function POST(
   }
 
   const pool = getPool()
-  await ensureSummonTables(pool)
-
   try {
-    await pool.query('BEGIN')
+    await ensureSummonTables(pool)
 
-    const summonRes = await pool.query(
-      `SELECT * FROM abyss_summons WHERE id = $1 FOR UPDATE`,
-      [summonId],
-    )
-    if (summonRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json({ success: false, error: 'Summon not found' }, { status: 404 })
-    }
+    let client
+    try {
+      client = await pool.connect()
+      await client.query('BEGIN')
 
-    const summon = summonRes.rows[0]
-
-    if (summon.status !== 'ready') {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'Summon is not ready to complete.' },
-        { status: 409 },
+      const summonRes = await client.query(
+        `SELECT * FROM abyss_summons WHERE id = $1 FOR UPDATE`,
+        [summonId],
       )
-    }
+      if (summonRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ success: false, error: 'Summon not found' }, { status: 404 })
+      }
 
-    if (summon.creator_wallet.toLowerCase() !== wallet.toLowerCase()) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'Only the creator can complete this summon.' },
-        { status: 403 },
+      const summon = summonRes.rows[0]
+
+      if (summon.status !== 'ready') {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Summon is not ready to complete.' },
+          { status: 409 },
+        )
+      }
+
+      if (summon.creator_wallet.toLowerCase() !== wallet.toLowerCase()) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Only the creator can complete this summon.' },
+          { status: 403 },
+        )
+      }
+
+      const participantsRes = await client.query(
+        `
+          SELECT wallet, inscription_id
+          FROM abyss_summon_participants
+          WHERE summon_id = $1
+          ORDER BY joined_at
+        `,
+        [summonId],
       )
-    }
+      const participants = participantsRes.rows ?? []
 
-    const participantsRes = await pool.query(
-      `
-        SELECT wallet, inscription_id
-        FROM abyss_summon_participants
-        WHERE summon_id = $1
-        ORDER BY joined_at
-      `,
-      [summonId],
-    )
-    const participants = participantsRes.rows ?? []
+      if (participants.length < summon.required_participants) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Summon does not have enough participants.' },
+          { status: 409 },
+        )
+      }
 
-    if (participants.length < summon.required_participants) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'Summon does not have enough participants.' },
-        { status: 409 },
+      await client.query(
+        `
+          UPDATE abyss_summons
+          SET status = 'completed',
+              completed_at = NOW(),
+              bonus_granted = TRUE,
+              updated_at = NOW()
+          WHERE id = $1
+        `,
+        [summonId],
       )
+
+      await client.query(
+        `
+          INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
+          VALUES ($1, 1, NOW())
+          ON CONFLICT (wallet)
+          DO UPDATE SET
+            available = abyss_bonus_allowances.available + 1,
+            updated_at = EXCLUDED.updated_at
+        `,
+        [wallet],
+      )
+
+      const allowanceRes = await client.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE wallet = $1`,
+        [wallet],
+      )
+      const bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+
+      await client.query('COMMIT')
+
+      const refreshed = await client.query(
+        `
+          SELECT
+            s.*,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', sp.id,
+                  'wallet', sp.wallet,
+                  'inscriptionId', sp.inscription_id,
+                  'image', sp.inscription_image,
+                  'role', sp.role,
+                  'joinedAt', sp.joined_at
+                )
+              ) FILTER (WHERE sp.id IS NOT NULL),
+              '[]'::json
+            ) AS participants
+          FROM abyss_summons s
+          LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+          WHERE s.id = $1
+          GROUP BY s.id
+        `,
+        [summonId],
+      )
+
+      return NextResponse.json({
+        success: true,
+        summon: mapSummonRow(refreshed.rows[0]),
+        bonusAllowance,
+      })
+    } catch (error) {
+      if (client) {
+        await client.query('ROLLBACK').catch(() => {})
+      }
+      console.error('[abyss/summons/complete][POST]', error)
+      return NextResponse.json(
+        { success: false, error: error instanceof Error ? error.message : 'Failed to complete summon' },
+        { status: 500 },
+      )
+    } finally {
+      if (client) {
+        client.release()
+      }
     }
-
-    await pool.query(
-      `
-        UPDATE abyss_summons
-        SET status = 'completed',
-            completed_at = NOW(),
-            bonus_granted = TRUE,
-            updated_at = NOW()
-        WHERE id = $1
-      `,
-      [summonId],
-    )
-
-    await pool.query(
-      `
-        INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
-        VALUES ($1, 1, NOW())
-        ON CONFLICT (wallet)
-        DO UPDATE SET
-          available = abyss_bonus_allowances.available + 1,
-          updated_at = EXCLUDED.updated_at
-      `,
-      [wallet],
-    )
-
-    const allowanceRes = await pool.query(
-      `SELECT available FROM abyss_bonus_allowances WHERE wallet = $1`,
-      [wallet],
-    )
-    const bonusAllowance = allowanceRes.rows[0]?.available ?? 0
-
-    await pool.query('COMMIT')
-
-    const refreshed = await pool.query(
-      `
-        SELECT
-          s.*,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', sp.id,
-                'wallet', sp.wallet,
-                'inscriptionId', sp.inscription_id,
-                'image', sp.inscription_image,
-                'role', sp.role,
-                'joinedAt', sp.joined_at
-              )
-            ) FILTER (WHERE sp.id IS NOT NULL),
-            '[]'::json
-          ) AS participants
-        FROM abyss_summons s
-        LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
-        WHERE s.id = $1
-        GROUP BY s.id
-      `,
-      [summonId],
-    )
-
-    return NextResponse.json({
-      success: true,
-      summon: mapSummonRow(refreshed.rows[0]),
-      bonusAllowance,
-    })
   } catch (error) {
-    await pool.query('ROLLBACK')
-    console.error('[abyss/summons/complete][POST]', error)
+    console.error('[abyss/summons/complete] Infrastructure error:', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to complete summon' },
+      { success: false, error: 'Failed to initialize infrastructure.' },
       { status: 500 },
     )
   }
