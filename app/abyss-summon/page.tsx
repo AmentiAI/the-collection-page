@@ -36,6 +36,16 @@ export default function AbyssSummonPage() {
   const [isHolder, setIsHolder] = useState<boolean | null>(null)
   const [checkingHolder, setCheckingHolder] = useState(false)
   const [mode, setMode] = useState<Mode>('damned_pool')
+  
+  // Keep mode ref in sync for validation in async callbacks
+  useEffect(() => {
+    currentModeRef.current = mode
+    // Clear circles when switching modes to prevent cross-contamination
+    setSummons([])
+    setCreatedSummons([])
+    setJoinedSummons([])
+  }, [mode])
+  
   // Derive mode-dependent values locally so tabs switch instantly without reloads
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
@@ -63,6 +73,7 @@ export default function AbyssSummonPage() {
   const lastLoadedSongRef = useRef<string | null>(null)
   const shouldContinuePlaylistRef = useRef(false)
   const lastLoadedAddressRef = useRef<string | null>(null)
+  const currentModeRef = useRef<Mode>(mode)
 
   const [now, setNow] = useState(Date.now())
   const [summons, setSummons] = useState<SummonRecord[]>([])
@@ -512,13 +523,13 @@ export default function AbyssSummonPage() {
         const joinedCircles = Array.isArray(data?.joinedCircles) ? (data.joinedCircles as SummonRecord[]) : []
 
         // Only update state if we're still on the same mode that made the request
-        // This prevents showing portal circles when on dead demons tab during refresh
-        if (currentMode === mode) {
+        // Use ref to get the ACTUAL current mode, not the closure value
+        if (currentMode === currentModeRef.current) {
           setSummons(openSummons.length > 0 ? openSummons : openCircles)
           setCreatedSummons(created.length > 0 ? created : createdCircles)
           setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
         } else {
-          console.log(`[Summons] Discarding stale data from ${currentMode} mode (current mode: ${mode})`)
+          console.log(`[Summons] Discarding stale data from ${currentMode} mode (current mode: ${currentModeRef.current})`)
           return // Exit early, don't update anything
         }
         
