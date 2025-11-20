@@ -4,8 +4,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
-// Target: Nov 19, 2025 3:00 PM EST = 20:00 UTC + 4 hours + 24 hours = 48:00 UTC (next day at midnight)
-const GATES_EVENT_UTC = Date.parse('2025-11-19T20:00:00Z') + (4 * 60 * 60 * 1000) + (24 * 60 * 60 * 1000)
+interface GatesRatioData {
+  demons: number
+  angels: number
+  total: number
+  angelPercentage: number
+  gatesOpen: boolean
+}
 
 export default function GatesOfTheDamnedPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -16,9 +21,8 @@ export default function GatesOfTheDamnedPage() {
   const [volume, setVolume] = useState(30)
   const [isMuted, setIsMuted] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [countdown, setCountdown] = useState<string | null>(null)
-  const [eventStatus, setEventStatus] = useState<'upcoming' | 'active' | 'ended'>('upcoming')
-  const isCountdownComplete = eventStatus === 'ended'
+  const [ratioData, setRatioData] = useState<GatesRatioData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const audioSrc = '/gates-audio.mp3'
 
   const handleEnter = () => {
@@ -102,56 +106,32 @@ export default function GatesOfTheDamnedPage() {
     }
   }, [])
 
+  // Fetch angels vs demons ratio
   useEffect(() => {
-    if (!Number.isFinite(GATES_EVENT_UTC)) {
-      return
+    const fetchRatio = async () => {
+      try {
+        const response = await fetch('/api/abyss/burns?gatesRatio=true')
+        const data = await response.json()
+        if (data.success) {
+          setRatioData({
+            demons: data.demons,
+            angels: data.angels,
+            total: data.total,
+            angelPercentage: data.angelPercentage,
+            gatesOpen: data.gatesOpen,
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch gates ratio:', error)
+      } finally {
+        setIsLoading(false)
+      }
     }
 
-    const formatCountdown = (ms: number) => {
-      if (ms <= 0) {
-        return '00:00:00'
-      }
-      const totalSeconds = Math.floor(ms / 1000)
-      const days = Math.floor(totalSeconds / 86_400)
-      const hours = Math.floor((totalSeconds % 86_400) / 3600)
-      const minutes = Math.floor((totalSeconds % 3600) / 60)
-      const seconds = totalSeconds % 60
-
-      const segments: string[] = []
-      if (days > 0) {
-        segments.push(days.toString().padStart(2, '0'))
-      }
-      segments.push(hours.toString().padStart(2, '0'))
-      segments.push(minutes.toString().padStart(2, '0'))
-      segments.push(seconds.toString().padStart(2, '0'))
-      return segments.join(':')
-    }
-
-    const updateCountdown = () => {
-      const now = Date.now()
-      const diff = GATES_EVENT_UTC - now
-      if (diff <= 0) {
-        setCountdown('00:00:00')
-        setEventStatus('ended')
-        return false
-      }
-      setCountdown(formatCountdown(diff))
-      setEventStatus('upcoming')
-      return true
-    }
-
-    const continueUpdating = updateCountdown()
-    if (!continueUpdating) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      const shouldContinue = updateCountdown()
-      if (!shouldContinue) {
-        window.clearInterval(intervalId)
-      }
-    }, 1000)
-
+    fetchRatio()
+    
+    // Poll every 10 seconds to update the ratio
+    const intervalId = window.setInterval(fetchRatio, 10000)
     return () => window.clearInterval(intervalId)
   }, [])
 
@@ -532,23 +512,57 @@ export default function GatesOfTheDamnedPage() {
             </h1>
               <div className="space-y-6">
                 <p className="text-base md:text-lg text-red-500 font-mono tracking-widest uppercase">
-                  UNDER CONSTRUCTION 
+                  THE BALANCE OF POWER
                 </p>
-                <div className="space-y-2">
-               
-                  <div className="mx-auto flex w-full max-w-sm flex-col items-center justify-center rounded-lg border border-red-600/60 bg-black/60 px-6 py-4">
-                    <span className="text-[11px] font-mono uppercase tracking-[0.4em] text-red-400">
-                      Countdown
-                    </span>
-                    <span className="mt-2 font-mono text-3xl tracking-[0.35em] text-red-200">
-                      {isCountdownComplete ? '00:00:00' : countdown ?? '— — : — — : — —'}
-                    </span>
+                <div className="space-y-4">
+                  {/* Angels vs Demons Ratio */}
+                  <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center rounded-lg border border-red-600/60 bg-black/60 px-6 py-6 space-y-4">
+                    <div className="w-full space-y-3">
+                      {/* Angels */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-mono uppercase tracking-[0.3em] text-emerald-400">Angels</span>
+                        <span className="text-2xl font-mono text-emerald-200">
+                          {isLoading ? '—' : ratioData?.angels ?? 0}
+                        </span>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="relative h-8 w-full overflow-hidden rounded-full border border-red-600/40 bg-red-950/50">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
+                          style={{ width: `${isLoading ? 0 : ratioData?.angelPercentage ?? 0}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-sm font-mono font-bold text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.9)]">
+                            {isLoading ? '—' : `${ratioData?.angelPercentage ?? 0}%`}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Demons */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-mono uppercase tracking-[0.3em] text-red-400">Demons</span>
+                        <span className="text-2xl font-mono text-red-200">
+                          {isLoading ? '—' : ratioData?.demons ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="border-t border-red-600/30 pt-3 w-full">
+                      <p className="text-center text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
+                        Gates open at 51% Angels
+                      </p>
+                    </div>
                   </div>
                 </div>
-                {isCountdownComplete && (
+                {ratioData?.gatesOpen && (
                   <div className="space-y-4">
-                    <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-red-500">
-                      STILL CLOSED!
+                    <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-emerald-500 animate-pulse">
+                      GATES ARE OPENING!
+                    </p>
+                  </div>
+                )}
+                {!isLoading && !ratioData?.gatesOpen && (
+                  <div className="space-y-4">
+                    <p className="text-xl md:text-2xl font-bold font-mono tracking-[0.4em] uppercase text-red-500">
+                      GATES REMAIN SEALED
                     </p>
                   </div>
                 )}

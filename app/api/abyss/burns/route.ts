@@ -279,6 +279,66 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, demonsRevived: demonsCount })
     }
 
+    // Return angels vs demons ratio for Gates of the Damned
+    if (searchParams.get('gatesRatio') === 'true') {
+      // Ensure ascended_images_mint_queue table exists
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+            wallet_address TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            image_blob_url TEXT,
+            source_inscription_id TEXT NOT NULL,
+            generation_prompt TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
+      
+      // Count demons (first ascensions - NOT starting with "ascended_")
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demons = Number(demonsRes.rows[0]?.count ?? 0)
+      
+      // Count angels (second ascensions - starting with "ascended_")
+      const angelsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
+        `,
+      )
+      const angels = Number(angelsRes.rows[0]?.count ?? 0)
+      
+      const total = demons + angels
+      const angelPercentage = total > 0 ? Math.round((angels / total) * 100) : 0
+      const gatesOpen = angelPercentage >= 51
+      
+      return NextResponse.json({ 
+        success: true, 
+        demons, 
+        angels, 
+        total,
+        angelPercentage,
+        gatesOpen 
+      }, {
+        headers: {
+          'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=2',
+        },
+      })
+    }
+
     if (searchParams.get('ids') === 'inscriptions') {
       const result = await pool.query(`SELECT inscription_id FROM abyss_burns`)
       const ids = result.rows
