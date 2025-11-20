@@ -233,14 +233,14 @@ export async function POST(
       } else {
         // The inscription is in the AFK circle with THIS wallet - user needs to remove it properly
         console.log(`[Dead Demons Join] AFK conflict: inscription ${inscriptionId} is in AFK circle with current wallet ${wallet}`)
-        await pool.query('ROLLBACK')
-        return NextResponse.json(
-          {
-            success: false,
+      await pool.query('ROLLBACK')
+      return NextResponse.json(
+        {
+          success: false,
             error: `This ordinal is currently in the AFK circle. Remove it from the AFK circle first.`,
-          },
-          { status: 409 },
-        )
+        },
+        { status: 409 },
+      )
       }
     }
 

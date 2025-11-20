@@ -525,9 +525,9 @@ export default function AbyssSummonPage() {
         // Only update state if we're still on the same mode that made the request
         // Use ref to get the ACTUAL current mode, not the closure value
         if (currentMode === currentModeRef.current) {
-          setSummons(openSummons.length > 0 ? openSummons : openCircles)
-          setCreatedSummons(created.length > 0 ? created : createdCircles)
-          setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
+        setSummons(openSummons.length > 0 ? openSummons : openCircles)
+        setCreatedSummons(created.length > 0 ? created : createdCircles)
+        setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
         } else {
           console.log(`[Summons] Discarding stale data from ${currentMode} mode (current mode: ${currentModeRef.current})`)
           return // Exit early, don't update anything
@@ -908,18 +908,18 @@ export default function AbyssSummonPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordinalAddress, mode])
 
-  // Polling with visibility check - only poll when page is visible and reduce frequency
+  // Polling with visibility check - only poll when page is visible
   useEffect(() => {
     if (!ordinalAddress) return
     
-    // Poll every 30 seconds (reduced from 15) to reduce DB load
-    const POLL_INTERVAL = 30_000
+    // Poll every 15 seconds to keep circles up-to-date
+    const POLL_INTERVAL = 15_000
     
     const doPoll = () => {
       // Only poll if the page is visible (tab is active)
       if (document.visibilityState === 'visible') {
         void refreshSummons(ordinalAddress, mode)
-        void fetchAfkCircle(ordinalAddress)
+      void fetchAfkCircle(ordinalAddress)
       }
     }
     
@@ -943,7 +943,7 @@ export default function AbyssSummonPage() {
   // Removed interval - only load damned options on initial load or address change
   // No need to refresh ordinals list every 23 seconds
 
-  // Leaderboard polling - also respect visibility and reduce frequency
+  // Leaderboard polling - also respect visibility
   useEffect(() => {
     if (!SUMMON_LEADERBOARD_ENABLED) {
       return undefined
@@ -951,12 +951,12 @@ export default function AbyssSummonPage() {
     
     void loadSummonLeaderboard()
     
-    // Poll every 45 seconds (increased from 23) when visible
+    // Poll every 23 seconds when visible
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadSummonLeaderboard()
       }
-    }, 45_000)
+    }, 23_000)
     
     return () => window.clearInterval(intervalId)
   // eslint-disable-next-line react-hooks/exhaustive-deps

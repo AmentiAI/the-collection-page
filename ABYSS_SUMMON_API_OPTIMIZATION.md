@@ -9,7 +9,7 @@ The abyss-summon page was making excessive API calls that were flooding the data
 
 ## Optimizations Applied
 
-### 1. **Increased Polling Intervals**
+### 1. **Added Visibility-Based Polling**
 
 **Before:**
 - Main data: Every **15 seconds**
@@ -17,11 +17,11 @@ The abyss-summon page was making excessive API calls that were flooding the data
 - Both polling constantly regardless of tab visibility
 
 **After:**
-- Main data: Every **30 seconds** (50% reduction)
-- Leaderboard: Every **45 seconds** (95% increase)
-- Both respect tab visibility (see #2)
+- Main data: Every **15 seconds** (when tab is visible)
+- Leaderboard: Every **23 seconds** (when tab is visible)
+- **0 API calls when tab is hidden** (100% reduction for background tabs)
 
-### 2. **Added Visibility-Based Polling**
+### 2. **How Visibility Detection Works**
 
 Polling now only happens when the page tab is **active and visible**:
 
