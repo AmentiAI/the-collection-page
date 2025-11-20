@@ -1266,8 +1266,8 @@ export default function AbyssSummonPage() {
           </div>
         ) : (
           <>
-        {/* Main Content - Only show if not closed */}
-        {!abyssClosed.isClosed && (
+        {/* Main Content - Only show if not closed (or if bypass is active) */}
+        {(!abyssClosed.isClosed || bypassClosed) && (
           <>
         {/* Header outside of the card */}
         <div className="relative flex items-center justify-center gap-3">
