@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useWallet } from '@/app/context/WalletProvider'
-import { useToast } from '@/components/ui/use-toast'
+import { useWallet } from '@/lib/wallet/compatibility'
+import { useToast } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
 import { Loader2, Link2, Unlink, Wallet, CheckCircle2, AlertCircle } from 'lucide-react'
 
@@ -19,8 +19,8 @@ interface LinkedWalletsData {
 }
 
 export default function LinkedWalletsManager() {
-  const { address, signMessage } = useWallet()
-  const { toast } = useToast()
+  const { currentAddress: address, client } = useWallet()
+  const toast = useToast()
   const [linkedData, setLinkedData] = useState<LinkedWalletsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [linking, setLinking] = useState(false)
@@ -68,7 +68,11 @@ export default function LinkedWalletsManager() {
       const message = `Link this wallet to ${primaryWallet}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
       
       // Sign with the current wallet
-      const signature = await signMessage(message)
+      if (!client || !client.signMessage) {
+        throw new Error('Wallet client not available')
+      }
+      
+      const signature = await client.signMessage(message)
       
       if (!signature) {
         throw new Error('Signature was cancelled or failed')
@@ -89,10 +93,7 @@ export default function LinkedWalletsManager() {
       const data = await response.json()
       
       if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Wallet linked successfully!',
-        })
+        toast.success('Wallet linked successfully!')
         setShowLinkInstructions(false)
         await fetchLinkedWallets()
       } else {
@@ -100,11 +101,7 @@ export default function LinkedWalletsManager() {
       }
     } catch (error) {
       console.error('Link wallet error:', error)
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to link wallet',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Failed to link wallet')
     } finally {
       setLinking(false)
     }
@@ -132,21 +129,14 @@ export default function LinkedWalletsManager() {
       const data = await response.json()
       
       if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Wallet unlinked successfully',
-        })
+        toast.success('Wallet unlinked successfully')
         await fetchLinkedWallets()
       } else {
         throw new Error(data.error || 'Failed to unlink wallet')
       }
     } catch (error) {
       console.error('Unlink wallet error:', error)
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to unlink wallet',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Failed to unlink wallet')
     }
   }
 
@@ -180,9 +170,7 @@ export default function LinkedWalletsManager() {
           </h3>
           <Button
             onClick={() => setShowLinkInstructions(!showLinkInstructions)}
-            variant="outline"
-            size="sm"
-            className="border-amber-600/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/30"
+            className="border border-amber-600/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/30 px-3 py-1.5 text-sm"
           >
             <Link2 className="mr-2 h-4 w-4" />
             Link New Wallet
@@ -284,9 +272,7 @@ export default function LinkedWalletsManager() {
                       )}
                       <Button
                         onClick={() => handleUnlinkWallet(linked.wallet)}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-600/50 bg-red-900/20 text-red-200 hover:bg-red-900/30"
+                        className="border border-red-600/50 bg-red-900/20 text-red-200 hover:bg-red-900/30 px-2 py-1"
                       >
                         <Unlink className="h-4 w-4" />
                       </Button>

@@ -32,8 +32,8 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   
   const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
   
-  // Closed from 10:00 PM to 9:00 AM EST
-  const isClosed = estHour >= 22 || estHour < 9
+  // Closed from 7:00 PM to 10:00 AM EST (opens 1 hour later, closes 3 hours sooner)
+  const isClosed = estHour >= 19 || estHour < 10
   
   // Get full EST date components
   const estDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -56,36 +56,36 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   const currentSecond = parseInt(estParts.find(p => p.type === 'second')?.value || '0')
   
   if (isClosed) {
-    // Calculate time until 9:00 AM EST (when it opens)
+    // Calculate time until 10:00 AM EST (when it opens)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 9 * 3600 // 9 AM
-    
-    let secondsUntil9 = targetTotalSeconds - currentTotalSeconds
-    if (secondsUntil9 <= 0) {
-      // Add 24 hours if we need to go to next day
-      secondsUntil9 += 24 * 3600
-    }
-    
-    const timeUntilOpen = secondsUntil9 * 1000
-    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
-  } else {
-    // Calculate time until 10:00 PM EST (when it closes)
-    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 22 * 3600 // 10 PM = 79200 seconds
+    const targetTotalSeconds = 10 * 3600 // 10 AM
     
     let secondsUntil10 = targetTotalSeconds - currentTotalSeconds
-    
-    // If we're at or past 10 PM (hour >= 22), we need tomorrow's 10 PM
-    if (currentHour >= 22) {
-      secondsUntil10 += 24 * 3600
-    }
-    // If we're before 10 PM, secondsUntil10 should already be positive
-    // But if somehow it's negative or zero, add 24 hours as safety
     if (secondsUntil10 <= 0) {
+      // Add 24 hours if we need to go to next day
       secondsUntil10 += 24 * 3600
     }
     
-    const timeUntilClose = secondsUntil10 * 1000
+    const timeUntilOpen = secondsUntil10 * 1000
+    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
+  } else {
+    // Calculate time until 7:00 PM EST (when it closes)
+    const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
+    const targetTotalSeconds = 19 * 3600 // 7 PM = 68400 seconds
+    
+    let secondsUntil7 = targetTotalSeconds - currentTotalSeconds
+    
+    // If we're at or past 7 PM (hour >= 19), we need tomorrow's 7 PM
+    if (currentHour >= 19) {
+      secondsUntil7 += 24 * 3600
+    }
+    // If we're before 7 PM, secondsUntil7 should already be positive
+    // But if somehow it's negative or zero, add 24 hours as safety
+    if (secondsUntil7 <= 0) {
+      secondsUntil7 += 24 * 3600
+    }
+    
+    const timeUntilClose = secondsUntil7 * 1000
     
     return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
   }
