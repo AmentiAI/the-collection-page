@@ -91,14 +91,14 @@ useEffect(() => {
 **Scenario: User on abyss-summon page for 1 hour**
 
 **Before:**
-- Main data: 240 calls (every 15s)
-- Leaderboard: 156 calls (every 23s)
-- **Total: 396 calls/hour**
+- Main data: 240 calls (every 15s, always)
+- Leaderboard: 156 calls (every 23s, always)
+- **Total: 396 calls/hour** (even when tab is hidden)
 
 **After (tab active):**
-- Main data: 120 calls (every 30s)
-- Leaderboard: 80 calls (every 45s)
-- **Total: 200 calls/hour** (50% reduction)
+- Main data: 240 calls (every 15s)
+- Leaderboard: 156 calls (every 23s)
+- **Total: 396 calls/hour** (same frequency when active)
 
 **After (tab in background):**
 - Main data: 0 calls (paused)
@@ -112,24 +112,25 @@ With 10 users on the page simultaneously:
 **Before:**
 - 396 calls/hour × 10 users = 3,960 API calls/hour
 - Each call uses a DB connection
+- Polls even when tabs are in background
 - Potential for connection exhaustion
 
 **After:**
-- Active tabs: 200 calls/hour × ~5 active users = 1,000 calls/hour
+- Active tabs: 396 calls/hour × ~5 active users = 1,980 calls/hour
 - Background tabs: 0 calls/hour × ~5 background users = 0 calls/hour
-- **Total: 1,000 calls/hour** (75% reduction)
+- **Total: 1,980 calls/hour** (50% reduction with typical usage patterns)
 
 ### Real-World Benefits
 
 1. **Reduced Database Load**
-   - 75% fewer queries during normal usage
+   - 50% fewer queries during normal usage (assuming half of users have tab in background)
    - Connection pool stays healthy (< 50% utilization)
    - No more "connection slots reserved for SUPERUSER" errors
 
 2. **Better User Experience**
    - Faster response times (less DB contention)
-   - Lower bandwidth usage
-   - Page still stays up-to-date with 30s refresh
+   - Lower bandwidth usage for users with multiple tabs
+   - Page stays up-to-date with 15s refresh (very responsive)
 
 3. **Cost Savings**
    - Fewer Supabase database queries
@@ -227,12 +228,12 @@ If issues occur:
 
 ## Summary
 
-✅ **50% reduction** in API calls for active tabs
+✅ **0% reduction** in API calls for active tabs (kept 15s polling)
 ✅ **100% reduction** in API calls for background tabs
-✅ **75% total reduction** in realistic multi-user scenarios
+✅ **50% total reduction** in realistic multi-user scenarios
 ✅ Fixed race condition bugs (mode cross-contamination)
 ✅ Fixed rapid-fire API spam in dead demons mode
-✅ Maintained real-time feel (30s is still very responsive)
+✅ Maintained real-time feel (15s polling is very responsive)
 ✅ No user-facing feature loss
 
 The abyss-summon page is now much more efficient and won't flood your database! 🎉

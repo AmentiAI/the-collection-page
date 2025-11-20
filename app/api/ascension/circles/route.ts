@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +70,9 @@ async function ensurePowderInfrastructure(pool: Pool) {
     )
   `)
   await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('ascension_circles')
 }
 
 async function expireOverdueCircles(pool: Pool) {

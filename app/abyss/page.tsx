@@ -1780,7 +1780,7 @@ function AbyssContent() {
                     </div>
                     {selectedInscription.image ? (
                       <div className="relative h-28 w-full overflow-hidden rounded border border-red-700/40 bg-black/30">
-                        <Image src={selectedInscription.image} alt={selectedInscription.name ?? 'Selected inscription'} fill className="object-contain" />
+                        <Image src={selectedInscription.image} alt={selectedInscription.name ?? 'Selected inscription'} fill sizes="(max-width: 768px) 100vw, 400px" className="object-contain" />
                       </div>
                     ) : null}
                     <div className={`text-[10px] tracking-[0.3em] ${selectedInscription.confirmed ? 'text-green-400' : 'text-amber-400'}`}>
@@ -2020,7 +2020,7 @@ function AbyssContent() {
                     >
                       <div className="relative h-16 w-16 overflow-hidden rounded border border-red-700/60 bg-black/40">
                         {option.image ? (
-                          <Image src={option.image} alt={option.name ?? 'Damned'} fill className="object-cover" />
+                          <Image src={option.image} alt={option.name ?? 'Damned'} fill sizes="64px" className="object-cover" />
                         ) : (
                           <span className="flex h-full w-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-300">
                             NO IMG

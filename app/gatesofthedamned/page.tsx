@@ -428,7 +428,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '0s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-            <Image src="/damned-character-1.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-1.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -438,7 +438,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <Image src="/damned-character-2.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-2.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -452,6 +452,7 @@ export default function GatesOfTheDamnedPage() {
               src="/damned-character-3.png"
               alt=""
               fill
+              sizes="(max-width: 768px) 128px, 160px"
               className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
@@ -464,7 +465,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '7.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <Image src="/damned-character-4.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-4.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -478,6 +479,7 @@ export default function GatesOfTheDamnedPage() {
               src="/damned-character-6.png"
               alt=""
               fill
+              sizes="(max-width: 768px) 128px, 160px"
               className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
@@ -490,7 +492,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12.5s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <Image src="/damned-character-7.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-7.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -500,7 +502,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <Image src="/damned-character-8.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-8.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -510,7 +512,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-            <Image src="/damned-character-9.png" alt="" fill className="object-contain" />
+            <Image src="/damned-character-9.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
       </div>

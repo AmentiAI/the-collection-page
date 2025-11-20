@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +17,11 @@ const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global 
 const DAMNED_POOL_MODE_ENABLED = process.env.NEXT_PUBLIC_DAMNED_POOL_MODE_ENABLED !== 'false'
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
+  // Skip if already initialized in this process to avoid slow DDL operations
+  if (isTableInitialized('damned_pool_circles')) {
+    return
+  }
+  
   await pool.query(`
     CREATE TABLE IF NOT EXISTS damned_pool_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +76,9 @@ async function ensureDamnedPoolInfrastructure(pool: Pool) {
   `)
   await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
+  
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('damned_pool_circles')
 }
 
 async function expireOverdueCircles(pool: Pool) {

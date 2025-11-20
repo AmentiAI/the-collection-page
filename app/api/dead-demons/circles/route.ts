@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +12,11 @@ const POWDER_REWARD_PARTICIPANT = 4
 const MAX_ACTIVE_CIRCLES_GLOBAL = 3 // Only 3 globally open at a time
 
 async function ensureDeadDemonsInfrastructure(pool: Pool) {
+  // Skip if already initialized in this process to avoid slow DDL operations
+  if (isTableInitialized('dead_demons_circles')) {
+    return
+  }
+  
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dead_demons_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -47,6 +52,9 @@ async function ensureDeadDemonsInfrastructure(pool: Pool) {
   `)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_circle ON dead_demons_participants(circle_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_wallet ON dead_demons_participants((LOWER(wallet)))`)
+  
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('dead_demons_circles')
 }
 
 async function expireOverdueCircles(pool: Pool) {
