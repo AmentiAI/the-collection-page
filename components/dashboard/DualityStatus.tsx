@@ -292,7 +292,10 @@ export default function DualityStatus({ walletAddress, profileSide, mode = 'full
   ), [partner?.walletAddress])
 
   const activePair = pair && pair.status === 'active'
-  const pairWindowEnd = activePair && pair?.windowEnd ? new Date(pair.windowEnd) : null
+  const pairWindowEnd = useMemo(
+    () => activePair && pair?.windowEnd ? new Date(pair.windowEnd) : null,
+    [activePair, pair?.windowEnd]
+  )
   const pairWindowRemainingMs = pairWindowEnd ? Math.max(pairWindowEnd.getTime() - now, 0) : 0
   const cooldownRemainingMs = !activePair && participant?.nextAvailableAt
     ? Math.max(new Date(participant.nextAvailableAt).getTime() - now, 0)
