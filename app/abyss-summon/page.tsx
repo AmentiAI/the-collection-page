@@ -2136,21 +2136,7 @@ function SummonList({
             (isFortyManPortal && isParticipant && !participantCompleted)
           )
         
-        // Debug logging for dead demons circles
-        if (isDeadDemonsMode && isParticipant) {
-          console.log(`[Dead Demons Debug] Circle ${summon.id.slice(0, 8)}:`, {
-            status: summon.status,
-            isExpired,
-            completionWindowOpen,
-            timeRemainingMs,
-            completionWindowMs,
-            isParticipant,
-            participantCompleted,
-            completionAllowed,
-            currentParticipant,
-          })
-        }
-
+      
         return (
           <div
             key={summon.id}
