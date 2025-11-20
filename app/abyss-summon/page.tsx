@@ -1424,7 +1424,7 @@ export default function AbyssSummonPage() {
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires ascended inscriptions (inscription_id starting with &quot;ascended_&quot;)</li>
                     <li>All 10 participants must complete in the last 2 minutes</li>
-                    <li>Gives ascension_powder (10 for host, 8 for participants)</li>
+                    <li>Gives ascension_powder (13 for host, 10 for participants)</li>
                   </ul>
                 </div>
               ) : null}
