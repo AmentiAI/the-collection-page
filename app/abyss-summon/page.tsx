@@ -897,27 +897,56 @@ export default function AbyssSummonPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordinalAddress, mode])
 
+  // Polling with visibility check - only poll when page is visible and reduce frequency
   useEffect(() => {
     if (!ordinalAddress) return
-    const intervalId = window.setInterval(() => {
-      void refreshSummons(ordinalAddress, mode)
-      void fetchAfkCircle(ordinalAddress)
-    }, 15_000)
-    return () => window.clearInterval(intervalId)
+    
+    // Poll every 30 seconds (reduced from 15) to reduce DB load
+    const POLL_INTERVAL = 30_000
+    
+    const doPoll = () => {
+      // Only poll if the page is visible (tab is active)
+      if (document.visibilityState === 'visible') {
+        void refreshSummons(ordinalAddress, mode)
+        void fetchAfkCircle(ordinalAddress)
+      }
+    }
+    
+    const intervalId = window.setInterval(doPoll, POLL_INTERVAL)
+    
+    // Also poll when page becomes visible after being hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        doPoll()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordinalAddress, mode])
 
   // Removed interval - only load damned options on initial load or address change
   // No need to refresh ordinals list every 23 seconds
 
+  // Leaderboard polling - also respect visibility and reduce frequency
   useEffect(() => {
     if (!SUMMON_LEADERBOARD_ENABLED) {
       return undefined
     }
+    
     void loadSummonLeaderboard()
+    
+    // Poll every 45 seconds (increased from 23) when visible
     const intervalId = window.setInterval(() => {
-      void loadSummonLeaderboard()
-    }, 23_000)
+      if (document.visibilityState === 'visible') {
+        void loadSummonLeaderboard()
+      }
+    }, 45_000)
+    
     return () => window.clearInterval(intervalId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [SUMMON_LEADERBOARD_ENABLED])
