@@ -341,7 +341,7 @@ export default function AbyssSummonPage() {
         finaleBeepedRef.current.delete(summon.id)
       }
     }
-  }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, SUMMON_DURATION_MS])
+  }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, IS_DEAD_DEMONS_MODE, SUMMON_DURATION_MS])
 
   // Set up audio element once on mount
   useEffect(() => {

@@ -250,7 +250,7 @@ function GraveyardContent() {
     } finally {
       setLoading(false)
     }
-  }, [ordinalAddress])
+  }, [ordinalAddress, toast])
 
   const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
   const hasPowder = powderAvailable > 0
@@ -328,7 +328,7 @@ function GraveyardContent() {
       setGraveRobbing(false)
       setGraveRobLoading(false)
     }
-  }, [ordinalAddress, graveRobbing, graveRobLoading, toast, loadGraveyard])
+  }, [ordinalAddress, graveRobbing, graveRobLoading, toast, loadGraveyard, loadGraveRobEligibleCount])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
@@ -536,7 +536,7 @@ function GraveyardContent() {
         setPowderSpending(null)
       }
     },
-    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, handleFinalAscend],
+    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE],
   )
 
   const handleLimboChoice = useCallback(
