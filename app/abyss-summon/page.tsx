@@ -487,7 +487,7 @@ export default function AbyssSummonPage() {
   }, [activeSummons, ordinalAddress])
 
   const refreshSummons = useCallback(
-    async (address: string) => {
+    async (address: string, currentMode: Mode) => {
       setSummonsLoading(true)
       try {
         const params = new URLSearchParams()
@@ -511,9 +511,16 @@ export default function AbyssSummonPage() {
         const joined = Array.isArray(data?.joinedSummons) ? (data.joinedSummons as SummonRecord[]) : []
         const joinedCircles = Array.isArray(data?.joinedCircles) ? (data.joinedCircles as SummonRecord[]) : []
 
-        setSummons(openSummons.length > 0 ? openSummons : openCircles)
-        setCreatedSummons(created.length > 0 ? created : createdCircles)
-        setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
+        // Only update state if we're still on the same mode that made the request
+        // This prevents showing portal circles when on dead demons tab during refresh
+        if (currentMode === mode) {
+          setSummons(openSummons.length > 0 ? openSummons : openCircles)
+          setCreatedSummons(created.length > 0 ? created : createdCircles)
+          setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
+        } else {
+          console.log(`[Summons] Discarding stale data from ${currentMode} mode (current mode: ${mode})`)
+          return // Exit early, don't update anything
+        }
         
         // For AFK mode, fetch powder balance from ascension circles API since abyss API doesn't return it
         let rewardBalance = 0
@@ -652,7 +659,7 @@ export default function AbyssSummonPage() {
         if (data.success) {
           toast.success('Ordinal added to AFK circle!')
           await fetchAfkCircle(ordinalAddress)
-          await refreshSummons(ordinalAddress)
+          await refreshSummons(ordinalAddress, mode)
         } else {
           toast.error(data.error || 'Failed to join AFK circle.')
         }
@@ -682,7 +689,7 @@ export default function AbyssSummonPage() {
         if (data.success) {
           toast.success('Ordinal removed from AFK circle.')
           await fetchAfkCircle(ordinalAddress)
-          await refreshSummons(ordinalAddress)
+          await refreshSummons(ordinalAddress, mode)
         } else {
           toast.error(data.error || 'Failed to leave AFK circle.')
         }
@@ -872,7 +879,7 @@ export default function AbyssSummonPage() {
 
   useEffect(() => {
     if (ordinalAddress) {
-      void refreshSummons(ordinalAddress)
+      void refreshSummons(ordinalAddress, mode)
       void fetchBurnCount(ordinalAddress)
       void fetchAfkCircle(ordinalAddress)
     } else {
@@ -893,12 +900,12 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     if (!ordinalAddress) return
     const intervalId = window.setInterval(() => {
-      void refreshSummons(ordinalAddress)
+      void refreshSummons(ordinalAddress, mode)
       void fetchAfkCircle(ordinalAddress)
     }, 15_000)
     return () => window.clearInterval(intervalId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ordinalAddress])
+  }, [ordinalAddress, mode])
 
   // Removed interval - only load damned options on initial load or address change
   // No need to refresh ordinals list every 23 seconds
@@ -1018,7 +1025,7 @@ export default function AbyssSummonPage() {
       setDamnedOptions((prev) => prev.filter((option) => option.inscriptionId !== selectedOption.inscriptionId))
       setSelectedInscriptionId(null)
       if (ordinalAddress) {
-        await refreshSummons(ordinalAddress)
+        await refreshSummons(ordinalAddress, mode)
         await loadDamnedOptions(ordinalAddress)
         if (SUMMON_LEADERBOARD_ENABLED) {
           await loadSummonLeaderboard()
@@ -1092,7 +1099,7 @@ export default function AbyssSummonPage() {
         setDamnedOptions((prev) => prev.filter((option) => option.inscriptionId !== selectedOption.inscriptionId))
         setSelectedInscriptionId(null)
         if (ordinalAddress) {
-          await refreshSummons(ordinalAddress)
+          await refreshSummons(ordinalAddress, mode)
           await loadDamnedOptions(ordinalAddress)
           if (SUMMON_LEADERBOARD_ENABLED) {
             await loadSummonLeaderboard()
@@ -1140,7 +1147,7 @@ export default function AbyssSummonPage() {
           toast.success('Summoning circle completed.')
         }
         if (ordinalAddress) {
-          await refreshSummons(ordinalAddress)
+          await refreshSummons(ordinalAddress, mode)
           if (SUMMON_LEADERBOARD_ENABLED) {
             await loadSummonLeaderboard()
           }
@@ -1176,7 +1183,7 @@ export default function AbyssSummonPage() {
         }
         toast.success('Circle dissolved. Summon anew.')
         if (ordinalAddress) {
-          await refreshSummons(ordinalAddress)
+          await refreshSummons(ordinalAddress, mode)
           if (SUMMON_LEADERBOARD_ENABLED) {
             await loadSummonLeaderboard()
           }
