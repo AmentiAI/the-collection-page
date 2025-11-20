@@ -3,11 +3,12 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-// Get or create profile
+// Get or create profile with optional social accounts
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const walletAddress = searchParams.get('walletAddress')
+    const includeSocials = searchParams.get('includeSocials') === 'true'
     
     if (!walletAddress) {
       return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 })
@@ -56,10 +57,66 @@ export async function GET(request: NextRequest) {
           throw error
         }
       }
-      return NextResponse.json(insertResult.rows[0])
+      
+      const profileData = insertResult.rows[0]
+      
+      // If socials requested, fetch them too (will be empty for new profile)
+      if (includeSocials) {
+        return NextResponse.json({
+          ...profileData,
+          discord: { linked: false },
+          twitter: { linked: false }
+        })
+      }
+      
+      return NextResponse.json(profileData)
     }
     
-    return NextResponse.json(result.rows[0])
+    const profileData = result.rows[0]
+    
+    // If includeSocials is true, fetch Discord and Twitter data in parallel
+    if (includeSocials) {
+      const [discordResult, twitterResult] = await Promise.all([
+        pool.query(`
+          SELECT du.discord_user_id, du.verified_at, du.created_at
+          FROM discord_users du
+          INNER JOIN profiles p ON du.profile_id = p.id
+          WHERE p.wallet_address = $1
+          LIMIT 1
+        `, [walletAddress]),
+        pool.query(`
+          SELECT tu.twitter_user_id, tu.twitter_username, tu.verified_at, tu.created_at
+          FROM twitter_users tu
+          INNER JOIN profiles p ON tu.profile_id = p.id
+          WHERE p.wallet_address = $1
+          LIMIT 1
+        `, [walletAddress])
+      ])
+      
+      const discord = discordResult.rows.length > 0 ? {
+        linked: true,
+        discordUserId: discordResult.rows[0].discord_user_id,
+        discordUsername: discordResult.rows[0].discord_user_id, // Keep for compatibility
+        verifiedAt: discordResult.rows[0].verified_at,
+        createdAt: discordResult.rows[0].created_at
+      } : { linked: false }
+      
+      const twitter = twitterResult.rows.length > 0 ? {
+        linked: true,
+        twitterUserId: twitterResult.rows[0].twitter_user_id,
+        twitterUsername: twitterResult.rows[0].twitter_username,
+        verifiedAt: twitterResult.rows[0].verified_at,
+        createdAt: twitterResult.rows[0].created_at
+      } : { linked: false }
+      
+      return NextResponse.json({
+        ...profileData,
+        discord,
+        twitter
+      })
+    }
+    
+    return NextResponse.json(profileData)
   } catch (error) {
     console.error('Profile fetch error:', error)
     return NextResponse.json(

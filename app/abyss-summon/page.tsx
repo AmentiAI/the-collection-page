@@ -1224,7 +1224,7 @@ export default function AbyssSummonPage() {
                 Summoning Closed
               </h2>
               <p className="text-sm font-mono uppercase tracking-[0.3em] text-red-300/80">
-                The abyss-summon area is closed from 7:00 PM to 12:00 PM EST each day.
+                The abyss-summon area is closed from 7:00 PM to 11:00 AM EST each day.
               </p>
               <div className="mt-4 flex flex-col items-center gap-2">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">

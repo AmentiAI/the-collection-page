@@ -707,18 +707,37 @@ function useProfileState() {
         const data = await getCachedRequest(
           `profile:${wallet}`,
           async () => {
-        const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}`)
+            const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}&includeSocials=true`)
             return response.json()
           }
         )
         if (data) {
-        setProfile({
-          username: data.username ?? null,
-          avatarUrl: data.avatar_url ?? null,
-          totalGoodKarma: data.total_good_karma ?? 0,
-          totalBadKarma: data.total_bad_karma ?? 0,
-          chosenSide: data.chosen_side ?? null,
-        })
+          // Set profile data
+          setProfile({
+            username: data.username ?? null,
+            avatarUrl: data.avatar_url ?? null,
+            totalGoodKarma: data.total_good_karma ?? 0,
+            totalBadKarma: data.total_bad_karma ?? 0,
+            chosenSide: data.chosen_side ?? null,
+          })
+          
+          // Set Discord status from unified response
+          if (data.discord) {
+            setDiscord({
+              linked: data.discord.linked ?? false,
+              identifier: data.discord.discordUsername ?? data.discord.discordUserId ?? null,
+              loading: false,
+            })
+          }
+          
+          // Set Twitter status from unified response
+          if (data.twitter) {
+            setTwitter({
+              linked: data.twitter.linked ?? false,
+              identifier: data.twitter.twitterUsername ?? data.twitter.twitterUserId ?? null,
+              loading: false,
+            })
+          }
         }
       } catch (error) {
         console.error('Error fetching profile:', error)
@@ -727,49 +746,20 @@ function useProfileState() {
     [],
   )
 
+  // These functions are now handled by fetchProfile with includeSocials=true
+  // Keeping them as no-ops for backward compatibility during refactoring
   const checkDiscordStatus = useCallback(
     async (wallet: string) => {
-      setDiscord((prev) => ({ ...prev, loading: true }))
-      try {
-        const data = await getCachedRequest(
-          `discord:${wallet}`,
-          async () => {
-        const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(wallet)}`)
-            return response.json()
-          }
-        )
-        if (data) {
-        setDiscord({
-          linked: data.linked ?? false,
-          identifier: data.discordUsername ?? data.discordUserId ?? null,
-          loading: false,
-        })
-        } else {
-          setDiscord((prev) => ({ ...prev, loading: false }))
-        }
-      } catch (error) {
-        console.error('Error checking Discord status:', error)
-        setDiscord((prev) => ({ ...prev, loading: false }))
-      }
+      // Now handled by unified fetchProfile call
+      console.log('[Profile] Discord status fetched via unified profile endpoint')
     },
     [],
   )
 
   const checkTwitterStatus = useCallback(
     async (wallet: string) => {
-      setTwitter((prev) => ({ ...prev, loading: true }))
-      try {
-        const response = await fetch(`/api/profile/twitter?walletAddress=${encodeURIComponent(wallet)}`)
-        const data = await response.json()
-        setTwitter({
-          linked: data.linked ?? false,
-          identifier: data.twitterUsername ?? data.twitterUserId ?? null,
-          loading: false,
-        })
-      } catch (error) {
-        console.error('Error checking Twitter status:', error)
-        setTwitter((prev) => ({ ...prev, loading: false }))
-      }
+      // Now handled by unified fetchProfile call
+      console.log('[Profile] Twitter status fetched via unified profile endpoint')
     },
     [],
   )
@@ -951,9 +941,7 @@ function useProfileState() {
       }
 
       await Promise.all([
-        fetchProfile(wallet),
-        checkDiscordStatus(wallet),
-        checkTwitterStatus(wallet),
+        fetchProfile(wallet), // Now fetches profile + discord + twitter in one call
         fetchInventory(wallet),
         fetchAbyssStats(wallet),
         fetchSummonSummary(wallet),
@@ -983,8 +971,6 @@ function useProfileState() {
     },
     [
       fetchProfile,
-      checkDiscordStatus,
-      checkTwitterStatus,
       fetchInventory,
       fetchAbyssStats,
       fetchSummonSummary,
@@ -1014,8 +1000,7 @@ function useProfileState() {
 
     if (discordAuth === 'success') {
       void Promise.all([
-        fetchProfile(address),
-        checkDiscordStatus(address),
+        fetchProfile(address), // Includes discord and twitter
         fetchInventory(address),
         fetchSummonSummary(address),
       ])
@@ -1024,14 +1009,13 @@ function useProfileState() {
 
     if (twitterAuth === 'success') {
       void Promise.all([
-        fetchProfile(address),
-        checkTwitterStatus(address),
+        fetchProfile(address), // Includes discord and twitter
         fetchInventory(address),
         fetchSummonSummary(address),
       ])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, checkDiscordStatus, checkTwitterStatus, fetchProfile, fetchInventory, fetchSummonSummary])
+  }, [address, fetchProfile, fetchInventory, fetchSummonSummary])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -1069,9 +1053,7 @@ function useProfileState() {
           invalidateCache() // Clear all cache
           isInitializing.current = false // Reset flag
           void Promise.all([
-            fetchProfile(address),
-            checkDiscordStatus(address),
-            checkTwitterStatus(address),
+            fetchProfile(address), // Includes discord and twitter
             fetchInventory(address),
             fetchAbyssStats(address),
             fetchSummonSummary(address),
@@ -1095,8 +1077,6 @@ function useProfileState() {
       portalSummary,
       abyssStats,
       fetchProfile,
-      checkDiscordStatus,
-      checkTwitterStatus,
       fetchInventory,
       fetchAbyssStats,
       fetchSummonSummary,
