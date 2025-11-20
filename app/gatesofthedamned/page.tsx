@@ -4,8 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
-// Target: Nov 19, 2025 3:00 PM EST = 20:00 UTC + 2 hours + 24 hours = 46:00 UTC (next day)
-const GATES_EVENT_UTC = Date.parse('2025-11-19T20:00:00Z') + (2 * 60 * 60 * 1000) + (24 * 60 * 60 * 1000)
+// Target: Nov 19, 2025 3:00 PM EST = 20:00 UTC + 4 hours + 24 hours = 48:00 UTC (next day at midnight)
+const GATES_EVENT_UTC = Date.parse('2025-11-19T20:00:00Z') + (4 * 60 * 60 * 1000) + (24 * 60 * 60 * 1000)
 
 export default function GatesOfTheDamnedPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
