@@ -762,17 +762,19 @@ function useProfileState() {
         const data = await getCachedRequest(
           `profile:${wallet}`,
           async () => {
-            const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}`)
+        const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}`)
             return response.json()
           }
         )
-        setProfile({
-          username: data.username ?? null,
-          avatarUrl: data.avatar_url ?? null,
-          totalGoodKarma: data.total_good_karma ?? 0,
-          totalBadKarma: data.total_bad_karma ?? 0,
-          chosenSide: data.chosen_side ?? null,
-        })
+        if (data) {
+          setProfile({
+            username: data.username ?? null,
+            avatarUrl: data.avatar_url ?? null,
+            totalGoodKarma: data.total_good_karma ?? 0,
+            totalBadKarma: data.total_bad_karma ?? 0,
+            chosenSide: data.chosen_side ?? null,
+          })
+        }
       } catch (error) {
         console.error('Error fetching profile:', error)
       }
@@ -787,15 +789,19 @@ function useProfileState() {
         const data = await getCachedRequest(
           `discord:${wallet}`,
           async () => {
-            const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(wallet)}`)
+        const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(wallet)}`)
             return response.json()
           }
         )
-        setDiscord({
-          linked: data.linked ?? false,
-          identifier: data.discordUsername ?? data.discordUserId ?? null,
-          loading: false,
-        })
+        if (data) {
+          setDiscord({
+            linked: data.linked ?? false,
+            identifier: data.discordUsername ?? data.discordUserId ?? null,
+            loading: false,
+          })
+        } else {
+          setDiscord((prev) => ({ ...prev, loading: false }))
+        }
       } catch (error) {
         console.error('Error checking Discord status:', error)
         setDiscord((prev) => ({ ...prev, loading: false }))
@@ -1001,9 +1007,9 @@ function useProfileState() {
             const data = await getCachedRequest(
               `portal-summary:${wallet}`,
               async () => {
-                const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
-                  headers: { 'Cache-Control': 'no-store' },
-                })
+            const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
+              headers: { 'Cache-Control': 'no-store' },
+            })
                 return res.json().catch(() => ({}))
               }
             )

@@ -1468,18 +1468,18 @@ async function syncHolderAndSpecialRoles() {
           ]);
 
           console.log(`✅ Summoner sync complete: Added ${summonerAddResult.success} roles, Removed ${summonerRemoveResult.success} roles`);
-        } catch (error) {
+              } catch (error) {
           console.error('Error syncing summoner roles:', error);
-        }
-      }
-    }
+              }
+            }
+          }
 
     if (DEAD_DEMON_ROLE_ID) {
       const deadDemonRole = guild.roles.cache.get(DEAD_DEMON_ROLE_ID);
       if (!deadDemonRole) {
         console.warn(`Dead Demon role with ID ${DEAD_DEMON_ROLE_ID} not found in guild.`);
       } else {
-        try {
+              try {
           const [deadDemonAddResponse, deadDemonRemoveResponse] = await Promise.all([
             fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-add`),
             fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-remove`),

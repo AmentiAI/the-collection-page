@@ -10,6 +10,10 @@ const nextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'ord-mirror-staging.magiceden.dev',
+      },
+      {
+        protocol: 'https',
         hostname: 'cdn.discordapp.com',
       },
       {

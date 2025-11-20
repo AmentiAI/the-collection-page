@@ -110,6 +110,59 @@ export async function GET(request: NextRequest) {
     // Get user's participants if wallet provided
     let userParticipants: any[] = []
     if (walletParam) {
+      // Fetch linked wallets to include ordinals from all linked wallets
+      let walletsToQuery = [walletParam]
+      
+      try {
+        // Ensure linked_wallets table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS linked_wallets (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            primary_wallet TEXT NOT NULL,
+            linked_wallet TEXT NOT NULL UNIQUE,
+            signature TEXT NOT NULL,
+            message TEXT NOT NULL,
+            linked_at TIMESTAMPTZ DEFAULT NOW(),
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE(primary_wallet, linked_wallet)
+          )
+        `)
+        
+        // Check if this wallet is a primary wallet
+        const primaryLinks = await pool.query(
+          `SELECT linked_wallet FROM linked_wallets WHERE LOWER(primary_wallet) = LOWER($1) AND is_active = TRUE`,
+          [walletParam]
+        )
+        
+        // Check if this wallet is a linked wallet (get the primary)
+        const linkedTo = await pool.query(
+          `SELECT primary_wallet FROM linked_wallets WHERE LOWER(linked_wallet) = LOWER($1) AND is_active = TRUE LIMIT 1`,
+          [walletParam]
+        )
+        
+        if (linkedTo.rows.length > 0) {
+          // This is a linked wallet, get the primary and all its links
+          const primaryWallet = linkedTo.rows[0].primary_wallet
+          walletsToQuery = [primaryWallet]
+          
+          const allLinks = await pool.query(
+            `SELECT linked_wallet FROM linked_wallets WHERE LOWER(primary_wallet) = LOWER($1) AND is_active = TRUE`,
+            [primaryWallet]
+          )
+          
+          walletsToQuery.push(...allLinks.rows.map(r => r.linked_wallet))
+        } else if (primaryLinks.rows.length > 0) {
+          // This is a primary wallet, add all linked wallets
+          walletsToQuery.push(...primaryLinks.rows.map(r => r.linked_wallet))
+        }
+        
+        console.log(`🔗 [AFK Circle GET] Querying ${walletsToQuery.length} wallet(s) for ${walletParam}`)
+      } catch (error) {
+        console.error('Failed to fetch linked wallets for AFK circle:', error)
+        // Continue with just the primary wallet if linked fetch fails
+      }
+      
+      // Query for participants from all wallets (primary + linked)
       const userRes = await pool.query(
         `
           SELECT 
@@ -120,10 +173,10 @@ export async function GET(request: NextRequest) {
             joined_at,
             last_reward_at
           FROM afk_circle_participants
-          WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
+          WHERE circle_id = $1 AND LOWER(wallet) = ANY($2::text[])
           ORDER BY joined_at DESC
         `,
-        [AFK_CIRCLE_ID, walletParam],
+        [AFK_CIRCLE_ID, walletsToQuery.map(w => w.toLowerCase())],
       )
       userParticipants = userRes.rows.map((row) => ({
         id: row.id,

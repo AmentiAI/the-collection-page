@@ -76,10 +76,9 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
 
   // Check if user is a holder when wallet connects and create profile
   useEffect(() => {
-    console.log('🔄 useEffect triggered - connected:', connected, 'address:', address)
+   
     if (connected && address) {
-      console.log('✅ Wallet connected, creating profile and starting holder check...')
-      
+    
       // Auto-create profile
       fetch('/api/profile/create', {
         method: 'POST',
@@ -88,8 +87,8 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
           walletAddress: address,
           paymentAddress: address // Initially same as wallet address
         })
-      }).then(res => res.json()).then(data => {
-        console.log('✅ Profile created/updated:', data)
+      }).then(res => res.json()).then(() => {
+        // Profile created/updated successfully
       }).catch(err => {
         console.error('Failed to create profile:', err)
       })
@@ -109,14 +108,13 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       return
     }
 
-    console.log('🚀 Starting holder check for address:', address)
+    
     setIsVerifying(true)
     onVerifyingStart?.()
     try {
       // Check if the connected address has any ordinals from "The Damned" collection (the-damned)
       console.log('🔍 Calling checkForOrdinals for the-damned collection...')
       const hasOrdinals = await checkForOrdinals(address)
-      console.log('✅ checkForOrdinals returned:', hasOrdinals)
       
       // Also check if wallet has abyss_burns records (they deserve access too)
       let hasBurns = false
@@ -153,11 +151,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       // Proxy through our API route to avoid CORS issues
       const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned`
       
-      console.log('🔍🔍🔍 CHECKING THE DAMNED COLLECTION 🔍🔍🔍')
-      console.log('📍 Wallet address:', walletAddress)
-      console.log('🏷️ Collection: the-damned')
-      console.log('🔗 Using proxy API route:', apiUrl)
-      
+ 
       // Call our proxy API route (handles CORS and API key server-side)
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -194,8 +188,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       console.log('📡 Response status:', response.status, response.statusText)
       
       const data = await response.json()
-      console.log('📦 FULL Magic Eden API response:', JSON.stringify(data, null, 2))
-      console.log('📊 Response keys:', Object.keys(data))
+      
       
       // Check multiple possible response formats
       const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])

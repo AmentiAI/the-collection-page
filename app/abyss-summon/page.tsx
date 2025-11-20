@@ -214,11 +214,11 @@ export default function AbyssSummonPage() {
     setCheckingHolder(true)
     
     Promise.all([
-      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true`).then(async (res) => {
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true&includeLinked=true`, { cache: 'no-store' }).then(async (res) => {
         if (!res.ok) return { tokens: [] }
         return res.json()
       }).catch(() => ({ tokens: [] })),
-      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(ordinalAddress)}`).then(async (res) => {
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(ordinalAddress)}`, { cache: 'no-store' }).then(async (res) => {
         if (!res.ok) return { success: false, hasBurns: false }
         return res.json()
       }).catch(() => ({ success: false, hasBurns: false }))
@@ -230,6 +230,7 @@ export default function AbyssSummonPage() {
       const hasUnlistedOrdinals = hasUnlisted && !hasAnyListed
       const hasBurns = burnsData.success && burnsData.hasBurns
       setIsHolder(hasUnlistedOrdinals || hasBurns)
+      console.log(`🔍 Holder check: ${tokens.length} ordinals found (including linked wallets), holder=${hasUnlistedOrdinals || hasBurns}`)
     }).catch(() => {
       if (!cancelled) setIsHolder(false)
     }).finally(() => {
@@ -633,6 +634,7 @@ export default function AbyssSummonPage() {
         const response = await fetch('/api/afk-circle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({
             wallet: ordinalAddress,
             inscriptionId,
@@ -666,6 +668,7 @@ export default function AbyssSummonPage() {
           `/api/afk-circle?wallet=${encodeURIComponent(ordinalAddress)}&inscriptionId=${encodeURIComponent(inscriptionId)}`,
           {
             method: 'DELETE',
+            cache: 'no-store',
           },
         )
         const data = await response.json()
@@ -719,7 +722,7 @@ export default function AbyssSummonPage() {
       setDamnedError(null)
       try {
         const response = await fetch(
-          `/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned&fetchAll=true`,
+          `/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned&fetchAll=true&includeLinked=true`,
           { headers: { Accept: 'application/json' }, cache: 'no-store' },
         )
         if (!response.ok) {
@@ -746,10 +749,14 @@ export default function AbyssSummonPage() {
                 : typeof token?.image === 'string'
                 ? token.image
                 : null
+            const walletSource = token?._walletSource
+            const isLinkedWallet = token?._isLinkedWallet === true
             return {
               inscriptionId,
               name,
               image,
+              walletSource,
+              isLinkedWallet,
             } satisfies DamnedOption
           })
           .filter((option: DamnedOption | null): option is DamnedOption => option !== null)
@@ -1494,6 +1501,11 @@ export default function AbyssSummonPage() {
                             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-red-200">
                               {option.name ?? option.inscriptionId.slice(0, 12)}
                             </span>
+                            {option.isLinkedWallet && (
+                              <span className="flex-shrink-0 rounded-full border border-cyan-500/60 bg-cyan-900/30 px-1 py-0.5 text-[8px] font-mono uppercase tracking-[0.15em] text-cyan-200">
+                                LINKED
+                              </span>
+                            )}
                             {isInCircle && (
                               <span className="flex-shrink-0 rounded-full border border-amber-500/60 bg-amber-900/30 px-1 py-0.5 text-[8px] font-mono uppercase tracking-[0.15em] text-amber-200">
                                 IN CIRCLE
@@ -1502,6 +1514,9 @@ export default function AbyssSummonPage() {
                           </div>
                           <span className="truncate text-[9px] uppercase tracking-[0.25em] text-red-300/70">
                             {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                            {option.isLinkedWallet && option.walletSource && (
+                              <span className="ml-1 text-cyan-400/70">• {option.walletSource.slice(0, 6)}…{option.walletSource.slice(-4)}</span>
+                            )}
                           </span>
                         </div>
                       </button>
@@ -1845,11 +1860,21 @@ export default function AbyssSummonPage() {
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                                      {option.name ?? option.inscriptionId.slice(0, 12)}
-                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
+                                        {option.name ?? option.inscriptionId.slice(0, 12)}
+                                      </p>
+                                      {option.isLinkedWallet && (
+                                        <span className="flex-shrink-0 rounded-full border border-cyan-400/60 bg-cyan-800/30 px-1 py-0.5 text-[8px] font-mono uppercase tracking-[0.15em] text-cyan-100">
+                                          LINKED
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="truncate text-[9px] uppercase tracking-[0.25em] text-cyan-300/70">
                                       {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                                      {option.isLinkedWallet && option.walletSource && (
+                                        <span className="ml-1 text-cyan-200/70">• {option.walletSource.slice(0, 6)}…{option.walletSource.slice(-4)}</span>
+                                      )}
                                     </p>
                                   </div>
                                   {isJoining ? (

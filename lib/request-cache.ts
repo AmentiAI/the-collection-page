@@ -16,14 +16,14 @@ export function getCachedRequest<T = any>(
   const now = Date.now()
   const cached = cache.get(key)
 
-  // Return cached data if still valid
-  if (cached && now - cached.timestamp < ttl) {
-    return Promise.resolve(cached.data)
-  }
-
-  // Return in-flight promise if one exists
+  // Return in-flight promise if one exists (check this FIRST before TTL)
   if (cached?.promise) {
     return cached.promise
+  }
+
+  // Return cached data if still valid and not null
+  if (cached && cached.data !== null && now - cached.timestamp < ttl) {
+    return Promise.resolve(cached.data)
   }
 
   // Create new request

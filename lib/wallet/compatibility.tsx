@@ -24,15 +24,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [isVerifying, setIsVerifying] = useState(false)
   const [userCancelled, setUserCancelled] = useState(false)
 
-  useEffect(() => {
-    console.log('🔌 WalletProvider state changed:', { 
-      connected, 
-      address, 
-      client: !!client,
-      allLaserEyesKeys: Object.keys(laserEyes)
-    })
-  }, [connected, address, client, laserEyes])
-
   const verifyWallet = useCallback(async (): Promise<boolean> => {
     if (!connected || !address || !client || isVerifying || userCancelled) {
       return false

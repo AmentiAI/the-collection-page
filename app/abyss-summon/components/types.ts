@@ -30,6 +30,8 @@ export type DamnedOption = {
   inscriptionId: string
   name?: string | null
   image?: string | null
+  walletSource?: string
+  isLinkedWallet?: boolean
 }
 
 export type SummonLeaderboardEntry = {
