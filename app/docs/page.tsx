@@ -63,6 +63,9 @@ export default function DocsPage() {
             <p className="leading-relaxed">
               Your profile tracks your karma, chosen side (Good or Evil), holder status, and social connections. Connect your wallet to view and manage your profile.
             </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/profile" className="text-amber-400 underline hover:text-amber-300">→ Go to Profile Page</Link>
+            </p>
           </div>
 
           <div>
@@ -123,6 +126,9 @@ export default function DocsPage() {
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               The Graveyard displays ordinals that have been sacrificed to the Abyss. Here you can spend ascension powder to revive and ascend them.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/graveyard" className="text-amber-400 underline hover:text-amber-300">→ Go to Graveyard</Link>
             </p>
           </div>
 
@@ -190,7 +196,10 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
-              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 9 AM - 10 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
+              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 10 AM - 7 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ Go to Summoning Circles</Link>
             </p>
           </div>
 
@@ -274,7 +283,7 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Cannot join if you have active marketplace listings</li>
               <li>Must be a holder (unlisted ordinals or past burns)</li>
-              <li>Summoning closed 10 PM - 9 AM EST daily</li>
+              <li>Summoning closed 7 PM - 10 AM EST daily</li>
               <li>Ordinals in AFK circle cannot be used elsewhere</li>
             </ul>
           </div>
@@ -291,6 +300,9 @@ export default function DocsPage() {
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               The Summoners Leaderboard tracks participation in summoning circles. Rankings are based on burns, hosting, and participation statistics. The reason for this leaderboard has not been announced yet.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ View Summoners Leaderboard (on Summoning page)</Link>
             </p>
           </div>
 
@@ -325,6 +337,9 @@ export default function DocsPage() {
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
               The Ascension Leaderboard ranks all players by total ascension powder (available + spent). Only holders can view the leaderboard.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/leaderboard" className="text-amber-400 underline hover:text-amber-300">→ View Ascension Leaderboard</Link>
             </p>
           </div>
 
