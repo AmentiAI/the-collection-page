@@ -2115,11 +2115,11 @@ function SummonList({
                       'Complete Circle'
                     )}
                   </Button>
-                ) : isPowderMode && isParticipant && participantCompleted ? (
+                ) : (isPowderMode || isDeadDemonsMode) && isParticipant && participantCompleted ? (
                   <div className="rounded border border-emerald-500/40 bg-emerald-900/20 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200">
-                    Ascension confirmed
+                    {isDeadDemonsMode ? 'Circle confirmed' : 'Ascension confirmed'}
                   </div>
-                ) : isPowderMode && isParticipant && !participantCompleted && !completionWindowOpen && !isExpired ? (
+                ) : (isPowderMode || isDeadDemonsMode) && isParticipant && !participantCompleted && !completionWindowOpen && !isExpired ? (
                   <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
                     Finale unlocks in {formatCountdown(unlockCountdown)}
                   </div>
@@ -2133,7 +2133,7 @@ function SummonList({
                       Circle Expired
                     </Button>
                   </div>
-                ) : !isPowderMode ? (
+                ) : !isPowderMode && !isDeadDemonsMode ? (
                   ready && !completionWindowOpen && !isExpired ? (
                     <div className="rounded border border-amber-400/40 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200">
                       Finale unlocks in {formatCountdown(unlockCountdown)}
@@ -2144,7 +2144,7 @@ function SummonList({
                     </div>
                   ) : null
                 ) : null}
-                {isPowderMode && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
+                {(isPowderMode || isDeadDemonsMode) && !isParticipant && !isExpired && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
                   <div className="rounded border border-red-500/30 bg-black/50 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/80">
                     {usePortalLayout
                       ? totalSlots >= 40

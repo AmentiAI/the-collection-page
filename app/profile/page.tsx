@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import TotalSacrifices from '@/components/TotalSacrifices'
+import LinkedWalletsManager from '../components/LinkedWalletsManager'
 
 type ProfileDetails = {
   username: string | null
@@ -234,6 +235,10 @@ function ProfileContent() {
             onConnect={triggerTwitterAuth}
             walletConnected={connected}
           />
+        </section>
+
+        <section className="rounded-3xl border border-red-600/40 bg-black/60 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
+          <LinkedWalletsManager />
         </section>
 
         <section className="rounded-3xl border border-red-600/40 bg-black/60 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
