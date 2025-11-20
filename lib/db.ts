@@ -34,25 +34,10 @@ export function getPool(): Pool {
       statement_timeout: 30000, // 30 seconds for statements
     })
     
-    // Log pool events for monitoring
+    // Log pool errors only
     pool.on('error', (err) => {
       console.error('[DB Pool] Unexpected error on idle client:', err)
     })
-    
-    // Only log connection events in development
-    if (process.env.NODE_ENV === 'development') {
-      pool.on('connect', () => {
-        console.log('[DB Pool] New client connected. Stats:', getPoolStats())
-      })
-      
-      pool.on('acquire', () => {
-        console.log('[DB Pool] Client acquired. Stats:', getPoolStats())
-      })
-      
-      pool.on('remove', () => {
-        console.log('[DB Pool] Client removed. Stats:', getPoolStats())
-      })
-    }
   }
   
   return pool
