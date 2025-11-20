@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 const ABYSS_CAP = 500
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
@@ -10,6 +10,11 @@ const BURN_COOLDOWN_MS = 30 * 60 * 1_000
 export const dynamic = 'force-dynamic'
 
 async function ensureAbyssBurnsTable(pool: Pool) {
+  // Skip if already initialized in this process to avoid slow DDL operations
+  if (isTableInitialized('abyss_burns')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,6 +41,9 @@ async function ensureAbyssBurnsTable(pool: Pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_ordinal_wallet ON abyss_burns((LOWER(ordinal_wallet)))`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_payment_wallet ON abyss_burns((LOWER(payment_wallet)))`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_graveyard ON abyss_burns((LOWER(ordinal_wallet)), created_at DESC) WHERE hidden = FALSE`)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_summons (
@@ -77,6 +85,9 @@ async function ensureAbyssBurnsTable(pool: Pool) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('abyss_burns')
 }
 
 function summarizeRow(row?: { total?: unknown; confirmed?: unknown }) {
@@ -116,22 +127,25 @@ export async function GET(request: NextRequest) {
 
     // Return all stats in one call for profile page optimization
     if (searchParams.get('includeStats') === 'true') {
-      // Ensure ascended_images_mint_queue table exists
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-          wallet_address TEXT NOT NULL,
-          image_url TEXT NOT NULL,
-          image_blob_url TEXT,
-          source_inscription_id TEXT NOT NULL,
-          generation_prompt TEXT,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+            wallet_address TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            image_blob_url TEXT,
+            source_inscription_id TEXT NOT NULL,
+            generation_prompt TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
       
       // Get ascension total (successful second ascensions)
       const mintQueueRes = await pool.query(
@@ -174,32 +188,42 @@ export async function GET(request: NextRequest) {
         confirmed: Number(row.confirmed ?? 0),
       }))
       
-      return NextResponse.json({
-        success: true,
-        ascensionTotal,
-        demonsRevived,
-        leaderboard,
-      })
+      return NextResponse.json(
+        {
+          success: true,
+          ascensionTotal,
+          demonsRevived,
+          leaderboard,
+        },
+        {
+          headers: {
+            'Cache-Control': 'public, max-age=3, s-maxage=3, stale-while-revalidate=1',
+          },
+        },
+      )
     }
 
     // Return total ascended/revived (successful ascensions only)
     if (searchParams.get('ascensionTotal') === 'true') {
-      // Ensure ascended_images_mint_queue table exists
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-          wallet_address TEXT NOT NULL,
-          image_url TEXT NOT NULL,
-          image_blob_url TEXT,
-          source_inscription_id TEXT NOT NULL,
-          generation_prompt TEXT,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+            wallet_address TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            image_blob_url TEXT,
+            source_inscription_id TEXT NOT NULL,
+            generation_prompt TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
       
       // Count successful ascensions:
       // Only count entries in ascended_images_mint_queue where source_inscription_id starts with "ascended_"
@@ -220,22 +244,25 @@ export async function GET(request: NextRequest) {
 
     // Return total demons revived (first ascensions only - source_inscription_id doesn't start with "ascended_")
     if (searchParams.get('demonsRevived') === 'true') {
-      // Ensure ascended_images_mint_queue table exists
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-          wallet_address TEXT NOT NULL,
-          image_url TEXT NOT NULL,
-          image_blob_url TEXT,
-          source_inscription_id TEXT NOT NULL,
-          generation_prompt TEXT,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+            wallet_address TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            image_blob_url TEXT,
+            source_inscription_id TEXT NOT NULL,
+            generation_prompt TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
       
       // Count demons revived:
       // Count entries in ascended_images_mint_queue where source_inscription_id does NOT start with "ascended_"
