@@ -1861,9 +1861,9 @@ export default function AbyssSummonPage() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
-                                      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                                        {option.name ?? option.inscriptionId.slice(0, 12)}
-                                      </p>
+                                    <p className="truncate text-[11px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
+                                      {option.name ?? option.inscriptionId.slice(0, 12)}
+                                    </p>
                                       {option.isLinkedWallet && (
                                         <span className="flex-shrink-0 rounded-full border border-cyan-400/60 bg-cyan-800/30 px-1 py-0.5 text-[8px] font-mono uppercase tracking-[0.15em] text-cyan-100">
                                           LINKED

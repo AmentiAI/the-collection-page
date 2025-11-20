@@ -23,15 +23,81 @@ export function getPool(): Pool {
       ssl: {
         rejectUnauthorized: false // Neon requires SSL, but we don't need certificate validation
       },
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // 10 seconds
+      max: 5, // Supabase/Neon free tier has limited connections (5-10 max)
+      min: 0, // Don't maintain idle connections
+      idleTimeoutMillis: 10000, // Release idle connections faster (10 seconds)
+      connectionTimeoutMillis: 10000, // 10 seconds timeout for acquiring connection
       query_timeout: 30000, // 30 seconds for queries
       statement_timeout: 30000, // 30 seconds for statements
     })
+    
+    // Log pool events for monitoring
+    pool.on('error', (err) => {
+      console.error('[DB Pool] Unexpected error on idle client:', err)
+    })
+    
+    // Only log connection events in development
+    if (process.env.NODE_ENV === 'development') {
+      pool.on('connect', () => {
+        console.log('[DB Pool] New client connected. Stats:', getPoolStats())
+      })
+      
+      pool.on('acquire', () => {
+        console.log('[DB Pool] Client acquired. Stats:', getPoolStats())
+      })
+      
+      pool.on('remove', () => {
+        console.log('[DB Pool] Client removed. Stats:', getPoolStats())
+      })
+    }
   }
   
   return pool
+}
+
+// Get pool statistics for monitoring
+export function getPoolStats() {
+  if (!pool) {
+    return {
+      total: 0,
+      idle: 0,
+      waiting: 0
+    }
+  }
+  
+  return {
+    total: pool.totalCount,
+    idle: pool.idleCount,
+    waiting: pool.waitingCount
+  }
+}
+
+// Helper to safely execute queries with better error handling
+export async function executeQuery<T = any>(
+  queryText: string,
+  values?: any[]
+): Promise<T> {
+  const pool = getPool()
+  try {
+    const result = await pool.query(queryText, values)
+    return result as T
+  } catch (error: any) {
+    // Log connection pool stats on error
+    const stats = getPoolStats()
+    console.error('[DB Query Error]', {
+      error: error?.message || 'Unknown error',
+      code: error?.code,
+      poolStats: stats,
+      query: queryText.substring(0, 100) // Log first 100 chars of query
+    })
+    
+    // If it's a connection error, log more details
+    if (error?.code === '53300' || error?.message?.includes('connection')) {
+      console.error('[DB] Connection pool exhausted! Stats:', stats)
+    }
+    
+    throw error
+  }
 }
 
 // Initialize database tables

@@ -73,6 +73,17 @@ type SummonOverview = {
   open: SummonRecord[]
 }
 
+type AbyssStats = {
+  ascensionTotal: number
+  demonsRevived: number
+  leaderboard: Array<{
+    ordinalWallet: string
+    paymentWallet: string
+    total: number
+    confirmed: number
+  }>
+}
+
 const INITIAL_PROFILE: ProfileDetails = {
   username: null,
   avatarUrl: null,
@@ -117,6 +128,7 @@ function ProfileContent() {
     bonusAllowance,
     summons,
     portalSummary,
+    abyssStats,
     refreshProfile,
     triggerDiscordAuth,
     triggerTwitterAuth,
@@ -216,11 +228,11 @@ function ProfileContent() {
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(251,191,36,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80">Total Ascended / Revived</span>
-              <AscensionTotal />
+              <span className="mt-2 text-3xl font-black text-amber-200">{abyssStats?.ascensionTotal ?? 0}</span>
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border border-purple-500/40 bg-purple-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(168,85,247,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-purple-200/80">Total Demons Revived</span>
-              <DemonsRevivedTotal />
+              <span className="mt-2 text-3xl font-black text-purple-200">{abyssStats?.demonsRevived ?? 0}</span>
             </div>
           </div>
         </section>
@@ -674,74 +686,6 @@ function SummoningOverviewCard() {
   )
 }
 
-function AscensionTotal() {
-  const [count, setCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/abyss/burns?ascensionTotal=true', { headers: { 'Cache-Control': 'no-store' } })
-        if (!res.ok) {
-          throw new Error(`Failed (${res.status})`)
-        }
-        const data = await res.json().catch(() => ({}))
-        if (!cancelled) {
-          const n = Number(data?.ascensionTotal ?? 0)
-          setCount(Number.isFinite(n) ? n : 0)
-        }
-      } catch {
-        if (!cancelled) setCount(0)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  if (loading && count === null) {
-    return <span className="mt-2 text-3xl font-black text-amber-200">…</span>
-  }
-  return <span className="mt-2 text-3xl font-black text-amber-200">{count ?? 0}</span>
-}
-
-function DemonsRevivedTotal() {
-  const [count, setCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/abyss/burns?demonsRevived=true', { headers: { 'Cache-Control': 'no-store' } })
-        if (!res.ok) {
-          throw new Error(`Failed (${res.status})`)
-        }
-        const data = await res.json().catch(() => ({}))
-        if (!cancelled) {
-          const n = Number(data?.demonsRevived ?? 0)
-          setCount(Number.isFinite(n) ? n : 0)
-        }
-      } catch {
-        if (!cancelled) setCount(0)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  if (loading && count === null) {
-    return <span className="mt-2 text-3xl font-black text-purple-200">…</span>
-  }
-  return <span className="mt-2 text-3xl font-black text-purple-200">{count ?? 0}</span>
-}
-
 function useProfileState() {
   const { connected, address } = useLaserEyes()
   const toast = useToast()
@@ -754,6 +698,7 @@ function useProfileState() {
   const [bonusAllowance, setBonusAllowance] = useState<number>(0)
   const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
   const [portalSummary, setPortalSummary] = useState<{ isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null>(null)
+  const [abyssStats, setAbyssStats] = useState<AbyssStats | null>(null)
   const isInitializing = useRef(false)
 
   const fetchProfile = useCallback(
@@ -767,13 +712,13 @@ function useProfileState() {
           }
         )
         if (data) {
-          setProfile({
-            username: data.username ?? null,
-            avatarUrl: data.avatar_url ?? null,
-            totalGoodKarma: data.total_good_karma ?? 0,
-            totalBadKarma: data.total_bad_karma ?? 0,
-            chosenSide: data.chosen_side ?? null,
-          })
+        setProfile({
+          username: data.username ?? null,
+          avatarUrl: data.avatar_url ?? null,
+          totalGoodKarma: data.total_good_karma ?? 0,
+          totalBadKarma: data.total_bad_karma ?? 0,
+          chosenSide: data.chosen_side ?? null,
+        })
         }
       } catch (error) {
         console.error('Error fetching profile:', error)
@@ -794,11 +739,11 @@ function useProfileState() {
           }
         )
         if (data) {
-          setDiscord({
-            linked: data.linked ?? false,
-            identifier: data.discordUsername ?? data.discordUserId ?? null,
-            loading: false,
-          })
+        setDiscord({
+          linked: data.linked ?? false,
+          identifier: data.discordUsername ?? data.discordUserId ?? null,
+          loading: false,
+        })
         } else {
           setDiscord((prev) => ({ ...prev, loading: false }))
         }
@@ -906,16 +851,25 @@ function useProfileState() {
     [],
   )
 
-  const fetchExecutionerStatus = useCallback(
+  const fetchAbyssStats = useCallback(
     async (wallet: string) => {
       try {
-        const response = await fetch(`/api/abyss/burns?includeLeaderboard=true`, {
+        const response = await fetch(`/api/abyss/burns?includeStats=true`, {
           headers: { 'Cache-Control': 'no-store' },
         })
         if (!response.ok) {
-          throw new Error(`Abyss leaderboard request failed (${response.status})`)
+          throw new Error(`Abyss stats request failed (${response.status})`)
         }
         const data = await response.json()
+        
+        // Set all stats from one call
+        setAbyssStats({
+          ascensionTotal: Number(data?.ascensionTotal ?? 0),
+          demonsRevived: Number(data?.demonsRevived ?? 0),
+          leaderboard: Array.isArray(data?.leaderboard) ? data.leaderboard : [],
+        })
+        
+        // Check executioner status from leaderboard
         const leaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : []
         const normalizedWallet = wallet.toLowerCase()
         const match = leaderboard.some(
@@ -925,8 +879,9 @@ function useProfileState() {
         )
         setExecutioner(match)
       } catch (error) {
-        console.error('Error determining executioner status:', error)
+        console.error('Error fetching abyss stats:', error)
         setExecutioner(null)
+        setAbyssStats(null)
       }
     },
     [],
@@ -1000,7 +955,7 @@ function useProfileState() {
         checkDiscordStatus(wallet),
         checkTwitterStatus(wallet),
         fetchInventory(wallet),
-        fetchExecutionerStatus(wallet),
+        fetchAbyssStats(wallet),
         fetchSummonSummary(wallet),
         (async () => {
           try {
@@ -1031,7 +986,7 @@ function useProfileState() {
       checkDiscordStatus,
       checkTwitterStatus,
       fetchInventory,
-      fetchExecutionerStatus,
+      fetchAbyssStats,
       fetchSummonSummary,
     ],
   )
@@ -1107,6 +1062,7 @@ function useProfileState() {
       bonusAllowance,
       summons,
       portalSummary,
+      abyssStats,
       refreshProfile: () => {
         if (address) {
           console.log('[Profile] Manual refresh requested')
@@ -1117,7 +1073,7 @@ function useProfileState() {
             checkDiscordStatus(address),
             checkTwitterStatus(address),
             fetchInventory(address),
-            fetchExecutionerStatus(address),
+            fetchAbyssStats(address),
             fetchSummonSummary(address),
           ])
         }
@@ -1137,11 +1093,12 @@ function useProfileState() {
       bonusAllowance,
       summons,
       portalSummary,
+      abyssStats,
       fetchProfile,
       checkDiscordStatus,
       checkTwitterStatus,
       fetchInventory,
-      fetchExecutionerStatus,
+      fetchAbyssStats,
       fetchSummonSummary,
       triggerDiscordAuth,
       triggerTwitterAuth,

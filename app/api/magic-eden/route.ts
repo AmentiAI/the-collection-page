@@ -70,54 +70,54 @@ export async function GET(request: NextRequest) {
 
       console.log(`🔍 Fetching ordinals for wallet: ${walletInfo.address} (${walletInfo.isPrimary ? 'Primary' : 'Linked'})`)
 
-      while (hasMore) {
-        const params = new URLSearchParams({
+    while (hasMore) {
+      const params = new URLSearchParams({
           ownerAddress: walletInfo.address,
-          limit: pageLimit.toString(),
-          offset: currentOffset.toString(),
-          showAll,
-          sortBy,
-        })
-        if (collectionSymbol) {
-          params.set('collectionSymbol', collectionSymbol)
-        }
+        limit: pageLimit.toString(),
+        offset: currentOffset.toString(),
+        showAll,
+        sortBy,
+      })
+      if (collectionSymbol) {
+        params.set('collectionSymbol', collectionSymbol)
+      }
 
-        const apiUrl = `${baseUrl}?${params.toString()}`
+      const apiUrl = `${baseUrl}?${params.toString()}`
 
-        const response = await fetch(apiUrl, {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey,
-            Authorization: `Bearer ${apiKey}`,
-          },
-          next: { revalidate: 30 },
-        })
+      const response = await fetch(apiUrl, {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        },
+        next: { revalidate: 30 },
+      })
 
-        if (!response.ok) {
-          const errorText = await response.text()
+      if (!response.ok) {
+        const errorText = await response.text()
           console.error(`Magic Eden API error for ${walletInfo.address}:`, response.status, errorText)
-          if (response.status === 429) {
-            return NextResponse.json(
-              { error: 'Rate limit exceeded', status: 429, message: errorText },
-              { status: 429 },
-            )
-          }
+        if (response.status === 429) {
+          return NextResponse.json(
+            { error: 'Rate limit exceeded', status: 429, message: errorText },
+            { status: 429 },
+          )
+        }
           // Continue to next wallet if this one fails (don't fail entire request)
           console.warn(`Skipping wallet ${walletInfo.address} due to API error`)
           break
-        }
+      }
 
-        const data = await response.json()
-        const pageTokens: any[] = Array.isArray(data?.tokens)
-          ? data.tokens
-          : Array.isArray(data)
-          ? data
-          : []
+      const data = await response.json()
+      const pageTokens: any[] = Array.isArray(data?.tokens)
+        ? data.tokens
+        : Array.isArray(data)
+        ? data
+        : []
 
-        if (typeof data?.total === 'number' && data.total >= 0) {
+      if (typeof data?.total === 'number' && data.total >= 0) {
           walletTotal = data.total
-        }
+      }
 
         // Add wallet source info to each token
         const tokensWithWalletInfo = pageTokens.map(token => ({
@@ -128,12 +128,12 @@ export async function GET(request: NextRequest) {
 
         aggregatedTokens.push(...tokensWithWalletInfo)
 
-        const retrieved = pageTokens.length
-        if (!fetchAll || retrieved < pageLimit) {
-          hasMore = false
-        } else {
-          currentOffset += pageLimit
-        }
+      const retrieved = pageTokens.length
+      if (!fetchAll || retrieved < pageLimit) {
+        hasMore = false
+      } else {
+        currentOffset += pageLimit
+      }
       }
 
       console.log(`✅ Fetched ${aggregatedTokens.filter(t => t._walletSource === walletInfo.address).length} ordinals from ${walletInfo.address}`)

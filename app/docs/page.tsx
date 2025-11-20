@@ -196,7 +196,7 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
-              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 10 AM - 7 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
+              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 12 PM - 7 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
             </p>
             <p className="mt-2 leading-relaxed">
               <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ Go to Summoning Circles</Link>
@@ -283,7 +283,7 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Cannot join if you have active marketplace listings</li>
               <li>Must be a holder (unlisted ordinals or past burns)</li>
-              <li>Summoning closed 7 PM - 10 AM EST daily</li>
+              <li>Summoning closed 7 PM - 12 PM EST daily</li>
               <li>Ordinals in AFK circle cannot be used elsewhere</li>
             </ul>
           </div>

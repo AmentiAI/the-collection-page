@@ -114,6 +114,74 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const cacheControl = request.headers.get('cache-control')
 
+    // Return all stats in one call for profile page optimization
+    if (searchParams.get('includeStats') === 'true') {
+      // Ensure ascended_images_mint_queue table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+          wallet_address TEXT NOT NULL,
+          image_url TEXT NOT NULL,
+          image_blob_url TEXT,
+          source_inscription_id TEXT NOT NULL,
+          generation_prompt TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      
+      // Get ascension total (successful second ascensions)
+      const mintQueueRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
+        `,
+      )
+      const ascensionTotal = Number(mintQueueRes.rows[0]?.count ?? 0)
+      
+      // Get demons revived (first ascensions)
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demonsRevived = Number(demonsRes.rows[0]?.count ?? 0)
+      
+      // Get leaderboard for executioner check
+      const leaderboardResult = await pool.query(
+        `
+          SELECT
+            ordinal_wallet,
+            MIN(payment_wallet) AS primary_payment_wallet,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed
+          FROM abyss_burns
+          GROUP BY ordinal_wallet
+          ORDER BY confirmed DESC, total DESC
+          LIMIT ${ABYSS_CAP}
+        `,
+      )
+      const leaderboard = leaderboardResult.rows.map((row) => ({
+        ordinalWallet: row.ordinal_wallet ?? '',
+        paymentWallet: row.primary_payment_wallet ?? '',
+        total: Number(row.total ?? 0),
+        confirmed: Number(row.confirmed ?? 0),
+      }))
+      
+      return NextResponse.json({
+        success: true,
+        ascensionTotal,
+        demonsRevived,
+        leaderboard,
+      })
+    }
+
     // Return total ascended/revived (successful ascensions only)
     if (searchParams.get('ascensionTotal') === 'true') {
       // Ensure ascended_images_mint_queue table exists
