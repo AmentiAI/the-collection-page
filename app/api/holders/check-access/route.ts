@@ -26,11 +26,18 @@ export async function GET(request: NextRequest) {
     const burnCount = burnsResult.rows[0]?.count ?? 0
     const hasBurns = burnCount > 0
 
-    return NextResponse.json({
-      success: true,
-      hasBurns,
-      burnCount,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        hasBurns,
+        burnCount,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=10',
+        },
+      },
+    )
   } catch (error) {
     console.error('[holders/check-access][GET]', error)
     return NextResponse.json(

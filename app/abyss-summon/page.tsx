@@ -888,19 +888,26 @@ export default function AbyssSummonPage() {
     }
   }, [ordinalAddress, loadDamnedOptions])
 
+  // Fetch burn count and AFK circle only when address changes (not on mode change)
+  useEffect(() => {
+    if (ordinalAddress) {
+      void fetchBurnCount(ordinalAddress)
+      void fetchAfkCircle(ordinalAddress)
+    } else {
+      setBurnCount(null)
+      setAfkCircleTotal(0)
+      setAfkCircleUserParticipants([])
+    }
+  }, [ordinalAddress, fetchBurnCount, fetchAfkCircle])
+
   useEffect(() => {
     if (ordinalAddress) {
       void refreshSummons(ordinalAddress, mode)
-      void fetchBurnCount(ordinalAddress)
-      void fetchAfkCircle(ordinalAddress)
     } else {
       setSummons([])
       setCreatedSummons([])
       setJoinedSummons([])
       setBonusAllowance(0)
-      setBurnCount(null)
-      setAfkCircleTotal(0)
-      setAfkCircleUserParticipants([])
     }
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
