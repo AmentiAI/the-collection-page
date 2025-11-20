@@ -880,7 +880,8 @@ export default function AbyssSummonPage() {
     if (SUMMON_LEADERBOARD_ENABLED) {
       void loadSummonLeaderboard()
     }
-  }, [ordinalAddress, refreshSummons, loadSummonLeaderboard, fetchBurnCount, fetchAfkCircle, SUMMON_LEADERBOARD_ENABLED])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordinalAddress, mode])
 
   useEffect(() => {
     if (!ordinalAddress) return
@@ -889,7 +890,8 @@ export default function AbyssSummonPage() {
       void fetchAfkCircle(ordinalAddress)
     }, 15_000)
     return () => window.clearInterval(intervalId)
-  }, [ordinalAddress, refreshSummons, fetchAfkCircle])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordinalAddress])
 
   // Removed interval - only load damned options on initial load or address change
   // No need to refresh ordinals list every 23 seconds
@@ -903,7 +905,8 @@ export default function AbyssSummonPage() {
       void loadSummonLeaderboard()
     }, 23_000)
     return () => window.clearInterval(intervalId)
-  }, [loadSummonLeaderboard, SUMMON_LEADERBOARD_ENABLED])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [SUMMON_LEADERBOARD_ENABLED])
 
   const handleToggleMusic = useCallback(() => {
     const audio = audioRef.current

@@ -713,13 +713,13 @@ function useProfileState() {
         )
         if (data) {
           // Set profile data
-          setProfile({
-            username: data.username ?? null,
-            avatarUrl: data.avatar_url ?? null,
-            totalGoodKarma: data.total_good_karma ?? 0,
-            totalBadKarma: data.total_bad_karma ?? 0,
-            chosenSide: data.chosen_side ?? null,
-          })
+        setProfile({
+          username: data.username ?? null,
+          avatarUrl: data.avatar_url ?? null,
+          totalGoodKarma: data.total_good_karma ?? 0,
+          totalBadKarma: data.total_bad_karma ?? 0,
+          chosenSide: data.chosen_side ?? null,
+        })
           
           // Set Discord status from unified response
           if (data.discord) {

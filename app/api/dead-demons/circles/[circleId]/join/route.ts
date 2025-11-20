@@ -218,15 +218,30 @@ export async function POST(
     )
     if (afkConflict.rows.length > 0) {
       const conflictWallet = afkConflict.rows[0].wallet
-      console.log(`[Dead Demons Join] AFK conflict: inscription ${inscriptionId} is in AFK circle with wallet ${conflictWallet}, request wallet: ${wallet}`)
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        {
-          success: false,
-          error: `This ordinal is currently in the AFK circle (wallet: ${conflictWallet.slice(0, 8)}...). Remove it from the AFK circle first.`,
-        },
-        { status: 409 },
-      )
+      const normalizedConflictWallet = conflictWallet.toLowerCase()
+      const normalizedRequestWallet = wallet.toLowerCase()
+      
+      // If the inscription is in the AFK circle with a DIFFERENT wallet, remove the stale entry
+      // This can happen if the ordinal was transferred or the user has linked wallets
+      if (normalizedConflictWallet !== normalizedRequestWallet) {
+        console.log(`[Dead Demons Join] Removing stale AFK entry: inscription ${inscriptionId} was with wallet ${conflictWallet}, now with ${wallet}`)
+        await pool.query(
+          `DELETE FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 AND LOWER(wallet) = LOWER($3)`,
+          [AFK_CIRCLE_ID, inscriptionId, conflictWallet]
+        )
+        // Continue with join - the inscription is no longer in AFK circle
+      } else {
+        // The inscription is in the AFK circle with THIS wallet - user needs to remove it properly
+        console.log(`[Dead Demons Join] AFK conflict: inscription ${inscriptionId} is in AFK circle with current wallet ${wallet}`)
+        await pool.query('ROLLBACK')
+        return NextResponse.json(
+          {
+            success: false,
+            error: `This ordinal is currently in the AFK circle. Remove it from the AFK circle first.`,
+          },
+          { status: 409 },
+        )
+      }
     }
 
     const inscriptionConflict = await pool.query(

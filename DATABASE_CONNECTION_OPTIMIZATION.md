@@ -70,6 +70,7 @@ Status values:
 
 ### 4. Optimized Profile Page API Calls
 
+#### Abyss Stats Consolidation
 **Before:** Profile page made 3 separate API calls to `/api/abyss/burns`:
 - `?ascensionTotal=true`
 - `?demonsRevived=true`  
@@ -81,6 +82,19 @@ This reduces:
 - Database queries from ~9 to ~3
 - API requests from 3 to 1
 - Connection usage by 66%
+
+#### Profile + Social Accounts Consolidation
+**Before:** Profile page made 3 separate API calls for user data:
+- `/api/profile?walletAddress=...`
+- `/api/profile/discord?walletAddress=...`
+- `/api/profile/twitter?walletAddress=...`
+
+**After:** Single unified call: `/api/profile?walletAddress=...&includeSocials=true` returns profile + Discord + Twitter in one response.
+
+This reduces:
+- Database connections from 3 to 1
+- API requests from 3 to 1
+- Total profile page initial load: **6 API calls → 2 API calls** (67% reduction)
 
 ### 5. Added Table Initialization Caching
 
@@ -195,13 +209,13 @@ But this is NOT a long-term solution - you need to fix connection leaks or upgra
 - Pool: 20 connections (exceeds Supabase limit)
 - Idle timeout: 30 seconds
 - No monitoring
-- Profile page: 3 API calls
+- Profile page: 6 API calls (3 for profile data + 3 for abyss stats)
 
 **After:**
 - Pool: 5 connections (within Supabase limits)
 - Idle timeout: 10 seconds
 - Full monitoring + health endpoint
-- Profile page: 1 unified API call
+- Profile page: 2 unified API calls (1 for all profile data + 1 for all abyss stats)
 
 **Expected Results:**
 - No more "connection slots reserved for SUPERUSER" errors
