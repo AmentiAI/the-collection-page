@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('abyss_summons')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,6 +74,9 @@ async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+
+  // Mark as initialized
+  markTableInitialized('abyss_summons')
 }
 
 function mapSummonRow(row: any) {
@@ -115,22 +123,23 @@ export async function POST(
     )
   }
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
-    const summonRes = await pool.query(
+    const summonRes = await client.query(
       `SELECT * FROM abyss_summons WHERE id = $1 FOR UPDATE`,
       [summonId],
     )
     if (summonRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Summon not found' }, { status: 404 })
     }
 
     const summon = summonRes.rows[0]
 
     if (summon.expires_at && new Date(summon.expires_at) < new Date()) {
-      await pool.query(
+      await client.query(
         `
           UPDATE abyss_summons
           SET status = 'expired', updated_at = NOW()
@@ -138,7 +147,7 @@ export async function POST(
         `,
         [summonId],
       )
-      await pool.query('COMMIT')
+      await client.query('COMMIT')
       return NextResponse.json(
         { success: false, error: 'This summoning table has expired.' },
         { status: 410 },
@@ -146,14 +155,14 @@ export async function POST(
     }
 
     if (!['open', 'filling'].includes(summon.status)) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This summoning table is no longer accepting participants.' },
         { status: 409 },
       )
     }
 
-    const existingParticipant = await pool.query(
+    const existingParticipant = await client.query(
       `
         SELECT 1
         FROM abyss_summon_participants
@@ -162,7 +171,7 @@ export async function POST(
       [summonId, wallet],
     )
     if (existingParticipant.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You already joined this summoning circle.' },
         { status: 409 },
@@ -171,7 +180,7 @@ export async function POST(
 
     // Check if inscription is in AFK circle
     const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS afk_circles (
         id UUID PRIMARY KEY,
         status TEXT NOT NULL DEFAULT 'open',
@@ -180,12 +189,12 @@ export async function POST(
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
-    await pool.query(`
+    await client.query(`
       INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
       VALUES ($1, 'open', 100, NOW(), NOW())
       ON CONFLICT (id) DO NOTHING
     `, [AFK_CIRCLE_ID])
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS afk_circle_participants (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
@@ -198,12 +207,12 @@ export async function POST(
       )
     `)
     
-    const afkConflict = await pool.query(
+    const afkConflict = await client.query(
       `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
       [AFK_CIRCLE_ID, inscriptionId],
     )
     if (afkConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -213,7 +222,7 @@ export async function POST(
       )
     }
 
-    const inscriptionConflict = await pool.query(
+    const inscriptionConflict = await client.query(
       `
         SELECT s.id
         FROM abyss_summon_participants p
@@ -225,7 +234,7 @@ export async function POST(
       [inscriptionId],
     )
     if (inscriptionConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -235,13 +244,13 @@ export async function POST(
       )
     }
 
-    const participantCountRes = await pool.query(
+    const participantCountRes = await client.query(
       `SELECT COUNT(*)::int AS count FROM abyss_summon_participants WHERE summon_id = $1`,
       [summonId],
     )
     const participantCount = participantCountRes.rows[0]?.count ?? 0
     if (participantCount >= summon.required_participants) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This summoning table is already full.' },
         { status: 409 },
@@ -267,7 +276,7 @@ export async function POST(
     const updatedCount = updatedCountRes.rows[0]?.count ?? 0
 
     if (updatedCount >= summon.required_participants) {
-      await pool.query(
+      await client.query(
         `
           UPDATE abyss_summons
           SET status = 'ready',
@@ -278,7 +287,7 @@ export async function POST(
         [summonId],
       )
     } else if (summon.status !== 'filling') {
-      await pool.query(
+      await client.query(
         `
           UPDATE abyss_summons
           SET status = 'filling',
@@ -289,7 +298,7 @@ export async function POST(
       )
     }
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(
       `
@@ -321,12 +330,14 @@ export async function POST(
       summon: mapSummonRow(refreshed.rows[0]),
     })
   } catch (error) {
-    await pool.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[abyss/summons/join][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to join summon' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }
 

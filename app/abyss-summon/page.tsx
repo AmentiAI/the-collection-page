@@ -957,24 +957,24 @@ export default function AbyssSummonPage() {
   // Removed interval - only load damned options on initial load or address change
   // No need to refresh ordinals list every 23 seconds
 
-  // Leaderboard polling - also respect visibility
-  useEffect(() => {
-    if (!SUMMON_LEADERBOARD_ENABLED) {
-      return undefined
-    }
-    
-    void loadSummonLeaderboard()
-    
-    // Poll every 23 seconds when visible
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void loadSummonLeaderboard()
-      }
-    }, 23_000)
-    
-    return () => window.clearInterval(intervalId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [SUMMON_LEADERBOARD_ENABLED])
+  // Leaderboard polling - DISABLED (leaderboard not displayed on this page)
+  // useEffect(() => {
+  //   if (!SUMMON_LEADERBOARD_ENABLED) {
+  //     return undefined
+  //   }
+  //   
+  //   void loadSummonLeaderboard()
+  //   
+  //   // Poll every 23 seconds when visible
+  //   const intervalId = window.setInterval(() => {
+  //     if (document.visibilityState === 'visible') {
+  //       void loadSummonLeaderboard()
+  //     }
+  //   }, 23_000)
+  //   
+  //   return () => window.clearInterval(intervalId)
+  // // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [SUMMON_LEADERBOARD_ENABLED])
 
   const handleToggleMusic = useCallback(() => {
     const audio = audioRef.current
@@ -1423,7 +1423,7 @@ export default function AbyssSummonPage() {
                   <p className="font-semibold uppercase tracking-[0.2em]">Dead Demons Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires ascended inscriptions (inscription_id starting with &quot;ascended_&quot;)</li>
-                    <li>All 10 participants must complete in the last 2 minutes</li>
+                    <li>Requires 9 out of 10 participants to complete in the last 2 minutes</li>
                     <li>Gives ascension_powder (13 for host, 10 for participants)</li>
                   </ul>
                 </div>

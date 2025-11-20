@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
-const REQUIRED_COMPLETIONS = 10 // All 10 must complete
+const REQUIRED_COMPLETIONS = 9 // 9 out of 10 must complete
 const POWDER_REWARD_HOST = 13
 const POWDER_REWARD_PARTICIPANT = 10
 
 async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('dead_demons_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dead_demons_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,6 +63,9 @@ async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) 
       PRIMARY KEY (wallet_address, event_key)
     )
   `)
+
+  // Mark as initialized
+  markTableInitialized('dead_demons_circles')
 }
 
 function mapCircleRow(row: any) {
@@ -112,14 +120,14 @@ function buildCircleSelect(whereClause = '', values: unknown[] = []) {
 async function grantAscensionPowder(
   wallet: string,
   circleId: string,
-  client: ReturnType<typeof getPool>,
+  poolOrClient: any,
   isHost: boolean = false,
 ) {
   const eventKey = `dead_demons_circle:${circleId}`
   const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
 
   // Ensure profile exists
-  await client.query(
+  await poolOrClient.query(
     `
       INSERT INTO profiles (wallet_address, ascension_powder, updated_at)
       VALUES ($1, 0, NOW())
@@ -129,7 +137,7 @@ async function grantAscensionPowder(
   )
 
   // Record the event (one-time per circle per wallet)
-  const claimRes = await client.query(
+  const claimRes = await poolOrClient.query(
     `
       INSERT INTO ascension_powder_events (wallet_address, event_key, granted_amount)
       VALUES ($1, $2, $3)
@@ -142,7 +150,7 @@ async function grantAscensionPowder(
   // Grant the powder (only if event was inserted, meaning first time)
   const insertedRows = claimRes?.rowCount ?? 0
   if (insertedRows > 0) {
-    await client.query(
+    await poolOrClient.query(
       `
         UPDATE profiles
         SET ascension_powder = COALESCE(ascension_powder, 0) + $1,
@@ -154,7 +162,7 @@ async function grantAscensionPowder(
   }
 
   // Get updated balance
-  const balanceRes = await client.query(
+  const balanceRes = await poolOrClient.query(
     `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
     [wallet],
   )
@@ -180,41 +188,42 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'wallet is required' }, { status: 400 })
   }
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
-    const circleRes = await pool.query(
+    const circleRes = await client.query(
       buildCircleSelect('WHERE c.id = $1', [circleId]),
     )
     if (circleRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Dead Demons circle not found' }, { status: 404 })
     }
 
     const circle = mapCircleRow(circleRes.rows[0])
 
     if (circle.status === 'completed') {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: true, message: 'Dead Demons circle already completed.', summon: circle },
       )
     }
 
     if (circle.status !== 'ready') {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'Dead Demons circle is not ready for completion.' },
         { status: 409 },
       )
     }
 
-    const participantRes = await pool.query(
+    const participantRes = await client.query(
       `SELECT id, wallet, completed FROM dead_demons_participants WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2) FOR UPDATE`,
       [circleId, wallet],
     )
 
     if (participantRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You are not a participant in this Dead Demons circle.' },
         { status: 403 },
@@ -223,8 +232,8 @@ export async function POST(
 
     const participant = participantRes.rows[0]
     if (participant.completed) {
-      await pool.query('ROLLBACK')
-      const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+      await client.query('ROLLBACK')
+      const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
       return NextResponse.json({
         success: true,
         message: 'Completion already recorded for this wallet.',
@@ -237,7 +246,7 @@ export async function POST(
     const expiresAt = circle.expiresAt ? new Date(circle.expiresAt) : null
 
     if (!expiresAt) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'Dead Demons circle has not entered completion phase yet.' },
         { status: 409 },
@@ -249,7 +258,7 @@ export async function POST(
     const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
 
     if (now < finalWindowStart) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -261,7 +270,7 @@ export async function POST(
     }
 
     if (now > expiresAt) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'Dead Demons circle has expired.' },
         { status: 410 },
@@ -269,7 +278,7 @@ export async function POST(
     }
 
     // Mark participant as completed
-    await pool.query(
+    await client.query(
       `
         UPDATE dead_demons_participants
         SET completed = TRUE,
@@ -279,7 +288,7 @@ export async function POST(
       [participant.id],
     )
 
-    const participantsRes = await pool.query(
+    const participantsRes = await client.query(
       `SELECT wallet, completed FROM dead_demons_participants WHERE circle_id = $1 FOR UPDATE`,
       [circleId],
     )
@@ -293,7 +302,7 @@ export async function POST(
 
     if (allCompleted && !rewardGranted) {
       // Update circle status
-      await pool.query(
+      await client.query(
         `
           UPDATE dead_demons_circles
           SET status = 'completed',
@@ -312,13 +321,13 @@ export async function POST(
         if (!participantWallet) continue
 
         const isHost = participantWallet.toLowerCase() === creatorWallet
-        await grantAscensionPowder(participantWallet, circleId, pool, isHost)
+        await grantAscensionPowder(participantWallet, circleId, client, isHost)
       }
 
       rewardGranted = true
     }
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
     const updatedCircle = mapCircleRow(refreshed.rows[0])
@@ -326,7 +335,7 @@ export async function POST(
     // Get updated powder balance for the current user
     let profilePowder: number | undefined = undefined
     if (allCompleted) {
-      const balanceRes = await pool.query(
+      const balanceRes = await client.query(
         `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
         [wallet],
       )
@@ -344,12 +353,14 @@ export async function POST(
       requiredCompletions: REQUIRED_COMPLETIONS,
     })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[dead-demons/circles/complete][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to complete Dead Demons circle.' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }
 

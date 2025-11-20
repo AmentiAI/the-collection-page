@@ -156,18 +156,20 @@ export async function POST(
 
     await ensureDamnedPoolInfrastructure(pool)
 
-    await pool.query('BEGIN')
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
 
-    const circleRes = await pool.query('SELECT * FROM damned_pool_circles WHERE id = $1 FOR UPDATE', [circleId])
+      const circleRes = await client.query('SELECT * FROM damned_pool_circles WHERE id = $1 FOR UPDATE', [circleId])
     if (circleRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
     }
 
     const circle = circleRes.rows[0]
 
     if (circle.status !== 'ready') {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This damned pool cannot be completed.' },
         { status: 409 },
@@ -185,7 +187,7 @@ export async function POST(
     )
 
     if (participantRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You are not part of this damned pool.' },
         { status: 403 },
@@ -194,7 +196,7 @@ export async function POST(
 
     const participant = participantRes.rows[0]
     if (participant.completed) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
       return NextResponse.json({
         success: true,
@@ -207,7 +209,7 @@ export async function POST(
     const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
 
     if (!expiresAt) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'Damned pool has not entered completion phase yet.' },
         { status: 409 },
@@ -219,7 +221,7 @@ export async function POST(
     const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
 
     if (timeUntilWindow > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,

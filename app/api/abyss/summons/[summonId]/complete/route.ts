@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('abyss_summons')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,6 +73,9 @@ async function ensureSummonTables(pool: ReturnType<typeof getPool>) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+
+  // Mark as initialized
+  markTableInitialized('abyss_summons')
 }
 
 function mapSummonRow(row: any) {
