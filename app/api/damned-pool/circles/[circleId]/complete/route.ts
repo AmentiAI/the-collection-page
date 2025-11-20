@@ -156,245 +156,259 @@ export async function POST(
 
     await ensureDamnedPoolInfrastructure(pool)
 
-    const client = await pool.connect()
+    let client
     try {
+      client = await pool.connect()
       await client.query('BEGIN')
 
       const circleRes = await client.query('SELECT * FROM damned_pool_circles WHERE id = $1 FOR UPDATE', [circleId])
-    if (circleRes.rows.length === 0) {
-      await client.query('ROLLBACK')
-      return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
-    }
+      if (circleRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
+      }
 
-    const circle = circleRes.rows[0]
+      const circle = circleRes.rows[0]
 
-    if (circle.status !== 'ready') {
-      await client.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'This damned pool cannot be completed.' },
-        { status: 409 },
-      )
-    }
+      if (circle.status !== 'ready') {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'This damned pool cannot be completed.' },
+          { status: 409 },
+        )
+      }
 
-    const participantRes = await pool.query(
-      `
-        SELECT *
-        FROM damned_pool_participants
-        WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
-        FOR UPDATE
-      `,
-      [circleId, wallet],
-    )
-
-    if (participantRes.rows.length === 0) {
-      await client.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'You are not part of this damned pool.' },
-        { status: 403 },
-      )
-    }
-
-    const participant = participantRes.rows[0]
-    if (participant.completed) {
-      await client.query('ROLLBACK')
-      const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-      return NextResponse.json({
-        success: true,
-        message: 'Completion already recorded for this wallet.',
-        summon: mapCircleRow(refreshed.rows[0]),
-      })
-    }
-
-    const now = new Date()
-    const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
-
-    if (!expiresAt) {
-      await client.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'Damned pool has not entered completion phase yet.' },
-        { status: 409 },
-      )
-    }
-
-    const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
-    const timeUntilExpiry = expiresAt.getTime() - now.getTime()
-    const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
-
-    if (timeUntilWindow > 0) {
-      await client.query('ROLLBACK')
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Final window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
-          timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
-        },
-        { status: 409 },
-      )
-    }
-
-    if (timeUntilExpiry <= 0) {
-      await pool.query(
-        `UPDATE damned_pool_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
-        [circleId],
-      )
-      await pool.query('COMMIT')
-      return NextResponse.json({ success: false, error: 'Damned pool has expired.' }, { status: 410 })
-    }
-
-    // Mark participant as completed
-    await pool.query(
-      `
-        UPDATE damned_pool_participants
-        SET completed = TRUE,
-            completed_at = NOW()
-        WHERE id = $1
-      `,
-      [participant.id],
-    )
-
-    const participantsRes = await pool.query(
-      `SELECT wallet, completed FROM damned_pool_participants WHERE circle_id = $1 FOR UPDATE`,
-      [circleId],
-    )
-    const participants = participantsRes.rows
-    const completedCount = participants.filter((row) => row.completed).length
-    // Allow completion if 36 out of 40 participants have marked complete (or 18 out of 20 for bonus_credits)
-    const minCount = Number(circle.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT)
-    const allCompleted = participants.length >= circle.required_participants && completedCount >= minCount
-
-    let burnWindowGranted = Boolean(circle.burn_window_granted)
-
-    if (allCompleted && !burnWindowGranted) {
-      // Grant burn window: 30 minutes for 20-man (bonus_credits), 1 hour for 40-man (open_all)
-      const burnWindowDuration = (circle.mode ?? 'open_all') === 'bonus_credits' 
-        ? BURN_WINDOW_DURATION_20_MAN_MS 
-        : BURN_WINDOW_DURATION_40_MAN_MS
-      const burnWindowExpiresAt = new Date(now.getTime() + burnWindowDuration)
-
-      await pool.query(
+      const participantRes = await client.query(
         `
-          UPDATE damned_pool_circles
-          SET status = 'completed',
-              completed_at = NOW(),
-              burn_window_granted = TRUE,
-              updated_at = NOW()
-          WHERE id = $1
+          SELECT *
+          FROM damned_pool_participants
+          WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
+          FOR UPDATE
         `,
-        [circleId],
+        [circleId, wallet],
       )
 
-      // Create burn window record (credits_only if mode is bonus_credits)
-      await pool.query(
-        `
-          INSERT INTO damned_pool_burn_windows (circle_id, expires_at, credits_only)
-          VALUES ($1, $2, $3)
-        `,
-        [circleId, burnWindowExpiresAt.toISOString(), circle.mode === 'bonus_credits'],
-      )
+      if (participantRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'You are not part of this damned pool.' },
+          { status: 403 },
+        )
+      }
 
-      burnWindowGranted = true
+      const participant = participantRes.rows[0]
+      if (participant.completed) {
+        await client.query('ROLLBACK')
+        const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+        return NextResponse.json({
+          success: true,
+          message: 'Completion already recorded for this wallet.',
+          summon: mapCircleRow(refreshed.rows[0]),
+        })
+      }
 
-      // For consistency in UI, mark any remaining participants as completed once the pool succeeds
-      await pool.query(
+      const now = new Date()
+      const expiresAt = circle.expires_at ? new Date(circle.expires_at) : null
+
+      if (!expiresAt) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'Damned pool has not entered completion phase yet.' },
+          { status: 409 },
+        )
+      }
+
+      const finalWindowStart = new Date(expiresAt.getTime() - COMPLETION_WINDOW_MS)
+      const timeUntilExpiry = expiresAt.getTime() - now.getTime()
+      const timeUntilWindow = finalWindowStart.getTime() - now.getTime()
+
+      if (timeUntilWindow > 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Final window has not opened. Window opens in ${Math.ceil(timeUntilWindow / 1000)} seconds.`,
+            timeUntilWindow: Math.ceil(timeUntilWindow / 1000),
+          },
+          { status: 409 },
+        )
+      }
+
+      if (timeUntilExpiry <= 0) {
+        await client.query(
+          `UPDATE damned_pool_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+          [circleId],
+        )
+        await client.query('COMMIT')
+        return NextResponse.json({ success: false, error: 'Damned pool has expired.' }, { status: 410 })
+      }
+
+      // Mark participant as completed
+      await client.query(
         `
           UPDATE damned_pool_participants
           SET completed = TRUE,
-              completed_at = COALESCE(completed_at, NOW())
-          WHERE circle_id = $1 AND completed = FALSE
+              completed_at = NOW()
+          WHERE id = $1
         `,
+        [participant.id],
+      )
+
+      const participantsRes = await client.query(
+        `SELECT wallet, completed FROM damned_pool_participants WHERE circle_id = $1 FOR UPDATE`,
         [circleId],
       )
+      const participants = participantsRes.rows
+      const completedCount = participants.filter((row) => row.completed).length
+      // Allow completion if 36 out of 40 participants have marked complete (or 18 out of 20 for bonus_credits)
+      const minCount = Number(circle.min_completion_count ?? MIN_COMPLETION_COUNT_DEFAULT)
+      const allCompleted = participants.length >= circle.required_participants && completedCount >= minCount
 
-      // Award +1 bonus burn allowance to the host for 20-man (bonus_credits) circles
-      if ((circle.mode ?? 'open_all') === 'bonus_credits') {
-        const hostWallet = (circle.creator_wallet ?? '').toString()
-        if (hostWallet) {
-          await pool.query(
-            `
-              INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
-              VALUES ($1, 1, NOW())
-              ON CONFLICT (wallet)
-              DO UPDATE SET
-                available = abyss_bonus_allowances.available + 1,
-                updated_at = EXCLUDED.updated_at
-            `,
-            [hostWallet],
-          )
-        }
-      }
+      let burnWindowGranted = Boolean(circle.burn_window_granted)
 
-      // Grant ascension powder to all participants (host gets 14, others get 10)
-      const creatorWallet = (circle.creator_wallet ?? '').toString().toLowerCase()
-      for (const row of participants) {
-        const participantWallet = (row.wallet ?? '').toString().trim()
-        if (!participantWallet) continue
+      if (allCompleted && !burnWindowGranted) {
+        // Grant burn window: 30 minutes for 20-man (bonus_credits), 1 hour for 40-man (open_all)
+        const burnWindowDuration = (circle.mode ?? 'open_all') === 'bonus_credits' 
+          ? BURN_WINDOW_DURATION_20_MAN_MS 
+          : BURN_WINDOW_DURATION_40_MAN_MS
+        const burnWindowExpiresAt = new Date(now.getTime() + burnWindowDuration)
 
-        const isHost = participantWallet.toLowerCase() === creatorWallet
-        const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
-        const eventKey = `damned_pool_circle:${circleId}`
-
-        // Ensure profile exists
-        await pool.query(
+        await client.query(
           `
-            INSERT INTO profiles (wallet_address, ascension_powder, updated_at)
-            VALUES ($1, 0, NOW())
-            ON CONFLICT (wallet_address) DO NOTHING
+            UPDATE damned_pool_circles
+            SET status = 'completed',
+                completed_at = NOW(),
+                burn_window_granted = TRUE,
+                updated_at = NOW()
+            WHERE id = $1
           `,
-          [participantWallet],
+          [circleId],
         )
 
-        // Record the event (one-time per circle per wallet)
-        const claimRes = await pool.query(
+        // Create burn window record (credits_only if mode is bonus_credits)
+        await client.query(
           `
-            INSERT INTO ascension_powder_events (wallet_address, event_key, granted_amount)
+            INSERT INTO damned_pool_burn_windows (circle_id, expires_at, credits_only)
             VALUES ($1, $2, $3)
-            ON CONFLICT (wallet_address, event_key) DO NOTHING
-            RETURNING granted_amount
           `,
-          [participantWallet, eventKey, rewardAmount],
+          [circleId, burnWindowExpiresAt.toISOString(), circle.mode === 'bonus_credits'],
         )
 
-        // Grant the powder (only if event was inserted, meaning first time)
-        const insertedRows = claimRes?.rowCount ?? 0
-        if (insertedRows > 0) {
-          await pool.query(
+        burnWindowGranted = true
+
+        // For consistency in UI, mark any remaining participants as completed once the pool succeeds
+        await client.query(
+          `
+            UPDATE damned_pool_participants
+            SET completed = TRUE,
+                completed_at = COALESCE(completed_at, NOW())
+            WHERE circle_id = $1 AND completed = FALSE
+          `,
+          [circleId],
+        )
+
+        // Award +1 bonus burn allowance to the host for 20-man (bonus_credits) circles
+        if ((circle.mode ?? 'open_all') === 'bonus_credits') {
+          const hostWallet = (circle.creator_wallet ?? '').toString()
+          if (hostWallet) {
+            await client.query(
+              `
+                INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
+                VALUES ($1, 1, NOW())
+                ON CONFLICT (wallet)
+                DO UPDATE SET
+                  available = abyss_bonus_allowances.available + 1,
+                  updated_at = EXCLUDED.updated_at
+              `,
+              [hostWallet],
+            )
+          }
+        }
+
+        // Grant ascension powder to all participants (host gets 14, others get 10)
+        const creatorWallet = (circle.creator_wallet ?? '').toString().toLowerCase()
+        for (const row of participants) {
+          const participantWallet = (row.wallet ?? '').toString().trim()
+          if (!participantWallet) continue
+
+          const isHost = participantWallet.toLowerCase() === creatorWallet
+          const rewardAmount = isHost ? POWDER_REWARD_HOST : POWDER_REWARD_PARTICIPANT
+          const eventKey = `damned_pool_circle:${circleId}`
+
+          // Ensure profile exists
+          await client.query(
             `
-              UPDATE profiles
-              SET ascension_powder = COALESCE(ascension_powder, 0) + $1,
-                  updated_at = NOW()
-              WHERE LOWER(wallet_address) = LOWER($2)
+              INSERT INTO profiles (wallet_address, ascension_powder, updated_at)
+              VALUES ($1, 0, NOW())
+              ON CONFLICT (wallet_address) DO NOTHING
             `,
-            [rewardAmount, participantWallet],
+            [participantWallet],
           )
+
+          // Record the event (one-time per circle per wallet)
+          const claimRes = await client.query(
+            `
+              INSERT INTO ascension_powder_events (wallet_address, event_key, granted_amount)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (wallet_address, event_key) DO NOTHING
+              RETURNING granted_amount
+            `,
+            [participantWallet, eventKey, rewardAmount],
+          )
+
+          // Grant the powder (only if event was inserted, meaning first time)
+          const insertedRows = claimRes?.rowCount ?? 0
+          if (insertedRows > 0) {
+            await client.query(
+              `
+                UPDATE profiles
+                SET ascension_powder = COALESCE(ascension_powder, 0) + $1,
+                    updated_at = NOW()
+                WHERE LOWER(wallet_address) = LOWER($2)
+              `,
+              [rewardAmount, participantWallet],
+            )
+          }
         }
       }
-    }
 
-    await pool.query('COMMIT')
+      await client.query('COMMIT')
 
-    const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+      const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
 
-    // Include updated bonus allowance (for host) if applicable
-    let bonusAllowance: number | undefined
-    if ((circle.mode ?? 'open_all') === 'bonus_credits') {
-      const allowanceRes = await pool.query(
-        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
-        [circle.creator_wallet],
+      // Include updated bonus allowance (for host) if applicable
+      let bonusAllowance: number | undefined
+      if ((circle.mode ?? 'open_all') === 'bonus_credits') {
+        const allowanceRes = await client.query(
+          `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+          [circle.creator_wallet],
+        )
+        bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+      }
+
+      return NextResponse.json({
+        success: true,
+        summon: mapCircleRow(refreshed.rows[0]),
+        burnWindowGranted,
+        ...(typeof bonusAllowance === 'number' ? { bonusAllowance } : {}),
+      })
+    } catch (error) {
+      if (client) {
+        await client.query('ROLLBACK').catch(() => {})
+      }
+      console.error('[damned-pool/circles/complete]', error)
+      return NextResponse.json(
+        { success: false, error: 'Failed to complete damned pool.' },
+        { status: 500 },
       )
-      bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    } finally {
+      if (client) {
+        client.release()
+      }
     }
-
-    return NextResponse.json({
-      success: true,
-      summon: mapCircleRow(refreshed.rows[0]),
-      burnWindowGranted,
-      ...(typeof bonusAllowance === 'number' ? { bonusAllowance } : {}),
-    })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
-    console.error('[damned-pool/circles/complete]', error)
+    console.error('[damned-pool/circles/complete] Infrastructure error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to complete damned pool.' },
+      { success: false, error: 'Failed to initialize infrastructure.' },
       { status: 500 },
     )
   }
