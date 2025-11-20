@@ -49,24 +49,8 @@ export default function LinkWalletPage() {
       })
   }, [searchParams, router, toast])
 
-  useEffect(() => {
-    if (!primaryWallet) return
-      
-      // If currently connected to the primary wallet, need to disconnect
-      if (currentAddress?.toLowerCase() === primary.toLowerCase()) {
-        setStep('disconnect')
-      } else if (!isConnected) {
-        setStep('connect')
-      } else {
-        // Connected to a different wallet - ready to link
-        setStep('sign')
-      }
-    } else {
-      // No primary wallet specified, redirect to profile
-      toast.error('No primary wallet specified')
-      router.push('/profile')
-    }
-  }, [searchParams, currentAddress, isConnected, router, toast])
+  // This useEffect is now handled by the one below at line 72
+  // Removed duplicate logic
 
   // Update step based on connection status
   useEffect(() => {
