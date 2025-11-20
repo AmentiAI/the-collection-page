@@ -25,6 +25,7 @@ export default function LinkedWalletsManager() {
   const [loading, setLoading] = useState(false)
   const [linking, setLinking] = useState(false)
   const [showLinkInstructions, setShowLinkInstructions] = useState(false)
+  const [walletJustSwitched, setWalletJustSwitched] = useState(false)
 
   const truncateAddress = (addr: string) => {
     if (!addr) return ''
@@ -50,7 +51,13 @@ export default function LinkedWalletsManager() {
 
   useEffect(() => {
     if (address) {
+      // Show visual feedback that wallet switched
+      setWalletJustSwitched(true)
       fetchLinkedWallets()
+      
+      // Clear the "just switched" indicator after 2 seconds
+      const timer = setTimeout(() => setWalletJustSwitched(false), 2000)
+      return () => clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address])
@@ -164,6 +171,15 @@ export default function LinkedWalletsManager() {
 
   return (
     <div className="space-y-4">
+      {walletJustSwitched && (
+        <div className="rounded-lg border border-green-500/60 bg-green-900/20 p-3 animate-pulse">
+          <p className="text-sm text-green-200 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Wallet detected: {truncateAddress(address)}
+          </p>
+        </div>
+      )}
+      
       <div className="rounded-lg border border-red-600/40 bg-black/70 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-mono uppercase tracking-[0.3em] text-red-100">
