@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
 const REQUIRED_COMPLETIONS = 10 // All 10 must complete
-const POWDER_REWARD_HOST = 10
-const POWDER_REWARD_PARTICIPANT = 8
+const POWDER_REWARD_HOST = 13
+const POWDER_REWARD_PARTICIPANT = 10
 
 async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) {
   await pool.query(`
@@ -305,7 +305,7 @@ export async function POST(
         [circleId],
       )
 
-      // Grant ascension powder to all participants (host gets 10, others get 8)
+      // Grant ascension powder to all participants (host gets 13, others get 10)
       const creatorWallet = circle.creatorWallet?.toLowerCase() || ''
       for (const row of participants) {
         const participantWallet = (row.wallet ?? '').toString().trim()
