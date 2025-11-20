@@ -2136,7 +2136,7 @@ function SummonList({
             (isFortyManPortal && isParticipant && !participantCompleted)
           )
         
-      
+
         return (
           <div
             key={summon.id}

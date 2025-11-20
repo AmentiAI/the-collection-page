@@ -207,21 +207,21 @@ export async function GET(request: NextRequest) {
     if (searchParams.get('ascensionTotal') === 'true') {
       // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
       if (!isTableInitialized('ascended_images_mint_queue')) {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-            wallet_address TEXT NOT NULL,
-            image_url TEXT NOT NULL,
-            image_blob_url TEXT,
-            source_inscription_id TEXT NOT NULL,
-            generation_prompt TEXT,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-          )
-        `)
-        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+          wallet_address TEXT NOT NULL,
+          image_url TEXT NOT NULL,
+          image_blob_url TEXT,
+          source_inscription_id TEXT NOT NULL,
+          generation_prompt TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
         markTableInitialized('ascended_images_mint_queue')
       }
       
@@ -246,21 +246,21 @@ export async function GET(request: NextRequest) {
     if (searchParams.get('demonsRevived') === 'true') {
       // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
       if (!isTableInitialized('ascended_images_mint_queue')) {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-            wallet_address TEXT NOT NULL,
-            image_url TEXT NOT NULL,
-            image_blob_url TEXT,
-            source_inscription_id TEXT NOT NULL,
-            generation_prompt TEXT,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-          )
-        `)
-        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-        await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+          wallet_address TEXT NOT NULL,
+          image_url TEXT NOT NULL,
+          image_blob_url TEXT,
+          source_inscription_id TEXT NOT NULL,
+          generation_prompt TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
         markTableInitialized('ascended_images_mint_queue')
       }
       

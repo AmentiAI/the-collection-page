@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +11,11 @@ const MAX_ACTIVE_CIRCLES_PER_USER = 1
 const DAMNED_POOL_MODE_ENABLED = process.env.NEXT_PUBLIC_DAMNED_POOL_MODE_ENABLED !== 'false'
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('damned_pool_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS damned_pool_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -43,6 +48,9 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       UNIQUE(circle_id, inscription_id)
     )
   `)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('damned_pool_circles')
 }
 
 function mapCircleRow(row: any) {

@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { put } from '@vercel/blob'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
@@ -51,6 +51,11 @@ function findInscriptionPrompt(inscriptionId: string, prompts: InscriptionPrompt
 }
 
 async function ensureAscensionInfrastructure(pool: Pool) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('ascended_images')) {
+    return
+  }
+
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 
   // Table for ascended images in limbo (waiting for user choice)
@@ -106,6 +111,9 @@ async function ensureAscensionInfrastructure(pool: Pool) {
   `)
   await pool.query(`ALTER TABLE ascended_images_abyss ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_abyss_wallet ON ascended_images_abyss((LOWER(wallet_address)))`)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('ascended_images')
 }
 
 async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: string | null, isSecondAscension: boolean = false): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {

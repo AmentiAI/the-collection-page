@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +12,11 @@ const POWDER_REWARD_HOST = 14
 const POWDER_REWARD_PARTICIPANT = 10
 
 async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('damned_pool_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS profiles (
       wallet_address TEXT PRIMARY KEY,
@@ -83,6 +88,9 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('damned_pool_circles')
 }
 
 function mapCircleRow(row: any) {

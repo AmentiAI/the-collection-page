@@ -266,12 +266,12 @@ export async function POST(request: NextRequest) {
       client = await pool.connect()
       await client.query('BEGIN')
 
-      // Use advisory lock to prevent race conditions
+    // Use advisory lock to prevent race conditions
       const lockKey = await client.query(
-        `SELECT hashtext($1)::bigint AS lock_key`,
-        [creatorWallet.toLowerCase()],
-      )
-      const lockKeyValue = Number(lockKey.rows[0]?.lock_key ?? 0)
+      `SELECT hashtext($1)::bigint AS lock_key`,
+      [creatorWallet.toLowerCase()],
+    )
+    const lockKeyValue = Number(lockKey.rows[0]?.lock_key ?? 0)
 
       await client.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
 
@@ -306,24 +306,24 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if the abyss burn window is currently active (abyss is "opened")
+    // Check if the abyss burn window is currently active (abyss is "opened")
       const abyssWindowRes = await client.query(
-        `
-          SELECT COUNT(*)::int AS active_count
-          FROM damned_pool_burn_windows
-          WHERE active = TRUE
-            AND expires_at > NOW()
-        `,
-      )
-      const abyssWindowActiveCount = Number(abyssWindowRes.rows[0]?.active_count ?? 0)
+      `
+        SELECT COUNT(*)::int AS active_count
+        FROM damned_pool_burn_windows
+        WHERE active = TRUE
+          AND expires_at > NOW()
+      `,
+    )
+    const abyssWindowActiveCount = Number(abyssWindowRes.rows[0]?.active_count ?? 0)
 
-      if (abyssWindowActiveCount > 0) {
+    if (abyssWindowActiveCount > 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json(
-          { success: false, error: 'Cannot initiate a damned pool circle while the abyss is open. Please wait for the abyss burn window to expire.' },
-          { status: 409 },
-        )
-      }
+      return NextResponse.json(
+        { success: false, error: 'Cannot initiate a damned pool circle while the abyss is open. Please wait for the abyss burn window to expire.' },
+        { status: 409 },
+      )
+    }
 
       // Check if there is already an active damned pool globally (any mode)
       await client.query(
@@ -370,60 +370,60 @@ export async function POST(request: NextRequest) {
           { success: false, error: 'This ordinal is already pledged to an active damned pool.' },
           { status: 409 },
         )
-      }
+    }
 
       const circleResult = await client.query(
-        `
-          INSERT INTO damned_pool_circles (
-            creator_wallet,
-            creator_inscription_id,
-            status,
-            required_participants,
-            min_completion_count,
-            mode,
-            expires_at
-          )
-          VALUES ($1, $2, 'open', $3, $4, $5, $6)
-          RETURNING *
-        `,
-        [creatorWallet, creatorInscriptionId, requiredParticipants, minCompletion, circleMode, expiresAt.toISOString()],
-      )
+      `
+        INSERT INTO damned_pool_circles (
+          creator_wallet,
+          creator_inscription_id,
+          status,
+          required_participants,
+          min_completion_count,
+          mode,
+          expires_at
+        )
+        VALUES ($1, $2, 'open', $3, $4, $5, $6)
+        RETURNING *
+      `,
+      [creatorWallet, creatorInscriptionId, requiredParticipants, minCompletion, circleMode, expiresAt.toISOString()],
+    )
 
-      const circle = circleResult.rows[0]
-
-      await client.query(
-        `
-          INSERT INTO damned_pool_participants (circle_id, wallet, inscription_id, inscription_image, role)
-          VALUES ($1, $2, $3, $4, 'creator')
-        `,
-        [circle.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
-      )
+    const circle = circleResult.rows[0]
 
       await client.query(
-        `
-          UPDATE damned_pool_circles
-          SET status = 'filling',
-              updated_at = NOW()
-          WHERE id = $1
-        `,
-        [circle.id],
-      )
+      `
+        INSERT INTO damned_pool_participants (circle_id, wallet, inscription_id, inscription_image, role)
+        VALUES ($1, $2, $3, $4, 'creator')
+      `,
+      [circle.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
+    )
+
+      await client.query(
+      `
+        UPDATE damned_pool_circles
+        SET status = 'filling',
+            updated_at = NOW()
+        WHERE id = $1
+      `,
+      [circle.id],
+    )
 
       await client.query('COMMIT')
 
-      const refreshed = await pool.query(
-        buildCircleSelect('WHERE c.id = $1', '', [circle.id]),
-      )
+    const refreshed = await pool.query(
+      buildCircleSelect('WHERE c.id = $1', '', [circle.id]),
+    )
 
-      return NextResponse.json({
-        success: true,
-        summon: mapCircleRow(refreshed.rows[0]),
-      })
-    } catch (error) {
+    return NextResponse.json({
+      success: true,
+      summon: mapCircleRow(refreshed.rows[0]),
+    })
+  } catch (error) {
       if (client) {
         await client.query('ROLLBACK').catch(() => {})
       }
-      console.error('[damned-pool/circles][POST]', error)
+    console.error('[damned-pool/circles][POST]', error)
       return NextResponse.json(
         { success: false, error: 'Failed to create damned pool circle.' },
         { status: 500 },

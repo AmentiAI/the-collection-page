@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { PoolClient } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +13,11 @@ const MIN_COMPLETION_COUNT = 9 // Only need 9 out of 10 to complete
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
 async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('ascension_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS summoning_powder_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,6 +66,9 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     )
   `)
   await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('ascension_circles')
 }
 
 function mapCircleRow(row: any) {

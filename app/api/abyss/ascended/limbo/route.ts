@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureAscensionInfrastructure(pool: Pool) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('ascended_images')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ascended_images_limbo (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,6 +36,9 @@ async function ensureAscensionInfrastructure(pool: Pool) {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('ascended_images')
 }
 
 export async function GET(request: NextRequest) {

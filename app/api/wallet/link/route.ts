@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureLinkedWalletsInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('linked_wallets')) {
+    return
+  }
+
   // Create linked_wallets table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS linked_wallets (
@@ -20,6 +25,9 @@ async function ensureLinkedWalletsInfrastructure(pool: ReturnType<typeof getPool
   
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_linked_wallets_primary ON linked_wallets((LOWER(primary_wallet)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_linked_wallets_linked ON linked_wallets((LOWER(linked_wallet)))`)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('linked_wallets')
 }
 
 export async function POST(request: NextRequest) {

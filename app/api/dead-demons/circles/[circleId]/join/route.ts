@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +8,11 @@ const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 
 async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('dead_demons_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dead_demons_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -38,6 +43,9 @@ async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) 
       UNIQUE(circle_id, inscription_id)
     )
   `)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('dead_demons_circles')
 }
 
 function mapCircleRow(row: any) {

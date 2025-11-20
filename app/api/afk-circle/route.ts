@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +9,11 @@ const MAX_AFK_PARTICIPANTS = 120
 const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
 
 async function ensureAfkCircleInfrastructure(pool: Pool) {
+  // Skip if already initialized to avoid redundant DDL operations
+  if (isTableInitialized('afk_circles')) {
+    return
+  }
+
   // Create the single AFK circle table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS afk_circles (
@@ -88,6 +93,9 @@ async function ensureAfkCircleInfrastructure(pool: Pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_wallet ON afk_circle_participants((LOWER(wallet)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_inscription ON afk_circle_participants(inscription_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_afk_circle_circle_id ON afk_circle_participants(circle_id)`)
+
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('afk_circles')
 }
 
 // GET: Fetch AFK circle status and user's participants
@@ -252,7 +260,13 @@ export async function POST(request: NextRequest) {
     await pool.query('BEGIN')
 
     try {
-      // Check if AFK circle is full
+      // Lock the AFK circle row to prevent race conditions
+      await pool.query(
+        `SELECT * FROM afk_circles WHERE id = $1 FOR UPDATE`,
+        [AFK_CIRCLE_ID]
+      )
+
+      // Check if AFK circle is full (now protected by row lock)
       const countRes = await pool.query(`
         SELECT COUNT(*)::int AS total
         FROM afk_circle_participants
