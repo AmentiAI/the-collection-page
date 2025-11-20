@@ -25,6 +25,13 @@ export default function AbyssSummonPage() {
   const wallet = useWallet()
   const toast = useToast()
 
+  // Check for bypass query parameter to override closed hours
+  const [bypassClosed, setBypassClosed] = useState(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setBypassClosed(params.get('show') === '1')
+  }, [])
+
   const ordinalAddress = wallet.currentAddress?.trim() ?? ''
   const [isHolder, setIsHolder] = useState<boolean | null>(null)
   const [checkingHolder, setCheckingHolder] = useState(false)
@@ -1219,7 +1226,7 @@ export default function AbyssSummonPage() {
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
         {/* Closed State - Show if abyss-summon is closed (10 PM to 9 AM EST) */}
-        {abyssClosed.isClosed && (
+        {abyssClosed.isClosed && !bypassClosed && (
           <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
             <div className="flex flex-col items-center justify-center gap-6 text-center">
               <AlertTriangle className="h-16 w-16 text-red-500 animate-pulse" />
