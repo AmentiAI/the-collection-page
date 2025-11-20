@@ -178,35 +178,8 @@ export async function POST(
       )
     }
 
-    // Check if inscription is in AFK circle
+    // Check if inscription is in AFK circle (tables should already exist from infrastructure setup)
     const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS afk_circles (
-        id UUID PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'open',
-        required_participants INTEGER NOT NULL DEFAULT 100,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    await client.query(`
-      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
-      VALUES ($1, 'open', 100, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `, [AFK_CIRCLE_ID])
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS afk_circle_participants (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
-        wallet TEXT NOT NULL,
-        inscription_id TEXT NOT NULL,
-        inscription_image TEXT,
-        joined_at TIMESTAMPTZ DEFAULT NOW(),
-        last_reward_at TIMESTAMPTZ,
-        UNIQUE(circle_id, wallet, inscription_id)
-      )
-    `)
-    
     const afkConflict = await client.query(
       `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
       [AFK_CIRCLE_ID, inscriptionId],
@@ -257,7 +230,7 @@ export async function POST(
       )
     }
 
-    await pool.query(
+    await client.query(
       `
         INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, inscription_image, role)
         VALUES ($1, $2, $3, $4, 'participant')
@@ -269,7 +242,7 @@ export async function POST(
       [summonId, wallet, inscriptionId, inscriptionImage],
     )
 
-    const updatedCountRes = await pool.query(
+    const updatedCountRes = await client.query(
       `SELECT COUNT(*)::int AS count FROM abyss_summon_participants WHERE summon_id = $1`,
       [summonId],
     )
