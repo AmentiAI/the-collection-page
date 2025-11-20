@@ -1230,8 +1230,8 @@ function GraveyardContent() {
           const isSecondAscension = selectedLimbo.sourceInscriptionId.toLowerCase().startsWith('ascended_')
           
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-              <div className={`relative max-w-2xl rounded-3xl border bg-black/95 p-6 ${
+            <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-4 overflow-y-auto">
+              <div className={`relative max-w-2xl rounded-3xl border bg-black/95 p-6 my-4 w-full ${
                 isSecondAscension 
                   ? 'border-emerald-500/60 shadow-[0_0_50px_rgba(16,185,129,0.5)]' 
                   : 'border-amber-500/60 shadow-[0_0_50px_rgba(251,191,36,0.5)]'
