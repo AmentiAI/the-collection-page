@@ -19,16 +19,38 @@ export default function LinkWalletPage() {
   const [linking, setLinking] = useState(false)
   const [step, setStep] = useState<'disconnect' | 'connect' | 'sign'>('disconnect')
 
-  // On mount, get the primary wallet from URL or session storage
+  // On mount, verify the link token
   useEffect(() => {
-    const primaryFromUrl = searchParams.get('primary')
-    const primaryFromSession = sessionStorage.getItem('link_wallet_primary')
+    const token = searchParams.get('token')
     
-    const primary = primaryFromUrl || primaryFromSession
-    
-    if (primary) {
-      setPrimaryWallet(primary)
-      sessionStorage.setItem('link_wallet_primary', primary)
+    if (!token) {
+      toast.error('Missing authorization token. Please start from your profile page.')
+      router.push('/profile')
+      return
+    }
+
+    // Verify the token
+    fetch(`/api/wallet/link-session?token=${encodeURIComponent(token)}`, {
+      cache: 'no-store'
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.primaryWallet) {
+          setPrimaryWallet(data.primaryWallet)
+          sessionStorage.setItem('link_wallet_token', token)
+        } else {
+          throw new Error(data.error || 'Invalid session')
+        }
+      })
+      .catch(error => {
+        console.error('Failed to verify link session:', error)
+        toast.error('Invalid or expired authorization. Please try again from your profile.')
+        router.push('/profile')
+      })
+  }, [searchParams, router, toast])
+
+  useEffect(() => {
+    if (!primaryWallet) return
       
       // If currently connected to the primary wallet, need to disconnect
       if (currentAddress?.toLowerCase() === primary.toLowerCase()) {
@@ -93,6 +115,11 @@ export default function LinkWalletPage() {
         throw new Error('Signature was cancelled')
       }
 
+      const linkToken = sessionStorage.getItem('link_wallet_token')
+      if (!linkToken) {
+        throw new Error('Authorization token missing. Please restart the linking process.')
+      }
+
       const response = await fetch('/api/wallet/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +127,8 @@ export default function LinkWalletPage() {
           primaryWallet,
           linkedWallet: currentAddress,
           signature,
-          message
+          message,
+          linkToken
         })
       })
 

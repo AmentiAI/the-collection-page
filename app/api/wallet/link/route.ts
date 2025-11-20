@@ -25,12 +25,43 @@ async function ensureLinkedWalletsInfrastructure(pool: ReturnType<typeof getPool
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { primaryWallet, linkedWallet, signature, message } = body
+    const { primaryWallet, linkedWallet, signature, message, linkToken } = body
     
     if (!primaryWallet || !linkedWallet || !signature || !message) {
       return NextResponse.json(
         { success: false, error: 'primaryWallet, linkedWallet, signature, and message are required' },
         { status: 400 }
+      )
+    }
+
+    // SECURITY: Verify the link token to ensure user owns the primary wallet
+    if (!linkToken) {
+      return NextResponse.json(
+        { success: false, error: 'Missing link authorization token. Please start the linking process from your profile.' },
+        { status: 401 }
+      )
+    }
+
+    // Verify the link token
+    const tokenResponse = await fetch(
+      `${request.nextUrl.origin}/api/wallet/link-session?token=${encodeURIComponent(linkToken)}`,
+      { cache: 'no-store' }
+    )
+
+    if (!tokenResponse.ok) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid or expired authorization token. Please restart the linking process.' },
+        { status: 401 }
+      )
+    }
+
+    const tokenData = await tokenResponse.json()
+    
+    // Ensure the token's primary wallet matches the request
+    if (tokenData.primaryWallet.toLowerCase() !== primaryWallet.toLowerCase()) {
+      return NextResponse.json(
+        { success: false, error: 'Authorization token does not match the primary wallet.' },
+        { status: 403 }
       )
     }
     
@@ -144,6 +175,15 @@ export async function POST(request: NextRequest) {
       }
       
       await pool.query('COMMIT')
+
+      // Consume the link token so it can't be reused
+      if (linkToken) {
+        await fetch(`${request.nextUrl.origin}/api/wallet/link-session`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: linkToken })
+        }).catch(() => {}) // Ignore errors, token will expire anyway
+      }
       
       return NextResponse.json({
         success: true,

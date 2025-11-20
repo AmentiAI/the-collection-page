@@ -125,12 +125,56 @@ export default function LinkedWalletsManager() {
           <h3 className="text-lg font-mono uppercase tracking-[0.3em] text-red-100">
             Linked Wallets
           </h3>
-          <Link href={`/link-wallet?primary=${encodeURIComponent(address)}`}>
-            <Button className="border border-amber-600/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/30 px-3 py-1.5 text-sm">
-              <Link2 className="mr-2 h-4 w-4" />
-              Link New Wallet
-            </Button>
-          </Link>
+          <Button 
+            onClick={async () => {
+              if (!address || !client) {
+                toast.error('Wallet not connected')
+                return
+              }
+
+              try {
+                // Create authorization message
+                const timestamp = Date.now()
+                const nonce = crypto.randomUUID()
+                const message = `Authorize wallet linking session\nWallet: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
+
+                // Sign with primary wallet
+                const signature = await client.signMessage(message)
+                
+                if (!signature) {
+                  toast.error('Signature cancelled')
+                  return
+                }
+
+                // Create link session
+                const response = await fetch('/api/wallet/link-session', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    primaryWallet: address,
+                    signature,
+                    message
+                  })
+                })
+
+                const data = await response.json()
+
+                if (!response.ok || !data.success) {
+                  throw new Error(data.error || 'Failed to create link session')
+                }
+
+                // Redirect to link page with token
+                window.location.href = `/link-wallet?token=${data.token}`
+              } catch (error) {
+                console.error('Failed to start link session:', error)
+                toast.error(error instanceof Error ? error.message : 'Failed to start linking process')
+              }
+            }}
+            className="border border-amber-600/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/30 px-3 py-1.5 text-sm"
+          >
+            <Link2 className="mr-2 h-4 w-4" />
+            Link New Wallet
+          </Button>
         </div>
 
         {/* Info about linking */}
