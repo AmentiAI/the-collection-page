@@ -244,7 +244,7 @@ export default function DocsPage() {
               <div className="rounded border border-cyan-500/40 bg-cyan-900/20 p-3">
                 <h4 className="mb-2 text-base font-semibold text-cyan-300">AFK Circle</h4>
                 <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
-                  <li>Single permanent circle (max 100 participants)</li>
+                  <li>Single permanent circle (max 120 participants)</li>
                   <li>No time limit, no completion required</li>
                   <li>Deposit ordinals to earn +2 powder per ordinal every hour</li>
                   <li>Can add/remove ordinals anytime</li>

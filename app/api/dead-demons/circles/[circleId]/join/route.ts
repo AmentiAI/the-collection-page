@@ -213,15 +213,17 @@ export async function POST(
     `)
     
     const afkConflict = await pool.query(
-      `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
+      `SELECT wallet, inscription_id FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
       [AFK_CIRCLE_ID, inscriptionId],
     )
     if (afkConflict.rows.length > 0) {
+      const conflictWallet = afkConflict.rows[0].wallet
+      console.log(`[Dead Demons Join] AFK conflict: inscription ${inscriptionId} is in AFK circle with wallet ${conflictWallet}, request wallet: ${wallet}`)
       await pool.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
-          error: 'This ordinal is currently in the AFK circle. Remove it from the AFK circle first.',
+          error: `This ordinal is currently in the AFK circle (wallet: ${conflictWallet.slice(0, 8)}...). Remove it from the AFK circle first.`,
         },
         { status: 409 },
       )

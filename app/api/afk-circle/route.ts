@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_AFK_PARTICIPANTS = 100
+const MAX_AFK_PARTICIPANTS = 120
 const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
 
 async function ensureAfkCircleInfrastructure(pool: Pool) {
@@ -186,6 +186,15 @@ export async function GET(request: NextRequest) {
         joinedAt: row.joined_at,
         lastRewardAt: row.last_reward_at,
       }))
+      
+      console.log(`🔍 [AFK Circle GET] Found ${userParticipants.length} participants for wallet ${walletParam}`)
+      
+      // Also check if there are any participants with inscription IDs but different wallets
+      const allInscriptionsRes = await pool.query(
+        `SELECT wallet, inscription_id FROM afk_circle_participants WHERE circle_id = $1`,
+        [AFK_CIRCLE_ID]
+      )
+      console.log(`🔍 [AFK Circle GET] Total ${allInscriptionsRes.rows.length} participants in AFK circle globally`)
     }
 
     return NextResponse.json(

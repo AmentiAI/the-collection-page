@@ -1742,7 +1742,7 @@ export default function AbyssSummonPage() {
                         AFK Circle
                       </h2>
                       <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-cyan-300/70">
-                        Deposit ordinals to earn +2 ascension powder per ordinal every hour. No time limit, no completion required. Max 100 participants.
+                        Deposit ordinals to earn +2 ascension powder per ordinal every hour. No time limit, no completion required. Max 120 participants.
                       </p>
                     </div>
                     {afkCircleLoading && <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />}
@@ -1751,7 +1751,7 @@ export default function AbyssSummonPage() {
                   <div className="rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-4 py-3">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-200">Total Participants</span>
-                      <span className="text-lg font-black text-cyan-100">{afkCircleTotal} / 100</span>
+                      <span className="text-lg font-black text-cyan-100">{afkCircleTotal} / 120</span>
                     </div>
                     {ordinalAddress && (
                       <div className="mt-2 flex items-center justify-between">
@@ -1842,7 +1842,7 @@ export default function AbyssSummonPage() {
                                   key={option.inscriptionId}
                                   type="button"
                                   onClick={() => handleJoinAfkCircle(option.inscriptionId)}
-                                  disabled={isJoining || afkCircleTotal >= 100}
+                                  disabled={isJoining || afkCircleTotal >= 120}
                                   className="flex w-full items-center gap-3 rounded-lg border border-cyan-500/40 bg-cyan-900/20 px-3 py-2 text-left transition hover:border-cyan-400/60 hover:bg-cyan-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded border border-cyan-700/40 bg-black/40">
@@ -2064,6 +2064,21 @@ function SummonList({
             // Special case: 40-seat portal allows any participant to complete during window
             (isFortyManPortal && isParticipant && !participantCompleted)
           )
+        
+        // Debug logging for dead demons circles
+        if (isDeadDemonsMode && isParticipant) {
+          console.log(`[Dead Demons Debug] Circle ${summon.id.slice(0, 8)}:`, {
+            status: summon.status,
+            isExpired,
+            completionWindowOpen,
+            timeRemainingMs,
+            completionWindowMs,
+            isParticipant,
+            participantCompleted,
+            completionAllowed,
+            currentParticipant,
+          })
+        }
 
         return (
           <div
@@ -2132,9 +2147,9 @@ function SummonList({
                     {completingSummonId === summon.id ? (
                       <>
                         <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        {isPowderMode ? 'Channeling…' : 'Completing…'}
+                        {isPowderMode || isDeadDemonsMode ? 'Channeling…' : 'Completing…'}
                       </>
-                    ) : isPowderMode ? (
+                    ) : isPowderMode || isDeadDemonsMode ? (
                       'Mark Complete'
                     ) : (
                       'Complete Circle'

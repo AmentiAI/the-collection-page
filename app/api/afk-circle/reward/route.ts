@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000' // Fixed UUID for the single AFK circle
-const MAX_AFK_PARTICIPANTS = 100
+const MAX_AFK_PARTICIPANTS = 120
 
 // Cron job endpoint: Grant +2 ascension_powder per ordinal in AFK circle
 // Should be called hourly
