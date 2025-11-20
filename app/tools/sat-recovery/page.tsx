@@ -277,7 +277,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
     } finally {
       setLoading(false)
     }
-  }, [isHolder, taprootAddress, paymentAddress, feeRate, loading, toast])
+  }, [isHolder, taprootAddress, paymentAddress, feeRate, loading, toast, currentAddress, isConnected, laserEyes.address])
 
   // Auto-analyze when assets are loaded (only once when assets first load)
   useEffect(() => {
@@ -444,7 +444,7 @@ function SatRecoveryContent({ isHolder }: SatRecoveryContentProps) {
     } finally {
       setRecovering(false)
     }
-  }, [isHolder, analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast, analyzeRecoverable])
+  }, [isHolder, analysis, taprootAddress, paymentAddress, feeRate, client, laserEyes, toast])
 
   const canRecover = useMemo(() => {
     return (
