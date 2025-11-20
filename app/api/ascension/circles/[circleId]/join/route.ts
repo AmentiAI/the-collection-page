@@ -125,40 +125,41 @@ export async function POST(
     )
   }
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
-    const circleRes = await pool.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
+    const circleRes = await client.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
     if (circleRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
     }
 
     const circle = circleRes.rows[0]
 
     if (circle.expires_at && new Date(circle.expires_at) < new Date()) {
-      await pool.query(
+      await client.query(
         `UPDATE summoning_powder_circles SET status = 'expired', updated_at = NOW() WHERE id = $1`,
         [circleId],
       )
-      await pool.query('COMMIT')
+      await client.query('COMMIT')
       return NextResponse.json({ success: false, error: 'This ascension circle has expired.' }, { status: 410 })
     }
 
     if (!['open', 'filling'].includes(circle.status)) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This ascension circle is no longer accepting participants.' },
         { status: 409 },
       )
     }
 
-    const existingParticipant = await pool.query(
+    const existingParticipant = await client.query(
       `SELECT 1 FROM summoning_powder_participants WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)`,
       [circleId, wallet],
     )
     if (existingParticipant.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You already joined this ascension circle.' },
         { status: 409 },
@@ -166,7 +167,7 @@ export async function POST(
     }
 
     // Check if user is already in 6 or more active circles (as creator or participant)
-    const userActiveCirclesRes = await pool.query(
+    const userActiveCirclesRes = await client.query(
       `
         SELECT COUNT(DISTINCT c.id)::int AS active_count
         FROM summoning_powder_circles c
@@ -185,7 +186,7 @@ export async function POST(
     const userActiveCount = Number(userActiveCirclesRes.rows[0]?.active_count ?? 0)
     
     if (userActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user (created or joined). Please wait for a circle to complete or expire.` },
         { status: 409 },
@@ -194,7 +195,7 @@ export async function POST(
 
     // Check if inscription is in AFK circle
     const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS afk_circles (
         id UUID PRIMARY KEY,
         status TEXT NOT NULL DEFAULT 'open',
@@ -203,12 +204,12 @@ export async function POST(
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
-    await pool.query(`
+    await client.query(`
       INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
       VALUES ($1, 'open', 100, NOW(), NOW())
       ON CONFLICT (id) DO NOTHING
     `, [AFK_CIRCLE_ID])
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS afk_circle_participants (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
@@ -221,12 +222,12 @@ export async function POST(
       )
     `)
     
-    const afkConflict = await pool.query(
+    const afkConflict = await client.query(
       `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
       [AFK_CIRCLE_ID, inscriptionId],
     )
     if (afkConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -236,7 +237,7 @@ export async function POST(
       )
     }
 
-    const inscriptionConflict = await pool.query(
+    const inscriptionConflict = await client.query(
       `
         SELECT c.id
         FROM summoning_powder_participants p
@@ -248,7 +249,7 @@ export async function POST(
       [inscriptionId],
     )
     if (inscriptionConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -258,20 +259,20 @@ export async function POST(
       )
     }
 
-    const participantCountRes = await pool.query(
+    const participantCountRes = await client.query(
       `SELECT COUNT(*)::int AS count FROM summoning_powder_participants WHERE circle_id = $1`,
       [circleId],
     )
     const participantCount = participantCountRes.rows[0]?.count ?? 0
     if (participantCount >= circle.required_participants) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This ascension circle is already full.' },
         { status: 409 },
       )
     }
 
-    await pool.query(
+    await client.query(
       `
         INSERT INTO summoning_powder_participants (circle_id, wallet, inscription_id, inscription_image, role)
         VALUES ($1, $2, $3, $4, 'participant')
@@ -280,7 +281,7 @@ export async function POST(
       [circleId, wallet, inscriptionId, inscriptionImage],
     )
 
-    const updatedCountRes = await pool.query(
+    const updatedCountRes = await client.query(
       `SELECT COUNT(*)::int AS count FROM summoning_powder_participants WHERE circle_id = $1`,
       [circleId],
     )
@@ -290,7 +291,7 @@ export async function POST(
       // When circle becomes ready, set locked_at but DON'T reset expires_at
       // The expires_at was set when the circle was created (10 minutes from creation)
       // The completion window opens in the last 2 minutes of the original 10 minutes
-      await pool.query(
+      await client.query(
         `
           UPDATE summoning_powder_circles
           SET status = 'ready',
@@ -301,7 +302,7 @@ export async function POST(
         [circleId],
       )
     } else if (circle.status !== 'filling') {
-      await pool.query(
+      await client.query(
         `
           UPDATE summoning_powder_circles
           SET status = 'filling',
@@ -312,16 +313,18 @@ export async function POST(
       )
     }
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
     return NextResponse.json({ success: true, summon: mapCircleRow(refreshed.rows[0]) })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[ascension/circles/join][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to join ascension circle.' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }

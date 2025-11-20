@@ -298,10 +298,11 @@ export async function POST(request: NextRequest) {
 
   const normalizedWallet = creatorWallet.toLowerCase()
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
-    const existing = await pool.query(
+    const existing = await client.query(
       `
         SELECT id
         FROM abyss_summons
@@ -313,14 +314,14 @@ export async function POST(request: NextRequest) {
     )
 
     if (existing.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You already have an active summoning table.' },
         { status: 409 },
       )
     }
 
-    const conflictingInscription = await pool.query(
+    const conflictingInscription = await client.query(
       `
         SELECT s.id
         FROM abyss_summon_participants p
@@ -333,14 +334,14 @@ export async function POST(request: NextRequest) {
     )
 
     if (conflictingInscription.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This ordinal is already pledged to another active circle.' },
         { status: 409 },
       )
     }
 
-    const summonResult = await pool.query(
+    const summonResult = await client.query(
       `
         INSERT INTO abyss_summons (creator_wallet, creator_inscription_id, status, required_participants, expires_at)
         VALUES ($1, $2, 'open', 8, $3)
@@ -351,7 +352,7 @@ export async function POST(request: NextRequest) {
 
     const summon = summonResult.rows[0]
 
-    await pool.query(
+    await client.query(
       `
         INSERT INTO abyss_summon_participants (summon_id, wallet, inscription_id, inscription_image, role)
         VALUES ($1, $2, $3, $4, 'creator')
@@ -359,7 +360,7 @@ export async function POST(request: NextRequest) {
       [summon.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
     )
 
-    await pool.query(
+    await client.query(
       `
         UPDATE abyss_summons
         SET status = 'filling',
@@ -369,7 +370,7 @@ export async function POST(request: NextRequest) {
       [summon.id],
     )
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(
       `
@@ -401,12 +402,14 @@ export async function POST(request: NextRequest) {
       summon: mapSummonRow(refreshed.rows[0]),
     })
   } catch (error) {
-    await pool.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[abyss/summons][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to create summon' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }
 

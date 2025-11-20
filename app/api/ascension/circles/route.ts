@@ -252,23 +252,24 @@ export async function POST(request: NextRequest) {
 
     const expiresAt = new Date(Date.now() + CIRCLE_DURATION_MS)
 
-    await pool.query('BEGIN')
-
-    // Use advisory lock to prevent race conditions when checking/creating circles
-    // Hash the wallet address to a bigint for the lock key
-    const lockKey = await pool.query(
-      `SELECT hashtext($1)::bigint AS lock_key`,
-      [creatorWallet.toLowerCase()],
-    )
-    const lockKeyValue = Number(lockKey.rows[0]?.lock_key ?? 0)
-    
+    const client = await pool.connect()
     try {
+      await client.query('BEGIN')
+
+      // Use advisory lock to prevent race conditions when checking/creating circles
+      // Hash the wallet address to a bigint for the lock key
+      const lockKey = await client.query(
+        `SELECT hashtext($1)::bigint AS lock_key`,
+        [creatorWallet.toLowerCase()],
+      )
+      const lockKeyValue = Number(lockKey.rows[0]?.lock_key ?? 0)
+
       // Acquire advisory lock (will wait if another request is processing for this wallet)
-      await pool.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
+      await client.query(`SELECT pg_advisory_xact_lock($1)`, [lockKeyValue])
 
       // Check if this user is already hosting too many circles (limit: 3)
       // Lock existing rows to prevent concurrent creation
-      await pool.query(
+      await client.query(
         `
           SELECT id FROM summoning_powder_circles
           WHERE LOWER(creator_wallet) = LOWER($1)
@@ -277,7 +278,7 @@ export async function POST(request: NextRequest) {
         `,
         [creatorWallet],
       )
-      const userHostedCountRes = await pool.query(
+      const userHostedCountRes = await client.query(
         `
           SELECT COUNT(*)::int AS active_count
           FROM summoning_powder_circles
@@ -289,7 +290,7 @@ export async function POST(request: NextRequest) {
       const userHostedCount = Number(userHostedCountRes.rows[0]?.active_count ?? 0)
       
       if (userHostedCount >= MAX_HOSTED_CIRCLES_PER_USER) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: `Maximum of ${MAX_HOSTED_CIRCLES_PER_USER} active hosted circles allowed per user. Please wait for a hosted circle to complete or expire.` },
           { status: 409 },
@@ -297,7 +298,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if this user is already in too many circles total (hosting + participating, limit: 6)
-      const userTotalActiveCountRes = await pool.query(
+      const userTotalActiveCountRes = await client.query(
         `
           SELECT COUNT(DISTINCT c.id)::int AS active_count
           FROM summoning_powder_circles c
@@ -310,7 +311,7 @@ export async function POST(request: NextRequest) {
       const userTotalActiveCount = Number(userTotalActiveCountRes.rows[0]?.active_count ?? 0)
       
       if (userTotalActiveCount >= MAX_ACTIVE_CIRCLES_PER_USER) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_PER_USER} active circles allowed per user (hosting + participating). Please wait for a circle to complete or expire.` },
           { status: 409 },
@@ -319,14 +320,14 @@ export async function POST(request: NextRequest) {
 
       // Check if there are already 10 active circles globally
       // Lock existing rows to prevent concurrent creation
-      await pool.query(
+      await client.query(
         `
           SELECT id FROM summoning_powder_circles
           WHERE status IN ('open', 'filling', 'ready')
           FOR UPDATE
         `,
       )
-      const globalActiveCountRes = await pool.query(
+      const globalActiveCountRes = await client.query(
         `
           SELECT COUNT(*)::int AS active_count
           FROM summoning_powder_circles
@@ -336,130 +337,131 @@ export async function POST(request: NextRequest) {
       const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
       
       if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active circles allowed globally. Please wait for a circle to complete or expire.` },
           { status: 409 },
         )
       }
-    } catch (lockError) {
-      await pool.query('ROLLBACK')
-      console.error('Lock error:', lockError)
-      return NextResponse.json(
-        { success: false, error: 'Failed to acquire lock. Please try again.' },
-        { status: 503 },
-      )
-    }
 
-    // Check if inscription is in AFK circle
-    const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS afk_circles (
-        id UUID PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'open',
-        required_participants INTEGER NOT NULL DEFAULT 100,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    await pool.query(`
-      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
-      VALUES ($1, 'open', 100, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `, [AFK_CIRCLE_ID])
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS afk_circle_participants (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
-        wallet TEXT NOT NULL,
-        inscription_id TEXT NOT NULL,
-        inscription_image TEXT,
-        joined_at TIMESTAMPTZ DEFAULT NOW(),
-        last_reward_at TIMESTAMPTZ,
-        UNIQUE(circle_id, wallet, inscription_id)
-      )
-    `)
-    
-    const afkConflict = await pool.query(
-      `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
-      [AFK_CIRCLE_ID, creatorInscriptionId],
-    )
-    if (afkConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'This ordinal is currently in the AFK circle. Remove it from the AFK circle first.' },
-        { status: 409 },
-      )
-    }
-
-    const conflictRes = await pool.query(
-      `
-        SELECT c.id
-        FROM summoning_powder_circles c
-        JOIN summoning_powder_participants p ON p.circle_id = c.id
-        WHERE p.inscription_id = $1
-          AND c.status IN ('open', 'filling', 'ready')
-        LIMIT 1
-      `,
-      [creatorInscriptionId],
-    )
-
-    if (conflictRes.rows.length > 0) {
-      await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { success: false, error: 'This ordinal is already pledged to an active ascension circle.' },
-        { status: 409 },
-      )
-    }
-
-    const circleResult = await pool.query(
-      `
-        INSERT INTO summoning_powder_circles (
-          creator_wallet,
-          creator_inscription_id,
-          status,
-          required_participants,
-          expires_at
+      // Check if inscription is in AFK circle
+      const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS afk_circles (
+          id UUID PRIMARY KEY,
+          status TEXT NOT NULL DEFAULT 'open',
+          required_participants INTEGER NOT NULL DEFAULT 100,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
         )
-        VALUES ($1, $2, 'open', $3, $4)
-        RETURNING *
-      `,
-      [creatorWallet, creatorInscriptionId, REQUIRED_PARTICIPANTS, expiresAt.toISOString()],
-    )
+      `)
+      await client.query(`
+        INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+        VALUES ($1, 'open', 100, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `, [AFK_CIRCLE_ID])
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS afk_circle_participants (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
+          wallet TEXT NOT NULL,
+          inscription_id TEXT NOT NULL,
+          inscription_image TEXT,
+          joined_at TIMESTAMPTZ DEFAULT NOW(),
+          last_reward_at TIMESTAMPTZ,
+          UNIQUE(circle_id, wallet, inscription_id)
+        )
+      `)
+      
+      const afkConflict = await client.query(
+        `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,
+        [AFK_CIRCLE_ID, creatorInscriptionId],
+      )
+      if (afkConflict.rows.length > 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'This ordinal is currently in the AFK circle. Remove it from the AFK circle first.' },
+          { status: 409 },
+        )
+      }
 
-    const circle = circleResult.rows[0]
+      const conflictRes = await client.query(
+        `
+          SELECT c.id
+          FROM summoning_powder_circles c
+          JOIN summoning_powder_participants p ON p.circle_id = c.id
+          WHERE p.inscription_id = $1
+            AND c.status IN ('open', 'filling', 'ready')
+          LIMIT 1
+        `,
+        [creatorInscriptionId],
+      )
 
-    await pool.query(
-      `
-        INSERT INTO summoning_powder_participants (circle_id, wallet, inscription_id, inscription_image, role)
-        VALUES ($1, $2, $3, $4, 'creator')
-      `,
-      [circle.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
-    )
+      if (conflictRes.rows.length > 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: 'This ordinal is already pledged to an active ascension circle.' },
+          { status: 409 },
+        )
+      }
 
-    await pool.query(
-      `
-        UPDATE summoning_powder_circles
-        SET status = 'filling',
-            updated_at = NOW()
-        WHERE id = $1
-      `,
-      [circle.id],
-    )
+      const circleResult = await client.query(
+        `
+          INSERT INTO summoning_powder_circles (
+            creator_wallet,
+            creator_inscription_id,
+            status,
+            required_participants,
+            expires_at
+          )
+          VALUES ($1, $2, 'open', $3, $4)
+          RETURNING *
+        `,
+        [creatorWallet, creatorInscriptionId, REQUIRED_PARTICIPANTS, expiresAt.toISOString()],
+      )
 
-    await pool.query('COMMIT')
+      const circle = circleResult.rows[0]
 
-    const refreshed = await pool.query(
-      buildCircleSelect('WHERE c.id = $1', '', [circle.id]),
-    )
+      await client.query(
+        `
+          INSERT INTO summoning_powder_participants (circle_id, wallet, inscription_id, inscription_image, role)
+          VALUES ($1, $2, $3, $4, 'creator')
+        `,
+        [circle.id, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
+      )
 
-    return NextResponse.json({
-      success: true,
-      summon: mapCircleRow(refreshed.rows[0]),
-    })
+      await client.query(
+        `
+          UPDATE summoning_powder_circles
+          SET status = 'filling',
+              updated_at = NOW()
+          WHERE id = $1
+        `,
+        [circle.id],
+      )
+
+      await client.query('COMMIT')
+
+      const refreshed = await pool.query(
+        buildCircleSelect('WHERE c.id = $1', '', [circle.id]),
+      )
+
+      return NextResponse.json({
+        success: true,
+        summon: mapCircleRow(refreshed.rows[0]),
+      })
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {})
+      console.error('[ascension/circles][POST]', error)
+      return NextResponse.json(
+        { success: false, error: 'Failed to create ascension circle.' },
+        { status: 500 },
+      )
+    } finally {
+      client.release()
+    }
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
-    console.error('[ascension/circles][POST]', error)
+    console.error('[ascension/circles][POST] outer error', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create ascension circle.' },
       { status: 500 },

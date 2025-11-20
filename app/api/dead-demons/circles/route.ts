@@ -241,13 +241,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
     // Check eligibility - must have an ascended_ inscription
     const isEligible = await hasAscendedInscription(pool, creatorWallet)
     if (!isEligible) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -258,7 +259,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check global limit (only 3 circles globally open)
-    const globalActiveCountRes = await pool.query(
+    const globalActiveCountRes = await client.query(
       `
         SELECT COUNT(*)::int AS active_count
         FROM dead_demons_circles
@@ -268,7 +269,7 @@ export async function POST(request: NextRequest) {
     const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
 
     if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -279,7 +280,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if inscription is already in use
-    const inscriptionConflict = await pool.query(
+    const inscriptionConflict = await client.query(
       `
         SELECT c.id
         FROM dead_demons_participants p
@@ -291,7 +292,7 @@ export async function POST(request: NextRequest) {
       [creatorInscriptionId],
     )
     if (inscriptionConflict.rows.length > 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         {
           success: false,
@@ -303,7 +304,7 @@ export async function POST(request: NextRequest) {
 
     const expiresAt = new Date(Date.now() + CIRCLE_DURATION_MS)
 
-    await pool.query(
+    await client.query(
       `
         INSERT INTO dead_demons_circles (creator_wallet, creator_inscription_id, status, required_participants, expires_at)
         VALUES ($1, $2, 'open', $3, $4)
@@ -312,19 +313,19 @@ export async function POST(request: NextRequest) {
       [creatorWallet, creatorInscriptionId, REQUIRED_PARTICIPANTS, expiresAt],
     )
 
-    const circleIdRes = await pool.query(
+    const circleIdRes = await client.query(
       `SELECT id FROM dead_demons_circles WHERE creator_wallet = $1 AND creator_inscription_id = $2 ORDER BY created_at DESC LIMIT 1`,
       [creatorWallet, creatorInscriptionId],
     )
     const circleId = circleIdRes.rows[0]?.id
 
     if (!circleId) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Failed to create circle' }, { status: 500 })
     }
 
     // Add creator as first participant
-    await pool.query(
+    await client.query(
       `
         INSERT INTO dead_demons_participants (circle_id, wallet, inscription_id, inscription_image, role)
         VALUES ($1, $2, $3, $4, 'creator')
@@ -333,17 +334,19 @@ export async function POST(request: NextRequest) {
       [circleId, creatorWallet, creatorInscriptionId, creatorInscriptionImage],
     )
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', '', [circleId]))
     return NextResponse.json({ success: true, summon: mapCircleRow(refreshed.rows[0]) })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[dead-demons/circles][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to create Dead Demons circle.' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }
 
