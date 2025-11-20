@@ -327,7 +327,7 @@ export default function AbyssSummonPage() {
         ? Math.min(rawExpiryMs, fallbackExpiryMs)
         : fallbackExpiryMs
       const timeRemainingMs = targetExpiryMs - currentTime
-      const completionWindowMs = IS_DAMNED_POOL_MODE ? 3 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 1 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+      const completionWindowMs = IS_DAMNED_POOL_MODE ? 3 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 2 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
       const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
 
       // Play beep if window just opened and we haven't beeped for this circle yet
@@ -1345,7 +1345,7 @@ export default function AbyssSummonPage() {
                   <p className="font-semibold uppercase tracking-[0.2em]">Dead Demons Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
                     <li>Requires ascended inscriptions (inscription_id starting with &quot;ascended_&quot;)</li>
-                    <li>All 10 participants must complete in the last 1 minute</li>
+                    <li>All 10 participants must complete in the last 2 minutes</li>
                     <li>Gives ascension_powder (10 for host, 8 for participants)</li>
                   </ul>
                 </div>
@@ -1994,7 +1994,7 @@ function SummonList({
         const timeRemainingMs = targetExpiryMs - now
         const isExpired = (timeRemainingMs <= 0 && ACTIVE_SUMMON_STATUSES.has(summon.status)) || summon.status === 'expired'
         const statusLabel = (isExpired ? 'expired' : summon.status).replace(/_/g, ' ')
-        const completionWindowMs = isPortalMode ? 3 * 60 * 1000 : isDeadDemonsMode ? 1 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
+        const completionWindowMs = isPortalMode ? 3 * 60 * 1000 : isDeadDemonsMode ? 2 * 60 * 1000 : SUMMON_COMPLETION_WINDOW_MS
         const completionWindowOpen = timeRemainingMs > 0 && timeRemainingMs <= completionWindowMs
         const unlockCountdown = Math.max(0, timeRemainingMs - completionWindowMs)
         // Reduce per-frame style churn on mobile by updating glow once per second

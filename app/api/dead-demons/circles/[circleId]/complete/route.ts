@@ -4,7 +4,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const COMPLETION_WINDOW_MS = 1 * 60 * 1000 // Last 1 minute
+const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
 const REQUIRED_COMPLETIONS = 10 // All 10 must complete
 const POWDER_REWARD_HOST = 10
 const POWDER_REWARD_PARTICIPANT = 8
