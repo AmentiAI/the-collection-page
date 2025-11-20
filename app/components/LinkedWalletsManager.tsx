@@ -31,12 +31,6 @@ export default function LinkedWalletsManager() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
 
-  useEffect(() => {
-    if (address) {
-      fetchLinkedWallets()
-    }
-  }, [address])
-
   const fetchLinkedWallets = async () => {
     if (!address) return
     
@@ -53,6 +47,13 @@ export default function LinkedWalletsManager() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (address) {
+      fetchLinkedWallets()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address])
 
   const handleLinkWallet = async () => {
     if (!address || !linkedData) return
@@ -186,7 +187,7 @@ export default function LinkedWalletsManager() {
                 <ol className="ml-4 list-decimal space-y-1">
                   <li>Disconnect your current wallet</li>
                   <li>Connect the wallet you want to link</li>
-                  <li>Click "Sign & Link" below</li>
+                  <li>Click &quot;Sign & Link&quot; below</li>
                   <li>Sign the message to prove ownership</li>
                 </ol>
                 <p className="mt-2 text-xs text-amber-300/80">
