@@ -17,15 +17,21 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const { connected, address, client, connect: laserEyesConnect, disconnect: laserEyesDisconnect } = useLaserEyes()
+  const laserEyes = useLaserEyes()
+  const { connected, address, client, connect: laserEyesConnect, disconnect: laserEyesDisconnect } = laserEyes
   
   const [isVerified, setIsVerified] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [userCancelled, setUserCancelled] = useState(false)
 
   useEffect(() => {
-    console.log('WalletProvider state:', { connected, address, client: !!client })
-  }, [connected, address, client])
+    console.log('🔌 WalletProvider state changed:', { 
+      connected, 
+      address, 
+      client: !!client,
+      allLaserEyesKeys: Object.keys(laserEyes)
+    })
+  }, [connected, address, client, laserEyes])
 
   const verifyWallet = useCallback(async (): Promise<boolean> => {
     if (!connected || !address || !client || isVerifying || userCancelled) {

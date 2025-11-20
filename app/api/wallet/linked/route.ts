@@ -17,6 +17,30 @@ export async function GET(request: NextRequest) {
     
     const pool = getPool()
     
+    // Ensure linked_wallets table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS linked_wallets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        primary_wallet TEXT NOT NULL,
+        linked_wallet TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        message TEXT NOT NULL,
+        linked_at TIMESTAMPTZ DEFAULT NOW(),
+        is_active BOOLEAN DEFAULT TRUE,
+        CONSTRAINT unique_link UNIQUE(primary_wallet, linked_wallet)
+      )
+    `)
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_linked_wallets_primary 
+      ON linked_wallets(LOWER(primary_wallet)) WHERE is_active = TRUE
+    `)
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_linked_wallets_linked 
+      ON linked_wallets(LOWER(linked_wallet)) WHERE is_active = TRUE
+    `)
+    
     // Check if this wallet is a primary wallet
     const primaryLinks = await pool.query(
       `SELECT linked_wallet, linked_at 
