@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getCachedRequest } from '@/lib/request-cache'
 
 export default function TotalSacrifices({ className = '' }: { className?: string }) {
   const [total, setTotal] = useState<number | null>(null)
@@ -10,9 +11,15 @@ export default function TotalSacrifices({ className = '' }: { className?: string
     let mounted = true
     const load = async () => {
       try {
-        const res = await fetch('/api/abyss/burns/total', { cache: 'no-store' })
-        if (!res.ok) throw new Error(`Failed (${res.status})`)
-        const data = await res.json()
+        const data = await getCachedRequest(
+          'total-sacrifices',
+          async () => {
+            const res = await fetch('/api/abyss/burns/total', { cache: 'no-store' })
+            if (!res.ok) throw new Error(`Failed (${res.status})`)
+            return res.json()
+          },
+          30000 // Cache for 30 seconds (matching the interval)
+        )
         if (mounted) setTotal(Number(data?.total ?? 0))
       } catch (e) {
         if (mounted) setError('—')

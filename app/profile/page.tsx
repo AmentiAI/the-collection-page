@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { BookOpen, Flame, Loader2, Skull, Trophy } from 'lucide-react'
@@ -11,6 +11,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import TotalSacrifices from '@/components/TotalSacrifices'
 import LinkedWalletsManager from '../components/LinkedWalletsManager'
+import { getCachedRequest, invalidateCache } from '@/lib/request-cache'
 
 type ProfileDetails = {
   username: string | null
@@ -753,12 +754,18 @@ function useProfileState() {
   const [bonusAllowance, setBonusAllowance] = useState<number>(0)
   const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
   const [portalSummary, setPortalSummary] = useState<{ isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null>(null)
+  const isInitializing = useRef(false)
 
   const fetchProfile = useCallback(
     async (wallet: string) => {
       try {
-        const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}`)
-        const data = await response.json()
+        const data = await getCachedRequest(
+          `profile:${wallet}`,
+          async () => {
+            const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}`)
+            return response.json()
+          }
+        )
         setProfile({
           username: data.username ?? null,
           avatarUrl: data.avatar_url ?? null,
@@ -777,8 +784,13 @@ function useProfileState() {
     async (wallet: string) => {
       setDiscord((prev) => ({ ...prev, loading: true }))
       try {
-        const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(wallet)}`)
-        const data = await response.json()
+        const data = await getCachedRequest(
+          `discord:${wallet}`,
+          async () => {
+            const response = await fetch(`/api/profile/discord?walletAddress=${encodeURIComponent(wallet)}`)
+            return response.json()
+          }
+        )
         setDiscord({
           linked: data.linked ?? false,
           identifier: data.discordUsername ?? data.discordUserId ?? null,
@@ -955,6 +967,15 @@ function useProfileState() {
 
   const initializeProfile = useCallback(
     async (wallet: string) => {
+      // Prevent duplicate initialization
+      if (isInitializing.current) {
+        console.log('[Profile] Already initializing, skipping...')
+        return
+      }
+
+      isInitializing.current = true
+      console.log('[Profile] Initializing profile for:', wallet)
+
       try {
         await fetch('/api/profile/create', {
           method: 'POST',
@@ -977,10 +998,15 @@ function useProfileState() {
         fetchSummonSummary(wallet),
         (async () => {
           try {
-            const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
-              headers: { 'Cache-Control': 'no-store' },
-            })
-            const data = await res.json().catch(() => ({}))
+            const data = await getCachedRequest(
+              `portal-summary:${wallet}`,
+              async () => {
+                const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
+                  headers: { 'Cache-Control': 'no-store' },
+                })
+                return res.json().catch(() => ({}))
+              }
+            )
             setPortalSummary({
               isPortalSummoner: Boolean(data?.isPortalSummoner),
               completedCreated: Number(data?.completedCreated ?? 0),
@@ -991,6 +1017,8 @@ function useProfileState() {
           }
         })(),
       ])
+
+      isInitializing.current = false
     },
     [
       fetchProfile,
@@ -1075,6 +1103,9 @@ function useProfileState() {
       portalSummary,
       refreshProfile: () => {
         if (address) {
+          console.log('[Profile] Manual refresh requested')
+          invalidateCache() // Clear all cache
+          isInitializing.current = false // Reset flag
           void Promise.all([
             fetchProfile(address),
             checkDiscordStatus(address),

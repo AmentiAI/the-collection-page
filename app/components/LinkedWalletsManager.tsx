@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { useToast } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
 import { Loader2, Link2, Unlink, Wallet, CheckCircle2, AlertCircle } from 'lucide-react'
+import { getCachedRequest } from '@/lib/request-cache'
 
 interface LinkedWallet {
   wallet: string
@@ -24,6 +25,7 @@ export default function LinkedWalletsManager() {
   const toast = useToast()
   const [linkedData, setLinkedData] = useState<LinkedWalletsData | null>(null)
   const [loading, setLoading] = useState(false)
+  const hasFetched = useRef(false)
 
   const truncateAddress = (addr: string) => {
     if (!addr) return ''
@@ -35,12 +37,18 @@ export default function LinkedWalletsManager() {
     
     setLoading(true)
     try {
-      const response = await fetch(`/api/wallet/linked?walletAddress=${encodeURIComponent(address)}`, {
-        cache: 'no-store'
-      })
+      const data = await getCachedRequest(
+        `linked-wallets:${address}`,
+        async () => {
+          const response = await fetch(`/api/wallet/linked?walletAddress=${encodeURIComponent(address)}`, {
+            cache: 'no-store'
+          })
+          return response.json()
+        },
+        60000 // Cache for 60 seconds
+      )
       
-      if (response.ok) {
-        const data = await response.json()
+      if (data) {
         setLinkedData(data)
       }
     } catch (error) {
@@ -51,7 +59,8 @@ export default function LinkedWalletsManager() {
   }
 
   useEffect(() => {
-    if (address) {
+    if (address && !hasFetched.current) {
+      hasFetched.current = true
       fetchLinkedWallets()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
