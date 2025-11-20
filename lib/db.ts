@@ -4,6 +4,9 @@ import { dbConfig } from './supabase'
 // Create a connection pool
 let pool: Pool | null = null
 
+// Track which tables have been initialized to avoid redundant DDL operations
+const initializedTables = new Set<string>()
+
 export function getPool(): Pool {
   if (!pool) {
     if (!dbConfig) {
@@ -98,6 +101,21 @@ export async function executeQuery<T = any>(
     
     throw error
   }
+}
+
+// Mark a table as initialized to avoid redundant DDL operations
+export function markTableInitialized(tableName: string) {
+  initializedTables.add(tableName)
+}
+
+// Check if a table has been initialized in this process
+export function isTableInitialized(tableName: string): boolean {
+  return initializedTables.has(tableName)
+}
+
+// Clear the initialization cache (useful for testing)
+export function clearInitializationCache() {
+  initializedTables.clear()
 }
 
 // Initialize database tables
