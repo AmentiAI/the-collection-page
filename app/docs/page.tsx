@@ -147,11 +147,15 @@ export default function DocsPage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Second Ascension</h3>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Second Ascension (Angelic Transformation)</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
-              <li>After burning a first ascension, the original needs 1000 powder total for second ascension</li>
-              <li>This creates a more powerful ascended version</li>
-              <li>The second ascension is final - no third ascension</li>
+              <li>After burning your first ascension, your ascended demon returns to the graveyard</li>
+              <li>Channel powder to your ascended demon until it reaches 1000 total powder</li>
+              <li>Click &quot;Final Ascend&quot; to begin the transformation process</li>
+              <li><strong>You will be prompted to select a second graveyard ordinal to burn together with your ascended demon</strong></li>
+              <li>Both ordinals are sacrificed to create a powerful angelic version (90% standard, 10% holy light variant)</li>
+              <li>The new angelic ascension will appear in Limbo for you to keep or burn</li>
+              <li>This is the final ascension - there is no third level</li>
             </ul>
           </div>
 
