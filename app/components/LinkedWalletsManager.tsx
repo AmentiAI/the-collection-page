@@ -183,36 +183,76 @@ export default function LinkedWalletsManager() {
             <div className="mb-3 flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-5 w-5 text-amber-400" />
               <div className="space-y-2 text-sm text-amber-200">
-                <p className="font-semibold">To link a new wallet:</p>
+                <p className="font-semibold">How to link another wallet:</p>
                 <ol className="ml-4 list-decimal space-y-1">
-                  <li>Disconnect your current wallet</li>
-                  <li>Connect the wallet you want to link</li>
-                  <li>Click &quot;Sign & Link&quot; below</li>
+                  <li>Open your wallet extension (Unisat, Xverse, etc.)</li>
+                  <li>Switch to the wallet address you want to link</li>
+                  <li>Return to this page (it will detect the new address)</li>
+                  <li>Click &quot;Sign & Link This Wallet&quot; below</li>
                   <li>Sign the message to prove ownership</li>
                 </ol>
                 <p className="mt-2 text-xs text-amber-300/80">
-                  Your linked wallet will share the same profile, holdings, and progress.
+                  💡 Tip: Don&apos;t disconnect! Just switch addresses in your wallet extension. Both wallets will share the same profile, holdings, and progress.
                 </p>
               </div>
             </div>
+            
+            {!linkedData?.isLinkedWallet && !linkedData?.allWallets.includes(address.toLowerCase()) && (
+              <div className="mb-3 rounded border border-emerald-500/40 bg-emerald-900/20 p-3">
+                <p className="text-xs text-emerald-200">
+                  ✅ Currently connected as <span className="font-mono font-semibold">{truncateAddress(linkedData?.primaryWallet || address)}</span> (Primary Wallet)
+                </p>
+                <p className="mt-1 text-xs text-emerald-200/70">
+                  Switch to a different wallet in your extension, then click the button below.
+                </p>
+              </div>
+            )}
+            
+            {linkedData?.allWallets.includes(address.toLowerCase()) && address.toLowerCase() === linkedData?.primaryWallet.toLowerCase() && (
+              <div className="mb-3 rounded border border-blue-500/40 bg-blue-900/20 p-3">
+                <p className="text-xs text-blue-200">
+                  ✅ You&apos;re connected with your primary wallet. Switch to another wallet in your extension to link it.
+                </p>
+              </div>
+            )}
+            
+            {linkedData?.linkedWallets.some(lw => lw.wallet.toLowerCase() === address.toLowerCase()) && (
+              <div className="mb-3 rounded border border-blue-500/40 bg-blue-900/20 p-3">
+                <p className="text-xs text-blue-200">
+                  ℹ️ Currently connected as <span className="font-mono font-semibold">{truncateAddress(address)}</span> (Already Linked)
+                </p>
+                <p className="mt-1 text-xs text-blue-200/70">
+                  This wallet is already linked. Switch to a different address to link another one.
+                </p>
+              </div>
+            )}
+            
+            {isCurrentWalletLinked && (
+              <div className="mb-3 rounded border border-red-500/40 bg-red-900/20 p-3">
+                <p className="text-xs text-red-200">
+                  ⚠️ This wallet is linked to a different primary wallet. It cannot be linked here.
+                </p>
+              </div>
+            )}
+            
             <Button
               onClick={handleLinkWallet}
               disabled={linking || isCurrentWalletLinked || linkedData?.allWallets.includes(address.toLowerCase())}
-              className="w-full border border-amber-600 bg-amber-700/80 text-amber-100 hover:bg-amber-600"
+              className="w-full border border-amber-600 bg-amber-700/80 text-amber-100 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {linking ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing...
+                  Signing & Linking...
                 </>
               ) : isCurrentWalletLinked ? (
-                'Already Linked to Another Wallet'
+                '❌ Cannot Link - Already Linked to Another Profile'
               ) : linkedData?.allWallets.includes(address.toLowerCase()) ? (
-                'This Wallet is Already Linked'
+                '✓ This Wallet is Already in Your Profile'
               ) : (
                 <>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Sign & Link Current Wallet
+                  Sign & Link This Wallet ({truncateAddress(address)})
                 </>
               )}
             </Button>
