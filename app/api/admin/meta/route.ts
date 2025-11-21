@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 
 type GeneratedOrdinal = {
   id: string
+  image_url: string
   inscription_id?: string | null
   traits?: {
     eyes?: { name: string }
@@ -16,6 +17,12 @@ type GeneratedOrdinal = {
     background?: { name: string }
     props?: { name: string }
   }
+}
+
+type InscriptionPrompt = {
+  inscription_id: string
+  image_url: string
+  prompt: string
 }
 
 type MetadataItem = {
@@ -43,18 +50,35 @@ export async function GET() {
       burnsResult.rows.map((row) => row.inscription_id)
     )
 
-    // Read the generated ordinals JSON file
+    // Read BOTH JSON files
     const ordinalsPath = path.join(process.cwd(), 'public', 'generated_ordinals.json')
+    const promptsPath = path.join(process.cwd(), 'public', 'inscription_prompts.json')
+    
     const ordinalsData = fs.readFileSync(ordinalsPath, 'utf-8')
+    const promptsData = fs.readFileSync(promptsPath, 'utf-8')
+    
     const allOrdinals: GeneratedOrdinal[] = JSON.parse(ordinalsData)
+    const allPrompts: InscriptionPrompt[] = JSON.parse(promptsData)
 
-    // Filter out ordinals without inscription_id and those that have been burned
-    const unburned = allOrdinals.filter((ordinal) => {
-      // Must have an inscription_id (not null/undefined)
-      if (!ordinal.inscription_id) return false
-      // Must not be in the burned list
-      return !burnedInscriptionIds.has(ordinal.inscription_id)
-    })
+    // Create a map of image_url -> inscription_id from inscription_prompts.json
+    const imageUrlToInscriptionId = new Map<string, string>()
+    for (const prompt of allPrompts) {
+      imageUrlToInscriptionId.set(prompt.image_url, prompt.inscription_id)
+    }
+
+    // Match ordinals with their inscription IDs and filter out burned ones
+    const unburned = allOrdinals
+      .map((ordinal) => {
+        // Get the inscription_id by matching image_url
+        const inscriptionId = imageUrlToInscriptionId.get(ordinal.image_url)
+        return inscriptionId ? { ...ordinal, inscription_id: inscriptionId } : null
+      })
+      .filter((ordinal): ordinal is GeneratedOrdinal & { inscription_id: string } => {
+        // Must have successfully matched an inscription_id
+        if (!ordinal || !ordinal.inscription_id) return false
+        // Must not be in the burned list
+        return !burnedInscriptionIds.has(ordinal.inscription_id)
+      })
 
     // Map trait keys to display names
     const traitTypeMap: Record<string, string> = {
@@ -86,7 +110,7 @@ export async function GET() {
       }
 
       return {
-        id: ordinal.inscription_id!,
+        id: ordinal.inscription_id,
         meta: {
           name: `The Damned #${index + 1}`,
           attributes
