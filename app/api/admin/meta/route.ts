@@ -48,11 +48,12 @@ export async function GET() {
     const ordinalsData = fs.readFileSync(ordinalsPath, 'utf-8')
     const allOrdinals: GeneratedOrdinal[] = JSON.parse(ordinalsData)
 
-    // Filter out burned ordinals
-    // Use inscription_id if available, otherwise use the id field
+    // Filter out ordinals without inscription_id and those that have been burned
     const unburned = allOrdinals.filter((ordinal) => {
-      const inscriptionId = ordinal.inscription_id || ordinal.id
-      return !burnedInscriptionIds.has(inscriptionId)
+      // Must have an inscription_id (not null/undefined)
+      if (!ordinal.inscription_id) return false
+      // Must not be in the burned list
+      return !burnedInscriptionIds.has(ordinal.inscription_id)
     })
 
     // Map trait keys to display names
@@ -84,11 +85,8 @@ export async function GET() {
         }
       }
 
-      // Use inscription_id if available, otherwise use the id field
-      const inscriptionId = ordinal.inscription_id || ordinal.id
-
       return {
-        id: inscriptionId,
+        id: ordinal.inscription_id!,
         meta: {
           name: `The Damned #${index + 1}`,
           attributes
