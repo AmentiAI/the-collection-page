@@ -1767,6 +1767,7 @@ export default function AbyssSummonPage() {
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
                         isPowderMode={IS_POWDER_MODE}
+                        isDeadDemonsMode={IS_DEAD_DEMONS_MODE}
                         requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                         summonDurationMs={SUMMON_DURATION_MS}
                         isPortalMode={IS_DAMNED_POOL_MODE}
@@ -1791,6 +1792,7 @@ export default function AbyssSummonPage() {
                         truncateWallet={truncateWallet}
                         assetMap={inscriptionImageCache}
                         isPowderMode={IS_POWDER_MODE}
+                        isDeadDemonsMode={IS_DEAD_DEMONS_MODE}
                         requiredParticipantsForMode={SUMMON_REQUIRED_PARTICIPANTS}
                         summonDurationMs={SUMMON_DURATION_MS}
                         isPortalMode={IS_DAMNED_POOL_MODE}
