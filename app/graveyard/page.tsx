@@ -9,6 +9,7 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
+import ChestCallout from '@/components/ChestCallout'
 
 type GraveyardEntry = {
   inscriptionId: string
@@ -121,6 +122,16 @@ function GraveyardContent() {
   const [graveRobbing, setGraveRobbing] = useState(false)
   const [graveRobLoading, setGraveRobLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
+  const [sampleEligibleRecord, setSampleEligibleRecord] = useState<any>(null)
+
+  // Check for debug mode via URL parameter
+  const [isGraveRobDebug, setIsGraveRobDebug] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      setIsGraveRobDebug(params.get('graveRobDebug') === 'true')
+    }
+  }, [])
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
 
@@ -260,11 +271,13 @@ function GraveyardContent() {
   const loadGraveRobEligibleCount = useCallback(async () => {
     if (!ordinalAddress) {
       setGraveRobEligibleCount(null)
+      setSampleEligibleRecord(null)
       return
     }
 
     try {
-      const response = await fetch(`/api/abyss/burns/grave-rob?walletAddress=${encodeURIComponent(ordinalAddress)}`, {
+      const debugParam = isGraveRobDebug ? '&debug=true' : ''
+      const response = await fetch(`/api/abyss/burns/grave-rob?walletAddress=${encodeURIComponent(ordinalAddress)}${debugParam}`, {
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -274,11 +287,14 @@ function GraveyardContent() {
       const data = await response.json()
       if (data.success) {
         setGraveRobEligibleCount(data.eligibleCount ?? 0)
+        if (data.sampleRecord) {
+          setSampleEligibleRecord(data.sampleRecord)
+        }
       }
     } catch (err) {
       console.error('Failed to load grave rob eligible count:', err)
     }
-  }, [ordinalAddress])
+  }, [ordinalAddress, isGraveRobDebug])
 
   const handleGraveRob = useCallback(async () => {
     if (!ordinalAddress) {
@@ -297,7 +313,10 @@ function GraveyardContent() {
       const response = await fetch('/api/abyss/burns/grave-rob', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: ordinalAddress }),
+        body: JSON.stringify({ 
+          walletAddress: ordinalAddress,
+          debug: isGraveRobDebug 
+        }),
         cache: 'no-store',
       })
 
@@ -311,7 +330,11 @@ function GraveyardContent() {
       }
 
       if (data.robbed) {
-        toast.success(data.message || 'Successfully robbed a grave!')
+        let message = data.message || 'Successfully robbed a grave!'
+        if (isGraveRobDebug && data.debugInfo) {
+          message = `[DEBUG] Would rob grave: ${data.debugInfo.inscription_id}\nWould transfer ownership to: ${data.debugInfo.new_owner}\nPowder spent: ${data.debugInfo.powder_spent}`
+        }
+        toast.success(message)
         // Reload graveyard and profile to reflect changes
         await loadGraveyard()
         await loadGraveRobEligibleCount()
@@ -328,7 +351,7 @@ function GraveyardContent() {
       setGraveRobbing(false)
       setGraveRobLoading(false)
     }
-  }, [ordinalAddress, graveRobbing, graveRobLoading, toast, loadGraveyard, loadGraveRobEligibleCount])
+  }, [ordinalAddress, graveRobbing, graveRobLoading, toast, loadGraveyard, loadGraveRobEligibleCount, isGraveRobDebug])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
@@ -653,6 +676,14 @@ function GraveyardContent() {
           )}
         </div>
 
+        {/* Treasure Chest - 60 Powder */}
+        <ChestCallout 
+          eventKey="graveyard_chest" 
+          size="lg"
+          grantAmount={60}
+          className="my-6"
+        />
+
         {!isWalletConnected || !ordinalAddress ? (
           <section className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/80 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
             <div className="flex flex-col items-center gap-4">
@@ -665,14 +696,21 @@ function GraveyardContent() {
           </section>
         ) : (
           <>
-            {/* Grave Robbing Section - Hidden for now */}
-            {false && (
+            {/* Grave Robbing Section - Show when debug mode is enabled */}
+            {isGraveRobDebug && (
             <section className="rounded-3xl border border-amber-600/40 bg-amber-950/20 px-6 py-5 shadow-[0_0_35px_rgba(251,191,36,0.25)]">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-amber-200">
-                    Grave Robbing
-                  </h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-amber-200">
+                      Grave Robbing
+                    </h2>
+                    {isGraveRobDebug && (
+                      <span className="rounded-md bg-green-500/20 border border-green-500/40 px-2 py-1 text-xs font-mono uppercase tracking-wider text-green-300">
+                        DEBUG MODE
+                      </span>
+                    )}
+                  </div>
                   {graveRobEligibleCount !== null && (
                     <span className="text-sm font-mono uppercase tracking-[0.3em] text-amber-300/80">
                       {graveRobEligibleCount} Eligible
@@ -681,8 +719,73 @@ function GraveyardContent() {
                 </div>
                 <div className="space-y-3">
                   <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
-                    Spend 200 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
+                    Spend 200 powder for a {isGraveRobDebug ? '100%' : '10%'} chance to steal ownership of an abandoned grave (no powder used in over 1 week).
+                    {isGraveRobDebug && (
+                      <span className="block mt-2 text-green-300 font-mono">
+                        [DEBUG] No database changes will be made. Results are simulated.
+                      </span>
+                    )}
                   </p>
+                  
+                  {/* Sample Eligible Record in Debug Mode */}
+                  {isGraveRobDebug && sampleEligibleRecord && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-950/30 p-4 space-y-3">
+                      <h3 className="text-xs uppercase tracking-[0.3em] text-amber-300 font-semibold">Sample Eligible Grave:</h3>
+                      <div className="flex gap-4">
+                        {sampleEligibleRecord.image_blob_url && (
+                          <div className="flex-shrink-0">
+                            <Image
+                              src={sampleEligibleRecord.image_blob_url}
+                              alt="Sample grave"
+                              width={120}
+                              height={120}
+                              className="rounded-lg border border-amber-500/20"
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 space-y-2 text-xs font-mono">
+                          <div>
+                            <span className="text-amber-400/70">Inscription ID:</span>
+                            <span className="block text-amber-200 truncate">{sampleEligibleRecord.inscription_id}</span>
+                          </div>
+                          <div>
+                            <span className="text-amber-400/70">Current Owner:</span>
+                            <span className="block text-amber-200 truncate">{sampleEligibleRecord.ordinal_wallet}</span>
+                          </div>
+                          <div>
+                            <span className="text-amber-400/70">Powder:</span>
+                            <span className="block text-amber-200">{sampleEligibleRecord.ascension_powder ?? 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-amber-400/70">Created:</span>
+                            <span className="block text-amber-200">{formatRelativeTime(sampleEligibleRecord.created_at)}</span>
+                          </div>
+                          <div>
+                            <span className="text-amber-400/70">Last Updated:</span>
+                            <span className="block text-amber-200">{formatRelativeTime(sampleEligibleRecord.updated_at) || 'Never'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-amber-500/20">
+                        <h4 className="text-[10px] uppercase tracking-[0.3em] text-green-400 font-semibold mb-2">✓ Eligibility Criteria Met:</h4>
+                        <ul className="space-y-1 text-[10px] font-mono text-green-300/90">
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">✓</span>
+                            <span>Not an ascended image (inscription_id does not start with "ascended_")</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">✓</span>
+                            <span>Abandoned for 7+ days (last updated: {formatRelativeTime(sampleEligibleRecord.updated_at) || 'Never updated'})</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">✓</span>
+                            <span>Not hidden (hidden = false)</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                  
                   {(graveRobEligibleCount ?? 0) > 0 && (
                     <div className="flex items-center gap-3">
                       <Button

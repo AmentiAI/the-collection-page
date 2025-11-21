@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const walletAddress = searchParams.get('walletAddress')?.trim()
+    const isDebugMode = searchParams.get('debug') === 'true'
 
     if (!walletAddress) {
       return NextResponse.json({ success: false, error: 'walletAddress is required' }, { status: 400 })
@@ -78,12 +79,41 @@ export async function GET(request: NextRequest) {
 
     const eligibleCount = countResult.rows[0]?.count ?? 0
 
-    return NextResponse.json({
+    const response: any = {
       success: true,
       eligibleCount,
       cost: GRAVE_ROB_COST,
       chance: GRAVE_ROB_CHANCE,
-    })
+    }
+
+    // In debug mode, return a sample eligible record
+    if (isDebugMode && eligibleCount > 0) {
+      const sampleResult = await pool.query(
+        `
+        SELECT 
+          id,
+          inscription_id,
+          ordinal_wallet,
+          created_at,
+          updated_at,
+          ascension_powder,
+          image_blob_url
+        FROM abyss_burns
+        WHERE inscription_id NOT LIKE 'ascended_%'
+          AND hidden = FALSE
+          AND (updated_at IS NULL OR updated_at < $1)
+        ORDER BY RANDOM()
+        LIMIT 1
+        `,
+        [staleThreshold.toISOString()],
+      )
+
+      if (sampleResult.rows.length > 0) {
+        response.sampleRecord = sampleResult.rows[0]
+      }
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('[grave-rob][GET] error:', error)
     return NextResponse.json({ success: false, error: 'Failed to count eligible records' }, { status: 500 })
@@ -101,6 +131,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
     const walletAddress = (body?.walletAddress ?? '').toString().trim()
+    const isDebugMode = body?.debug === true
 
     if (!walletAddress) {
       await client.query('ROLLBACK')
@@ -145,15 +176,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No eligible records to rob' }, { status: 400 })
     }
 
-    // Deduct powder (always, even if roll fails)
-    await client.query(
-      `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
-      [GRAVE_ROB_COST, walletAddress],
-    )
+    // Deduct powder (always, even if roll fails) - SKIP IN DEBUG MODE
+    if (!isDebugMode) {
+      await client.query(
+        `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
+        [GRAVE_ROB_COST, walletAddress],
+      )
+    }
 
-    // Roll for success (10% chance)
+    // Roll for success (10% chance) - ALWAYS SUCCESS IN DEBUG MODE
     const roll = Math.random()
-    const success = roll < GRAVE_ROB_CHANCE
+    const success = isDebugMode || roll < GRAVE_ROB_CHANCE
 
     if (!success) {
       await client.query('COMMIT')
@@ -194,22 +227,46 @@ export async function POST(request: NextRequest) {
     const targetRecord = selectResult.rows[0]
     const oldWallet = targetRecord.ordinal_wallet
 
-    // Transfer ownership
-    await client.query(
-      `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
-      [walletAddress, targetRecord.id],
-    )
+    // Transfer ownership - SKIP IN DEBUG MODE
+    if (!isDebugMode) {
+      await client.query(
+        `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
+        [walletAddress, targetRecord.id],
+      )
+    }
 
     await client.query('COMMIT')
 
-    return NextResponse.json({
+    const response: any = {
       success: true,
       robbed: true,
       inscriptionId: targetRecord.inscription_id,
       previousOwner: oldWallet,
-      message: `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}`,
-      remainingPowder: currentPowder - GRAVE_ROB_COST,
-    })
+      message: isDebugMode 
+        ? `[DEBUG MODE] Would rob grave: ${targetRecord.inscription_id}` 
+        : `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}`,
+      remainingPowder: isDebugMode ? currentPowder : (currentPowder - GRAVE_ROB_COST),
+    }
+
+    // Add debug info if in debug mode
+    if (isDebugMode) {
+      response.debugInfo = {
+        inscription_id: targetRecord.inscription_id,
+        record_id: targetRecord.id,
+        old_owner: oldWallet,
+        new_owner: walletAddress,
+        powder_spent: GRAVE_ROB_COST,
+        would_update_fields: {
+          ordinal_wallet: `${oldWallet} → ${walletAddress}`,
+          updated_at: 'NOW()',
+        },
+        powder_before: currentPowder,
+        powder_after_would_be: currentPowder - GRAVE_ROB_COST,
+        note: 'NO DATABASE CHANGES WERE MADE (Debug Mode)',
+      }
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('[grave-rob][POST] error:', error)
