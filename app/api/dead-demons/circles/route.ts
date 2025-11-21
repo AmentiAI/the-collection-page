@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 
 const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000 // 10 minutes
-const POWDER_REWARD_HOST = 5
-const POWDER_REWARD_PARTICIPANT = 4
+const POWDER_REWARD_HOST = 15
+const POWDER_REWARD_PARTICIPANT = 12
 const MAX_ACTIVE_CIRCLES_GLOBAL = 3 // Only 3 globally open at a time
 
 async function ensureDeadDemonsInfrastructure(pool: Pool) {

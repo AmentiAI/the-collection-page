@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000 // Last 2 minutes
 const REQUIRED_COMPLETIONS = 9 // 9 out of 10 must complete
-const POWDER_REWARD_HOST = 13
-const POWDER_REWARD_PARTICIPANT = 10
+const POWDER_REWARD_HOST = 15
+const POWDER_REWARD_PARTICIPANT = 12
 
 async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) {
   // Skip if already initialized to avoid redundant DDL operations
