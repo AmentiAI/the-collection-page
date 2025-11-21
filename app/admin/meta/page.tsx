@@ -170,7 +170,7 @@ export default function MetaGeneratorPage() {
 
         {!metadataJson && !loading && (
           <div className="text-center py-12 text-gray-500">
-            Click "Generate Metadata" to create the metadata JSON excluding burned inscriptions
+            Click &quot;Generate Metadata&quot; to create the metadata JSON excluding burned inscriptions
           </div>
         )}
       </div>
