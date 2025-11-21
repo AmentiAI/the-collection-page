@@ -32,8 +32,8 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   
   const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
   
-  // Closed from 5:00 PM to 11:00 AM EST
-  const isClosed = estHour >= 17 || estHour < 11
+  // Closed from 6:00 PM to 11:00 AM EST
+  const isClosed = estHour >= 18 || estHour < 11
   
   // Get full EST date components
   const estDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -69,23 +69,23 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
     const timeUntilOpen = secondsUntil10 * 1000
     return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
   } else {
-    // Calculate time until 5:00 PM EST (when it closes)
+    // Calculate time until 6:00 PM EST (when it closes)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 17 * 3600 // 5 PM = 61200 seconds
+    const targetTotalSeconds = 18 * 3600 // 6 PM = 64800 seconds
     
-    let secondsUntil5 = targetTotalSeconds - currentTotalSeconds
+    let secondsUntil6 = targetTotalSeconds - currentTotalSeconds
     
-    // If we're at or past 5 PM (hour >= 17), we need tomorrow's 5 PM
-    if (currentHour >= 17) {
-      secondsUntil5 += 24 * 3600
+    // If we're at or past 6 PM (hour >= 18), we need tomorrow's 6 PM
+    if (currentHour >= 18) {
+      secondsUntil6 += 24 * 3600
     }
-    // If we're before 5 PM, secondsUntil5 should already be positive
+    // If we're before 6 PM, secondsUntil6 should already be positive
     // But if somehow it's negative or zero, add 24 hours as safety
-    if (secondsUntil5 <= 0) {
-      secondsUntil5 += 24 * 3600
+    if (secondsUntil6 <= 0) {
+      secondsUntil6 += 24 * 3600
     }
     
-    const timeUntilClose = secondsUntil5 * 1000
+    const timeUntilClose = secondsUntil6 * 1000
     
     return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
   }
