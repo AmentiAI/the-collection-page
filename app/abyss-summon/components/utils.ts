@@ -32,8 +32,9 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   
   const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
   
-  // Closed from 6:00 PM to 11:00 AM EST
-  const isClosed = estHour >= 18 || estHour < 11
+  // Open windows: 12:00 AM - 1:00 AM and 11:00 AM - 6:00 PM EST
+  // Closed: 1:00 AM - 11:00 AM and 6:00 PM - 12:00 AM
+  const isClosed = (estHour >= 1 && estHour < 11) || estHour >= 18
   
   // Get full EST date components
   const estDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -56,36 +57,46 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   const currentSecond = parseInt(estParts.find(p => p.type === 'second')?.value || '0')
   
   if (isClosed) {
-    // Calculate time until 11:00 AM EST (when it opens)
+    // Calculate time until next opening
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 11 * 3600 // 11 AM
+    let targetTotalSeconds: number
     
-    let secondsUntil10 = targetTotalSeconds - currentTotalSeconds
-    if (secondsUntil10 <= 0) {
-      // Add 24 hours if we need to go to next day
-      secondsUntil10 += 24 * 3600
+    if (estHour >= 1 && estHour < 11) {
+      // Closed between 1 AM - 11 AM, next opening is 11 AM
+      targetTotalSeconds = 11 * 3600
+    } else {
+      // Closed between 6 PM - midnight, next opening is midnight (0:00 AM)
+      targetTotalSeconds = 24 * 3600 // midnight of next day
     }
     
-    const timeUntilOpen = secondsUntil10 * 1000
+    let secondsUntilOpen = targetTotalSeconds - currentTotalSeconds
+    if (secondsUntilOpen <= 0) {
+      secondsUntilOpen += 24 * 3600
+    }
+    
+    const timeUntilOpen = secondsUntilOpen * 1000
     return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
   } else {
-    // Calculate time until 6:00 PM EST (when it closes)
+    // Calculate time until next closing
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    const targetTotalSeconds = 18 * 3600 // 6 PM = 64800 seconds
+    let targetTotalSeconds: number
     
-    let secondsUntil6 = targetTotalSeconds - currentTotalSeconds
-    
-    // If we're at or past 6 PM (hour >= 18), we need tomorrow's 6 PM
-    if (currentHour >= 18) {
-      secondsUntil6 += 24 * 3600
-    }
-    // If we're before 6 PM, secondsUntil6 should already be positive
-    // But if somehow it's negative or zero, add 24 hours as safety
-    if (secondsUntil6 <= 0) {
-      secondsUntil6 += 24 * 3600
+    if (estHour >= 0 && estHour < 1) {
+      // Open from midnight to 1 AM, closes at 1 AM
+      targetTotalSeconds = 1 * 3600
+    } else {
+      // Open from 11 AM to 6 PM, closes at 6 PM
+      targetTotalSeconds = 18 * 3600
     }
     
-    const timeUntilClose = secondsUntil6 * 1000
+    let secondsUntilClose = targetTotalSeconds - currentTotalSeconds
+    
+    // If somehow negative or zero, add 24 hours as safety
+    if (secondsUntilClose <= 0) {
+      secondsUntilClose += 24 * 3600
+    }
+    
+    const timeUntilClose = secondsUntilClose * 1000
     
     return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
   }
