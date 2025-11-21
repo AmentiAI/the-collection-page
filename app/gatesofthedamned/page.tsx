@@ -389,7 +389,7 @@ export default function GatesOfTheDamnedPage() {
         <video
           ref={videoRef}
           className="absolute left-1/2 top-1/2 h-full w-auto min-h-full min-w-full -translate-x-1/2 -translate-y-1/2 object-cover"
-          src="/Epic_Aerial_Battle_with_Laser_Fire (2).mp4"
+          src="/1120.mp4"
           autoPlay
           loop
           muted={showEntryModal}
