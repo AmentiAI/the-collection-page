@@ -111,25 +111,37 @@ function GraveyardContent() {
   const [powderSpending, setPowderSpending] = useState<string | null>(null)
   const [ascending, setAscending] = useState<string | null>(null)
   const [limboImages, setLimboImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
-  const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
+  const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string; hasSilver?: boolean; hasGlow?: boolean }>>([])
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
+  const [regenerationAllowance, setRegenerationAllowance] = useState(0)
   const [secondAscensionWarning, setSecondAscensionWarning] = useState<GraveyardEntry | null>(null)
   const [selectedLimboToBurn, setSelectedLimboToBurn] = useState<string | null>(null)
   const [isFirstAscensionLimbo, setIsFirstAscensionLimbo] = useState(false)
-  const powderRequestInProgress = useRef<string | null>(null)
   const [graveRobEligibleCount, setGraveRobEligibleCount] = useState<number | null>(null)
   const [graveRobbing, setGraveRobbing] = useState(false)
   const [graveRobLoading, setGraveRobLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
   const [sampleEligibleRecord, setSampleEligibleRecord] = useState<any>(null)
+  
+  // Regenerate states
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  const [regenerateComparison, setRegenerateComparison] = useState<{
+    mintQueueId: string
+    originalImageUrl: string
+    regeneratedImageUrl: string
+    regeneratedImageBlobUrl: string
+  } | null>(null)
+  const [applyingRegenerate, setApplyingRegenerate] = useState(false)
 
   // Check for debug mode via URL parameter
   const [isGraveRobDebug, setIsGraveRobDebug] = useState(false)
+  const [isRegenerateDebug, setIsRegenerateDebug] = useState(false)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       setIsGraveRobDebug(params.get('graveRobDebug') === 'true')
+      setIsRegenerateDebug(params.get('regenerateDebug') === 'true')
     }
   }, [])
 
@@ -380,6 +392,7 @@ function GraveyardContent() {
         const limbo = payload.limbo || []
         setLimboImages(limbo)
         setMintQueueImages(payload.mintQueue || [])
+        setRegenerationAllowance(payload.regenerationAllowance ?? 0)
         
         // Check if limbo entry is from a first ascension (source_inscription_id doesn't start with 'ascended_')
         if (limbo.length > 0) {
@@ -480,8 +493,8 @@ function GraveyardContent() {
         return
       }
 
-      // Prevent multiple simultaneous requests using ref (more reliable than state)
-      if (powderRequestInProgress.current) {
+      // Allow multiple concurrent requests - just check if already spending on this specific entry
+      if (powderSpending === entry.inscriptionId) {
         return
       }
 
@@ -509,8 +522,7 @@ function GraveyardContent() {
         return
       }
 
-      // Set both ref and state for UI updates
-      powderRequestInProgress.current = entry.inscriptionId
+      // Set loading state for this specific entry only
       setPowderSpending(entry.inscriptionId)
 
       try {
@@ -546,20 +558,23 @@ function GraveyardContent() {
 
         const spent = Math.max(0, Number(payload?.spent ?? amountToUse))
         const completed = Boolean(payload?.completed)
+        
+        // Clear loading state before showing toast
+        setPowderSpending(null)
+        
+        // Use shorter, less intrusive toasts
         if (completed) {
-          toast.success(`${spent} powder channeled. Ascension complete! Click "Ascend" to proceed.`)
+          toast.success(`+${spent} powder ✓ Ascension ready!`)
         } else {
-          toast.success(`${spent} powder channeled successfully.`)
+          toast.success(`+${spent} powder`)
         }
       } catch (err) {
+        setPowderSpending(null)
         const message = err instanceof Error ? err.message : 'Failed to channel ascension powder.'
         toast.error(message)
-      } finally {
-        powderRequestInProgress.current = null
-        setPowderSpending(null)
       }
     },
-    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE],
+    [ordinalAddress, toast, hasPowder, powderAvailable, MAX_POWDER_PER_USE, powderSpending, entries],
   )
 
   const handleLimboChoice = useCallback(
@@ -598,6 +613,100 @@ function GraveyardContent() {
       }
     },
     [selectedLimbo, ordinalAddress, choosingLimbo, loadGraveyard, loadLimboAndMintQueue, toast],
+  )
+
+  const handleRegenerate = useCallback(
+    async (mintQueueId: string, currentImageUrl: string) => {
+      if (!ordinalAddress || regenerating) {
+        return
+      }
+
+      setRegenerating(mintQueueId)
+      try {
+        const response = await fetch(
+          `/api/abyss/ascended/mint-queue/${encodeURIComponent(mintQueueId)}/regenerate?walletAddress=${encodeURIComponent(ordinalAddress)}`,
+          {
+            headers: { 'Cache-Control': 'no-store' },
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to regenerate image.')
+        }
+
+        // Show comparison modal
+        setRegenerateComparison({
+          mintQueueId,
+          originalImageUrl: payload.originalImageUrl,
+          regeneratedImageUrl: payload.regeneratedImageUrl,
+          regeneratedImageBlobUrl: payload.regeneratedImageBlobUrl,
+        })
+
+        toast.success('Regenerated image ready! Choose which version to keep.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to regenerate image.'
+        toast.error(message)
+      } finally {
+        setRegenerating(null)
+      }
+    },
+    [ordinalAddress, regenerating, toast],
+  )
+
+  const handleApplyRegenerate = useCallback(
+    async (choice: 'original' | 'regenerated') => {
+      if (!regenerateComparison || !ordinalAddress || applyingRegenerate) {
+        return
+      }
+
+      if (choice === 'original') {
+        // User chose to keep original, just close modal
+        setRegenerateComparison(null)
+        toast.success('Keeping original image.')
+        return
+      }
+
+      // User chose regenerated, update database
+      setApplyingRegenerate(true)
+      try {
+        const response = await fetch(
+          `/api/abyss/ascended/mint-queue/${encodeURIComponent(regenerateComparison.mintQueueId)}/regenerate`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: ordinalAddress,
+              regeneratedImageUrl: regenerateComparison.regeneratedImageUrl,
+              regeneratedImageBlobUrl: regenerateComparison.regeneratedImageBlobUrl,
+            }),
+          },
+        )
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to apply regenerated image.')
+        }
+
+        setRegenerateComparison(null)
+        await loadLimboAndMintQueue()
+        
+        // Update regeneration allowance if provided
+        if (typeof payload.remainingAllowance === 'number') {
+          setRegenerationAllowance(payload.remainingAllowance)
+        }
+        
+        toast.success('Regenerated image applied successfully!')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to apply regenerated image.'
+        toast.error(message)
+      } finally {
+        setApplyingRegenerate(false)
+      }
+    },
+    [regenerateComparison, ordinalAddress, applyingRegenerate, loadLimboAndMintQueue, toast],
   )
 
   useEffect(() => {
@@ -1423,6 +1532,81 @@ function GraveyardContent() {
           )
         })()}
 
+        {/* Regenerate Comparison Modal */}
+        {regenerateComparison && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/90 p-4 overflow-y-auto">
+            <div className="relative max-w-5xl rounded-3xl border border-purple-500/60 bg-black/95 p-6 my-4 w-full shadow-[0_0_50px_rgba(168,85,247,0.5)]">
+              <h2 className="mb-6 text-center text-2xl font-mono uppercase tracking-[0.3em] text-purple-200">
+                Choose Your Image
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Original Image */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-center text-sm font-mono uppercase tracking-[0.3em] text-amber-300">
+                    Original
+                  </h3>
+                  <div className="aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
+                    <Image
+                      src={regenerateComparison.originalImageUrl}
+                      alt="Original mutant monster"
+                      width={512}
+                      height={512}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={applyingRegenerate}
+                    onClick={() => handleApplyRegenerate('original')}
+                    className="w-full rounded-full border border-amber-500/60 bg-amber-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-amber-100 transition hover:bg-amber-600/45 disabled:opacity-50"
+                  >
+                    {applyingRegenerate ? (
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    ) : (
+                      'Keep Original'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Regenerated Image */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-center text-sm font-mono uppercase tracking-[0.3em] text-purple-300">
+                    Regenerated
+                  </h3>
+                  <div className="aspect-square overflow-hidden rounded-2xl border border-purple-500/40">
+                    <Image
+                      src={regenerateComparison.regeneratedImageUrl}
+                      alt="Regenerated mutant monster"
+                      width={512}
+                      height={512}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={applyingRegenerate}
+                    onClick={() => handleApplyRegenerate('regenerated')}
+                    className="w-full rounded-full border border-purple-500/60 bg-purple-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-purple-100 transition hover:bg-purple-600/45 disabled:opacity-50"
+                  >
+                    {applyingRegenerate ? (
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    ) : (
+                      'Use Regenerated'
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <p className="text-center text-xs uppercase tracking-[0.3em] text-purple-200/60">
+                Choose which version to keep for minting
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Limbo Section */}
         {limboImages.length > 0 && (
           <section className="flex flex-col gap-5">
@@ -1463,9 +1647,19 @@ function GraveyardContent() {
         {/* Mint Queue Section */}
         {mintQueueImages.length > 0 && (
           <section className="flex flex-col gap-5">
-            <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-emerald-300">
-              Waiting Release (Mint)
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-emerald-300">
+                Waiting Release (Mint)
+              </h2>
+              {isRegenerateDebug && (
+                <div className="flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-900/30 px-4 py-2">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <span className="text-sm font-mono uppercase tracking-[0.3em] text-purple-200">
+                    Regenerations: {regenerationAllowance}
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {mintQueueImages.map((mint) => (
                 <article
@@ -1482,10 +1676,46 @@ function GraveyardContent() {
                       unoptimized
                     />
                   </div>
-                  <div className="border-t border-emerald-500/20 bg-black/60 px-3 py-3">
+                  <div className="border-t border-emerald-500/20 bg-black/60 px-3 py-3 flex flex-col gap-2">
                     <p className="text-center text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200/70">
                       Awaiting Mint
                     </p>
+                    
+                    {/* Prompt Flags */}
+                    <div className="flex items-center justify-center gap-2">
+                      <div className={`flex items-center gap-1 rounded-md px-2 py-1 text-[8px] font-mono uppercase tracking-wider ${
+                        mint.hasSilver 
+                          ? 'bg-slate-500/20 border border-slate-400/40 text-slate-300' 
+                          : 'bg-gray-800/40 border border-gray-600/30 text-gray-500'
+                      }`}>
+                        <span>Silver</span>
+                        <span className={mint.hasSilver ? 'text-green-400' : 'text-red-500'}>
+                          {mint.hasSilver ? '✓' : '✗'}
+                        </span>
+                      </div>
+                      <div className={`flex items-center gap-1 rounded-md px-2 py-1 text-[8px] font-mono uppercase tracking-wider ${
+                        mint.hasGlow 
+                          ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300' 
+                          : 'bg-gray-800/40 border border-gray-600/30 text-gray-500'
+                      }`}>
+                        <span>Glow</span>
+                        <span className={mint.hasGlow ? 'text-green-400' : 'text-red-500'}>
+                          {mint.hasGlow ? '✓' : '✗'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {isRegenerateDebug && (
+                      <button
+                        type="button"
+                        onClick={() => handleRegenerate(mint.id, mint.imageUrl)}
+                        disabled={regenerating === mint.id || regenerationAllowance <= 0}
+                        className="w-full rounded-lg border border-purple-500/40 bg-purple-600/20 px-3 py-1.5 text-[9px] font-mono uppercase tracking-[0.3em] text-purple-200 transition hover:bg-purple-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        title={regenerationAllowance <= 0 ? 'No regenerations available. Complete summons to earn more.' : ''}
+                      >
+                        {regenerating === mint.id ? 'Regenerating...' : `Regenerate (${regenerationAllowance})`}
+                      </button>
+                    )}
                   </div>
                 </article>
               ))}

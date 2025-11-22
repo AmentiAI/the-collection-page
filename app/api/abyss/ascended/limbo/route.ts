@@ -64,16 +64,23 @@ export async function GET(request: NextRequest) {
       [wallet],
     )
 
-    // Get mint queue images
+    // Get mint queue images with generation prompts
     const mintRes = await pool.query(
       `
-        SELECT m.id, m.image_blob_url, m.image_url, m.source_inscription_id
+        SELECT m.id, m.image_blob_url, m.image_url, m.source_inscription_id, m.generation_prompt
         FROM ascended_images_mint_queue m
         WHERE LOWER(m.wallet_address) = LOWER($1)
         ORDER BY m.created_at DESC
       `,
       [wallet],
     )
+
+    // Get available regeneration allowance
+    const allowanceRes = await pool.query(
+      `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+      [wallet],
+    )
+    const regenerationAllowance = Number(allowanceRes.rows[0]?.available ?? 0)
 
     return NextResponse.json({
       success: true,
@@ -82,11 +89,17 @@ export async function GET(request: NextRequest) {
         imageUrl: row.generated_image_blob_url || row.generated_image_url,
         sourceInscriptionId: row.source_inscription_id,
       })),
-      mintQueue: mintRes.rows.map((row) => ({
-        id: row.id,
-        imageUrl: row.image_blob_url || row.image_url,
-        sourceInscriptionId: row.source_inscription_id,
-      })),
+      mintQueue: mintRes.rows.map((row) => {
+        const prompt = (row.generation_prompt || '').toLowerCase()
+        return {
+          id: row.id,
+          imageUrl: row.image_blob_url || row.image_url,
+          sourceInscriptionId: row.source_inscription_id,
+          hasSilver: prompt.includes('silver'),
+          hasGlow: prompt.includes('glowing with holy light'),
+        }
+      }),
+      regenerationAllowance,
     })
   } catch (error) {
     console.error('[abyss/ascended/limbo][GET]', error)

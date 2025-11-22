@@ -1601,7 +1601,7 @@ export default function AbyssSummonPage() {
           </aside>
 
           <div className="space-y-6">
-            {!IS_AFK_MODE && (
+            {!IS_AFK_MODE && !IS_DAMNED_POOL_MODE && (
               <section
                 className={[
                   'rounded-2xl border p-6 backdrop-blur',
