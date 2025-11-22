@@ -1019,7 +1019,7 @@ function GraveyardContent() {
                                 <div className="flex items-center justify-center gap-2 rounded-lg border border-red-500/60 bg-red-900/40 px-3 py-2 mt-2">
                                   <AlertCircle className="h-3.5 w-3.5 text-red-400" />
                                   <span className="text-[9px] font-mono uppercase tracking-[0.35em] text-red-300">
-                                    Graverobber Risk
+                                    Risk
                                   </span>
                                   <span className="text-red-500 text-sm">✓</span>
                                 </div>
