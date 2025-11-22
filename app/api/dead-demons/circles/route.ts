@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
         },
         {
           headers: {
-            'Cache-Control': 'public, max-age=3, s-maxage=3, stale-while-revalidate=1',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
           },
         },
       )
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          'Cache-Control': 'public, max-age=3, s-maxage=3, stale-while-revalidate=1',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       },
     )

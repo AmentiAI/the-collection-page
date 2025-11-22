@@ -233,6 +233,19 @@ export async function POST(request: NextRequest) {
         `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
         [walletAddress, targetRecord.id],
       )
+
+      // Grant 1000 ascension powder to the robbed wallet as compensation
+      await client.query(
+        `
+        INSERT INTO profiles (wallet_address, ascension_powder, created_at, updated_at)
+        VALUES ($1, 1000, NOW(), NOW())
+        ON CONFLICT (wallet_address)
+        DO UPDATE SET
+          ascension_powder = profiles.ascension_powder + 1000,
+          updated_at = NOW()
+        `,
+        [oldWallet],
+      )
     }
 
     await client.query('COMMIT')
@@ -242,9 +255,10 @@ export async function POST(request: NextRequest) {
       robbed: true,
       inscriptionId: targetRecord.inscription_id,
       previousOwner: oldWallet,
+      compensationGranted: 1000,
       message: isDebugMode 
-        ? `[DEBUG MODE] Would rob grave: ${targetRecord.inscription_id}` 
-        : `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}`,
+        ? `[DEBUG MODE] Would rob grave: ${targetRecord.inscription_id}. Previous owner would receive 1000 powder compensation.` 
+        : `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}. The previous owner received 1000 powder compensation.`,
       remainingPowder: isDebugMode ? currentPowder : (currentPowder - GRAVE_ROB_COST),
     }
 
@@ -256,9 +270,11 @@ export async function POST(request: NextRequest) {
         old_owner: oldWallet,
         new_owner: walletAddress,
         powder_spent: GRAVE_ROB_COST,
+        compensation_granted_to_old_owner: 1000,
         would_update_fields: {
           ordinal_wallet: `${oldWallet} → ${walletAddress}`,
           updated_at: 'NOW()',
+          old_owner_powder: 'ascension_powder + 1000',
         },
         powder_before: currentPowder,
         powder_after_would_be: currentPowder - GRAVE_ROB_COST,

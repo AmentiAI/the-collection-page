@@ -14,7 +14,7 @@ const MIN_COMPLETION_COUNT_BONUS = 18 // 18 out of 20 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
 const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global circle allowed)
 // Set to false to disable damned pool circles at the API level
-const DAMNED_POOL_MODE_ENABLED = process.env.NEXT_PUBLIC_DAMNED_POOL_MODE_ENABLED !== 'false'
+const DAMNED_POOL_MODE_ENABLED = false // Disabled: Portal circle creation is no longer allowed
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations
