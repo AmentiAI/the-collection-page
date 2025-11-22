@@ -14,7 +14,8 @@ const MIN_COMPLETION_COUNT_BONUS = 18 // 18 out of 20 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
 const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global circle allowed)
 // Set to false to disable damned pool circles at the API level
-const DAMNED_POOL_MODE_ENABLED = false // Disabled: Portal circle creation is no longer allowed
+const DAMNED_POOL_MODE_ENABLED = true // Keep enabled for viewing/completing existing circles
+const DAMNED_POOL_CREATION_ENABLED = false // Disabled: New portal circle creation is no longer allowed
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations
@@ -226,9 +227,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!DAMNED_POOL_MODE_ENABLED) {
+  if (!DAMNED_POOL_CREATION_ENABLED) {
     return NextResponse.json(
-      { success: false, error: 'Damned pool circles are currently disabled.' },
+      { success: false, error: 'New portal circle creation is currently disabled. You can still join and complete existing circles.' },
       { status: 503 },
     )
   }
