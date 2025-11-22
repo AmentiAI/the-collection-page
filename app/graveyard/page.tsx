@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock, AlertCircle } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -1000,18 +1000,31 @@ function GraveyardContent() {
                               )}
                             </Button>
                           ) : (
-                          <Button
-                            type="button"
-                              disabled={!hasPowder || powderSpending === entry.inscriptionId}
-                            onClick={() => handleUsePowder(entry)}
-                            className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
-                          >
-                            {powderSpending === entry.inscriptionId ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              'Use Powder'
-                            )}
-                          </Button>
+                            <>
+                              <Button
+                                type="button"
+                                disabled={!hasPowder || powderSpending === entry.inscriptionId}
+                                onClick={() => handleUsePowder(entry)}
+                                className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                              >
+                                {powderSpending === entry.inscriptionId ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  'Use Powder'
+                                )}
+                              </Button>
+                              
+                              {/* Grave Robbing Warning */}
+                              {isGraveRobEligible && timeUntilGraveRob === 'Eligible for grave robbing' && (
+                                <div className="flex items-center justify-center gap-2 rounded-lg border border-red-500/60 bg-red-900/40 px-3 py-2 mt-2">
+                                  <AlertCircle className="h-3.5 w-3.5 text-red-400" />
+                                  <span className="text-[9px] font-mono uppercase tracking-[0.35em] text-red-300">
+                                    Graverobber Risk
+                                  </span>
+                                  <span className="text-red-500 text-sm">✓</span>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </article>
