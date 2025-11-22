@@ -771,7 +771,7 @@ function GraveyardContent() {
                         <ul className="space-y-1 text-[10px] font-mono text-green-300/90">
                           <li className="flex items-start gap-2">
                             <span className="text-green-500">✓</span>
-                            <span>Not an ascended image (inscription_id does not start with "ascended_")</span>
+                            <span>Not an ascended image (inscription_id does not start with &quot;ascended_&quot;)</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="text-green-500">✓</span>
