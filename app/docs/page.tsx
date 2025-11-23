@@ -223,7 +223,7 @@ export default function DocsPage() {
                   <li>10 minute duration</li>
                   <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
                   <li>9 of 10 must complete to succeed</li>
-                  <li><strong>Rewards:</strong> 8 powder (host) • 7 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 10 powder (host) • 9 powder (participants)</li>
                 </ul>
               </div>
 
