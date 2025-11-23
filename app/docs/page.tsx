@@ -268,6 +268,7 @@ export default function DocsPage() {
               <li>Maximum 6 active circles per user (hosting + participating)</li>
               <li>Maximum 2 hosted circles per user</li>
               <li>Maximum 10 active circles globally</li>
+              <li>Global caps by type: 3 Abyss circles • 4 Dead Demons circles • 6 Ascension circles</li>
             </ul>
           </div>
 
