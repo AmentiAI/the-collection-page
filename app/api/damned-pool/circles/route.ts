@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
     let joinedSummons: any[] = []
 
     if (walletParam) {
-      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1)', 'LIMIT 50', [walletParam])
+      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1)', 'LIMIT 30', [walletParam])
       const createdRes = await pool.query(createdQuery)
       createdSummons = createdRes.rows.map(mapCircleRow)
 
@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
             FROM damned_pool_participants
             WHERE LOWER(wallet) = LOWER($1)
           )`,
-        'LIMIT 50',
+        'LIMIT 30',
         [walletParam],
       )
       const joinedRes = await pool.query(joinedQuery)
