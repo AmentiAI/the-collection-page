@@ -32,9 +32,9 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
   
   const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
   
-  // Open windows: 12:00 AM - 2:00 AM and 11:00 AM - 6:00 PM EST
-  // Closed: 2:00 AM - 11:00 AM and 6:00 PM - 12:00 AM
-  const isClosed = (estHour >= 2 && estHour < 11) || estHour >= 18
+  // Open windows: 12:00 AM - 2:00 AM and 11:00 AM - 5:00 PM EST
+  // Closed: 2:00 AM - 11:00 AM and 5:00 PM - 12:00 AM
+  const isClosed = (estHour >= 2 && estHour < 11) || estHour >= 17
   
   // Get full EST date components
   const estDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -65,7 +65,7 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
       // Closed between 2 AM - 11 AM, next opening is 11 AM
       targetTotalSeconds = 11 * 3600
     } else {
-      // Closed between 6 PM - midnight, next opening is midnight (0:00 AM)
+      // Closed between 5 PM - midnight, next opening is midnight (0:00 AM)
       targetTotalSeconds = 24 * 3600 // midnight of next day
     }
     
@@ -85,8 +85,8 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
       // Open from midnight to 2 AM, closes at 2 AM
       targetTotalSeconds = 2 * 3600
     } else {
-      // Open from 11 AM to 6 PM, closes at 6 PM
-      targetTotalSeconds = 18 * 3600
+      // Open from 11 AM to 5 PM, closes at 5 PM
+      targetTotalSeconds = 17 * 3600
     }
     
     let secondsUntilClose = targetTotalSeconds - currentTotalSeconds
