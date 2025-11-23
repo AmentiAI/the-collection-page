@@ -843,6 +843,14 @@ function useProfileState() {
 
   const fetchAbyssStats = useCallback(
     async (wallet: string) => {
+      // Guard against invalid wallet
+      if (!wallet || typeof wallet !== 'string') {
+        console.warn('fetchAbyssStats called with invalid wallet:', wallet)
+        setExecutioner(null)
+        setAbyssStats(null)
+        return
+      }
+
       try {
         const response = await fetch(`/api/abyss/burns?includeStats=true`, {
           headers: { 'Cache-Control': 'no-store' },
