@@ -1,12 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
+import type { Pool } from 'pg'
 
 export const dynamic = 'force-dynamic'
 
 const ASCENSION_TARGET_FIRST = 500
 const ASCENSION_TARGET_SECOND = 1000
 const MAX_POWDER_PER_USE = 20
+
+async function ensureTables(pool: Pool) {
+  if (isTableInitialized('abyss_burns_ascend')) {
+    return
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      wallet_address TEXT PRIMARY KEY,
+      ascension_powder INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS abyss_burns (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      inscription_id TEXT UNIQUE NOT NULL,
+      tx_id TEXT UNIQUE NOT NULL,
+      ordinal_wallet TEXT NOT NULL,
+      payment_wallet TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      source TEXT NOT NULL DEFAULT 'abyss',
+      summon_id UUID,
+      ascension_powder INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      confirmed_at TIMESTAMPTZ,
+      last_checked_at TIMESTAMPTZ
+    )
+  `)
+  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+  markTableInitialized('abyss_burns_ascend')
+}
 
 function buildInscriptionCandidates(inscriptionId: string) {
   const trimmed = inscriptionId.trim()
@@ -38,34 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     }
 
     const pool = getPool()
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS profiles (
-        wallet_address TEXT PRIMARY KEY,
-        ascension_powder INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS abyss_burns (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        inscription_id TEXT UNIQUE NOT NULL,
-        tx_id TEXT UNIQUE NOT NULL,
-        ordinal_wallet TEXT NOT NULL,
-        payment_wallet TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        source TEXT NOT NULL DEFAULT 'abyss',
-        summon_id UUID,
-        ascension_powder INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        confirmed_at TIMESTAMPTZ,
-        last_checked_at TIMESTAMPTZ
-      )
-    `)
-    await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+    await ensureTables(pool)
 
     const client = await pool.connect()
     try {

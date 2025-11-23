@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool, PoolClient } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +10,10 @@ const GRAVE_ROB_CHANCE = 0.1 // 10%
 const STALE_THRESHOLD_DAYS = 7 // 1 week
 
 async function ensureAbyssBurnsTable(pool: Pool | PoolClient) {
+  if (isTableInitialized('grave_rob_abyss_burns')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS abyss_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,9 +35,15 @@ async function ensureAbyssBurnsTable(pool: Pool | PoolClient) {
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`)
+
+  markTableInitialized('grave_rob_abyss_burns')
 }
 
 async function ensureProfilesTable(pool: Pool | PoolClient) {
+  if (isTableInitialized('grave_rob_profiles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS profiles (
       wallet_address TEXT PRIMARY KEY,
@@ -43,9 +53,15 @@ async function ensureProfilesTable(pool: Pool | PoolClient) {
     )
   `)
   await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+  markTableInitialized('grave_rob_profiles')
 }
 
 async function ensureGraveRobbingEventsTable(pool: Pool | PoolClient) {
+  if (isTableInitialized('grave_robbing_events')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS grave_robbing_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -63,6 +79,8 @@ async function ensureGraveRobbingEventsTable(pool: Pool | PoolClient) {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_robber ON grave_robbing_events((LOWER(robber_wallet)))`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_inscription ON grave_robbing_events(inscription_id)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_success ON grave_robbing_events(success)`)
+
+  markTableInitialized('grave_robbing_events')
 }
 
 // GET: Count eligible records for grave robbing

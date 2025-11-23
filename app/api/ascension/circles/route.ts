@@ -15,6 +15,10 @@ const MAX_ACTIVE_CIRCLES_GLOBAL = 6 // Global cap of 6 active ascension circles
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
 async function ensurePowderInfrastructure(pool: Pool) {
+  if (isTableInitialized('ascension_circles')) {
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS summoning_powder_circles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
