@@ -223,7 +223,7 @@ export default function DocsPage() {
                   <li>10 minute duration</li>
                   <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
                   <li>9 of 10 must complete to succeed</li>
-                  <li><strong>Rewards:</strong> 10 powder (host) • 9 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 8 powder (host) • 7 powder (participants)</li>
                 </ul>
               </div>
 
@@ -268,7 +268,6 @@ export default function DocsPage() {
               <li>Maximum 6 active circles per user (hosting + participating)</li>
               <li>Maximum 2 hosted circles per user</li>
               <li>Maximum 10 active circles globally</li>
-              <li>Global caps by type: 3 Abyss circles • 4 Dead Demons circles • 6 Ascension circles</li>
             </ul>
           </div>
 

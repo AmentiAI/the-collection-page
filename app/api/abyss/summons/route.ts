@@ -5,8 +5,6 @@ import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_ACTIVE_CIRCLES_GLOBAL = 3 // Only 3 abyss circles globally open at a time
-
 async function ensureSummonInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations
   if (isTableInitialized('abyss_summons')) {
@@ -339,27 +337,6 @@ export async function POST(request: NextRequest) {
       await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This ordinal is already pledged to another active circle.' },
-        { status: 409 },
-      )
-    }
-
-    // Check global cap for abyss circles
-    const globalActiveCount = await client.query(
-      `
-        SELECT COUNT(*)::int AS count
-        FROM abyss_summons
-        WHERE status IN ('open', 'filling', 'ready')
-      `,
-    )
-    const activeCount = globalActiveCount.rows[0]?.count ?? 0
-
-    if (activeCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
-      await client.query('ROLLBACK')
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} Abyss circles allowed globally. Please wait for a circle to complete or expire.`,
-        },
         { status: 409 },
       )
     }
