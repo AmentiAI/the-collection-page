@@ -193,20 +193,49 @@ export async function POST(
   try {
     await client.query('BEGIN')
 
-    const circleRes = await client.query(
-      buildCircleSelect('WHERE c.id = $1', [circleId]),
+    // OPTIMIZED: Combine circle + participant query into one
+    const combinedRes = await client.query(
+      `
+        SELECT 
+          c.id, c.creator_wallet, c.creator_inscription_id, c.status,
+          c.required_participants, c.locked_at, c.completed_at, 
+          c.expires_at, c.reward_granted, c.created_at, c.updated_at,
+          p.id as participant_id,
+          p.wallet as participant_wallet,
+          p.completed as participant_completed
+        FROM dead_demons_circles c
+        LEFT JOIN dead_demons_participants p 
+          ON p.circle_id = c.id AND LOWER(p.wallet) = LOWER($2)
+        WHERE c.id = $1
+        FOR UPDATE OF c, p
+      `,
+      [circleId, wallet],
     )
-    if (circleRes.rows.length === 0) {
+
+    if (combinedRes.rows.length === 0) {
       await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Dead Demons circle not found' }, { status: 404 })
     }
 
-    const circle = mapCircleRow(circleRes.rows[0])
+    const row = combinedRes.rows[0]
+    const circle = {
+      id: row.id,
+      creatorWallet: row.creator_wallet,
+      creatorInscriptionId: row.creator_inscription_id,
+      status: row.status,
+      requiredParticipants: row.required_participants,
+      lockedAt: row.locked_at,
+      completedAt: row.completed_at,
+      expiresAt: row.expires_at,
+      bonusGranted: row.reward_granted,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
 
     if (circle.status === 'completed') {
       await client.query('ROLLBACK')
       return NextResponse.json(
-        { success: true, message: 'Dead Demons circle already completed.', summon: circle },
+        { success: true, message: 'Dead Demons circle already completed.', summon: { id: circle.id, status: 'completed' } },
       )
     }
 
@@ -218,12 +247,7 @@ export async function POST(
       )
     }
 
-    const participantRes = await client.query(
-      `SELECT id, wallet, completed FROM dead_demons_participants WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2) FOR UPDATE`,
-      [circleId, wallet],
-    )
-
-    if (participantRes.rows.length === 0) {
+    if (!row.participant_id) {
       await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'You are not a participant in this Dead Demons circle.' },
@@ -231,15 +255,19 @@ export async function POST(
       )
     }
 
-    const participant = participantRes.rows[0]
+    const participant = {
+      id: row.participant_id,
+      wallet: row.participant_wallet,
+      completed: row.participant_completed,
+    }
+
     if (participant.completed) {
       await client.query('ROLLBACK')
-      const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
       return NextResponse.json({
         success: true,
         message: 'Completion already recorded for this wallet.',
         profilePowder: undefined,
-        summon: mapCircleRow(refreshed.rows[0]),
+        summon: { id: circle.id, status: circle.status },
       })
     }
 
@@ -328,12 +356,7 @@ export async function POST(
       rewardGranted = true
     }
 
-    await client.query('COMMIT')
-
-    const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
-    const updatedCircle = mapCircleRow(refreshed.rows[0])
-    
-    // Get updated powder balance for the current user
+    // OPTIMIZED: Get profile powder BEFORE commit
     let profilePowder: number | undefined = undefined
     if (allCompleted) {
       const balanceRes = await client.query(
@@ -341,6 +364,27 @@ export async function POST(
         [wallet],
       )
       profilePowder = Number(balanceRes.rows[0]?.ascension_powder ?? 0)
+    }
+
+    await client.query('COMMIT')
+
+    // OPTIMIZED: Build response from data we already have instead of expensive re-fetch
+    const updatedCircle = {
+      id: circle.id,
+      creatorWallet: circle.creatorWallet,
+      creatorInscriptionId: circle.creatorInscriptionId,
+      status: allCompleted && rewardGranted ? 'completed' : circle.status,
+      requiredParticipants: circle.requiredParticipants,
+      lockedAt: circle.lockedAt,
+      completedAt: allCompleted && rewardGranted ? new Date().toISOString() : circle.completedAt,
+      expiresAt: circle.expiresAt,
+      bonusGranted: rewardGranted,
+      createdAt: circle.createdAt,
+      updatedAt: new Date().toISOString(),
+      participants: participants.map((p) => ({
+        wallet: p.wallet,
+        completed: p.wallet?.toLowerCase() === wallet.toLowerCase() ? true : p.completed,
+      })),
     }
 
     return NextResponse.json({

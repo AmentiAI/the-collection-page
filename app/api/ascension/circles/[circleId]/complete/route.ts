@@ -195,19 +195,51 @@ export async function POST(
       client = await pool.connect()
       await client.query('BEGIN')
 
-      const circleRes = await client.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
-      if (circleRes.rows.length === 0) {
+      // OPTIMIZED: Combine circle + participant query into one with JOIN
+      const combinedRes = await client.query(
+        `
+          SELECT 
+            c.*,
+            p.id as participant_id,
+            p.wallet as participant_wallet,
+            p.inscription_id as participant_inscription_id,
+            p.role as participant_role,
+            p.completed as participant_completed,
+            p.completed_at as participant_completed_at
+          FROM summoning_powder_circles c
+          LEFT JOIN summoning_powder_participants p 
+            ON p.circle_id = c.id AND LOWER(p.wallet) = LOWER($2)
+          WHERE c.id = $1
+          FOR UPDATE OF c, p
+        `,
+        [circleId, wallet],
+      )
+
+      if (combinedRes.rows.length === 0) {
         await client.query('ROLLBACK')
         return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
       }
 
-      const circle = circleRes.rows[0]
+      const row = combinedRes.rows[0]
+      const circle = {
+        id: row.id,
+        creator_wallet: row.creator_wallet,
+        creator_inscription_id: row.creator_inscription_id,
+        status: row.status,
+        required_participants: row.required_participants,
+        locked_at: row.locked_at,
+        completed_at: row.completed_at,
+        expires_at: row.expires_at,
+        reward_granted: row.reward_granted,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }
 
       if (circle.status === 'completed') {
         await client.query('ROLLBACK')
-        const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+        // Build minimal response without re-fetching
         return NextResponse.json(
-          { success: false, error: 'Circle already completed.', summon: mapCircleRow(refreshed.rows[0]) },
+          { success: false, error: 'Circle already completed.', summon: { id: circle.id, status: 'completed' } },
           { status: 409 },
         )
       }
@@ -220,17 +252,7 @@ export async function POST(
         )
       }
 
-      const participantRes = await client.query(
-        `
-          SELECT *
-          FROM summoning_powder_participants
-          WHERE circle_id = $1 AND LOWER(wallet) = LOWER($2)
-          FOR UPDATE
-        `,
-        [circleId, wallet],
-      )
-
-      if (participantRes.rows.length === 0) {
+      if (!row.participant_id) {
         await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: 'You are not part of this ascension circle.' },
@@ -238,15 +260,22 @@ export async function POST(
         )
       }
 
-      const participant = participantRes.rows[0]
+      const participant = {
+        id: row.participant_id,
+        wallet: row.participant_wallet,
+        inscription_id: row.participant_inscription_id,
+        role: row.participant_role,
+        completed: row.participant_completed,
+        completed_at: row.participant_completed_at,
+      }
+
       if (participant.completed) {
         await client.query('ROLLBACK')
-        const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
         return NextResponse.json({
           success: true,
           message: 'Ascension already recorded for this wallet.',
           profilePowder: undefined,
-          summon: mapCircleRow(refreshed.rows[0]),
+          summon: { id: circle.id, status: circle.status },
         })
       }
 
@@ -342,14 +371,34 @@ export async function POST(
         }
       }
 
-      await client.query('COMMIT')
-
-      const refreshed = await client.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
+      // OPTIMIZED: Fetch profile powder BEFORE commit to reduce queries
       const profileRes = await client.query(
         `SELECT ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1)`,
         [wallet],
       )
       const profilePowder = Number(profileRes.rows[0]?.ascension_powder ?? 0)
+
+      await client.query('COMMIT')
+
+      // OPTIMIZED: Build response from data we already have instead of expensive re-fetch
+      // We have: circle object, participants array from line 313
+      const summonResponse = {
+        id: circle.id,
+        creator_wallet: circle.creator_wallet,
+        creator_inscription_id: circle.creator_inscription_id,
+        status: allCompleted && rewardGranted ? 'completed' : circle.status,
+        required_participants: circle.required_participants,
+        locked_at: circle.locked_at,
+        completed_at: allCompleted && rewardGranted ? new Date().toISOString() : circle.completed_at,
+        expires_at: circle.expires_at,
+        reward_granted: rewardGranted,
+        created_at: circle.created_at,
+        updated_at: new Date().toISOString(),
+        participants: participants.map((p) => ({
+          wallet: p.wallet,
+          completed: p.wallet?.toLowerCase() === wallet.toLowerCase() ? true : p.completed,
+        })),
+      }
 
       return NextResponse.json({
         success: true,
@@ -357,7 +406,7 @@ export async function POST(
           ? 'Ascension circle complete. Powder surges through every participant.'
           : 'Ascension attested. Await the remaining allies.',
         profilePowder,
-        summon: mapCircleRow(refreshed.rows[0]),
+        summon: summonResponse,
       })
     } catch (error) {
       if (client) {

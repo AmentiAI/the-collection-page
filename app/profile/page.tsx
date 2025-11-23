@@ -843,14 +843,6 @@ function useProfileState() {
 
   const fetchAbyssStats = useCallback(
     async (wallet: string) => {
-      // Guard against invalid wallet
-      if (!wallet || typeof wallet !== 'string') {
-        console.warn('fetchAbyssStats called with invalid wallet:', wallet)
-        setExecutioner(null)
-        setAbyssStats(null)
-        return
-      }
-
       try {
         const response = await fetch(`/api/abyss/burns?includeStats=true`, {
           headers: { 'Cache-Control': 'no-store' },
@@ -869,12 +861,12 @@ function useProfileState() {
         
         // Check executioner status from leaderboard
         const leaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : []
-        const normalizedWallet = wallet.toLowerCase()
-        const match = leaderboard.some(
+        const normalizedWallet = wallet?.toLowerCase()
+        const match = normalizedWallet ? leaderboard.some(
           (entry: Record<string, unknown>) =>
             typeof entry?.ordinalWallet === 'string' &&
             entry.ordinalWallet.toLowerCase() === normalizedWallet,
-        )
+        ) : false
         setExecutioner(match)
       } catch (error) {
         console.error('Error fetching abyss stats:', error)
