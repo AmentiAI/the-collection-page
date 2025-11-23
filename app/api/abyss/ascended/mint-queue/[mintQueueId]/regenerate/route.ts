@@ -82,6 +82,9 @@ async function generateMutantMonsterImage(prompt: string): Promise<{ imageUrl: s
 
 // GET - Generate a regenerated version for preview (no DB changes)
 export async function GET(request: NextRequest, { params }: { params: { mintQueueId: string } }) {
+  let generationPrompt: string
+  let originalImageUrl: string
+
   try {
     const { mintQueueId } = params
     if (!mintQueueId) {
@@ -95,27 +98,15 @@ export async function GET(request: NextRequest, { params }: { params: { mintQueu
       return NextResponse.json({ success: false, error: 'walletAddress is required' }, { status: 400 })
     }
 
+    // ⚡ CRITICAL: Do ALL database work FIRST, then release connection before image generation
     const pool = getPool()
     await ensureBonusAllowancesTable(pool)
 
-    // Check regeneration allowance
-    const allowanceRes = await pool.query(
-      `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
-      [walletAddressRaw],
-    )
-    const available = Number(allowanceRes.rows[0]?.available ?? 0)
-
-    if (available <= 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No regeneration allowances available. Complete summons to earn more.' 
-      }, { status: 403 })
-    }
-
-    // Get the mint queue entry and verify ownership
-    const mintQueueRes = await pool.query(
+    // Single query to check allowance AND get mint queue entry (reduces connection usage)
+    const checkRes = await pool.query(
       `
         SELECT 
+          (SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($2)) as allowance_available,
           mq.id,
           mq.wallet_address,
           mq.image_url,
@@ -129,28 +120,47 @@ export async function GET(request: NextRequest, { params }: { params: { mintQueu
       [mintQueueId, walletAddressRaw],
     )
 
-    if (mintQueueRes.rows.length === 0) {
+    if (checkRes.rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Mint queue entry not found or not owned by you.' }, { status: 404 })
     }
 
-    const mintQueue = mintQueueRes.rows[0]
+    const mintQueue = checkRes.rows[0]
+    const available = Number(mintQueue.allowance_available ?? 0)
+
+    if (available <= 0) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No regeneration allowances available. Complete summons to earn more.' 
+      }, { status: 403 })
+    }
     
     if (!mintQueue.generation_prompt) {
       return NextResponse.json({ success: false, error: 'No generation prompt found for this image.' }, { status: 400 })
     }
 
-    // Generate new image using the same prompt
-    const { imageUrl, imageBase64, imageBlobUrl } = await generateMutantMonsterImage(mintQueue.generation_prompt)
+    // Store values before image generation
+    generationPrompt = mintQueue.generation_prompt
+    originalImageUrl = mintQueue.image_blob_url || mintQueue.image_url
+
+    // ⚡ NOW all DB work is done, connection is released, safe to do slow image generation
+  } catch (error) {
+    console.error('[mint-queue/regenerate][GET] pre-generation error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to validate regenerate request.' }, { status: 500 })
+  }
+
+  // Generate new image using the same prompt (NO database connection held during this)
+  try {
+    const { imageUrl, imageBase64, imageBlobUrl } = await generateMutantMonsterImage(generationPrompt)
 
     return NextResponse.json({
       success: true,
-      originalImageUrl: mintQueue.image_blob_url || mintQueue.image_url,
+      originalImageUrl,
       regeneratedImageUrl: imageBlobUrl || imageUrl,
       regeneratedImageBase64: imageBase64,
       regeneratedImageBlobUrl: imageBlobUrl,
     })
   } catch (error) {
-    console.error('[mint-queue/regenerate][GET]', error)
+    console.error('[mint-queue/regenerate][GET] generation error:', error)
     return NextResponse.json({ success: false, error: 'Failed to regenerate image.' }, { status: 500 })
   }
 }
