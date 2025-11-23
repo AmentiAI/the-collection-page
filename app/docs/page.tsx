@@ -168,11 +168,13 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Grave Robbing</h3>
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
-              <li>Costs 200 ascension powder per attempt</li>
-              <li>Can only target ordinals that haven&apos;t been updated in 7+ days</li>
-              <li>10% success chance to steal ownership of someone else&apos;s ordinal</li>
-              <li>Powder is deducted even if the attempt fails</li>
-              <li>Cannot rob already ascended ordinals</li>
+              <li><strong>Cost:</strong> 150 ascension powder per attempt</li>
+              <li><strong>Success Rate:</strong> 10% chance to successfully rob</li>
+              <li><strong>Targets:</strong> Only ordinals that haven&apos;t been updated in 7+ days</li>
+              <li><strong>Powder Deduction:</strong> The 150 powder is spent regardless of success or failure</li>
+              <li><strong>Compensation:</strong> If rob succeeds, the previous owner receives +1000 ascension powder automatically</li>
+              <li><strong>Restrictions:</strong> Cannot rob already ascended ordinals (inscription_id starting with &quot;ascended_&quot;)</li>
+              <li><strong>Event Logging:</strong> All grave robbing attempts are tracked in the system</li>
             </ul>
           </div>
 
@@ -196,8 +198,15 @@ export default function DocsPage() {
           <div>
             <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
             <p className="leading-relaxed">
-              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder. Summoning is open 12 PM - 7 PM EST daily. The opening time changes every day to less, and rewards will go up accordingly.
+              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder.
             </p>
+            <p className="mt-2 leading-relaxed">
+              <strong className="text-red-300">Open Hours (EST):</strong>
+            </p>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>12:00 AM - 2:00 AM (Midnight to 2 AM)</li>
+              <li>11:00 AM - 6:00 PM (11 AM to 6 PM)</li>
+            </ul>
             <p className="mt-2 leading-relaxed">
               <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ Go to Summoning Circles</Link>
             </p>
@@ -214,20 +223,15 @@ export default function DocsPage() {
                   <li>10 minute duration</li>
                   <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
                   <li>9 of 10 must complete to succeed</li>
-                  <li><strong>Rewards:</strong> 4 powder (host) • 3 powder (participants)</li>
+                  <li><strong>Rewards:</strong> 8 powder (host) • 7 powder (participants)</li>
                 </ul>
               </div>
 
-              <div className="rounded border border-indigo-500/40 bg-indigo-900/20 p-3">
-                <h4 className="mb-2 text-base font-semibold text-indigo-300">Portal Circles (Damned Pool)</h4>
-                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
-                  <li><strong>20 seats:</strong> Bonus burns only (host receives 1 burn bonus token as reward)</li>
-                  <li><strong>40 seats:</strong> Open to all</li>
-                  <li>30 minute duration for 40-man, 20 minutes for 20-man</li>
-                  <li>Burn window opens in last 3 minutes</li>
-                  <li>36 of 40 must complete (or 18 of 20)</li>
-                  <li><strong>Rewards:</strong> 14 powder (host) • 10 powder (participants)</li>
-                </ul>
+              <div className="rounded border border-red-500/40 bg-red-900/20 p-3">
+                <h4 className="mb-2 text-base font-semibold text-red-300">Portal Circles (Damned Pool) - PERMANENTLY CLOSED</h4>
+                <p className="ml-4 text-sm leading-relaxed text-red-200/80">
+                  Portal circles are no longer available. New circle creation has been disabled, but existing circles can still be completed.
+                </p>
               </div>
 
               <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
@@ -283,8 +287,9 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1 leading-relaxed">
               <li>Cannot join if you have active marketplace listings</li>
               <li>Must be a holder (unlisted ordinals or past burns)</li>
-              <li>Summoning closed 7 PM - 12 PM EST daily</li>
+              <li><strong>Closed Hours:</strong> 2:00 AM - 11:00 AM EST and 6:00 PM - 12:00 AM EST</li>
               <li>Ordinals in AFK circle cannot be used elsewhere</li>
+              <li>Portal circles (Damned Pool) are permanently closed - no new circles can be created</li>
             </ul>
           </div>
         </div>

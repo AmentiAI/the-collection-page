@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
           id: row.id,
           imageUrl: row.image_blob_url || row.image_url,
           sourceInscriptionId: row.source_inscription_id,
-          hasSilver: prompt.includes('silver'),
+          hasSilver: prompt.includes('silver plated'),
           hasGlow: prompt.includes('glowing with holy light'),
         }
       }),

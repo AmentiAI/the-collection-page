@@ -5,7 +5,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const GRAVE_ROB_COST = 200
+const GRAVE_ROB_COST = 150
 const GRAVE_ROB_CHANCE = 0.1 // 10%
 const STALE_THRESHOLD_DAYS = 7 // 1 week
 
@@ -45,12 +45,31 @@ async function ensureProfilesTable(pool: Pool | PoolClient) {
   await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 }
 
+async function ensureGraveRobbingEventsTable(pool: Pool | PoolClient) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS grave_robbing_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      robber_wallet TEXT NOT NULL,
+      inscription_id TEXT,
+      previous_owner TEXT,
+      new_owner TEXT,
+      success BOOLEAN NOT NULL,
+      powder_spent INTEGER NOT NULL,
+      roll_value DECIMAL(4,3),
+      compensation_granted INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_robber ON grave_robbing_events((LOWER(robber_wallet)))`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_inscription ON grave_robbing_events(inscription_id)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_success ON grave_robbing_events(success)`)
+}
+
 // GET: Count eligible records for grave robbing
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const walletAddress = searchParams.get('walletAddress')?.trim()
-    const isDebugMode = searchParams.get('debug') === 'true'
 
     if (!walletAddress) {
       return NextResponse.json({ success: false, error: 'walletAddress is required' }, { status: 400 })
@@ -79,41 +98,12 @@ export async function GET(request: NextRequest) {
 
     const eligibleCount = countResult.rows[0]?.count ?? 0
 
-    const response: any = {
+    return NextResponse.json({
       success: true,
       eligibleCount,
       cost: GRAVE_ROB_COST,
       chance: GRAVE_ROB_CHANCE,
-    }
-
-    // In debug mode, return a sample eligible record
-    if (isDebugMode && eligibleCount > 0) {
-      const sampleResult = await pool.query(
-        `
-        SELECT 
-          id,
-          inscription_id,
-          ordinal_wallet,
-          created_at,
-          updated_at,
-          ascension_powder,
-          image_blob_url
-        FROM abyss_burns
-        WHERE inscription_id NOT LIKE 'ascended_%'
-          AND hidden = FALSE
-          AND (updated_at IS NULL OR updated_at < $1)
-        ORDER BY RANDOM()
-        LIMIT 1
-        `,
-        [staleThreshold.toISOString()],
-      )
-
-      if (sampleResult.rows.length > 0) {
-        response.sampleRecord = sampleResult.rows[0]
-      }
-    }
-
-    return NextResponse.json(response)
+    })
   } catch (error) {
     console.error('[grave-rob][GET] error:', error)
     return NextResponse.json({ success: false, error: 'Failed to count eligible records' }, { status: 500 })
@@ -128,10 +118,10 @@ export async function POST(request: NextRequest) {
 
     await ensureAbyssBurnsTable(client)
     await ensureProfilesTable(client)
+    await ensureGraveRobbingEventsTable(client)
 
     const body = await request.json().catch(() => ({}))
     const walletAddress = (body?.walletAddress ?? '').toString().trim()
-    const isDebugMode = body?.debug === true
 
     if (!walletAddress) {
       await client.query('ROLLBACK')
@@ -176,19 +166,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No eligible records to rob' }, { status: 400 })
     }
 
-    // Deduct powder (always, even if roll fails) - SKIP IN DEBUG MODE
-    if (!isDebugMode) {
-      await client.query(
-        `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
-        [GRAVE_ROB_COST, walletAddress],
-      )
-    }
+    // Deduct powder (always, even if roll fails)
+    await client.query(
+      `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
+      [GRAVE_ROB_COST, walletAddress],
+    )
 
     // Roll for success (10% chance)
     const roll = Math.random()
     const success = roll < GRAVE_ROB_CHANCE
 
     if (!success) {
+      // Log failed attempt
+      await client.query(
+        `
+        INSERT INTO grave_robbing_events (
+          robber_wallet, success, powder_spent, roll_value, created_at
+        ) VALUES ($1, $2, $3, $4, NOW())
+        `,
+        [walletAddress, false, GRAVE_ROB_COST, roll],
+      )
+      
       await client.query('COMMIT')
       return NextResponse.json({
         success: true,
@@ -215,6 +213,16 @@ export async function POST(request: NextRequest) {
 
     if (selectResult.rowCount === 0) {
       // Race condition - someone else got it
+      // Log failed attempt (race condition)
+      await client.query(
+        `
+        INSERT INTO grave_robbing_events (
+          robber_wallet, success, powder_spent, roll_value, created_at
+        ) VALUES ($1, $2, $3, $4, NOW())
+        `,
+        [walletAddress, false, GRAVE_ROB_COST, roll],
+      )
+      
       await client.query('COMMIT')
       return NextResponse.json({
         success: true,
@@ -227,60 +235,45 @@ export async function POST(request: NextRequest) {
     const targetRecord = selectResult.rows[0]
     const oldWallet = targetRecord.ordinal_wallet
 
-    // Transfer ownership - SKIP IN DEBUG MODE
-    if (!isDebugMode) {
-      await client.query(
-        `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
-        [walletAddress, targetRecord.id],
-      )
+    // Transfer ownership
+    await client.query(
+      `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
+      [walletAddress, targetRecord.id],
+    )
 
-      // Grant 1000 ascension powder to the robbed wallet as compensation
-      await client.query(
-        `
-        UPDATE profiles 
-        SET ascension_powder = ascension_powder + 1000,
-            updated_at = NOW()
-        WHERE LOWER(wallet_address) = LOWER($1)
-        `,
-        [oldWallet],
-      )
-    }
+    // Grant 1000 ascension powder to the robbed wallet as compensation
+    await client.query(
+      `
+      UPDATE profiles 
+      SET ascension_powder = ascension_powder + 1000,
+          updated_at = NOW()
+      WHERE LOWER(wallet_address) = LOWER($1)
+      `,
+      [oldWallet],
+    )
+
+    // Log successful grave rob event
+    await client.query(
+      `
+      INSERT INTO grave_robbing_events (
+        robber_wallet, inscription_id, previous_owner, new_owner, 
+        success, powder_spent, roll_value, compensation_granted, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      `,
+      [walletAddress, targetRecord.inscription_id, oldWallet, walletAddress, true, GRAVE_ROB_COST, roll, 1000],
+    )
 
     await client.query('COMMIT')
 
-    const response: any = {
+    return NextResponse.json({
       success: true,
       robbed: true,
       inscriptionId: targetRecord.inscription_id,
       previousOwner: oldWallet,
       compensationGranted: 1000,
-      message: isDebugMode 
-        ? `[DEBUG MODE] Would rob grave: ${targetRecord.inscription_id}. Previous owner would receive 1000 powder compensation.` 
-        : `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}. The previous owner received 1000 powder compensation.`,
-      remainingPowder: isDebugMode ? currentPowder : (currentPowder - GRAVE_ROB_COST),
-    }
-
-    // Add debug info if in debug mode
-    if (isDebugMode) {
-      response.debugInfo = {
-        inscription_id: targetRecord.inscription_id,
-        record_id: targetRecord.id,
-        old_owner: oldWallet,
-        new_owner: walletAddress,
-        powder_spent: GRAVE_ROB_COST,
-        compensation_granted_to_old_owner: 1000,
-        would_update_fields: {
-          ordinal_wallet: `${oldWallet} → ${walletAddress}`,
-          updated_at: 'NOW()',
-          old_owner_powder: 'ascension_powder + 1000',
-        },
-        powder_before: currentPowder,
-        powder_after_would_be: currentPowder - GRAVE_ROB_COST,
-        note: 'NO DATABASE CHANGES WERE MADE (Debug Mode)',
-      }
-    }
-
-    return NextResponse.json(response)
+      message: `Successfully robbed grave! You now own inscription ${targetRecord.inscription_id}. The previous owner received 1000 powder compensation.`,
+      remainingPowder: currentPowder - GRAVE_ROB_COST,
+    })
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('[grave-rob][POST] error:', error)
