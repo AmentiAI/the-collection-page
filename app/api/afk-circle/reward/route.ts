@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,43 +45,48 @@ export async function GET(request: NextRequest) {
     const pool = getPool()
 
     // Ensure infrastructure exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS afk_circles (
-        id UUID PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'open',
-        required_participants INTEGER NOT NULL DEFAULT ${MAX_AFK_PARTICIPANTS},
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    
-    await pool.query(`
-      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
-      VALUES ($1, 'open', $2, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `, [AFK_CIRCLE_ID, MAX_AFK_PARTICIPANTS])
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS afk_circle_participants (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
-        wallet TEXT NOT NULL,
-        inscription_id TEXT NOT NULL,
-        inscription_image TEXT,
-        joined_at TIMESTAMPTZ DEFAULT NOW(),
-        last_reward_at TIMESTAMPTZ,
-        UNIQUE(circle_id, wallet, inscription_id)
-      )
-    `)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS profiles (
-        wallet_address TEXT PRIMARY KEY,
-        ascension_powder INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+    if (!isTableInitialized('afk_reward_tables')) {
+      // DDL operations commented out for performance - tables must exist in production
+      // await pool.query(`
+      //   CREATE TABLE IF NOT EXISTS afk_circles (
+      //     id UUID PRIMARY KEY,
+      //     status TEXT NOT NULL DEFAULT 'open',
+      //     required_participants INTEGER NOT NULL DEFAULT ${MAX_AFK_PARTICIPANTS},
+      //     created_at TIMESTAMPTZ DEFAULT NOW(),
+      //     updated_at TIMESTAMPTZ DEFAULT NOW()
+      //   )
+      // `)
+      
+      // await pool.query(`
+      //   INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+      //   VALUES ($1, 'open', $2, NOW(), NOW())
+      //   ON CONFLICT (id) DO NOTHING
+      // `, [AFK_CIRCLE_ID, MAX_AFK_PARTICIPANTS])
+      
+      // await pool.query(`
+      //   CREATE TABLE IF NOT EXISTS afk_circle_participants (
+      //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      //     circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
+      //     wallet TEXT NOT NULL,
+      //     inscription_id TEXT NOT NULL,
+      //     inscription_image TEXT,
+      //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+      //     last_reward_at TIMESTAMPTZ,
+      //     UNIQUE(circle_id, wallet, inscription_id)
+      //   )
+      // `)
+      // await pool.query(`
+      //   CREATE TABLE IF NOT EXISTS profiles (
+      //     wallet_address TEXT PRIMARY KEY,
+      //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+      //     created_at TIMESTAMPTZ DEFAULT NOW(),
+      //     updated_at TIMESTAMPTZ DEFAULT NOW()
+      //   )
+      // `)
+      // await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+
+      markTableInitialized('afk_reward_tables')
+    }
 
     await pool.query('BEGIN')
 

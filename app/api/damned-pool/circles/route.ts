@@ -23,60 +23,61 @@ async function ensureDamnedPoolInfrastructure(pool: Pool) {
     return
   }
   
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
-      min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT},
-      mode TEXT NOT NULL DEFAULT 'open_all',
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      burn_window_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  // Backfill columns if upgrading
-  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT}`)
-  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_status ON damned_pool_circles(status)`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_creator ON damned_pool_circles((LOWER(creator_wallet)))`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
+  //     min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT},
+  //     mode TEXT NOT NULL DEFAULT 'open_all',
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     burn_window_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // // Backfill columns if upgrading
+  // await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT ${MIN_COMPLETION_COUNT}`)
+  // await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_status ON damned_pool_circles(status)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_circles_creator ON damned_pool_circles((LOWER(creator_wallet)))`)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_participants_circle ON damned_pool_participants(circle_id)`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_participants_wallet ON damned_pool_participants((LOWER(wallet)))`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_participants_circle ON damned_pool_participants(circle_id)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_participants_wallet ON damned_pool_participants((LOWER(wallet)))`)
 
-  // Table to track successful completions that grant burn windows
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_burn_windows (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
-      granted_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ NOT NULL,
-      active BOOLEAN NOT NULL DEFAULT TRUE,
-      credits_only BOOLEAN NOT NULL DEFAULT FALSE
-    )
-  `)
-  await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
+  // // Table to track successful completions that grant burn windows
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_burn_windows (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
+  //     granted_at TIMESTAMPTZ DEFAULT NOW(),
+  //     expires_at TIMESTAMPTZ NOT NULL,
+  //     active BOOLEAN NOT NULL DEFAULT TRUE,
+  //     credits_only BOOLEAN NOT NULL DEFAULT FALSE
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
   
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('damned_pool_circles')

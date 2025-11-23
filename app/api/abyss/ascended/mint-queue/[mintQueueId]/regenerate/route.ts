@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 import type { Pool } from 'pg'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
 
 async function ensureBonusAllowancesTable(pool: Pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
-      wallet TEXT PRIMARY KEY,
-      available INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
+  if (isTableInitialized('regenerate_bonus_allowances')) {
+    return
+  }
+
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+  //     wallet TEXT PRIMARY KEY,
+  //     available INTEGER NOT NULL DEFAULT 0,
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+
+  markTableInitialized('regenerate_bonus_allowances')
 }
 
 async function generateMutantMonsterImage(prompt: string): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string }> {
