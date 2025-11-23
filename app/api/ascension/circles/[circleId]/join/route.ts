@@ -16,36 +16,37 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES summoning_powder_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS summoning_powder_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS summoning_powder_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES summoning_powder_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
 
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('ascension_circles')
@@ -203,32 +204,33 @@ export async function POST(
 
     // Check if inscription is in AFK circle
     const AFK_CIRCLE_ID = '00000000-0000-0000-0000-000000000000'
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS afk_circles (
-        id UUID PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'open',
-        required_participants INTEGER NOT NULL DEFAULT 100,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `)
-    await client.query(`
-      INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
-      VALUES ($1, 'open', 100, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `, [AFK_CIRCLE_ID])
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS afk_circle_participants (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
-        wallet TEXT NOT NULL,
-        inscription_id TEXT NOT NULL,
-        inscription_image TEXT,
-        joined_at TIMESTAMPTZ DEFAULT NOW(),
-        last_reward_at TIMESTAMPTZ,
-        UNIQUE(circle_id, wallet, inscription_id)
-      )
-    `)
+    // DDL operations commented out for performance - tables must exist in production
+    // await client.query(`
+    //   CREATE TABLE IF NOT EXISTS afk_circles (
+    //     id UUID PRIMARY KEY,
+    //     status TEXT NOT NULL DEFAULT 'open',
+    //     required_participants INTEGER NOT NULL DEFAULT 100,
+    //     created_at TIMESTAMPTZ DEFAULT NOW(),
+    //     updated_at TIMESTAMPTZ DEFAULT NOW()
+    //   )
+    // `)
+    // await client.query(`
+    //   INSERT INTO afk_circles (id, status, required_participants, created_at, updated_at)
+    //   VALUES ($1, 'open', 100, NOW(), NOW())
+    //   ON CONFLICT (id) DO NOTHING
+    // `, [AFK_CIRCLE_ID])
+    // await client.query(`
+    //   CREATE TABLE IF NOT EXISTS afk_circle_participants (
+    //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    //     circle_id UUID NOT NULL REFERENCES afk_circles(id) ON DELETE CASCADE,
+    //     wallet TEXT NOT NULL,
+    //     inscription_id TEXT NOT NULL,
+    //     inscription_image TEXT,
+    //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+    //     last_reward_at TIMESTAMPTZ,
+    //     UNIQUE(circle_id, wallet, inscription_id)
+    //   )
+    // `)
     
     const afkConflict = await client.query(
       `SELECT 1 FROM afk_circle_participants WHERE circle_id = $1 AND inscription_id = $2 LIMIT 1`,

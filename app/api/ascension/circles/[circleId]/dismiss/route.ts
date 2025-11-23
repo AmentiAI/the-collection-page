@@ -13,36 +13,37 @@ async function ensurePowderInfrastructure(pool: ReturnType<typeof getPool>) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 10,
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS summoning_powder_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES summoning_powder_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS summoning_powder_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT 10,
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS summoning_powder_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES summoning_powder_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
 
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('ascension_circles')

@@ -75,7 +75,7 @@ async function ensureAscensionInfrastructure(pool: Pool) {
   //   )
   // `)
   // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
 
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('ascended_images')
