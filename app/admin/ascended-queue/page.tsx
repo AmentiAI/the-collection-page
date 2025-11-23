@@ -409,6 +409,14 @@ export default function AscendedQueueAdminPage() {
                                   {new Date(record.created_at).toLocaleString()}
                                 </span>
                               </div>
+                              <div>
+                                <span className="text-xs text-amber-300/70 uppercase">Prompt:</span>
+                                <span className="ml-2 text-xs text-amber-200">
+                                  {record.generation_prompt 
+                                    ? `${record.generation_prompt.trim().split(/\s+/).length} words`
+                                    : 'No prompt'}
+                                </span>
+                              </div>
                             </div>
 
                             {/* Actions */}
