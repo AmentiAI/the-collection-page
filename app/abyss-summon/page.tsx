@@ -931,7 +931,10 @@ export default function AbyssSummonPage() {
       // Only poll if the page is visible (tab is active)
       if (document.visibilityState === 'visible') {
         void refreshSummons(ordinalAddress, mode)
-      void fetchAfkCircle(ordinalAddress)
+        // Only fetch AFK circle data when in AFK mode
+        if (IS_AFK_MODE) {
+          void fetchAfkCircle(ordinalAddress)
+        }
       }
     }
     
