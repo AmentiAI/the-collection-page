@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Timeout wrapper for fetch requests
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeout?: number } = {},
+): Promise<Response> {
+  const { timeout = 15000, ...fetchOptions } = options // Default 15s timeout
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 function parsePositiveInt(value: string | null, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10)
   if (Number.isFinite(parsed) && parsed >= 0) {
@@ -31,9 +52,9 @@ export async function GET(request: NextRequest) {
     
     if (includeLinked) {
       try {
-        const linkedWalletsResponse = await fetch(
+        const linkedWalletsResponse = await fetchWithTimeout(
           `${request.nextUrl.origin}/api/wallet/linked?walletAddress=${encodeURIComponent(ownerAddress)}`,
-          { cache: 'no-store' }
+          { cache: 'no-store', timeout: 10000 } // 10s timeout for internal API
         )
         
         if (linkedWalletsResponse.ok) {
@@ -84,40 +105,42 @@ export async function GET(request: NextRequest) {
 
       const apiUrl = `${baseUrl}?${params.toString()}`
 
-      const response = await fetch(apiUrl, {
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-          Authorization: `Bearer ${apiKey}`,
-        },
-        next: { revalidate: 30 },
-      })
+      try {
+        const response = await fetchWithTimeout(apiUrl, {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
+            Authorization: `Bearer ${apiKey}`,
+          },
+          next: { revalidate: 30 },
+          timeout: 20000, // 20s timeout for external Magic Eden API
+        })
 
-      if (!response.ok) {
-        const errorText = await response.text()
+        if (!response.ok) {
+          const errorText = await response.text()
           console.error(`Magic Eden API error for ${walletInfo.address}:`, response.status, errorText)
-        if (response.status === 429) {
-          return NextResponse.json(
-            { error: 'Rate limit exceeded', status: 429, message: errorText },
-            { status: 429 },
-          )
-        }
+          if (response.status === 429) {
+            return NextResponse.json(
+              { error: 'Rate limit exceeded', status: 429, message: errorText },
+              { status: 429 },
+            )
+          }
           // Continue to next wallet if this one fails (don't fail entire request)
           console.warn(`Skipping wallet ${walletInfo.address} due to API error`)
           break
-      }
+        }
 
-      const data = await response.json()
-      const pageTokens: any[] = Array.isArray(data?.tokens)
-        ? data.tokens
-        : Array.isArray(data)
-        ? data
-        : []
+        const data = await response.json()
+        const pageTokens: any[] = Array.isArray(data?.tokens)
+          ? data.tokens
+          : Array.isArray(data)
+          ? data
+          : []
 
-      if (typeof data?.total === 'number' && data.total >= 0) {
+        if (typeof data?.total === 'number' && data.total >= 0) {
           walletTotal = data.total
-      }
+        }
 
         // Add wallet source info to each token
         const tokensWithWalletInfo = pageTokens.map(token => ({
@@ -128,11 +151,21 @@ export async function GET(request: NextRequest) {
 
         aggregatedTokens.push(...tokensWithWalletInfo)
 
-      const retrieved = pageTokens.length
-      if (!fetchAll || retrieved < pageLimit) {
-        hasMore = false
-      } else {
-        currentOffset += pageLimit
+        const retrieved = pageTokens.length
+        if (!fetchAll || retrieved < pageLimit) {
+          hasMore = false
+        } else {
+          currentOffset += pageLimit
+        }
+      } catch (fetchError) {
+        // Handle timeout or network errors for this specific wallet
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.warn(`⏱️ Timeout fetching ordinals for ${walletInfo.address}, skipping...`)
+        } else {
+          console.error(`❌ Error fetching ordinals for ${walletInfo.address}:`, fetchError)
+        }
+        // Continue to next wallet
+        break
       }
       }
 
@@ -157,6 +190,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Error proxying Magic Eden API:', error)
+    
+    // Check if it's a timeout error
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        {
+          error: 'Request timeout',
+          message: 'Magic Eden API request timed out. Please try again.',
+        },
+        { status: 504 }, // Gateway Timeout
+      )
+    }
+    
     return NextResponse.json(
       {
         error: 'Internal server error',
