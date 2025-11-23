@@ -925,7 +925,7 @@ export default function AbyssSummonPage() {
     if (!ordinalAddress) return
     
     // Poll every 10 seconds to keep circles up-to-date
-    const POLL_INTERVAL = 10_000
+    const POLL_INTERVAL = 15_000
     
     const doPoll = () => {
       // Only poll if the page is visible (tab is active)
