@@ -828,7 +828,7 @@ function GraveyardContent() {
                 </div>
                 <div className="space-y-3">
                   <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
-                    Spend 200 powder for a {isGraveRobDebug ? '100%' : '10%'} chance to steal ownership of an abandoned grave (no powder used in over 1 week).
+                    Spend 200 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
                     {isGraveRobDebug && (
                       <span className="block mt-2 text-green-300 font-mono">
                         [DEBUG] No database changes will be made. Results are simulated.

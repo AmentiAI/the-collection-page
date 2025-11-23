@@ -184,9 +184,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Roll for success (10% chance) - ALWAYS SUCCESS IN DEBUG MODE
+    // Roll for success (10% chance)
     const roll = Math.random()
-    const success = isDebugMode || roll < GRAVE_ROB_CHANCE
+    const success = roll < GRAVE_ROB_CHANCE
 
     if (!success) {
       await client.query('COMMIT')
@@ -237,12 +237,10 @@ export async function POST(request: NextRequest) {
       // Grant 1000 ascension powder to the robbed wallet as compensation
       await client.query(
         `
-        INSERT INTO profiles (wallet_address, ascension_powder, created_at, updated_at)
-        VALUES ($1, 1000, NOW(), NOW())
-        ON CONFLICT (wallet_address)
-        DO UPDATE SET
-          ascension_powder = profiles.ascension_powder + 1000,
-          updated_at = NOW()
+        UPDATE profiles 
+        SET ascension_powder = ascension_powder + 1000,
+            updated_at = NOW()
+        WHERE LOWER(wallet_address) = LOWER($1)
         `,
         [oldWallet],
       )
