@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save } from 'lucide-react'
+import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save, Sparkles } from 'lucide-react'
 
 type MintQueueRecord = {
   id: string
@@ -40,6 +40,14 @@ export default function AscendedQueueAdminPage() {
   const [editing, setEditing] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditingRecord | null>(null)
   const [saving, setSaving] = useState(false)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  const [regenerateComparison, setRegenerateComparison] = useState<{
+    recordId: string
+    originalImageUrl: string
+    regeneratedImageUrl: string
+    regeneratedImageBlobUrl: string
+  } | null>(null)
+  const [applyingRegenerate, setApplyingRegenerate] = useState(false)
 
   const LIMIT = 10
 
@@ -157,6 +165,82 @@ export default function AscendedQueueAdminPage() {
       setSaving(false)
     }
   }, [editForm, currentPage, loadMintQueue])
+
+  const handleRegenerate = useCallback(async (record: MintQueueRecord) => {
+    if (regenerating || !record.generation_prompt) {
+      if (!record.generation_prompt) {
+        alert('No generation prompt available for this record')
+      }
+      return
+    }
+
+    setRegenerating(record.id)
+    try {
+      const response = await fetch(
+        `/api/admin/ascended-queue/mint-queue/${record.id}/regenerate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: record.generation_prompt }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to regenerate image')
+      }
+
+      // Show comparison modal
+      setRegenerateComparison({
+        recordId: record.id,
+        originalImageUrl: record.image_blob_url || record.image_url,
+        regeneratedImageUrl: data.regeneratedImageUrl,
+        regeneratedImageBlobUrl: data.regeneratedImageBlobUrl,
+      })
+    } catch (error) {
+      console.error('Failed to regenerate:', error)
+      alert(error instanceof Error ? error.message : 'Failed to regenerate image')
+    } finally {
+      setRegenerating(null)
+    }
+  }, [regenerating])
+
+  const handleApplyRegenerate = useCallback(async (choice: 'original' | 'regenerated') => {
+    if (!regenerateComparison) return
+
+    if (choice === 'original') {
+      // User chose to keep original, just close modal
+      setRegenerateComparison(null)
+      return
+    }
+
+    // User chose regenerated, update database
+    setApplyingRegenerate(true)
+    try {
+      const response = await fetch(
+        `/api/admin/ascended-queue/mint-queue/${regenerateComparison.recordId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_blob_url: regenerateComparison.regeneratedImageBlobUrl,
+          }),
+        }
+      )
+
+      if (!response.ok) throw new Error('Failed to apply regenerated image')
+
+      setRegenerateComparison(null)
+      await loadMintQueue(currentPage)
+      alert('Regenerated image applied successfully!')
+    } catch (error) {
+      console.error('Failed to apply regenerated image:', error)
+      alert('Failed to apply regenerated image')
+    } finally {
+      setApplyingRegenerate(false)
+    }
+  }, [regenerateComparison, currentPage, loadMintQueue])
 
   useEffect(() => {
     void loadMissingWallets()
@@ -353,6 +437,18 @@ export default function AscendedQueueAdminPage() {
                               ) : (
                                 <>
                                   <Button
+                                    onClick={() => handleRegenerate(record)}
+                                    disabled={regenerating === record.id || !record.generation_prompt}
+                                    className="text-purple-400 hover:text-purple-300 text-sm px-3 py-1.5 bg-transparent hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={!record.generation_prompt ? 'No generation prompt available' : 'Regenerate image'}
+                                  >
+                                    {regenerating === record.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <Button
                                     onClick={() => handleEdit(record)}
                                     className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5 bg-transparent hover:bg-blue-900/30"
                                   >
@@ -431,6 +527,79 @@ export default function AscendedQueueAdminPage() {
             </>
           )}
         </section>
+
+        {/* Regenerate Comparison Modal */}
+        {regenerateComparison && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/90 p-4 overflow-y-auto">
+            <div className="relative max-w-5xl rounded-3xl border border-purple-500/60 bg-black/95 p-6 my-4 w-full shadow-[0_0_50px_rgba(168,85,247,0.5)]">
+              <h2 className="mb-6 text-center text-2xl font-mono uppercase tracking-[0.3em] text-purple-200">
+                Choose Your Image
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Original Image */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-center text-sm font-mono uppercase tracking-[0.3em] text-amber-300">
+                    Original
+                  </h3>
+                  <div className="aspect-square overflow-hidden rounded-2xl border border-amber-500/40">
+                    <Image
+                      src={regenerateComparison.originalImageUrl}
+                      alt="Original mutant monster"
+                      width={512}
+                      height={512}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <Button
+                    onClick={() => handleApplyRegenerate('original')}
+                    disabled={applyingRegenerate}
+                    className="w-full rounded-full border border-amber-500/60 bg-amber-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-amber-100 transition hover:bg-amber-600/45 disabled:opacity-50"
+                  >
+                    {applyingRegenerate ? (
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    ) : (
+                      'Keep Original'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Regenerated Image */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-center text-sm font-mono uppercase tracking-[0.3em] text-purple-300">
+                    Regenerated
+                  </h3>
+                  <div className="aspect-square overflow-hidden rounded-2xl border border-purple-500/40">
+                    <Image
+                      src={regenerateComparison.regeneratedImageUrl}
+                      alt="Regenerated mutant monster"
+                      width={512}
+                      height={512}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <Button
+                    onClick={() => handleApplyRegenerate('regenerated')}
+                    disabled={applyingRegenerate}
+                    className="w-full rounded-full border border-purple-500/60 bg-purple-600/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.3em] text-purple-100 transition hover:bg-purple-600/45 disabled:opacity-50"
+                  >
+                    {applyingRegenerate ? (
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    ) : (
+                      'Use Regenerated'
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <p className="text-center text-xs uppercase tracking-[0.3em] text-purple-200/60">
+                Choose which version to keep for minting
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
