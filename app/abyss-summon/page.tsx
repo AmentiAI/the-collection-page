@@ -503,7 +503,7 @@ export default function AbyssSummonPage() {
       setSummonsLoading(true)
       try {
         const params = new URLSearchParams()
-        params.set('limit', '50')
+        params.set('limit', '30')
         if (address) {
           params.set('wallet', address)
         }
