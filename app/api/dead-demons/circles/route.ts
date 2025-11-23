@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       // Check eligibility
       const isEligible = await hasAscendedInscription(pool, walletParam)
       
-      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1)', 'LIMIT 50', [walletParam])
+      const createdQuery = buildCircleSelect('WHERE LOWER(c.creator_wallet) = LOWER($1)', 'LIMIT 30', [walletParam])
       const createdRes = await pool.query(createdQuery)
       createdCircles = createdRes.rows.map(mapCircleRow)
 
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
             FROM dead_demons_participants
             WHERE LOWER(wallet) = LOWER($1)
           )`,
-        'LIMIT 50',
+        'LIMIT 30',
         [walletParam],
       )
       const joinedRes = await pool.query(joinedQuery)
