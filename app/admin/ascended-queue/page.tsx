@@ -345,8 +345,7 @@ export default function AscendedQueueAdminPage() {
                                   <Button
                                     onClick={handleCancelEdit}
                                     disabled={saving}
-                                    variant="ghost"
-                                    className="text-amber-300 text-sm px-3 py-1.5"
+                                    className="text-amber-300 text-sm px-3 py-1.5 bg-transparent hover:bg-amber-900/30"
                                   >
                                     <X className="h-4 w-4" />
                                   </Button>
@@ -355,16 +354,14 @@ export default function AscendedQueueAdminPage() {
                                 <>
                                   <Button
                                     onClick={() => handleEdit(record)}
-                                    variant="ghost"
-                                    className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5"
+                                    className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5 bg-transparent hover:bg-blue-900/30"
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </Button>
                                   <Button
                                     onClick={() => handleDelete(record.id)}
                                     disabled={deleting === record.id}
-                                    variant="ghost"
-                                    className="text-red-400 hover:text-red-300 text-sm px-3 py-1.5"
+                                    className="text-red-400 hover:text-red-300 text-sm px-3 py-1.5 bg-transparent hover:bg-red-900/30"
                                   >
                                     {deleting === record.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
