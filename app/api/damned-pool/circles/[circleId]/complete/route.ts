@@ -184,7 +184,7 @@ export async function POST(
           LEFT JOIN damned_pool_participants p 
             ON p.circle_id = c.id AND LOWER(p.wallet) = LOWER($2)
           WHERE c.id = $1
-          FOR UPDATE OF c, p
+          FOR UPDATE OF c
         `,
         [circleId, wallet],
       )
