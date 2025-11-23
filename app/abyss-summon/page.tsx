@@ -250,7 +250,6 @@ export default function AbyssSummonPage() {
       const hasUnlistedOrdinals = hasUnlisted && !hasAnyListed
       const hasBurns = burnsData.success && burnsData.hasBurns
       setIsHolder(hasUnlistedOrdinals || hasBurns)
-      console.log(`🔍 Holder check: ${tokens.length} ordinals found (including linked wallets), holder=${hasUnlistedOrdinals || hasBurns}`)
     }).catch(() => {
       if (!cancelled) setIsHolder(false)
     }).finally(() => {
@@ -531,7 +530,6 @@ export default function AbyssSummonPage() {
         setCreatedSummons(created.length > 0 ? created : createdCircles)
         setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
         } else {
-          console.log(`[Summons] Discarding stale data from ${currentMode} mode (current mode: ${currentModeRef.current})`)
           return // Exit early, don't update anything
         }
         
