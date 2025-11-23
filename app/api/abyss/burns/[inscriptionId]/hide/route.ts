@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
-import { getPool } from '@/lib/db'
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureAbyssBurnsTable(pool: Pool) {
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
+  if (isTableInitialized('hide_abyss_burns')) {
+    return
+  }
+  
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
+  
+  markTableInitialized('hide_abyss_burns')
 }
 
 export async function POST(

@@ -15,54 +15,55 @@ async function ensureDeadDemonsInfrastructure(pool: ReturnType<typeof getPool>) 
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS dead_demons_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 10,
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS dead_demons_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES dead_demons_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      wallet_address TEXT PRIMARY KEY,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascension_powder_events (
-      wallet_address TEXT NOT NULL,
-      event_key TEXT NOT NULL,
-      granted_amount INTEGER NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (wallet_address, event_key)
-    )
-  `)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS dead_demons_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT 10,
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS dead_demons_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES dead_demons_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS profiles (
+  //     wallet_address TEXT PRIMARY KEY,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS ascension_powder_events (
+  //     wallet_address TEXT NOT NULL,
+  //     event_key TEXT NOT NULL,
+  //     granted_amount INTEGER NOT NULL,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     PRIMARY KEY (wallet_address, event_key)
+  //   )
+  // `)
 
   // Mark as initialized
   markTableInitialized('dead_demons_circles')

@@ -11,69 +11,70 @@ async function ensureAscensionInfrastructure(pool: Pool) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascended_images_limbo (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      source_inscription_id TEXT NOT NULL,
-      source_tx_id TEXT NOT NULL,
-      wallet_address TEXT NOT NULL,
-      generated_image_url TEXT NOT NULL,
-      generated_image_base64 TEXT,
-      status TEXT NOT NULL DEFAULT 'pending_choice',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      chosen_at TIMESTAMPTZ,
-      choice TEXT
-    )
-  `)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS ascended_images_limbo (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     source_inscription_id TEXT NOT NULL,
+  //     source_tx_id TEXT NOT NULL,
+  //     wallet_address TEXT NOT NULL,
+  //     generated_image_url TEXT NOT NULL,
+  //     generated_image_base64 TEXT,
+  //     status TEXT NOT NULL DEFAULT 'pending_choice',
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     chosen_at TIMESTAMPTZ,
+  //     choice TEXT
+  //   )
+  // `)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-      wallet_address TEXT NOT NULL,
-      image_url TEXT NOT NULL,
-      image_blob_url TEXT,
-      source_inscription_id TEXT NOT NULL,
-      generation_prompt TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
-  await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+  //     wallet_address TEXT NOT NULL,
+  //     image_url TEXT NOT NULL,
+  //     image_blob_url TEXT,
+  //     source_inscription_id TEXT NOT NULL,
+  //     generation_prompt TEXT,
+  //     created_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+  // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascended_images_abyss (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
-      wallet_address TEXT NOT NULL,
-      image_url TEXT NOT NULL,
-      image_blob_url TEXT,
-      source_inscription_id TEXT NOT NULL,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE ascended_images_abyss ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS ascended_images_abyss (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+  //     wallet_address TEXT NOT NULL,
+  //     image_url TEXT NOT NULL,
+  //     image_blob_url TEXT,
+  //     source_inscription_id TEXT NOT NULL,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE ascended_images_abyss ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS abyss_burns (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      inscription_id TEXT UNIQUE NOT NULL,
-      tx_id TEXT UNIQUE NOT NULL,
-      ordinal_wallet TEXT NOT NULL,
-      payment_wallet TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      source TEXT NOT NULL DEFAULT 'abyss',
-      summon_id UUID,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      image_blob_url TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      confirmed_at TIMESTAMPTZ,
-      last_checked_at TIMESTAMPTZ
-    )
-  `)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_burns (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     inscription_id TEXT UNIQUE NOT NULL,
+  //     tx_id TEXT UNIQUE NOT NULL,
+  //     ordinal_wallet TEXT NOT NULL,
+  //     payment_wallet TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'pending',
+  //     source TEXT NOT NULL DEFAULT 'abyss',
+  //     summon_id UUID,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     image_blob_url TEXT,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW(),
+  //     confirmed_at TIMESTAMPTZ,
+  //     last_checked_at TIMESTAMPTZ
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
   await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
 
   // Mark as initialized to skip these slow DDL operations on subsequent requests

@@ -17,77 +17,78 @@ async function ensureDamnedPoolInfrastructure(pool: ReturnType<typeof getPool>) 
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      wallet_address TEXT PRIMARY KEY,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ascension_powder_events (
-      wallet_address TEXT NOT NULL,
-      event_key TEXT NOT NULL,
-      granted_amount INTEGER NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (wallet_address, event_key)
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT 40,
-      min_completion_count INTEGER NOT NULL DEFAULT 36,
-      mode TEXT NOT NULL DEFAULT 'open_all',
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      burn_window_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS damned_pool_burn_windows (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
-      granted_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ NOT NULL,
-      active BOOLEAN NOT NULL DEFAULT TRUE,
-      credits_only BOOLEAN NOT NULL DEFAULT FALSE
-    )
-  `)
-  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT 36`)
-  await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
-  await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
-      wallet TEXT PRIMARY KEY,
-      available INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS profiles (
+  //     wallet_address TEXT PRIMARY KEY,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS ascension_powder_events (
+  //     wallet_address TEXT NOT NULL,
+  //     event_key TEXT NOT NULL,
+  //     granted_amount INTEGER NOT NULL,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     PRIMARY KEY (wallet_address, event_key)
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT 40,
+  //     min_completion_count INTEGER NOT NULL DEFAULT 36,
+  //     mode TEXT NOT NULL DEFAULT 'open_all',
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     burn_window_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS damned_pool_burn_windows (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES damned_pool_circles(id) ON DELETE CASCADE,
+  //     granted_at TIMESTAMPTZ DEFAULT NOW(),
+  //     expires_at TIMESTAMPTZ NOT NULL,
+  //     active BOOLEAN NOT NULL DEFAULT TRUE,
+  //     credits_only BOOLEAN NOT NULL DEFAULT FALSE
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS min_completion_count INTEGER NOT NULL DEFAULT 36`)
+  // await pool.query(`ALTER TABLE damned_pool_circles ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'open_all'`)
+  // await pool.query(`ALTER TABLE damned_pool_burn_windows ADD COLUMN IF NOT EXISTS credits_only BOOLEAN NOT NULL DEFAULT FALSE`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_damned_pool_burn_windows_active ON damned_pool_burn_windows(active, expires_at)`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+  //     wallet TEXT PRIMARY KEY,
+  //     available INTEGER NOT NULL DEFAULT 0,
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
 
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('damned_pool_circles')
