@@ -14,27 +14,28 @@ async function ensureAbyssBurnsTable(pool: Pool | PoolClient) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS abyss_burns (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      inscription_id TEXT UNIQUE NOT NULL,
-      tx_id TEXT UNIQUE NOT NULL,
-      ordinal_wallet TEXT NOT NULL,
-      payment_wallet TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      source TEXT NOT NULL DEFAULT 'abyss',
-      summon_id UUID,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      confirmed_at TIMESTAMPTZ,
-      last_checked_at TIMESTAMPTZ,
-      hidden BOOLEAN NOT NULL DEFAULT FALSE
-    )
-  `)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_burns (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     inscription_id TEXT UNIQUE NOT NULL,
+  //     tx_id TEXT UNIQUE NOT NULL,
+  //     ordinal_wallet TEXT NOT NULL,
+  //     payment_wallet TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'pending',
+  //     source TEXT NOT NULL DEFAULT 'abyss',
+  //     summon_id UUID,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW(),
+  //     confirmed_at TIMESTAMPTZ,
+  //     last_checked_at TIMESTAMPTZ,
+  //     hidden BOOLEAN NOT NULL DEFAULT FALSE
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`)
 
   markTableInitialized('grave_rob_abyss_burns')
 }
@@ -44,15 +45,16 @@ async function ensureProfilesTable(pool: Pool | PoolClient) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      wallet_address TEXT PRIMARY KEY,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS profiles (
+  //     wallet_address TEXT PRIMARY KEY,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 
   markTableInitialized('grave_rob_profiles')
 }
@@ -62,23 +64,24 @@ async function ensureGraveRobbingEventsTable(pool: Pool | PoolClient) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS grave_robbing_events (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      robber_wallet TEXT NOT NULL,
-      inscription_id TEXT,
-      previous_owner TEXT,
-      new_owner TEXT,
-      success BOOLEAN NOT NULL,
-      powder_spent INTEGER NOT NULL,
-      roll_value DECIMAL(4,3),
-      compensation_granted INTEGER DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_robber ON grave_robbing_events((LOWER(robber_wallet)))`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_inscription ON grave_robbing_events(inscription_id)`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_success ON grave_robbing_events(success)`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS grave_robbing_events (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     robber_wallet TEXT NOT NULL,
+  //     inscription_id TEXT,
+  //     previous_owner TEXT,
+  //     new_owner TEXT,
+  //     success BOOLEAN NOT NULL,
+  //     powder_spent INTEGER NOT NULL,
+  //     roll_value DECIMAL(4,3),
+  //     compensation_granted INTEGER DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_robber ON grave_robbing_events((LOWER(robber_wallet)))`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_inscription ON grave_robbing_events(inscription_id)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_grave_robbing_success ON grave_robbing_events(success)`)
 
   markTableInitialized('grave_robbing_events')
 }

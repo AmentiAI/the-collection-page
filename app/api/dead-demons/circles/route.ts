@@ -17,41 +17,42 @@ async function ensureDeadDemonsInfrastructure(pool: Pool) {
     return
   }
   
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS dead_demons_circles (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      creator_wallet TEXT NOT NULL,
-      creator_inscription_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
-      locked_at TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ,
-      reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_circles_status ON dead_demons_circles(status)`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_circles_creator ON dead_demons_circles((LOWER(creator_wallet)))`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS dead_demons_circles (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT ${REQUIRED_PARTICIPANTS},
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_circles_status ON dead_demons_circles(status)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_circles_creator ON dead_demons_circles((LOWER(creator_wallet)))`)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS dead_demons_participants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      circle_id UUID NOT NULL REFERENCES dead_demons_circles(id) ON DELETE CASCADE,
-      wallet TEXT NOT NULL,
-      inscription_id TEXT NOT NULL,
-      inscription_image TEXT,
-      role TEXT NOT NULL DEFAULT 'participant',
-      joined_at TIMESTAMPTZ DEFAULT NOW(),
-      completed BOOLEAN NOT NULL DEFAULT FALSE,
-      completed_at TIMESTAMPTZ,
-      UNIQUE(circle_id, wallet),
-      UNIQUE(circle_id, inscription_id)
-    )
-  `)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_circle ON dead_demons_participants(circle_id)`)
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_wallet ON dead_demons_participants((LOWER(wallet)))`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS dead_demons_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     circle_id UUID NOT NULL REFERENCES dead_demons_circles(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     inscription_image TEXT,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     completed BOOLEAN NOT NULL DEFAULT FALSE,
+  //     completed_at TIMESTAMPTZ,
+  //     UNIQUE(circle_id, wallet),
+  //     UNIQUE(circle_id, inscription_id)
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_circle ON dead_demons_participants(circle_id)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_demons_participants_wallet ON dead_demons_participants((LOWER(wallet)))`)
   
   // Mark as initialized to skip these slow DDL operations on subsequent requests
   markTableInitialized('dead_demons_circles')

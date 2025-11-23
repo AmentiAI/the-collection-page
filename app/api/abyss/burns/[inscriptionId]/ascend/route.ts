@@ -14,34 +14,35 @@ async function ensureTables(pool: Pool) {
     return
   }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      wallet_address TEXT PRIMARY KEY,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS profiles (
+  //     wallet_address TEXT PRIMARY KEY,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS abyss_burns (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      inscription_id TEXT UNIQUE NOT NULL,
-      tx_id TEXT UNIQUE NOT NULL,
-      ordinal_wallet TEXT NOT NULL,
-      payment_wallet TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      source TEXT NOT NULL DEFAULT 'abyss',
-      summon_id UUID,
-      ascension_powder INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      confirmed_at TIMESTAMPTZ,
-      last_checked_at TIMESTAMPTZ
-    )
-  `)
-  await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_burns (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     inscription_id TEXT UNIQUE NOT NULL,
+  //     tx_id TEXT UNIQUE NOT NULL,
+  //     ordinal_wallet TEXT NOT NULL,
+  //     payment_wallet TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'pending',
+  //     source TEXT NOT NULL DEFAULT 'abyss',
+  //     summon_id UUID,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW(),
+  //     confirmed_at TIMESTAMPTZ,
+  //     last_checked_at TIMESTAMPTZ
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
 
   markTableInitialized('abyss_burns_ascend')
 }
