@@ -238,8 +238,7 @@ export default function AscendedQueueAdminPage() {
                 }}
                 disabled={loading}
                 variant="outline"
-                size="sm"
-                className="border-amber-500/50 text-amber-200"
+                className="border-amber-500/50 text-amber-200 text-sm px-3 py-1.5"
               >
                 Refresh
               </Button>
@@ -335,8 +334,7 @@ export default function AscendedQueueAdminPage() {
                                   <Button
                                     onClick={handleSave}
                                     disabled={saving}
-                                    size="sm"
-                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5"
                                   >
                                     {saving ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -348,8 +346,7 @@ export default function AscendedQueueAdminPage() {
                                     onClick={handleCancelEdit}
                                     disabled={saving}
                                     variant="ghost"
-                                    size="sm"
-                                    className="text-amber-300"
+                                    className="text-amber-300 text-sm px-3 py-1.5"
                                   >
                                     <X className="h-4 w-4" />
                                   </Button>
@@ -359,8 +356,7 @@ export default function AscendedQueueAdminPage() {
                                   <Button
                                     onClick={() => handleEdit(record)}
                                     variant="ghost"
-                                    size="sm"
-                                    className="text-blue-400 hover:text-blue-300"
+                                    className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5"
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </Button>
@@ -368,8 +364,7 @@ export default function AscendedQueueAdminPage() {
                                     onClick={() => handleDelete(record.id)}
                                     disabled={deleting === record.id}
                                     variant="ghost"
-                                    size="sm"
-                                    className="text-red-400 hover:text-red-300"
+                                    className="text-red-400 hover:text-red-300 text-sm px-3 py-1.5"
                                   >
                                     {deleting === record.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -417,8 +412,7 @@ export default function AscendedQueueAdminPage() {
                       }}
                       disabled={currentPage === 1 || loading}
                       variant="outline"
-                      size="sm"
-                      className="border-amber-500/50 text-amber-200"
+                      className="border-amber-500/50 text-amber-200 text-sm px-3 py-1.5"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -430,8 +424,7 @@ export default function AscendedQueueAdminPage() {
                       }}
                       disabled={currentPage === totalPages || loading}
                       variant="outline"
-                      size="sm"
-                      className="border-amber-500/50 text-amber-200"
+                      className="border-amber-500/50 text-amber-200 text-sm px-3 py-1.5"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
