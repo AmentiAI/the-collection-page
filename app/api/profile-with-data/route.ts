@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     
     // Define queries with logging
     const abyssStatsQuery = `SELECT 
-          (SELECT COUNT(*)::int FROM ascended_images_mint_queue) as ascension_total,
+          (SELECT COUNT(*)::int FROM ascended_images_mint_queue WHERE LOWER(source_inscription_id) LIKE 'ascended_%') as ascension_total,
           (SELECT COUNT(*)::int FROM ascended_images_mint_queue WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%') as demons_revived,
           (SELECT COUNT(*)::int FROM abyss_burns) as total_burns,
           EXISTS(
