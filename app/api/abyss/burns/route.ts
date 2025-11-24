@@ -570,7 +570,7 @@ export async function GET(request: NextRequest) {
     }
     if (includeGraveyard) {
       let graveyardRows: Array<Record<string, unknown>> = []
-      let profile: { username: string | null; avatar_url: string | null; ascension_powder: number } | null = null
+      let profile: { username: string | null; avatar_url: string | null; ascension_powder: number; has_grave_robbed?: boolean } | null = null
       if (ordinalWallet) {
         const result = await pool.query(
           `
@@ -597,6 +597,17 @@ export async function GET(request: NextRequest) {
           `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
           [ordinalWallet],
         )
+        
+        // Check if user has successfully grave robbed (they are the robber, not the victim)
+        const graveRobRes = await pool.query(
+          `SELECT 
+            EXISTS(SELECT 1 FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as has_grave_robbed,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1)) as total_attempts,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as successful_robs`,
+          [ordinalWallet]
+        )
+        const hasGraveRobbed = graveRobRes.rows[0]?.has_grave_robbed ?? false
+     
         if (profileRes.rows.length > 0) {
           profile = {
             username: profileRes.rows[0]?.username ?? null,
@@ -605,6 +616,15 @@ export async function GET(request: NextRequest) {
               typeof profileRes.rows[0]?.ascension_powder === 'number'
                 ? Number(profileRes.rows[0]?.ascension_powder)
                 : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+            has_grave_robbed: hasGraveRobbed,
+          }
+        } else if (hasGraveRobbed) {
+          // User has grave robbed but no profile yet - create minimal profile
+          profile = {
+            username: null,
+            avatar_url: null,
+            ascension_powder: 0,
+            has_grave_robbed: true,
           }
         }
       } else if (paymentWallet) {
@@ -633,6 +653,20 @@ export async function GET(request: NextRequest) {
           `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
           [paymentWallet],
         )
+        
+        // Check if user has successfully grave robbed (they are the robber, not the victim)
+        const graveRobRes = await pool.query(
+          `SELECT 
+            EXISTS(SELECT 1 FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as has_grave_robbed,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1)) as total_attempts,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as successful_robs`,
+          [paymentWallet]
+        )
+        const hasGraveRobbed = graveRobRes.rows[0]?.has_grave_robbed ?? false
+        console.log('[Graveyard API] Grave rob check for robber wallet:', paymentWallet)
+        console.log('[Graveyard API] Query result:', graveRobRes.rows[0])
+        console.log('[Graveyard API] has_grave_robbed:', hasGraveRobbed)
+        
         if (profileRes.rows.length > 0) {
           profile = {
             username: profileRes.rows[0]?.username ?? null,
@@ -641,6 +675,15 @@ export async function GET(request: NextRequest) {
               typeof profileRes.rows[0]?.ascension_powder === 'number'
                 ? Number(profileRes.rows[0]?.ascension_powder)
                 : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+            has_grave_robbed: hasGraveRobbed,
+          }
+        } else if (hasGraveRobbed) {
+          // User has grave robbed but no profile yet - create minimal profile
+          profile = {
+            username: null,
+            avatar_url: null,
+            ascension_powder: 0,
+            has_grave_robbed: true,
           }
         }
       }

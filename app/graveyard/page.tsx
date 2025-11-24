@@ -28,6 +28,7 @@ type WalletProfile = {
   username?: string | null
   avatar_url?: string | null
   ascension_powder?: number | null
+  has_grave_robbed?: boolean
 }
 
 const GRAVEYARD_LIMIT = 180
@@ -103,9 +104,6 @@ function GraveyardContent() {
   const toast = useToast()
   const searchParams = useSearchParams()
   
-  // Check if showbuttons=1 query parameter is present
-  const showButtons = searchParams.get('showbuttons') === '1'
-
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<GraveyardEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -158,6 +156,14 @@ function GraveyardContent() {
   // Removed regenerate debug flag - now always visible
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
+  
+  // Check if showbuttons=1 query parameter is present OR user has successfully grave robbed
+  const showButtons = useMemo(() => {
+    const showButtonsParam = searchParams.get('showbuttons') === '1'
+    const hasGraveRobbed = profile?.has_grave_robbed === true
+    console.log('[Graveyard] showButtons check:', { showButtonsParam, hasGraveRobbed, profile })
+    return showButtonsParam || hasGraveRobbed
+  }, [searchParams, profile])
 
   // Check holder status
   useEffect(() => {
@@ -273,9 +279,9 @@ function GraveyardContent() {
         .filter((entry: GraveyardEntry | null): entry is GraveyardEntry => Boolean(entry))
 
       setEntries(mapped)
-      setProfile(
-        payload?.profile && typeof payload.profile === 'object' ? (payload.profile as WalletProfile) : null,
-      )
+      const profileData = payload?.profile && typeof payload.profile === 'object' ? (payload.profile as WalletProfile) : null
+      console.log('[Graveyard] Profile data received:', profileData)
+      setProfile(profileData)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load graveyard.'
       setError(message)

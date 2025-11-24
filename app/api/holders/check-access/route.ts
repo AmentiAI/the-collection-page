@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Also check if wallet has successfully robbed graves (previous_owner with success = true)
     const graveRobbingResult = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM grave_robbing_events WHERE LOWER(previous_owner) = LOWER($1) AND success = true`,
+      `SELECT COUNT(*)::int AS count FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true`,
       [walletAddress],
     )
 
