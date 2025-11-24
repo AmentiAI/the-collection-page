@@ -148,6 +148,7 @@ function ToastContainer() {
                 {toast.message}
               </div>
               <button
+                type="button"
                 onClick={() => removeToast(toast.id)}
                 className="flex-shrink-0 text-white/80 hover:text-white transition-colors font-bold text-lg leading-none"
                 aria-label="Close"

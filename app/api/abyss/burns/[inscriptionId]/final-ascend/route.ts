@@ -142,10 +142,10 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
   
   // Angelic transformation variants: 90% standard, 10% with holy light
   const ANGELIC_TRANSFORMATION_SUFFIX_STANDARD =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all traits, but making them more angelic, and beautiful angelic monster; eliminate legs from view; has angelic hair; same head trait but halo added; border starts at first pixel; no glow; high quality; inside the frame;'
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all traits and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; same head trait but halo added; border starts at first pixel; no glow; high quality; stay inside the frame;'
   
   const ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all traits, but making them more angelic, and beautiful angelic monster; eliminate legs from view; glowing with holy light; has angelic hair; same head trait but halo added; border starts at first pixel; high quality; inside the frame;'
+    'and then transform the figure into an angelic cute face monster, with luminous wings, preserving all traits and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; glowing with holy light; same head trait but halo added; border starts at first pixel; no glow; high quality; stay inside the frame;'
   
   // Choose transformation suffix based on ascension level
   // For second ascension, 90% standard, 10% holy light variant

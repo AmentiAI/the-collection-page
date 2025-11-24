@@ -435,12 +435,12 @@ export default async function GraveyardInscriptionPage({ params }: PageProps) {
               <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-red-200">Ascension Powder</h2>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-600/40 bg-black/60 px-4 py-3">
                 <div className="flex flex-col gap-1 text-xs uppercase tracking-[0.35em] text-red-200/70">
-                  <span>Reserve: {profilePowder.toLocaleString()}</span>
+                  <span>Avail: {profilePowder.toLocaleString()}</span>
                   <span className="flex items-center gap-2 text-[11px] text-amber-200/80">
                     <span className="rounded-full border border-amber-500/50 bg-amber-900/20 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.4em] text-amber-100">
                       {ascensionPercent}%
                     </span>
-                    Ascension {Math.min(500, ordinalPowder).toLocaleString()} / 500
+                    Ascen. {Math.min(500, ordinalPowder).toLocaleString()} / 500
                   </span>
                 </div>
                 <Button

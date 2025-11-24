@@ -1018,12 +1018,7 @@ function GraveyardContent() {
               </div>
             </div>
 
-            {loading ? (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/80 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
-                <Loader2 className="mb-4 h-10 w-10 animate-spin text-red-400" />
-                <p className="text-xs uppercase tracking-[0.4em] text-red-200">Summoning your graveyard…</p>
-              </div>
-            ) : entries.length === 0 ? (
+            {entries.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                 <Skull className="h-10 w-10 text-red-400" />
                 <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
@@ -1168,11 +1163,10 @@ function GraveyardContent() {
                                 onClick={() => handleUsePowder(entry)}
                                 className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
                               >
-                                {powderSpending === entry.inscriptionId ? (
+                                {powderSpending === entry.inscriptionId && (
                                   <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  'Use Powder'
                                 )}
+                                Use Powder
                               </Button>
                               
                               {/* Grave Robbing Warning */}
