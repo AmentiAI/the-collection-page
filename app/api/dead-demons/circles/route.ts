@@ -9,7 +9,7 @@ const REQUIRED_PARTICIPANTS = 10
 const CIRCLE_DURATION_MS = 10 * 60 * 1000 // 10 minutes
 const POWDER_REWARD_HOST = 15
 const POWDER_REWARD_PARTICIPANT = 12
-const MAX_ACTIVE_CIRCLES_GLOBAL = 4 // Only 4 globally open at a time
+const MAX_ACTIVE_CIRCLES_GLOBAL = 5 // Only 5 globally open at a time
 
 async function ensureDeadDemonsInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations

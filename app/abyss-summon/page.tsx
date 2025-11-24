@@ -503,7 +503,7 @@ export default function AbyssSummonPage() {
         const now = Date.now()
         if (circlesCacheRef.current && 
             circlesCacheRef.current.key === cacheKey && 
-            now - circlesCacheRef.current.timestamp < 3000) {
+            now - circlesCacheRef.current.timestamp < 5000) {
           // Use cached data
           const data = circlesCacheRef.current.data
           const openSummons = Array.isArray(data?.summons) ? (data.summons as SummonRecord[]) : []
