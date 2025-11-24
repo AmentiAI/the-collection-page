@@ -239,15 +239,30 @@ export async function POST(request: NextRequest, { params }: { params: { mintQue
       )
 
       // Update the mint queue entry with new image URLs
+      // Reset compression status since this is a fresh regenerated image
       await client.query(
         `
           UPDATE ascended_images_mint_queue
           SET 
             image_url = $1,
-            image_blob_url = $2
+            image_blob_url = $2,
+            is_compressed = FALSE,
+            compressed_image_url = NULL,
+            compressed_size_bytes = NULL
           WHERE id = $3
         `,
         [regeneratedImageUrl, regeneratedImageBlobUrl || regeneratedImageUrl, mintQueueId],
+      )
+
+      // Clear any pending mint inscriptions for this queue entry
+      // since the image has changed and old commit data is now invalid
+      await client.query(
+        `
+          DELETE FROM mint_inscriptions
+          WHERE mint_queue_id = $1
+            AND mint_status NOT IN ('completed', 'reveal_confirmed')
+        `,
+        [mintQueueId],
       )
 
       // Get remaining allowance

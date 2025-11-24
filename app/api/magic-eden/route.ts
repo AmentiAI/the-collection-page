@@ -89,8 +89,7 @@ export async function GET(request: NextRequest) {
       let hasMore = true
       let walletTotal: number | undefined
 
-      console.log(`🔍 Fetching ordinals for wallet: ${walletInfo.address} (${walletInfo.isPrimary ? 'Primary' : 'Linked'})`)
-
+   
     while (hasMore) {
       const params = new URLSearchParams({
           ownerAddress: walletInfo.address,
@@ -169,8 +168,7 @@ export async function GET(request: NextRequest) {
       }
       }
 
-      console.log(`✅ Fetched ${aggregatedTokens.filter(t => t._walletSource === walletInfo.address).length} ordinals from ${walletInfo.address}`)
-    }
+     }
 
     const responsePayload = {
       success: true,
@@ -185,8 +183,7 @@ export async function GET(request: NextRequest) {
       walletsQueried: walletsToQuery.length,
     }
 
-    console.log(`✅ Magic Eden API response aggregated, total count: ${aggregatedTokens.length} from ${walletsToQuery.length} wallet(s)`)
-
+ 
     return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Error proxying Magic Eden API:', error)

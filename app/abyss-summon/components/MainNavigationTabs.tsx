@@ -17,13 +17,10 @@ export default function MainNavigationTabs({
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
   const IS_DEAD_DEMONS_MODE = mode === 'dead_demons'
-  const IS_AFK_MODE = mode === 'afk'
 
   const handleModeChange = (newMode: Mode) => {
     onModeChange(newMode)
-    if (newMode !== 'afk') {
-      onActiveTabReset()
-    }
+    onActiveTabReset()
   }
 
   return (
@@ -34,7 +31,7 @@ export default function MainNavigationTabs({
           onClick={() => handleModeChange('abyss')}
           className={[
             'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-            !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE && !IS_AFK_MODE
+            !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
               ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
               : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
           ].join(' ')}
@@ -76,18 +73,6 @@ export default function MainNavigationTabs({
           ].join(' ')}
         >
           Dead Demons
-        </button>
-        <button
-          type="button"
-          onClick={() => handleModeChange('afk')}
-          className={[
-            'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
-            IS_AFK_MODE
-              ? 'border-cyan-400 bg-cyan-700/80 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.45)]'
-              : 'border-cyan-600/50 bg-black/70 text-cyan-200/80 hover:border-cyan-400/70',
-          ].join(' ')}
-        >
-          AFK Circle
         </button>
       </div>
       <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">

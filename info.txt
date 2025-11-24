@@ -1,0 +1,1 @@
+{"fees":{"commitTxFee":43,"revealTxFee":3149},"outputs":[{"value":330,"address":"bc1ptku2xtatqhntfctzachrmr8laq36s20wtrgnm66j39g0a3fwamlqxkryf2"}],"inscription":{"content":""}

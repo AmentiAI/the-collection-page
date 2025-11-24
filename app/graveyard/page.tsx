@@ -3,12 +3,14 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock, AlertCircle } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
+import { MintButton } from '@/components/MintButton'
 
 type GraveyardEntry = {
   inscriptionId: string
@@ -99,6 +101,10 @@ function formatTimeUntilGraveRob(updatedAt: string | null | undefined, createdAt
 function GraveyardContent() {
   const wallet = useWallet()
   const toast = useToast()
+  const searchParams = useSearchParams()
+  
+  // Check if showbuttons=1 query parameter is present
+  const showButtons = searchParams.get('showbuttons') === '1'
 
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<GraveyardEntry[]>([])
@@ -110,7 +116,24 @@ function GraveyardContent() {
   const [powderSpending, setPowderSpending] = useState<string | null>(null)
   const [ascending, setAscending] = useState<string | null>(null)
   const [limboImages, setLimboImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string }>>([])
-  const [mintQueueImages, setMintQueueImages] = useState<Array<{ id: string; imageUrl: string; sourceInscriptionId: string; hasSilver?: boolean; hasGlow?: boolean }>>([])
+  const [mintQueueImages, setMintQueueImages] = useState<Array<{ 
+    id: string; 
+    imageUrl: string; 
+    sourceInscriptionId: string; 
+    hasSilver?: boolean;
+    hasGlow?: boolean;
+    compressedImageUrl?: string;
+    compressedSizeBytes?: number;
+    isCompressed?: boolean;
+    mintInscription?: {
+      id: string;
+      status: string;
+      commitTxId?: string;
+      revealTxId?: string;
+      inscriptionId?: string;
+      errorMessage?: string;
+    } | null;
+  }>>([])
   const [selectedLimbo, setSelectedLimbo] = useState<{ id: string; imageUrl: string; sourceInscriptionId: string } | null>(null)
   const [choosingLimbo, setChoosingLimbo] = useState(false)
   const [regenerationAllowance, setRegenerationAllowance] = useState(0)
@@ -262,7 +285,7 @@ function GraveyardContent() {
     } finally {
       setLoading(false)
     }
-  }, [ordinalAddress])
+  }, [ordinalAddress, toast])
 
   const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
   const hasPowder = powderAvailable > 0
@@ -358,10 +381,83 @@ function GraveyardContent() {
     void loadGraveyard()
   }, [ordinalAddress, loadGraveyard])
 
+  const fetchMintQueueImages = useCallback(async () => {
+    if (!ordinalAddress) return
+
+    try {
+      const response = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(ordinalAddress)}`, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      const data = await response.json().catch(() => null)
+      
+      if (response.ok && data?.success) {
+        const records = data.records.map((record: any) => ({
+          id: record.id,
+          imageUrl: record.imageBlobUrl || record.imageUrl,
+          sourceInscriptionId: record.sourceInscriptionId,
+          hasSilver: record.hasSilver,
+          hasGlow: record.hasGlow,
+          compressedImageUrl: record.compressedImageUrl,
+          compressedSizeBytes: record.compressedSizeBytes,
+          isCompressed: record.isCompressed,
+          mintInscription: record.mintInscription // Include mint status data!
+        }))
+        
+        setMintQueueImages(records)
+        
+        // Auto-compress uncompressed images to show KB sizes
+        records.forEach(async (record: any) => {
+          if (!record.isCompressed && record.imageUrl) {
+            console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
+            try {
+              const compressResponse = await fetch('/api/graveyard/mint/compress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mintQueueId: record.id,
+                  imageUrl: record.imageUrl
+                })
+              })
+              
+              if (compressResponse.ok) {
+                const compressData = await compressResponse.json()
+                console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
+                // Refresh to show updated sizes
+                setTimeout(() => fetchMintQueueImages(), 1000)
+              }
+            } catch (compressError) {
+              console.error(`Failed to auto-compress ${record.id}:`, compressError)
+            }
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching mint queue:', error)
+    }
+  }, [ordinalAddress])
+
+  // Auto-refresh mint queue when there are in-progress mints
+  useEffect(() => {
+    const hasInProgressMint = mintQueueImages.some(mint => 
+      mint.mintInscription && 
+      !['completed', 'failed'].includes(mint.mintInscription.status)
+    )
+    
+    if (hasInProgressMint && ordinalAddress) {
+      console.log('🔄 Auto-refreshing mint queue (in-progress mint detected)')
+      const refreshInterval = setInterval(() => {
+        fetchMintQueueImages()
+      }, 5000) // Refresh every 5 seconds
+      
+      return () => clearInterval(refreshInterval)
+    }
+  }, [mintQueueImages, ordinalAddress, fetchMintQueueImages])
+
   const loadLimboAndMintQueue = useCallback(async () => {
     if (!ordinalAddress) return
 
     try {
+      // Fetch limbo data
       const response = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
         headers: { 'Cache-Control': 'no-store' },
       })
@@ -370,7 +466,6 @@ function GraveyardContent() {
       if (response.ok && payload?.success) {
         const limbo = payload.limbo || []
         setLimboImages(limbo)
-        setMintQueueImages(payload.mintQueue || [])
         setRegenerationAllowance(payload.regenerationAllowance ?? 0)
         
         // Check if limbo entry is from a first ascension (source_inscription_id doesn't start with 'ascended_')
@@ -378,6 +473,63 @@ function GraveyardContent() {
           const firstLimbo = limbo[0]
           const isFirstAscension = !firstLimbo.sourceInscriptionId.toLowerCase().startsWith('ascended_')
           setIsFirstAscensionLimbo(isFirstAscension)
+        }
+        
+        // Fetch mint queue with mint status from new API
+        try {
+          const mintQueueResponse = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(ordinalAddress)}`, {
+            headers: { 'Cache-Control': 'no-store' },
+          })
+          const mintQueueData = await mintQueueResponse.json().catch(() => null)
+          
+          if (mintQueueResponse.ok && mintQueueData?.success) {
+            const records = mintQueueData.records.map((record: any) => ({
+              id: record.id,
+              imageUrl: record.imageBlobUrl || record.imageUrl,
+              sourceInscriptionId: record.sourceInscriptionId,
+              hasSilver: record.hasSilver,
+              hasGlow: record.hasGlow,
+              compressedImageUrl: record.compressedImageUrl,
+              compressedSizeBytes: record.compressedSizeBytes,
+              isCompressed: record.isCompressed,
+              mintInscription: record.mintInscription // Include mint status data
+            }))
+            
+            setMintQueueImages(records)
+            
+            // Auto-compress uncompressed images
+            records.forEach(async (record: any) => {
+              if (!record.isCompressed && record.imageUrl) {
+                console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
+                try {
+                  const compressResponse = await fetch('/api/graveyard/mint/compress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      mintQueueId: record.id,
+                      imageUrl: record.imageUrl
+                    })
+                  })
+                  
+                  if (compressResponse.ok) {
+                    const compressData = await compressResponse.json()
+                    console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
+                    // Refresh to show updated sizes
+                    setTimeout(fetchMintQueueImages, 1000)
+                  }
+                } catch (compressError) {
+                  console.error(`Failed to auto-compress ${record.id}:`, compressError)
+                }
+              }
+            })
+          } else {
+            // Fallback to old data if new API fails
+            setMintQueueImages(payload.mintQueue || [])
+          }
+        } catch (mintQueueError) {
+          console.error('Error loading mint queue:', mintQueueError)
+          // Fallback to old data
+          setMintQueueImages(payload.mintQueue || [])
         }
         
         // Auto-open modal if there's a pending limbo entry and no modal is currently open
@@ -392,7 +544,7 @@ function GraveyardContent() {
     } catch (err) {
       console.error('Failed to load limbo and mint queue:', err)
     }
-  }, [ordinalAddress])
+  }, [ordinalAddress, fetchMintQueueImages])
 
   const handleFinalAscend = useCallback(
     async (entry: GraveyardEntry) => {
@@ -1578,9 +1730,50 @@ function GraveyardContent() {
                     />
                   </div>
                   <div className="border-t border-emerald-500/20 bg-black/60 px-3 py-3 flex flex-col gap-2">
-                    <p className="text-center text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200/70">
-                      Awaiting Mint
-                    </p>
+                    {/* Mint Status */}
+                    {mint.mintInscription ? (
+                      <div className="flex flex-col gap-1">
+                        <p className={`text-center text-[10px] font-mono uppercase tracking-[0.3em] ${
+                          mint.mintInscription.status === 'completed' ? 'text-green-400' :
+                          mint.mintInscription.status === 'failed' ? 'text-red-400' :
+                          mint.mintInscription.status === 'commit_in_mempool' ? 'text-yellow-400' :
+                          mint.mintInscription.status === 'reveal_broadcast' ? 'text-blue-400' :
+                          'text-orange-300'
+                        }`}>
+                          {mint.mintInscription.status === 'pending' && '⏳ Pending Signature'}
+                          {mint.mintInscription.status === 'commit_broadcast' && '📡 Commit Broadcasting'}
+                          {mint.mintInscription.status === 'commit_in_mempool' && '⚡ Commit in Mempool'}
+                          {mint.mintInscription.status === 'reveal_broadcast' && '🚀 Reveal Broadcasting'}
+                          {mint.mintInscription.status === 'completed' && '✅ Minted!'}
+                          {mint.mintInscription.status === 'failed' && '❌ Failed'}
+                          {!['pending', 'commit_broadcast', 'commit_in_mempool', 'reveal_broadcast', 'completed', 'failed'].includes(mint.mintInscription.status) && mint.mintInscription.status}
+                        </p>
+                        {mint.mintInscription.commitTxId && (
+                          <a 
+                            href={`https://mempool.space/tx/${mint.mintInscription.commitTxId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-center text-[8px] text-blue-400 hover:text-blue-300 underline"
+                          >
+                            View Commit TX
+                          </a>
+                        )}
+                        {mint.mintInscription.inscriptionId && (
+                          <a 
+                            href={`https://ordinals.com/inscription/${mint.mintInscription.inscriptionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-center text-[8px] text-emerald-400 hover:text-emerald-300 underline"
+                          >
+                            View Inscription
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-center text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200/70">
+                        Awaiting Mint
+                      </p>
+                    )}
                     
                     {/* Prompt Flags */}
                     <div className="flex items-center justify-center gap-2">
@@ -1606,8 +1799,35 @@ function GraveyardContent() {
                       </div>
                     </div>
                     
-                    {/* Regenerate button hidden for now */}
-                    {false && (
+                    {/* Compressed Size Badge */}
+                    {mint.isCompressed && mint.compressedSizeBytes && (
+                      <div className="flex items-center justify-center">
+                        <div className="rounded-md px-2 py-1 text-[9px] font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                          {(mint.compressedSizeBytes / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Mint Button - only show if showbuttons=1 */}
+                    {showButtons && (
+                      <MintButton
+                        mintQueueId={mint.id}
+                        imageUrl={mint.imageUrl}
+                        compressedImageUrl={mint.compressedImageUrl}
+                      isCompressed={mint.isCompressed || false}
+                      existingMintInscription={mint.mintInscription}
+                      onMintComplete={() => {
+                        // Refresh mint queue data
+                        fetchMintQueueImages()
+                      }}
+                      onMintStart={() => {
+                        toast.info('Minting started - Please sign the transaction in your wallet')
+                      }}
+                    />
+                    )}
+                    
+                    {/* Regenerate button - only show if showbuttons=1 */}
+                    {showButtons && (
                       <button
                         type="button"
                         onClick={() => handleRegenerate(mint.id, mint.imageUrl)}

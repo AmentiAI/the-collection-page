@@ -26,11 +26,25 @@ export async function GET(request: NextRequest) {
     const burnCount = burnsResult.rows[0]?.count ?? 0
     const hasBurns = burnCount > 0
 
+    // Also check if wallet has successfully robbed graves (previous_owner with success = true)
+    const graveRobbingResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM grave_robbing_events WHERE LOWER(previous_owner) = LOWER($1) AND success = true`,
+      [walletAddress],
+    )
+
+    const graveRobbingCount = graveRobbingResult.rows[0]?.count ?? 0
+    const hasGraveRobbed = graveRobbingCount > 0
+
+    // Allow access if they have burns OR have successfully grave robbed
+    const hasAccess = hasBurns || hasGraveRobbed
+
     return NextResponse.json(
       {
         success: true,
-        hasBurns,
+        hasBurns: hasAccess,
         burnCount,
+        graveRobbingCount,
+        hasGraveRobbed,
       },
       {
         headers: {

@@ -1,38 +1,4 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { getCachedRequest } from '@/lib/request-cache'
-
-export default function TotalSacrifices({ className = '' }: { className?: string }) {
-  const [total, setTotal] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      try {
-        const data = await getCachedRequest(
-          'total-sacrifices',
-          async () => {
-            const res = await fetch('/api/abyss/burns/total', { cache: 'no-store' })
-            if (!res.ok) throw new Error(`Failed (${res.status})`)
-            return res.json()
-          },
-          30000 // Cache for 30 seconds (matching the interval)
-        )
-        if (mounted) setTotal(Number(data?.total ?? 0))
-      } catch (e) {
-        if (mounted) setError('—')
-      }
-    }
-    void load()
-    const id = setInterval(load, 30_000)
-    return () => {
-      mounted = false
-      clearInterval(id)
-    }
-  }, [])
-
+export default function TotalSacrifices({ total, className = '' }: { total: number; className?: string }) {
   return (
     <div
       className={[
@@ -40,7 +6,7 @@ export default function TotalSacrifices({ className = '' }: { className?: string
         className,
       ].join(' ')}
     >
-      Total Sacrifices: <span className="text-red-100">{total ?? error ?? '…'}</span>
+      Total Sacrifices: <span className="text-red-100">{total}</span>
     </div>
   )
 }

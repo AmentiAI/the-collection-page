@@ -262,7 +262,7 @@ export class InscriptionService {
   }
 
   static async broadcastViaSandshrew(signedTxHex: string): Promise<string> {
-    const response = await fetch('/api/broadcast-transaction', {
+    const response = await fetch('/api/broadcast-transaction-normal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

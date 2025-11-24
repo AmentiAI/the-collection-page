@@ -74,25 +74,10 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     onHolderVerified?.(false)
   }
 
-  // Check if user is a holder when wallet connects and create profile
+  // Check if user is a holder when wallet connects (profile auto-created by API if needed)
   useEffect(() => {
    
     if (connected && address) {
-    
-      // Auto-create profile
-      fetch('/api/profile/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          paymentAddress: address // Initially same as wallet address
-        })
-      }).then(res => res.json()).then(() => {
-        // Profile created/updated successfully
-      }).catch(err => {
-        console.error('Failed to create profile:', err)
-      })
-      
       checkHolderStatus()
     } else {
       console.log('❌ Wallet not connected or no address')
@@ -113,7 +98,6 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     onVerifyingStart?.()
     try {
       // Check if the connected address has any ordinals from "The Damned" collection (the-damned)
-      console.log('🔍 Calling checkForOrdinals for the-damned collection...')
       const hasOrdinals = await checkForOrdinals(address)
       
       // Also check if wallet has abyss_burns records (they deserve access too)

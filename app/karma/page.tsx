@@ -398,24 +398,10 @@ function DashboardContent() {
     }
   }, [address])
 
-  // Auto-create profile when wallet connects
+  // Fetch data when wallet connects (profile auto-created by APIs if needed)
   useEffect(() => {
     if (connected && address) {
-      // Create profile automatically
-      fetch('/api/profile/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          paymentAddress: address // Initially same as wallet address
-        })
-      }).then(() => {
-        // Fetch karma totals after profile is created/updated
-        fetchKarmaTotals(address)
-      }).catch(err => {
-        console.error('Failed to create profile:', err)
-      })
-      
+      fetchKarmaTotals(address)
       fetchUserOrdinals(address)
       checkDiscordStatus()
       checkTwitterStatus()

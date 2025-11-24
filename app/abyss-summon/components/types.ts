@@ -48,6 +48,6 @@ export type SummonLeaderboardEntry = {
   lastParticipatedAt: string | null
 }
 
-export type Mode = 'abyss' | 'powder' | 'damned_pool' | 'dead_demons' | 'afk'
+export type Mode = 'abyss' | 'powder' | 'damned_pool' | 'dead_demons'
 export type ActiveTab = 'active' | 'created' | 'joined'
 

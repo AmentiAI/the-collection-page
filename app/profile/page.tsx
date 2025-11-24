@@ -76,6 +76,7 @@ type SummonOverview = {
 type AbyssStats = {
   ascensionTotal: number
   demonsRevived: number
+  totalBurns: number
   leaderboard: Array<{
     ordinalWallet: string
     paymentWallet: string
@@ -127,6 +128,8 @@ function ProfileContent() {
     executioner,
     bonusAllowance,
     summons,
+    summonsCreatedOpenCount,
+    summonsJoinedActiveCount,
     portalSummary,
     abyssStats,
     refreshProfile,
@@ -151,7 +154,22 @@ function ProfileContent() {
 
       <Header connected={connected} showMusicControls={false} />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
+      {!connected && (
+        <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center justify-center gap-8 px-4 py-32 md:px-8">
+          <div className="flex flex-col items-center gap-6 rounded-3xl border border-red-600/40 bg-black/70 p-16 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur text-center">
+            <Skull className="h-16 w-16 text-red-500" />
+            <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-300 md:text-4xl">
+              Profile Access Required
+            </h1>
+            <p className="text-lg uppercase tracking-[0.3em] text-red-200/70">
+              Please connect your wallet via the header to view your profile.
+            </p>
+          </div>
+        </main>
+      )}
+
+      {connected && (
+        <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
         <section className="flex flex-col items-center gap-6 rounded-3xl border border-red-600/40 bg-black/70 p-8 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur">
           <ProfileAvatar imageUrl={profile.avatarUrl} />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-300 md:text-4xl">
@@ -165,6 +183,8 @@ function ProfileContent() {
             executioner={executioner}
             bonusAllowance={bonusAllowance}
             summons={summons}
+            summonsCreatedOpenCount={summonsCreatedOpenCount}
+            summonsJoinedActiveCount={summonsJoinedActiveCount}
             portalSummary={portalSummary}
           />
           {!connected && (
@@ -223,7 +243,7 @@ function ProfileContent() {
             <div className="flex flex-col items-center justify-center rounded-2xl border border-red-600/40 bg-black/60 px-6 py-6 text-center shadow-[0_0_18px_rgba(220,38,38,0.25)]">
               <span className="text-[11px] uppercase tracking-[0.35em] text-red-300/80">Total Sacrifices</span>
               <div className="mt-2">
-                <TotalSacrifices />
+                <TotalSacrifices total={abyssStats?.totalBurns ?? 0} />
               </div>
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-900/20 px-6 py-6 text-center shadow-[0_0_18px_rgba(251,191,36,0.25)]">
@@ -280,6 +300,7 @@ function ProfileContent() {
           </div>
         </section>
       </main>
+      )}
     </div>
   )
 }
@@ -328,6 +349,8 @@ function ProfileStatuses({
   executioner,
   bonusAllowance,
   summons,
+  summonsCreatedOpenCount,
+  summonsJoinedActiveCount,
   portalSummary,
 }: {
   connected: boolean
@@ -336,6 +359,8 @@ function ProfileStatuses({
   executioner: boolean | null
   bonusAllowance: number
   summons: SummonOverview
+  summonsCreatedOpenCount: number
+  summonsJoinedActiveCount: number
   portalSummary?: { isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null
 }) {
   if (!connected) {
@@ -466,13 +491,10 @@ function ProfileStatuses({
     }
   })()
 
-  const openCreated = summons.created.filter((entry) =>
-    ['open', 'filling', 'ready'].includes(entry.status),
-  )
-  const activeJoined = summons.joined.filter((entry) =>
-    ['open', 'filling', 'ready'].includes(entry.status),
-  )
-  const activeSummonsCount = openCreated.length + activeJoined.length
+  // Use counts from consolidated API instead of filtering arrays
+  const createdOpenCount = summonsCreatedOpenCount
+  const joinedActiveCount = summonsJoinedActiveCount
+  const activeSummonsCount = createdOpenCount + joinedActiveCount
 
   const cards: Array<{
     title: string
@@ -492,7 +514,7 @@ function ProfileStatuses({
     cards.push({
       title: 'Active Summons',
       value: `${activeSummonsCount}`,
-      subtitle: `${openCreated.length} created • ${activeJoined.length} joined`,
+      subtitle: `${createdOpenCount} created • ${joinedActiveCount} joined`,
       tone: 'warning',
       href: '/abyss-summon',
     })
@@ -697,91 +719,104 @@ function useProfileState() {
   const [executioner, setExecutioner] = useState<boolean | null>(null)
   const [bonusAllowance, setBonusAllowance] = useState<number>(0)
   const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
+  const [summonsCreatedOpenCount, setSummonsCreatedOpenCount] = useState<number>(0)
+  const [summonsJoinedActiveCount, setSummonsJoinedActiveCount] = useState<number>(0)
   const [portalSummary, setPortalSummary] = useState<{ isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null>(null)
   const [abyssStats, setAbyssStats] = useState<AbyssStats | null>(null)
   const isInitializing = useRef(false)
 
-  const fetchProfile = useCallback(
+  const fetchProfileWithData = useCallback(
     async (wallet: string) => {
       try {
         const data = await getCachedRequest(
-          `profile:${wallet}`,
+          `profile-with-data:${wallet}`,
           async () => {
-            const response = await fetch(`/api/profile?walletAddress=${encodeURIComponent(wallet)}&includeSocials=true`)
+            const response = await fetch(`/api/profile-with-data?walletAddress=${encodeURIComponent(wallet)}`)
             return response.json()
           }
         )
-        if (data) {
+        if (data?.success) {
           // Set profile data
-        setProfile({
-          username: data.username ?? null,
-          avatarUrl: data.avatar_url ?? null,
-          totalGoodKarma: data.total_good_karma ?? 0,
-          totalBadKarma: data.total_bad_karma ?? 0,
-          chosenSide: data.chosen_side ?? null,
-        })
+          if (data.profile) {
+            setProfile({
+              username: data.profile.username ?? null,
+              avatarUrl: data.profile.avatarUrl ?? null,
+              totalGoodKarma: data.profile.totalGoodKarma ?? 0,
+              totalBadKarma: data.profile.totalBadKarma ?? 0,
+              chosenSide: data.profile.chosenSide ?? null,
+            })
+          }
           
           // Set Discord status from unified response
-          if (data.discord) {
+          if (data.social?.discord) {
             setDiscord({
-              linked: data.discord.linked ?? false,
-              identifier: data.discord.discordUsername ?? data.discord.discordUserId ?? null,
+              linked: data.social.discord.linked ?? false,
+              identifier: data.social.discord.identifier ?? null,
               loading: false,
             })
           }
           
           // Set Twitter status from unified response
-          if (data.twitter) {
+          if (data.social?.twitter) {
             setTwitter({
-              linked: data.twitter.linked ?? false,
-              identifier: data.twitter.twitterUsername ?? data.twitter.twitterUserId ?? null,
+              linked: data.social.twitter.linked ?? false,
+              identifier: data.social.twitter.identifier ?? null,
               loading: false,
+            })
+          }
+          
+          // Set holder status (includes both burns and grave robbing)
+          if (data.holder) {
+            setIsHolder(data.holder.isHolder)
+          }
+          
+          // Set executioner status from abyss stats
+          if (data.abyssStats) {
+            setExecutioner(data.abyssStats.isExecutioner)
+            setAbyssStats({
+              ascensionTotal: data.abyssStats.ascensionTotal ?? 0,
+              demonsRevived: data.abyssStats.demonsRevived ?? 0,
+              totalBurns: data.abyssStats.totalBurns ?? 0,
+              leaderboard: [], // We don't fetch full leaderboard anymore
+            })
+          }
+          
+          // Set summons counts and bonus allowance
+          if (data.summons) {
+            setBonusAllowance(data.summons.bonusAllowance ?? 0)
+            setSummonsCreatedOpenCount(data.summons.createdOpenCount ?? 0)
+            setSummonsJoinedActiveCount(data.summons.joinedActiveCount ?? 0)
+          }
+          
+          // Set portal summary
+          if (data.portal) {
+            setPortalSummary({
+              isPortalSummoner: data.portal.isPortalSummoner ?? false,
+              completedCreated: data.portal.completedCreated ?? 0,
+              completedJoined: data.portal.completedJoined ?? 0,
             })
           }
         }
       } catch (error) {
-        console.error('Error fetching profile:', error)
+        console.error('Error fetching profile with data:', error)
       }
     },
     [],
   )
 
-  // These functions are now handled by fetchProfile with includeSocials=true
-  // Keeping them as no-ops for backward compatibility during refactoring
-  const checkDiscordStatus = useCallback(
-    async (wallet: string) => {
-      // Now handled by unified fetchProfile call
-      console.log('[Profile] Discord status fetched via unified profile endpoint')
-    },
-    [],
-  )
-
-  const checkTwitterStatus = useCallback(
-    async (wallet: string) => {
-      // Now handled by unified fetchProfile call
-      console.log('[Profile] Twitter status fetched via unified profile endpoint')
-    },
-    [],
-  )
 
   const fetchInventory = useCallback(
     async (wallet: string) => {
       setInventory((prev) => ({ ...prev, loading: true, error: null }))
-      setIsHolder(null)
       try {
-        // Check both Magic Eden ordinals and abyss_burns records
-        const [ordinalsResponse, burnsResponse] = await Promise.all([
-          fetch(
+        // Fetch Magic Eden ordinals only (holder status already determined by /api/profile-with-data)
+        const ordinalsResponse = await fetch(
           `/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
           {
             method: 'GET',
             headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
           },
-          ),
-          fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(wallet)}`).catch(() => 
-            ({ ok: false, json: async () => ({ success: false, hasBurns: false }) })
-          ),
-        ])
+        )
 
         if (!ordinalsResponse.ok) {
           throw new Error(`Magic Eden request failed (${ordinalsResponse.status})`)
@@ -804,20 +839,6 @@ function useProfileState() {
         }
 
         const tokenCount = rawTokens.length
-        // Must have at least one NFT with listed: false AND no listed ordinals at all
-        const hasUnlisted = rawTokens.some((token: Record<string, any>) => token.listed === false)
-        const hasAnyListed = rawTokens.some((token: Record<string, any>) => token.listed === true)
-        const hasOrdinals = hasUnlisted && !hasAnyListed
-
-        // Check abyss_burns
-        let hasBurns = false
-        if (burnsResponse.ok) {
-          const burnsData = await burnsResponse.json()
-          hasBurns = burnsData.success && burnsData.hasBurns
-        }
-
-        // User is a holder if they have unlisted ordinals (and no listed ones) OR have burned in the abyss
-        const isHolder = hasOrdinals || hasBurns
 
         setInventory({
           loading: false,
@@ -825,7 +846,6 @@ function useProfileState() {
           tokenCount,
           listedCount,
         })
-        setIsHolder(isHolder)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load holdings'
         setInventory({
@@ -841,80 +861,6 @@ function useProfileState() {
     [],
   )
 
-  const fetchAbyssStats = useCallback(
-    async (wallet: string) => {
-      try {
-        const response = await fetch(`/api/abyss/burns?includeStats=true`, {
-          headers: { 'Cache-Control': 'no-store' },
-        })
-        if (!response.ok) {
-          throw new Error(`Abyss stats request failed (${response.status})`)
-        }
-        const data = await response.json()
-        
-        // Set all stats from one call
-        setAbyssStats({
-          ascensionTotal: Number(data?.ascensionTotal ?? 0),
-          demonsRevived: Number(data?.demonsRevived ?? 0),
-          leaderboard: Array.isArray(data?.leaderboard) ? data.leaderboard : [],
-        })
-        
-        // Check executioner status from leaderboard
-        const leaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : []
-        const normalizedWallet = wallet?.toLowerCase()
-        const match = normalizedWallet ? leaderboard.some(
-          (entry: Record<string, unknown>) =>
-            typeof entry?.ordinalWallet === 'string' &&
-            entry.ordinalWallet.toLowerCase() === normalizedWallet,
-        ) : false
-        setExecutioner(match)
-      } catch (error) {
-        console.error('Error fetching abyss stats:', error)
-        setExecutioner(null)
-        setAbyssStats(null)
-      }
-    },
-    [],
-  )
-
-  const fetchSummonSummary = useCallback(
-    async (wallet: string) => {
-      try {
-        const response = await fetch(
-          `/api/abyss/summons?wallet=${encodeURIComponent(wallet)}&limit=50`,
-          {
-            headers: { 'Cache-Control': 'no-store' },
-          },
-        )
-        if (!response.ok) {
-          throw new Error(`Summon summary request failed (${response.status})`)
-        }
-        const data = await response.json()
-        const allowance = Number(data?.bonusAllowance ?? 0)
-        setBonusAllowance(Number.isFinite(allowance) ? allowance : 0)
-
-        const createdList = Array.isArray(data?.createdSummons)
-          ? (data.createdSummons as SummonRecord[])
-          : []
-        const joinedList = Array.isArray(data?.joinedSummons)
-          ? (data.joinedSummons as SummonRecord[])
-          : []
-        const createdIds = new Set(createdList.map((entry) => entry.id))
-        const filteredJoined = joinedList.filter((entry) => !createdIds.has(entry.id))
-
-        setSummons({
-          created: createdList,
-          joined: filteredJoined,
-          open: Array.isArray(data?.summons) ? data.summons : [],
-        })
-      } catch (error) {
-        console.error('Error fetching summon summary:', error)
-        setBonusAllowance(0)
-        setSummons(INITIAL_SUMMON_OVERVIEW)
-      }
-    },
-    [],
-  )
 
   const initializeProfile = useCallback(
     async (wallet: string) => {
@@ -927,53 +873,17 @@ function useProfileState() {
       isInitializing.current = true
       console.log('[Profile] Initializing profile for:', wallet)
 
-      try {
-        await fetch('/api/profile/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: wallet,
-            paymentAddress: wallet,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to create profile:', error)
-      }
-
+      // Profile is auto-created by /api/profile-with-data if it doesn't exist
       await Promise.all([
-        fetchProfile(wallet), // Now fetches profile + discord + twitter in one call
-        fetchInventory(wallet),
-        fetchAbyssStats(wallet),
-        fetchSummonSummary(wallet),
-        (async () => {
-          try {
-            const data = await getCachedRequest(
-              `portal-summary:${wallet}`,
-              async () => {
-            const res = await fetch(`/api/damned-pool/summary?wallet=${encodeURIComponent(wallet)}`, {
-              headers: { 'Cache-Control': 'no-store' },
-            })
-                return res.json().catch(() => ({}))
-              }
-            )
-            setPortalSummary({
-              isPortalSummoner: Boolean(data?.isPortalSummoner),
-              completedCreated: Number(data?.completedCreated ?? 0),
-              completedJoined: Number(data?.completedJoined ?? 0),
-            })
-          } catch {
-            setPortalSummary({ isPortalSummoner: false, completedCreated: 0, completedJoined: 0 })
-          }
-        })(),
+        fetchProfileWithData(wallet), // Consolidated endpoint: profile + socials + holder + abyss + summons + portal
+        fetchInventory(wallet), // Still need Magic Eden external API
       ])
 
       isInitializing.current = false
     },
     [
-      fetchProfile,
+      fetchProfileWithData,
       fetchInventory,
-      fetchAbyssStats,
-      fetchSummonSummary,
     ],
   )
 
@@ -989,6 +899,10 @@ function useProfileState() {
       setExecutioner(null)
       setBonusAllowance(0)
       setSummons(INITIAL_SUMMON_OVERVIEW)
+      setSummonsCreatedOpenCount(0)
+      setSummonsJoinedActiveCount(0)
+      setPortalSummary(null)
+      setAbyssStats(null)
     }
   }, [connected, address, initializeProfile])
 
@@ -998,24 +912,14 @@ function useProfileState() {
     const discordAuth = params.get('discord_auth')
     const twitterAuth = params.get('twitter_auth')
 
-    if (discordAuth === 'success') {
+    if (discordAuth === 'success' || twitterAuth === 'success') {
       void Promise.all([
-        fetchProfile(address), // Includes discord and twitter
-        fetchInventory(address),
-        fetchSummonSummary(address),
+        fetchProfileWithData(address), // Consolidated endpoint includes everything
+        fetchInventory(address), // Magic Eden
       ])
       window.history.replaceState({}, '', '/profile')
     }
-
-    if (twitterAuth === 'success') {
-      void Promise.all([
-        fetchProfile(address), // Includes discord and twitter
-        fetchInventory(address),
-        fetchSummonSummary(address),
-      ])
-      window.history.replaceState({}, '', '/profile')
-    }
-  }, [address, fetchProfile, fetchInventory, fetchSummonSummary])
+  }, [address, fetchProfileWithData, fetchInventory])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -1045,6 +949,8 @@ function useProfileState() {
       executioner,
       bonusAllowance,
       summons,
+      summonsCreatedOpenCount,
+      summonsJoinedActiveCount,
       portalSummary,
       abyssStats,
       refreshProfile: () => {
@@ -1053,10 +959,8 @@ function useProfileState() {
           invalidateCache() // Clear all cache
           isInitializing.current = false // Reset flag
           void Promise.all([
-            fetchProfile(address), // Includes discord and twitter
-            fetchInventory(address),
-            fetchAbyssStats(address),
-            fetchSummonSummary(address),
+            fetchProfileWithData(address), // Consolidated endpoint
+            fetchInventory(address), // Magic Eden
           ])
         }
       },
@@ -1074,12 +978,12 @@ function useProfileState() {
       executioner,
       bonusAllowance,
       summons,
+      summonsCreatedOpenCount,
+      summonsJoinedActiveCount,
       portalSummary,
       abyssStats,
-      fetchProfile,
+      fetchProfileWithData,
       fetchInventory,
-      fetchAbyssStats,
-      fetchSummonSummary,
       triggerDiscordAuth,
       triggerTwitterAuth,
     ],
