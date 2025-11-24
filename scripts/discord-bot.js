@@ -35,6 +35,7 @@ const SITE_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.thedamned
 const EXECUTIONER_ROLE_ID = process.env.EXECUTIONER_ROLE_ID || '1437820365991837859';
 const SUMMONER_ROLE_ID = process.env.SUMMONER_ROLE_ID || '1437895763308052601';
 const DEAD_DEMON_ROLE_ID = process.env.DEAD_DEMON_ROLE_ID || '1440686851542352003';
+const GRAVE_ROBBER_ROLE_ID = process.env.GRAVE_ROBBER_ROLE_ID || '1442345905578573987';
 
 const FLASHNET_MNEMONIC = process.env.FLASHNET_MNEMONIC || process.env.SPARK_MNEMONIC;
 const FLASHNET_NETWORK = (process.env.FLASHNET_NETWORK || 'MAINNET').toUpperCase();
@@ -1504,6 +1505,40 @@ async function syncHolderAndSpecialRoles() {
           console.log(`✅ Dead Demon sync complete: Added ${deadDemonAddResult.success} roles, Removed ${deadDemonRemoveResult.success} roles`);
         } catch (error) {
           console.error('Error syncing dead demon roles:', error);
+        }
+      }
+    }
+
+    if (GRAVE_ROBBER_ROLE_ID) {
+      const graveRobberRole = guild.roles.cache.get(GRAVE_ROBBER_ROLE_ID);
+      if (!graveRobberRole) {
+        console.warn(`Grave Robber role with ID ${GRAVE_ROBBER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [graveRobberAddResponse, graveRobberRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=grave-robber-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=grave-robber-remove`),
+          ]);
+
+          if (!graveRobberAddResponse.ok) {
+            console.error('Failed to fetch grave robber add list:', graveRobberAddResponse.status);
+          }
+
+          if (!graveRobberRemoveResponse.ok) {
+            console.error('Failed to fetch grave robber remove list:', graveRobberRemoveResponse.status);
+          }
+
+          const graveRobberAddData = graveRobberAddResponse.ok ? await graveRobberAddResponse.json() : { discordIds: [] };
+          const graveRobberRemoveData = graveRobberRemoveResponse.ok ? await graveRobberRemoveResponse.json() : { discordIds: [] };
+
+          const [graveRobberAddResult, graveRobberRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, graveRobberAddData.discordIds, graveRobberRole, 'add', 'grave robber'),
+            batchProcessRoleOperations(guild, graveRobberRemoveData.discordIds, graveRobberRole, 'remove', 'grave robber'),
+          ]);
+
+          console.log(`✅ Grave Robber sync complete: Added ${graveRobberAddResult.success} roles, Removed ${graveRobberRemoveResult.success} roles`);
+        } catch (error) {
+          console.error('Error syncing grave robber roles:', error);
         }
       }
     }

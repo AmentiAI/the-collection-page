@@ -188,10 +188,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Deduct powder (always, even if roll fails)
-    await client.query(
-      `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
-      [GRAVE_ROB_COST, walletAddress],
-    )
+      await client.query(
+        `UPDATE profiles SET ascension_powder = GREATEST(0, ascension_powder - $1), updated_at = NOW() WHERE LOWER(wallet_address) = LOWER($2)`,
+        [GRAVE_ROB_COST, walletAddress],
+      )
 
     // Roll for success (10% chance)
     const roll = Math.random()
@@ -257,10 +257,10 @@ export async function POST(request: NextRequest) {
     const oldWallet = targetRecord.ordinal_wallet
 
     // Transfer ownership
-    await client.query(
-      `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
-      [walletAddress, targetRecord.id],
-    )
+      await client.query(
+        `UPDATE abyss_burns SET ordinal_wallet = $1, updated_at = NOW() WHERE id = $2`,
+        [walletAddress, targetRecord.id],
+      )
 
     // Grant 1000 ascension powder to the robbed wallet as compensation
     await client.query(

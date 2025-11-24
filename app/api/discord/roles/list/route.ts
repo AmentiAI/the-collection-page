@@ -163,10 +163,48 @@ export async function GET(request: Request) {
         discordIds,
         count: discordIds.length,
       })
+    } else if (action === 'grave-robber-add') {
+      // Get Discord IDs with successful grave robberies (should receive grave robber role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN grave_robbing_events gre ON LOWER(gre.robber_wallet) = LOWER(p.wallet_address)
+        WHERE gre.success = TRUE
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'grave-robber-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'grave-robber-remove') {
+      // Get Discord IDs without successful grave robberies (should have grave robber role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN grave_robbing_events gre ON LOWER(gre.robber_wallet) = LOWER(p.wallet_address) AND gre.success = TRUE
+        WHERE gre.id IS NULL
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'grave-robber-remove',
+        discordIds,
+        count: discordIds.length,
+      })
     } else {
       console.error('[discord/roles/list] Invalid action received:', action)
       return NextResponse.json(
-        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove` },
+        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove, grave-robber-add, grave-robber-remove` },
         { status: 400 }
       )
     }
