@@ -18,9 +18,13 @@ export default function LinkWalletPage() {
   const [primaryWallet, setPrimaryWallet] = useState<string | null>(null)
   const [linking, setLinking] = useState(false)
   const [step, setStep] = useState<'disconnect' | 'connect' | 'sign'>('disconnect')
+  const [tokenVerified, setTokenVerified] = useState(false)
 
   // On mount, verify the link token
   useEffect(() => {
+    // Prevent multiple runs
+    if (tokenVerified) return
+
     const token = searchParams.get('token')
     
     if (!token) {
@@ -38,16 +42,19 @@ export default function LinkWalletPage() {
         if (data.success && data.primaryWallet) {
           setPrimaryWallet(data.primaryWallet)
           sessionStorage.setItem('link_wallet_token', token)
+          setTokenVerified(true)
         } else {
           throw new Error(data.error || 'Invalid session')
         }
       })
       .catch(error => {
         console.error('Failed to verify link session:', error)
-        toast.error('Invalid or expired authorization. Please try again from your profile.')
-        router.push('/profile')
+        if (!tokenVerified) {
+          toast.error('Invalid or expired authorization. Please try again from your profile.')
+          router.push('/profile')
+        }
       })
-  }, [searchParams, router, toast])
+  }, [searchParams, router, toast, tokenVerified])
 
   // This useEffect is now handled by the one below at line 72
   // Removed duplicate logic
@@ -121,6 +128,10 @@ export default function LinkWalletPage() {
       if (response.ok) {
         toast.success('Wallet linked successfully!')
         sessionStorage.removeItem('link_wallet_primary')
+        sessionStorage.removeItem('link_wallet_token')
+        
+        // Mark as verified to prevent error toasts during redirect
+        setTokenVerified(true)
         
         // Wait a moment then redirect
         setTimeout(() => {
