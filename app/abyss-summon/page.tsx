@@ -483,6 +483,9 @@ export default function AbyssSummonPage() {
     return activeSummons.filter((summon) => summon.creatorWallet.toLowerCase() !== lowered)
   }, [activeSummons, ordinalAddress])
 
+  // Cache for circles API (3 second TTL)
+  const circlesCacheRef = useRef<{ data: any; timestamp: number; key: string } | null>(null)
+
   const refreshSummons = useCallback(
     async (address: string, currentMode: Mode) => {
       setSummonsLoading(true)
@@ -494,6 +497,56 @@ export default function AbyssSummonPage() {
         }
         const query = params.toString()
         const endpoint = `${SUMMON_API_BASE}${query ? `?${query}` : ''}`
+        
+        // Check cache (3 second TTL)
+        const cacheKey = `${endpoint}-${currentMode}`
+        const now = Date.now()
+        if (circlesCacheRef.current && 
+            circlesCacheRef.current.key === cacheKey && 
+            now - circlesCacheRef.current.timestamp < 3000) {
+          // Use cached data
+          const data = circlesCacheRef.current.data
+          const openSummons = Array.isArray(data?.summons) ? (data.summons as SummonRecord[]) : []
+          const openCircles = Array.isArray(data?.circles) ? (data.circles as SummonRecord[]) : []
+          const created = Array.isArray(data?.createdSummons) ? (data.createdSummons as SummonRecord[]) : []
+          const createdCircles = Array.isArray(data?.createdCircles) ? (data.createdCircles as SummonRecord[]) : []
+          const joined = Array.isArray(data?.joinedSummons) ? (data.joinedSummons as SummonRecord[]) : []
+          const joinedCircles = Array.isArray(data?.joinedCircles) ? (data.joinedCircles as SummonRecord[]) : []
+
+          if (currentMode === currentModeRef.current) {
+            setSummons(openSummons.length > 0 ? openSummons : openCircles)
+            setCreatedSummons(created.length > 0 ? created : createdCircles)
+            setJoinedSummons(joined.length > 0 ? joined : joinedCircles)
+          }
+          
+          let rewardBalance = IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
+            ? Number(data?.powderBalance ?? 0)
+            : Number(data?.bonusAllowance ?? 0)
+          setBonusAllowance(Number.isFinite(rewardBalance) ? rewardBalance : 0)
+          
+          if (IS_DEAD_DEMONS_MODE && typeof data?.isEligible === 'boolean') {
+            setIsDeadDemonsEligible(data.isEligible)
+          }
+
+          const allActiveSummons = [
+            ...(openSummons.length > 0 ? openSummons : openCircles),
+            ...(created.length > 0 ? created : createdCircles),
+            ...(joined.length > 0 ? joined : joinedCircles),
+          ].filter((s) => ACTIVE_SUMMON_STATUSES.has(s.status))
+          const inUseInscriptions = new Set<string>()
+          for (const summon of allActiveSummons) {
+            for (const participant of summon.participants) {
+              if (participant.inscriptionId) {
+                inUseInscriptions.add(participant.inscriptionId)
+              }
+            }
+          }
+          setInscriptionsInCircles(new Set(inUseInscriptions))
+          setSummonsLoading(false)
+          return
+        }
+        
+        // Fetch fresh data
         const response = await fetch(endpoint, {
           cache: 'no-store',
         })
@@ -501,6 +554,14 @@ export default function AbyssSummonPage() {
           throw new Error(`Summon fetch failed (${response.status})`)
         }
         const data = await response.json()
+        
+        // Store in cache
+        circlesCacheRef.current = {
+          data,
+          timestamp: Date.now(),
+          key: cacheKey
+        }
+        
         const openSummons = Array.isArray(data?.summons) ? (data.summons as SummonRecord[]) : []
         const openCircles = Array.isArray(data?.circles) ? (data.circles as SummonRecord[]) : []
         const created = Array.isArray(data?.createdSummons) ? (data.createdSummons as SummonRecord[]) : []
