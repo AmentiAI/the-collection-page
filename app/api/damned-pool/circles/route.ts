@@ -16,7 +16,7 @@ const MAX_ACTIVE_CIRCLES_GLOBAL = 999 // No global limit (using 24hr cooldown in
 const COOLDOWN_HOURS = 24 // 24-hour cooldown per user between portal initiations
 // Set to false to disable damned pool circles at the API level
 const DAMNED_POOL_MODE_ENABLED = true // Keep enabled for viewing/completing existing circles
-const DAMNED_POOL_CREATION_ENABLED = true // Enabled with 24hr cooldown
+const DAMNED_POOL_CREATION_ENABLED = false // Disabled - no new portal circles
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations

@@ -118,13 +118,13 @@ export async function POST(request: NextRequest) {
     
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     
-    // Resize and compress to WebP (same settings as damned/compress)
+    // Resize and compress to WebP
     const webpBuffer = await sharp(imageBuffer)
-      .resize(666, 666, { 
+      .resize(630, 630, { 
         fit: 'inside',
         withoutEnlargement: true 
       })
-      .webp({ quality: 70, effort: 6 })
+      .webp({ quality: 60, effort: 6 })
       .toBuffer()
     
     console.log(`✅ Compressed to WebP`)

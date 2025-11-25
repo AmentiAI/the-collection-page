@@ -50,7 +50,7 @@ export function MintButton({
   const { connected, address, paymentAddress, paymentPublicKey, publicKey, client } = useLaserEyes()
   const toast = useToast()
   
-  const [feeRate, setFeeRate] = useState(0.22)
+  const [feeRate, setFeeRate] = useState(0.20)
   const [status, setStatus] = useState<MintStatus>(() => {
     // Initialize status from existing mint inscription
     if (existingMintInscription) {
