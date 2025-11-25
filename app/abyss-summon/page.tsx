@@ -1489,17 +1489,18 @@ export default function AbyssSummonPage() {
           </aside>
 
           <div className="space-y-6">
-            {!IS_DAMNED_POOL_MODE && (
-              <section
-                className={[
-                  'rounded-2xl border p-6 backdrop-blur',
-                  IS_POWDER_MODE
-                    ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_25px_rgba(251,191,36,0.35)]'
-                    : IS_DAMNED_POOL_MODE
-                    ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_25px_rgba(99,102,241,0.35)]'
-                    : 'border-red-600/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]',
-                ].join(' ')}
-              >
+            <section
+              className={[
+                'rounded-2xl border p-6 backdrop-blur',
+                IS_POWDER_MODE
+                  ? 'border-amber-500/40 bg-amber-900/20 shadow-[0_0_25px_rgba(251,191,36,0.35)]'
+                  : IS_DAMNED_POOL_MODE
+                  ? 'border-indigo-500/40 bg-indigo-900/20 shadow-[0_0_25px_rgba(99,102,241,0.35)]'
+                  : IS_DEAD_DEMONS_MODE
+                  ? 'border-purple-500/40 bg-purple-900/20 shadow-[0_0_25px_rgba(168,85,247,0.35)]'
+                  : 'border-red-600/40 bg-black/70 shadow-[0_0_25px_rgba(220,38,38,0.35)]',
+              ].join(' ')}
+            >
                 <div className="flex flex-col sm:flex-row items-start justify-between gap-4 max-w-full">
                   <div className="flex-1 min-w-0">
                     <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-[0.35em] text-red-100">
@@ -1572,7 +1573,6 @@ export default function AbyssSummonPage() {
                   </p>
                 )}
               </section>
-            )}
 
             <section
                 className={[
