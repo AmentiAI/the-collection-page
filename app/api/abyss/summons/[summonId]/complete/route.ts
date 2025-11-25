@@ -172,30 +172,15 @@ export async function POST(
           UPDATE abyss_summons
           SET status = 'completed',
               completed_at = NOW(),
-              bonus_granted = TRUE,
+              bonus_granted = FALSE,
               updated_at = NOW()
           WHERE id = $1
         `,
         [summonId],
       )
 
-      await client.query(
-        `
-          INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
-          VALUES ($1, 1, NOW())
-          ON CONFLICT (wallet)
-          DO UPDATE SET
-            available = abyss_bonus_allowances.available + 1,
-            updated_at = EXCLUDED.updated_at
-        `,
-        [wallet],
-      )
-
-      const allowanceRes = await client.query(
-        `SELECT available FROM abyss_bonus_allowances WHERE wallet = $1`,
-        [wallet],
-      )
-      const bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+      // Regular abyss circles DO NOT grant bonus burn credits
+      // Only powder/ascension circles grant rewards
 
       await client.query('COMMIT')
 
@@ -227,7 +212,6 @@ export async function POST(
       return NextResponse.json({
         success: true,
         summon: mapSummonRow(refreshed.rows[0]),
-        bonusAllowance,
       })
     } catch (error) {
       if (client) {

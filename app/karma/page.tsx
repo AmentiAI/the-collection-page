@@ -401,7 +401,7 @@ function DashboardContent() {
   // Fetch data when wallet connects (profile auto-created by APIs if needed)
   useEffect(() => {
     if (connected && address) {
-      fetchKarmaTotals(address)
+        fetchKarmaTotals(address)
       fetchUserOrdinals(address)
       checkDiscordStatus()
       checkTwitterStatus()

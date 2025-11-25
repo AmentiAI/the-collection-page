@@ -310,9 +310,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Check 24-hour cooldown - has user created a portal circle in the last 24 hours?
+      console.log(`[damned-pool/circles] Checking 24hr cooldown for wallet: ${creatorWallet}`)
       const cooldownCheckRes = await client.query(
         `
-          SELECT created_at
+          SELECT created_at, status
           FROM damned_pool_circles
           WHERE LOWER(creator_wallet) = LOWER($1)
             AND created_at > NOW() - INTERVAL '${COOLDOWN_HOURS} hours'
@@ -321,11 +322,22 @@ export async function POST(request: NextRequest) {
         `,
         [creatorWallet],
       )
+      console.log(`[damned-pool/circles] Cooldown check result:`, {
+        rowCount: cooldownCheckRes.rows.length,
+        lastCircle: cooldownCheckRes.rows[0] || null,
+        cooldownHours: COOLDOWN_HOURS,
+      })
 
       if (cooldownCheckRes.rows.length > 0) {
         const lastCreated = new Date(cooldownCheckRes.rows[0].created_at)
         const cooldownEnds = new Date(lastCreated.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000)
         const hoursRemaining = Math.ceil((cooldownEnds.getTime() - Date.now()) / (1000 * 60 * 60))
+        
+        console.log(`[damned-pool/circles] COOLDOWN ACTIVE - Blocking creation`, {
+          lastCreated: lastCreated.toISOString(),
+          cooldownEnds: cooldownEnds.toISOString(),
+          hoursRemaining,
+        })
         
         await client.query('ROLLBACK')
         return NextResponse.json(
@@ -337,6 +349,8 @@ export async function POST(request: NextRequest) {
           { status: 429 },
         )
       }
+      
+      console.log(`[damned-pool/circles] Cooldown check passed - allowing creation`)
 
     // Check if the abyss burn window is currently active (abyss is "opened")
       const abyssWindowRes = await client.query(

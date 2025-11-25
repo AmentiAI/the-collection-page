@@ -270,7 +270,7 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setNow(Date.now())
-      // Check if abyss-summon is closed (10 PM to 9 AM EST)
+      // Check if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00)
       setAbyssClosed(isAbyssSummonClosed())
     }, 1000)
     // Initial check
@@ -1077,15 +1077,14 @@ export default function AbyssSummonPage() {
           throw new Error(message)
         }
         const payload = await response.json().catch(() => null)
-        if (IS_POWDER_MODE) {
+        if (IS_POWDER_MODE || IS_DAMNED_POOL_MODE) {
+          // Powder and Portal circles grant ascension powder
           if (typeof payload?.profilePowder === 'number') {
             setBonusAllowance(Number(payload.profilePowder))
           }
           toast.success(payload?.message ?? `${powderTermCapitalized} channel complete.`)
         } else {
-          if (typeof payload?.bonusAllowance === 'number') {
-            setBonusAllowance(Number(payload.bonusAllowance))
-          }
+          // Regular abyss circles do NOT grant any rewards
           toast.success('Summoning circle completed.')
         }
         if (ordinalAddress) {
@@ -1174,7 +1173,7 @@ export default function AbyssSummonPage() {
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
-        {/* Closed State - Show if abyss-summon is closed (10 PM to 9 AM EST) */}
+        {/* Closed State - Show if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00) */}
         {abyssClosed.isClosed && !bypassClosed && (
           <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
             <div className="flex flex-col items-center justify-center gap-6 text-center">
@@ -1183,7 +1182,7 @@ export default function AbyssSummonPage() {
                 Summoning Closed
               </h2>
               <p className="text-sm font-mono uppercase tracking-[0.3em] text-red-300/80">
-                The abyss-summon area is closed from 7:00 PM to 11:00 AM EST each day.
+                Summoning opens for 1 hour every 6 hours (05:00, 11:00, 17:00, 23:00 UTC).
               </p>
               <div className="mt-4 flex flex-col items-center gap-2">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">

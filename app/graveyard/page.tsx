@@ -103,7 +103,7 @@ function GraveyardContent() {
   const wallet = useWallet()
   const toast = useToast()
   const searchParams = useSearchParams()
-  
+
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<GraveyardEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -1815,10 +1815,10 @@ function GraveyardContent() {
                     
                     {/* Mint Button - ONLY show with showbuttons=1 */}
                     {showMintButtons && (
-                      <MintButton
-                        mintQueueId={mint.id}
-                        imageUrl={mint.imageUrl}
-                        compressedImageUrl={mint.compressedImageUrl}
+                    <MintButton
+                      mintQueueId={mint.id}
+                      imageUrl={mint.imageUrl}
+                      compressedImageUrl={mint.compressedImageUrl}
                       isCompressed={mint.isCompressed || false}
                       existingMintInscription={mint.mintInscription}
                       onMintComplete={() => {

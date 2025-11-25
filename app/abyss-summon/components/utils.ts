@@ -19,56 +19,41 @@ export function formatTimestamp(value: string | null | undefined) {
   return date.toLocaleString()
 }
 
-// EST/EDT timezone handling
+// UTC timezone handling - 1 hour every 6 hours starting at UTC 05:00 (EST midnight)
 export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; timeUntilClose: number } {
   const now = new Date()
   
-  // Get current time in EST/EDT using Intl.DateTimeFormat
-  const estFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: '2-digit',
-    hour12: false,
-  })
+  // Use UTC time directly
+  const utcHour = now.getUTCHours()
+  const currentMinute = now.getUTCMinutes()
+  const currentSecond = now.getUTCSeconds()
   
-  const estHour = parseInt(estFormatter.formatToParts(now).find(p => p.type === 'hour')?.value || '0')
+  // Open for 1 hour every 6 hours starting at UTC 05:00
+  // Open windows: 05:00-06:00, 11:00-12:00, 17:00-18:00, 23:00-00:00
+  const isOpen = utcHour === 5 || utcHour === 11 || utcHour === 17 || utcHour === 23
+  const isClosed = !isOpen
   
-  // Open windows: 12:00 AM - 1:00 AM and 12:00 PM - 3:00 PM EST
-  // Closed: 1:00 AM - 12:00 PM and 3:00 PM - 12:00 AM
-  const isClosed = (estHour >= 1 && estHour < 12) || estHour >= 15
-  
-  // Get full EST date components
-  const estDateFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-  
-  const estParts = estDateFormatter.formatToParts(now)
-  const year = parseInt(estParts.find(p => p.type === 'year')?.value || '0')
-  const month = parseInt(estParts.find(p => p.type === 'month')?.value || '0') - 1
-  const day = parseInt(estParts.find(p => p.type === 'day')?.value || '0')
-  const currentHour = parseInt(estParts.find(p => p.type === 'hour')?.value || '0')
-  const currentMinute = parseInt(estParts.find(p => p.type === 'minute')?.value || '0')
-  const currentSecond = parseInt(estParts.find(p => p.type === 'second')?.value || '0')
+  const currentHour = utcHour
   
   if (isClosed) {
-    // Calculate time until next opening
+    // Calculate time until next opening (next hour in the cycle: 5, 11, 17, 23 UTC)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    let targetTotalSeconds: number
+    let targetHour: number
     
-    if (estHour >= 1 && estHour < 12) {
-      // Closed between 1 AM - 12 PM, next opening is 12 PM
-      targetTotalSeconds = 12 * 3600
+    if (utcHour >= 0 && utcHour < 5) {
+      targetHour = 5
+    } else if (utcHour >= 6 && utcHour < 11) {
+      targetHour = 11
+    } else if (utcHour >= 12 && utcHour < 17) {
+      targetHour = 17
+    } else if (utcHour >= 18 && utcHour < 23) {
+      targetHour = 23
     } else {
-      // Closed between 3 PM - midnight, next opening is midnight (0:00 AM)
-      targetTotalSeconds = 24 * 3600 // midnight of next day
+      // utcHour is 24 or wrapped, next opening is 5 UTC next day
+      targetHour = 24 + 5 // Will be handled by adding 24 hours
     }
     
+    const targetTotalSeconds = targetHour * 3600
     let secondsUntilOpen = targetTotalSeconds - currentTotalSeconds
     if (secondsUntilOpen <= 0) {
       secondsUntilOpen += 24 * 3600
@@ -77,23 +62,16 @@ export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: numbe
     const timeUntilOpen = secondsUntilOpen * 1000
     return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
   } else {
-    // Calculate time until next closing
+    // Calculate time until next closing (closes 1 hour after opening)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
-    let targetTotalSeconds: number
-    
-    if (estHour >= 0 && estHour < 1) {
-      // Open from midnight to 1 AM, closes at 1 AM
-      targetTotalSeconds = 1 * 3600
-    } else {
-      // Open from 12 PM to 3 PM, closes at 3 PM
-      targetTotalSeconds = 15 * 3600
-    }
+    const closingHour = utcHour + 1 // Closes 1 hour after current hour
+    const targetTotalSeconds = closingHour * 3600
     
     let secondsUntilClose = targetTotalSeconds - currentTotalSeconds
     
-    // If somehow negative or zero, add 24 hours as safety
+    // If somehow negative or zero, something went wrong
     if (secondsUntilClose <= 0) {
-      secondsUntilClose += 24 * 3600
+      secondsUntilClose = 3600 // Default to 1 hour
     }
     
     const timeUntilClose = secondsUntilClose * 1000

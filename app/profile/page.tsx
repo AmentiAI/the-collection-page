@@ -169,7 +169,7 @@ function ProfileContent() {
       )}
 
       {connected && (
-        <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
+      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-16 md:px-8">
         <section className="flex flex-col items-center gap-6 rounded-3xl border border-red-600/40 bg-black/70 p-8 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur">
           <ProfileAvatar imageUrl={profile.avatarUrl} />
           <h1 className="text-3xl font-black uppercase tracking-[0.4em] text-red-300 md:text-4xl">
@@ -738,13 +738,13 @@ function useProfileState() {
         if (data?.success) {
           // Set profile data
           if (data.profile) {
-            setProfile({
+        setProfile({
               username: data.profile.username ?? null,
               avatarUrl: data.profile.avatarUrl ?? null,
               totalGoodKarma: data.profile.totalGoodKarma ?? 0,
               totalBadKarma: data.profile.totalBadKarma ?? 0,
               chosenSide: data.profile.chosenSide ?? null,
-            })
+        })
           }
           
           // Set Discord status from unified response
@@ -768,7 +768,7 @@ function useProfileState() {
           // Set holder status (includes both burns and grave robbing)
           if (data.holder) {
             setIsHolder(data.holder.isHolder)
-          }
+      }
           
           // Set executioner status from abyss stats
           if (data.abyssStats) {
