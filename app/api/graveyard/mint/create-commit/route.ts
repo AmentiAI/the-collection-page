@@ -4,7 +4,7 @@ import * as cmdEcc from '@cmdcode/crypto-utils'
 import { generatePrivateKey } from '@/app/api/self-inscribe/utils/bitcoin'
 import { createInscriptionAddresses } from '@/app/api/self-inscribe/utils/inscription'
 import { fetchUtxos, filterAndSortUtxos, validateSufficientFunds } from '@/app/api/self-inscribe/utils/utxo'
-import { calculateRevealTxFees } from '@/app/api/self-inscribe/utils/fees'
+import { calculateRevealTxFees, calculateCommitTxSize } from '@/app/api/self-inscribe/utils/fees'
 import { createCommitPsbt } from '@/app/api/self-inscribe/utils/psbt'
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 import type { Pool } from 'pg'
@@ -190,22 +190,40 @@ export async function POST(request: NextRequest) {
     console.log(`   Virtual size: ${revealTxFees[0].virtualSize} vBytes`)
     console.log(`   Fee: ${revealTxFee} sats (${feeRate} sat/vB)`)
     
-    // Add safety buffer (15%)
+    // Minimal safety buffer (2% instead of 15%)
     const baseRevealCost = revealTxFee + 330 // fee + inscription output
-    const safetyBuffer = Math.ceil(baseRevealCost * 0.15)
+    const safetyBuffer = Math.ceil(baseRevealCost * 0.02)
     const revealSatsNeeded = baseRevealCost + safetyBuffer
     
     console.log(`   Base cost: ${baseRevealCost} sats`)
-    console.log(`   Safety buffer: ${safetyBuffer} sats`)
+    console.log(`   Safety buffer (2%): ${safetyBuffer} sats`)
     console.log(`   Total reveal sats: ${revealSatsNeeded} sats`)
 
-    const estimatedCommitFee = Math.ceil(280 * feeRate)
+    // Calculate accurate commit fee based on actual address types
+    // Estimate 2-3 inputs typically needed for this transaction size
+    const utxoScanAddress = paymentAddress || userAddress
+    const estimatedInputCount = 2
+    const estimatedOutputCount = 3 // inscription + tool fee + change
+    const commitSizeEstimate = calculateCommitTxSize(
+      estimatedInputCount,
+      estimatedOutputCount,
+      utxoScanAddress,
+      inscriptionAddress.address,
+      toolFeeAddressFromSettings
+    )
+    
+    const estimatedCommitTxSize = typeof commitSizeEstimate === 'number' 
+      ? commitSizeEstimate 
+      : commitSizeEstimate.txSize
+    
+    const estimatedCommitFee = Math.ceil(estimatedCommitTxSize * feeRate)
     const targetForUTXOSelection = revealSatsNeeded + estimatedCommitFee + toolFeeInSats
     
+    console.log(`🔍 Commit size estimate: ${estimatedCommitTxSize} vB (was 280 vB hardcoded)`)
+    console.log(`🔍 Estimated commit fee: ${estimatedCommitFee} sats at ${feeRate} sat/vB`)
     console.log(`🔍 UTXO selection target: ${targetForUTXOSelection} sats`)
 
     // Fetch and validate UTXOs (with exclusion list)
-    const utxoScanAddress = paymentAddress || userAddress
     const { utxos: utxosGathered, excludedCount } = await fetchUtxos(utxoScanAddress, excludedUtxos || [])
     const filteredUtxos = filterAndSortUtxos(utxosGathered)
     validateSufficientFunds(filteredUtxos, targetForUTXOSelection, excludedCount)
@@ -328,15 +346,15 @@ export async function POST(request: NextRequest) {
         commitTxFee: commitTx.actualCommitFee,
         revealTxFee: revealTxFee,
         toolFee: toolFeeInSats,
-        totalCost: commitTx.actualCommitFee + revealTxFee
+        totalCost: commitTx.actualCommitFee + revealTxFee + toolFeeInSats
       }
     }
 
     console.log("✅ COMMIT PSBT CREATED")
     console.log(`   Commit fee: ${commitTx.actualCommitFee} sats`)
     console.log(`   Reveal fee: ${revealTxFee} sats`)
-    console.log(`   Tool fee: ${toolFeeInSats} sats (${isDemon ? 'Demon' : 'Ascended'})`)
-    console.log(`   Total: ${commitTx.actualCommitFee + revealTxFee} sats`)
+    console.log(`   Ascension Cost: ${toolFeeInSats} sats (${isDemon ? 'Demon' : 'Ascended'})`)
+    console.log(`   Total: ${commitTx.actualCommitFee + revealTxFee + toolFeeInSats} sats`)
     
     return NextResponse.json(result)
 

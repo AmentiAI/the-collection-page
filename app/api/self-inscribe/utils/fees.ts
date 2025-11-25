@@ -125,15 +125,15 @@ function estimateTxSize(
   outCountBc1q: number   // P2WPKH outputs
 ): number {
   const baseTxSize = 10.5;
-  const inSize1 = 147.25;    // P2PKH input size
-  const inSize3 = 94;        // P2SH input size
-  const inSizeBc1p = 52;   // P2TR input size
-  const inSizeBc1q = 72;     // P2WPKH input size
+  const inSize1 = 148;       // P2PKH input size (148 bytes)
+  const inSize3 = 94;        // P2SH input size (varies by script, ~94 for simple)
+  const inSizeBc1p = 57.5;   // P2TR input size (keypath spend: ~57.5 vbytes)
+  const inSizeBc1q = 68;     // P2WPKH input size (68 vbytes)
 
-  const outSize1 = 34.0;     // P2PKH output size
-  const outSize3 = 43.5;     // P2SH output size
-  const outSizeBc1p = 46;  // P2TR output size
-  const outSizeBc1q = 39.0;  // P2WPKH output size
+  const outSize1 = 34;       // P2PKH output size (8 value + 1 length + 25 script = 34 bytes)
+  const outSize3 = 32;       // P2SH output size (8 value + 1 length + 23 script = 32 bytes)
+  const outSizeBc1p = 43;    // P2TR output size (8 value + 1 length + 34 script = 43 bytes)
+  const outSizeBc1q = 31;    // P2WPKH output size (8 value + 1 length + 22 script = 31 bytes)
 
   return (
     baseTxSize +
@@ -152,7 +152,8 @@ export function calculateCommitTxSize(
   inputCount: number, 
   outputCount: number, 
   paymentAddress?: string,
-  inscriptionAddress?: string
+  inscriptionAddress?: string,
+  toolFeeAddress?: string
 ) {
   // If we don't have address info, fall back to conservative estimates
   if (!paymentAddress) {
@@ -161,6 +162,7 @@ export function calculateCommitTxSize(
 
   const paymentAddressType = getAddressType(paymentAddress)
   const inscriptionAddressType = inscriptionAddress ? getAddressType(inscriptionAddress) : 'P2TR'
+  const toolFeeAddressType = toolFeeAddress ? getAddressType(toolFeeAddress) : paymentAddressType
 
   // Count inputs by type (payment address determines input type)
   let inCount1 = 0, inCount3 = 0, inCountBc1p = 0, inCountBc1q = 0
@@ -185,7 +187,7 @@ export function calculateCommitTxSize(
   // Count outputs by type
   let outCount1 = 0, outCount3 = 0, outCountBc1p = 0, outCountBc1q = 0
   
-  // Inscription output is typically P2TR
+  // Inscription output (typically P2TR)
   if (inscriptionAddressType === 'P2TR') {
     outCountBc1p = 1
   } else if (inscriptionAddressType === 'P2WPKH') {
@@ -196,23 +198,46 @@ export function calculateCommitTxSize(
     outCount1 = 1
   }
 
-  // Remaining outputs (change, tool fee) typically match payment address type
-  const remainingOutputs = outputCount - 1
-  switch (paymentAddressType) {
-    case 'P2PKH':
-      outCount1 += remainingOutputs
-      break
-    case 'P2SH':
-      outCount3 += remainingOutputs
-      break
-    case 'P2TR':
-      outCountBc1p += remainingOutputs
-      break
-    case 'P2WPKH':
-      outCountBc1q += remainingOutputs
-      break
-    default:
-      outCount3 += remainingOutputs
+  // Tool fee output (if present, usually one of the outputs)
+  // Assume if outputCount > 2, there's a tool fee output
+  if (outputCount >= 3 && toolFeeAddress) {
+    switch (toolFeeAddressType) {
+      case 'P2PKH':
+        outCount1 += 1
+        break
+      case 'P2SH':
+        outCount3 += 1
+        break
+      case 'P2TR':
+        outCountBc1p += 1
+        break
+      case 'P2WPKH':
+        outCountBc1q += 1
+        break
+    }
+  }
+
+  // Remaining outputs are change (match payment address type)
+  const processedOutputs = (toolFeeAddress && outputCount >= 3) ? 2 : 1 // inscription + maybe tool fee
+  const remainingOutputs = outputCount - processedOutputs
+  
+  if (remainingOutputs > 0) {
+    switch (paymentAddressType) {
+      case 'P2PKH':
+        outCount1 += remainingOutputs
+        break
+      case 'P2SH':
+        outCount3 += remainingOutputs
+        break
+      case 'P2TR':
+        outCountBc1p += remainingOutputs
+        break
+      case 'P2WPKH':
+        outCountBc1q += remainingOutputs
+        break
+      default:
+        outCount3 += remainingOutputs
+    }
   }
 
   const txSize = Math.ceil(estimateTxSize(
@@ -220,7 +245,7 @@ export function calculateCommitTxSize(
     outCount1, outCount3, outCountBc1p, outCountBc1q
   ))
   
-  return { txSize, paymentAddressType, inscriptionAddressType }
+  return { txSize, paymentAddressType, inscriptionAddressType, toolFeeAddressType }
 }
 
 export function calculateExactCommitFee(
@@ -228,23 +253,27 @@ export function calculateExactCommitFee(
   outputCount: number, 
   feeRate: number,
   paymentAddress?: string,
-  inscriptionAddress?: string
+  inscriptionAddress?: string,
+  toolFeeAddress?: string
 ) {
-  const sizeResult = calculateCommitTxSize(inputCount, outputCount, paymentAddress, inscriptionAddress)
+  const sizeResult = calculateCommitTxSize(inputCount, outputCount, paymentAddress, inscriptionAddress, toolFeeAddress)
   
   // Handle both old format (number) and new format (object)
   let txSize: number
   let paymentAddressType: string
   let inscriptionAddressType: string
+  let toolFeeAddressType: string
   
   if (typeof sizeResult === 'number') {
     txSize = sizeResult
     paymentAddressType = paymentAddress ? getAddressType(paymentAddress) : 'UNKNOWN'
     inscriptionAddressType = inscriptionAddress ? getAddressType(inscriptionAddress) : 'P2TR'
+    toolFeeAddressType = toolFeeAddress ? getAddressType(toolFeeAddress) : 'UNKNOWN'
   } else {
     txSize = sizeResult.txSize
     paymentAddressType = sizeResult.paymentAddressType
     inscriptionAddressType = sizeResult.inscriptionAddressType
+    toolFeeAddressType = sizeResult.toolFeeAddressType || 'UNKNOWN'
   }
   
   const calculatedFee = Math.ceil(txSize * feeRate)
@@ -256,6 +285,9 @@ export function calculateExactCommitFee(
   console.log(`💰 Commit fee calculation:`)
   console.log(`   Payment address: ${paymentAddress} (${paymentAddressType})`)
   console.log(`   Inscription address: ${inscriptionAddress} (${inscriptionAddressType})`)
+  if (toolFeeAddress) {
+    console.log(`   Tool fee address: ${toolFeeAddress} (${toolFeeAddressType})`)
+  }
   console.log(`   Inputs: ${inputCount}, Outputs: ${outputCount}`)
   console.log(`   Estimated size: ${txSize} vB`)
   console.log(`   Fee rate: ${feeRate} sat/vB`)

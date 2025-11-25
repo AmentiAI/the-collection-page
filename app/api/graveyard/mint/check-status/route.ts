@@ -91,20 +91,43 @@ interface CheckStatusRequest {
 async function checkTxInMempool(txId: string): Promise<{ inMempool: boolean; confirmed: boolean; confirmations: number }> {
   try {
     const MEMPOOL_URL = process.env.MEMPOOL_API_URL || 'https://mempool.space/api'
-    const response = await fetch(`${MEMPOOL_URL}/tx/${txId}/status`, {
+    
+    // First check status endpoint
+    const statusResponse = await fetch(`${MEMPOOL_URL}/tx/${txId}/status`, {
       cache: 'no-store'
     })
     
-    if (!response.ok) {
+    if (!statusResponse.ok) {
       // If 404, tx not found yet
       return { inMempool: false, confirmed: false, confirmations: 0 }
     }
     
-    const data = await response.json()
+    const statusData = await statusResponse.json()
+    const isConfirmed = statusData.confirmed === true
+    
+    // Get actual confirmation count from block height
+    let confirmations = 0
+    if (isConfirmed && statusData.block_height) {
+      try {
+        // Get current block height
+        const blocksResponse = await fetch(`${MEMPOOL_URL}/blocks/tip/height`, {
+          cache: 'no-store'
+        })
+        if (blocksResponse.ok) {
+          const currentHeight = await blocksResponse.json()
+          confirmations = Math.max(0, currentHeight - statusData.block_height + 1)
+        }
+      } catch (e) {
+        console.warn(`Failed to get current block height:`, e)
+        // Fallback: if confirmed, assume at least 1 confirmation
+        confirmations = 1
+      }
+    }
+    
     return {
       inMempool: true, // If we got a response, it's in mempool
-      confirmed: data.confirmed === true,
-      confirmations: data.confirmed ? (data.block_height ? 1 : 0) : 0
+      confirmed: isConfirmed,
+      confirmations
     }
   } catch (error) {
     console.error(`Failed to check tx for ${txId}:`, error)
@@ -189,11 +212,15 @@ export async function POST(request: NextRequest) {
       }
       
       // Check reveal transaction confirmation
-      if (mint.reveal_tx_id && mint.mint_status === 'reveal_broadcast') {
+      // Handle both 'reveal_broadcast' (DB status) and 'waiting_reveal_confirmation' (frontend status)
+      if (mint.reveal_tx_id && 
+          (mint.mint_status === 'reveal_broadcast' || mint.mint_status === 'waiting_reveal_confirmation')) {
         const revealStatus = await checkTxInMempool(mint.reveal_tx_id)
         
+        console.log(`🔍 Reveal TX ${mint.reveal_tx_id}: confirmed=${revealStatus.confirmed}, confirmations=${revealStatus.confirmations}`)
+        
         if (revealStatus.confirmed) {
-          console.log(`✅ Reveal transaction confirmed: ${mint.reveal_tx_id}`)
+          console.log(`✅ Reveal transaction confirmed with ${revealStatus.confirmations} confirmations: ${mint.reveal_tx_id}`)
           console.log(`🎉 Inscription completed: ${mint.inscription_id}`)
           updatedStatus = 'completed'
           shouldUpdate = true
@@ -201,6 +228,7 @@ export async function POST(request: NextRequest) {
           await pool.query(
             `UPDATE mint_inscriptions
              SET mint_status = 'completed',
+                 reveal_confirmed_at = NOW(),
                  completed_at = NOW(),
                  last_checked_at = NOW()
              WHERE id = $1`,

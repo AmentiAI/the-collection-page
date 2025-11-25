@@ -60,13 +60,11 @@ export async function GET(request: NextRequest) {
       return {
         id: row.id,
         walletAddress: row.wallet_address,
-        imageUrl: row.image_url,
         imageBlobUrl: row.image_blob_url,
         compressedImageUrl: row.compressed_image_url,
         compressedSizeBytes: row.compressed_size_bytes,
         isCompressed: row.is_compressed || false,
         sourceInscriptionId: row.source_inscription_id,
-        generationPrompt: row.generation_prompt,
         hasSilver,
         hasGlow,
         createdAt: row.created_at,

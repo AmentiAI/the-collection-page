@@ -164,14 +164,8 @@ function GraveyardContent() {
     return searchParams.get('showbuttons') === '1'
   }, [searchParams])
   
-  // Regenerate buttons: Show for grave robbers OR Dead Demons holders OR showbuttons=1
-  const showRegenerateButtons = useMemo(() => {
-    const showButtonsParam = searchParams.get('showbuttons') === '1'
-    const hasGraveRobbed = profile?.has_grave_robbed === true
-    const isDeadDemonHolder = profile?.is_dead_demon_holder === true
-    console.log('[Graveyard] showRegenerateButtons check:', { showButtonsParam, hasGraveRobbed, isDeadDemonHolder, profile })
-    return showButtonsParam || hasGraveRobbed || isDeadDemonHolder
-  }, [searchParams, profile])
+  // Regenerate buttons: Always show (no restrictions)
+  const showRegenerateButtons = true
 
   // Check holder status
   useEffect(() => {

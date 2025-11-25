@@ -154,7 +154,8 @@ export function createCommitPsbt(
     expectedOutputCount, 
     feeRate,
     paymentAddress,
-    inscriptionAddress
+    inscriptionAddress,
+    toolFeeAddress
   )
   
   // Calculate change output that leaves EXACTLY the right fee
@@ -177,9 +178,63 @@ export function createCommitPsbt(
     })
   }
 
-  // Calculate actual fee
-  const totalOutputValue = psbt.txOutputs.reduce((sum, output) => sum + Number(output.value), 0)
-  const actualCommitFee = totalInputSats - totalOutputValue
+  // Recalculate fee with ACTUAL input/output counts after PSBT construction
+  const actualInputCount = psbt.inputCount
+  const actualOutputCount = psbt.txOutputs.length
+  
+  console.log(`\n🔍 Fee Adjustment Check:`)
+  console.log(`   Input count: ${actualInputCount}`)
+  console.log(`   Output count: ${actualOutputCount}`)
+  console.log(`   Will have change: ${willHaveChangeOutput}`)
+  
+  const targetFee = calculateExactCommitFee(
+    actualInputCount,
+    actualOutputCount,
+    feeRate,
+    paymentAddress,
+    inscriptionAddress,
+    toolFeeAddress
+  )
+  
+  // Calculate current fee BEFORE adjustment
+  let totalOutputValue = psbt.txOutputs.reduce((sum, output) => sum + Number(output.value), 0)
+  let actualCommitFee = totalInputSats - totalOutputValue
+  
+  console.log(`   Current fee: ${actualCommitFee} sats`)
+  console.log(`   Target fee: ${targetFee} sats`)
+  console.log(`   Fee difference: ${actualCommitFee - targetFee} sats`)
+  
+  // Adjust change output to hit exact fee rate
+  const feeDifference = actualCommitFee - targetFee
+  
+  if (Math.abs(feeDifference) > 1 && willHaveChangeOutput) {
+    // Find and adjust the change output (last output)
+    const changeOutputIndex = psbt.txOutputs.length - 1
+    const currentChangeValue = Number(psbt.txOutputs[changeOutputIndex].value)
+    const newChangeValue = currentChangeValue + feeDifference
+    
+    console.log(`   Attempting adjustment:`)
+    console.log(`   Change output index: ${changeOutputIndex}`)
+    console.log(`   Current change value: ${currentChangeValue} sats`)
+    console.log(`   New change value: ${newChangeValue} sats`)
+    
+    if (newChangeValue >= 330) {
+      psbt.txOutputs[changeOutputIndex].value = BigInt(newChangeValue)
+      
+      // Recalculate fee AFTER adjustment
+      totalOutputValue = psbt.txOutputs.reduce((sum, output) => sum + Number(output.value), 0)
+      actualCommitFee = totalInputSats - totalOutputValue
+      
+      console.log(`✅ Adjusted change for exact fee rate:`)
+      console.log(`   Final change value: ${newChangeValue} sats`)
+      console.log(`   Final fee: ${actualCommitFee} sats (should be ${targetFee})`)
+      console.log(`   Fee rate: ${(actualCommitFee / (targetFee / feeRate)).toFixed(2)} sat/vB`)
+    } else {
+      console.log(`❌ Cannot adjust: new change value ${newChangeValue} < 330 sats minimum`)
+    }
+  } else {
+    console.log(`⚠️ No adjustment: feeDiff=${Math.abs(feeDifference)}, hasChange=${willHaveChangeOutput}`)
+  }
 
   return {
     inscriptionIndex,

@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         fit: 'inside',
         withoutEnlargement: true 
       })
-      .webp({ quality: 60, effort: 6 })
+      .webp({ quality: 70, effort: 6 })
       .toBuffer()
     
     console.log(`✅ Compressed to WebP`)

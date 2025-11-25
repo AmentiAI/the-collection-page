@@ -71,6 +71,7 @@ export function MintButton({
   const [costBreakdown, setCostBreakdown] = useState<{
     commitTxFee: number
     revealTxFee: number
+    toolFee: number
     totalCost: number
   } | null>(null)
 
@@ -134,6 +135,95 @@ export function MintButton({
     }
   }, [feeRate, toast])
 
+  // Check status immediately on mount if waiting for commit or reveal
+  useEffect(() => {
+    console.log(`[MintButton] Mount check - mintInscriptionId: ${mintInscriptionId}, status: ${status}`)
+    
+    if (!mintInscriptionId) {
+      console.log('[MintButton] No mintInscriptionId, skipping mount check')
+      return
+    }
+    
+    if (status !== 'waiting_commit_confirmation' && status !== 'waiting_reveal_confirmation') {
+      console.log(`[MintButton] Status is ${status}, not waiting for confirmation, skipping mount check`)
+      return
+    }
+
+    // Immediate check on mount
+    const checkStatus = async () => {
+      try {
+        console.log(`🔍 [MintButton] Checking ${status === 'waiting_commit_confirmation' ? 'commit' : 'reveal'} status on mount for ${mintInscriptionId}...`)
+        const response = await fetch('/api/graveyard/mint/check-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mintInscriptionId,
+            pollForConfirmation: true
+          })
+        })
+
+        const data = await response.json()
+        console.log(`📊 [MintButton] Mount check response:`, data)
+        
+        if (data.success) {
+          if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
+            console.log('✅ Commit already in mempool on mount, auto-broadcasting reveal...')
+            setCommitTxId(data.mint.commitTxId)
+            toast.success('Commit confirmed! Broadcasting reveal transaction...')
+            await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
+          } else if (data.mint.status === 'completed' && status === 'waiting_reveal_confirmation') {
+            console.log('✅ Reveal already confirmed on mount!')
+            setStatus('completed')
+            setInscriptionId(data.mint.inscriptionId)
+            if (paymentAddress) {
+              clearExcludedUtxos(paymentAddress)
+            }
+            toast.success(`Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
+            onMintComplete?.()
+          }
+        }
+      } catch (error) {
+        console.error('[MintButton] Error checking status on mount:', error)
+      }
+    }
+
+    checkStatus()
+  }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, toast, onMintComplete, existingMintInscription])
+
+  // Sync status when existingMintInscription changes
+  useEffect(() => {
+    console.log(`[MintButton] Sync check - existingMintInscription:`, existingMintInscription?.status, `current status:`, status)
+    
+    if (existingMintInscription) {
+      if (existingMintInscription.status === 'completed' && status !== 'completed') {
+        console.log('[MintButton] Updating status to completed from existingMintInscription')
+        setStatus('completed')
+        setInscriptionId(existingMintInscription.inscriptionId || null)
+      } else if (existingMintInscription.status === 'reveal_broadcast' && status !== 'waiting_reveal_confirmation') {
+        console.log('[MintButton] Updating status to waiting_reveal_confirmation from existingMintInscription')
+        setStatus('waiting_reveal_confirmation')
+      } else if (existingMintInscription.status === 'commit_broadcast' && status !== 'waiting_commit_confirmation') {
+        console.log('[MintButton] Updating status to waiting_commit_confirmation from existingMintInscription')
+        setStatus('waiting_commit_confirmation')
+      }
+      
+      // Update IDs if they changed
+      if (existingMintInscription.id && existingMintInscription.id !== mintInscriptionId) {
+        console.log(`[MintButton] Updating mintInscriptionId: ${mintInscriptionId} -> ${existingMintInscription.id}`)
+        setMintInscriptionId(existingMintInscription.id)
+      }
+      if (existingMintInscription.commitTxId && existingMintInscription.commitTxId !== commitTxId) {
+        setCommitTxId(existingMintInscription.commitTxId)
+      }
+      if (existingMintInscription.revealTxId && existingMintInscription.revealTxId !== revealTxId) {
+        setRevealTxId(existingMintInscription.revealTxId)
+      }
+      if (existingMintInscription.inscriptionId && existingMintInscription.inscriptionId !== inscriptionId) {
+        setInscriptionId(existingMintInscription.inscriptionId)
+      }
+    }
+  }, [existingMintInscription, status, mintInscriptionId, commitTxId, revealTxId, inscriptionId])
+
   // Poll for confirmations when waiting
   useEffect(() => {
     if (!mintInscriptionId || 
@@ -141,8 +231,11 @@ export function MintButton({
       return
     }
 
+    console.log(`🔄 Starting status polling for mint ${mintInscriptionId}, status: ${status}`)
+
     const pollInterval = setInterval(async () => {
       try {
+        console.log(`🔍 Polling status for mint ${mintInscriptionId}...`)
         const response = await fetch('/api/graveyard/mint/check-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -154,40 +247,58 @@ export function MintButton({
 
         const data = await response.json()
         
-        if (data.success && data.statusChanged) {
-          console.log(`✅ Status changed to: ${data.mint.status}`)
+        if (data.success) {
+          console.log(`📊 Status check result: ${data.mint.status}, changed: ${data.statusChanged}`)
           
-           if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
-             // Commit found in mempool, automatically broadcast reveal
-             console.log('✅ Commit in mempool, auto-broadcasting reveal...')
-             setCommitTxId(data.mint.commitTxId)
-             clearInterval(pollInterval)
-             toast.success('Commit confirmed! Broadcasting reveal transaction...')
-             
-             // Automatically broadcast reveal
-             await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
-           } else if (data.mint.status === 'completed' && status === 'waiting_reveal_confirmation') {
-             // Mint completed! Clear excluded UTXOs
-             setStatus('completed')
-             setInscriptionId(data.mint.inscriptionId)
-             clearInterval(pollInterval)
-             
-             // Clear UTXO exclusions since transaction is confirmed
-             if (paymentAddress) {
-               clearExcludedUtxos(paymentAddress)
-               console.log('🧹 Cleared UTXO exclusions (mint completed)')
-             }
-             
-             toast.success(`Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
-             onMintComplete?.()
-           }
+          if (data.statusChanged) {
+            console.log(`✅ Status changed to: ${data.mint.status}`)
+            
+            if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
+              // Commit found in mempool, automatically broadcast reveal
+              console.log('✅ Commit in mempool, auto-broadcasting reveal...')
+              setCommitTxId(data.mint.commitTxId)
+              clearInterval(pollInterval)
+              toast.success('Commit confirmed! Broadcasting reveal transaction...')
+              
+              // Automatically broadcast reveal
+              await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
+            } else if (data.mint.status === 'completed' && status === 'waiting_reveal_confirmation') {
+              // Mint completed! Clear excluded UTXOs
+              console.log('🎉 Mint completed!')
+              setStatus('completed')
+              setInscriptionId(data.mint.inscriptionId)
+              clearInterval(pollInterval)
+              
+              // Clear UTXO exclusions since transaction is confirmed
+              if (paymentAddress) {
+                clearExcludedUtxos(paymentAddress)
+                console.log('🧹 Cleared UTXO exclusions (mint completed)')
+              }
+              
+              toast.success(`Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
+              onMintComplete?.()
+            }
+          } else if (data.mint.status === 'completed') {
+            // Status already completed but our local state wasn't updated
+            console.log('🎉 Mint already completed, updating local state')
+            setStatus('completed')
+            setInscriptionId(data.mint.inscriptionId)
+            clearInterval(pollInterval)
+            if (paymentAddress) {
+              clearExcludedUtxos(paymentAddress)
+            }
+            onMintComplete?.()
+          }
         }
       } catch (error) {
         console.error('Error polling status:', error)
       }
     }, 10000) // Poll every 10 seconds
 
-    return () => clearInterval(pollInterval)
+    return () => {
+      console.log(`🛑 Stopping status polling for mint ${mintInscriptionId}`)
+      clearInterval(pollInterval)
+    }
   }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, toast, onMintComplete])
 
   const compressImage = async () => {
@@ -299,11 +410,13 @@ export function MintButton({
         setCostBreakdown({
           commitTxFee: commitData.fees.commitTxFee,
           revealTxFee: commitData.fees.revealTxFee,
+          toolFee: commitData.fees.toolFee || 0,
           totalCost: commitData.fees.totalCost
         })
         console.log('💰 Cost breakdown:', {
           commit: `${commitData.fees.commitTxFee} sats`,
           reveal: `${commitData.fees.revealTxFee} sats`,
+          ascension: `${commitData.fees.toolFee || 0} sats`,
           total: `${commitData.fees.totalCost} sats (~${(commitData.fees.totalCost / 100000000).toFixed(8)} BTC)`
         })
       }
@@ -477,22 +590,24 @@ export function MintButton({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Fee Rate Input */}
-      <div className="flex items-center gap-2">
-        <Zap className="h-4 w-4 text-yellow-400" />
-        <Input
-          type="number"
-          value={feeRate}
-          onChange={(e) => setFeeRate(parseFloat(e.target.value) || 0)}
-          min="0.1"
-          max="1000"
-          step="0.01"
-          disabled={isProcessing || status === 'completed'}
-          className="w-24 h-8 text-sm"
-          placeholder="sat/vB"
-        />
-        <span className="text-xs text-gray-400">sat/vB</span>
-      </div>
+      {/* Fee Rate Input - Hide when completed */}
+      {status !== 'completed' && (
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-yellow-400" />
+          <Input
+            type="number"
+            value={feeRate}
+            onChange={(e) => setFeeRate(parseFloat(e.target.value) || 0)}
+            min="0.1"
+            max="1000"
+            step="0.01"
+            disabled={isProcessing}
+            className="w-24 h-8 text-sm"
+            placeholder="sat/vB"
+          />
+          <span className="text-xs text-gray-400">sat/vB</span>
+        </div>
+      )}
 
       {/* Cost Breakdown Display */}
       {costBreakdown && (
@@ -505,6 +620,10 @@ export function MintButton({
           <div className="flex justify-between text-gray-400">
             <span>Reveal Fee:</span>
             <span className="text-green-400">{costBreakdown.revealTxFee.toLocaleString()} sats</span>
+          </div>
+          <div className="flex justify-between text-gray-400">
+            <span>Ascension Cost:</span>
+            <span className="text-purple-400">{costBreakdown.toolFee.toLocaleString()} sats</span>
           </div>
           <div className="flex justify-between font-semibold text-gray-200 pt-1 border-t border-gray-700">
             <span>Total Cost:</span>
@@ -559,7 +678,7 @@ export function MintButton({
               </a>
             </div>
           )}
-          {inscriptionId && (
+          {inscriptionId && status === 'completed' && (
             <div className="text-emerald-400">
               Inscription: <a href={`https://ordinals.com/inscription/${inscriptionId}`} target="_blank" rel="noopener noreferrer" className="underline">
                 {inscriptionId.substring(0, 12)}...
