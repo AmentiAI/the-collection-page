@@ -742,6 +742,11 @@ function GraveyardContent() {
           throw new Error(payload?.error ?? 'Failed to regenerate image.')
         }
 
+        // Update regeneration allowance (credit was burned on generation)
+        if (typeof payload.remainingAllowance === 'number') {
+          setRegenerationAllowance(payload.remainingAllowance)
+        }
+
         // Show comparison modal
         setRegenerateComparison({
           mintQueueId,
@@ -750,7 +755,7 @@ function GraveyardContent() {
           regeneratedImageBlobUrl: payload.regeneratedImageBlobUrl,
         })
 
-        toast.success('Regenerated image ready! Choose which version to keep.')
+        toast.success(`Regenerated image ready! Credit used. Choose which version to keep.`)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to regenerate image.'
         toast.error(message)
@@ -769,8 +774,9 @@ function GraveyardContent() {
 
       if (choice === 'original') {
         // User chose to keep original, just close modal
+        // Note: Credit was already burned when regeneration was generated
         setRegenerateComparison(null)
-        toast.success('Keeping original image.')
+        toast.success('Keeping original image. (Credit was already used for generation)')
         return
       }
 
@@ -1804,8 +1810,8 @@ function GraveyardContent() {
                     />
                     )}
                     
-                    {/* Regenerate button - show for grave robbers OR Dead Demons holders OR showbuttons=1 */}
-                    {showRegenerateButtons && (
+                    {/* Regenerate button - show for grave robbers OR Dead Demons holders OR showbuttons=1, but NOT if mint is completed */}
+                    {showRegenerateButtons && mint.mintInscription?.status !== 'completed' && (
                       <button
                         type="button"
                         onClick={() => handleRegenerate(mint.id, mint.imageUrl)}
