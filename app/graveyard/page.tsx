@@ -157,12 +157,11 @@ function GraveyardContent() {
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
   
-  // Check if showbuttons=1 query parameter is present OR user has successfully grave robbed
+  // Check if showbuttons=1 query parameter is present
   const showButtons = useMemo(() => {
     const showButtonsParam = searchParams.get('showbuttons') === '1'
-    const hasGraveRobbed = profile?.has_grave_robbed === true
-    console.log('[Graveyard] showButtons check:', { showButtonsParam, hasGraveRobbed, profile })
-    return showButtonsParam || hasGraveRobbed
+    console.log('[Graveyard] showButtons check:', { showButtonsParam, profile })
+    return showButtonsParam
   }, [searchParams, profile])
 
   // Check holder status
