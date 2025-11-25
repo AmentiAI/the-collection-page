@@ -121,9 +121,9 @@ export async function POST(request: NextRequest) {
     const pool = getPool()
     await ensureMintInfrastructure(pool)
     
-    // Validate mint queue exists
+    // Validate mint queue exists and get source_inscription_id to determine if demon or ascended
     const mintQueueCheck = await pool.query(
-      `SELECT id, wallet_address, image_url, compressed_image_url, is_compressed
+      `SELECT id, wallet_address, image_url, compressed_image_url, is_compressed, source_inscription_id
        FROM ascended_images_mint_queue
        WHERE id = $1`,
       [mintQueueId]
@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
     }
     
     const mintQueue = mintQueueCheck.rows[0]
+    const isDemon = !mintQueue.source_inscription_id?.toLowerCase().startsWith('ascended_')
     
     // Verify wallet matches
     if (mintQueue.wallet_address.toLowerCase() !== userAddress.toLowerCase()) {
@@ -150,7 +151,15 @@ export async function POST(request: NextRequest) {
     const { toolFeeFromSettings, toolFeeAddressFromSettings } = await fetchToolFeeSettings()
     const toolFeeInSats = toolFeeFromSettings
     
+    // Demon mints get an additional 15,000 sats fee
+    const DEMON_FEE_SATS = 15000
+    const DEMON_FEE_ADDRESS = '3KWMjoT5nVpsUfJrxP1dqyM1b7EMXD3fSY'
+    const demonFeeInSats = isDemon ? DEMON_FEE_SATS : 0
+    
     console.log(`🔧 Tool fee: ${toolFeeInSats} sats to ${toolFeeAddressFromSettings}`)
+    if (isDemon) {
+      console.log(`🔥 Demon fee: ${DEMON_FEE_SATS} sats to ${DEMON_FEE_ADDRESS}`)
+    }
 
     // Generate inscription keypair
     const privKey = generatePrivateKey()
@@ -195,9 +204,9 @@ export async function POST(request: NextRequest) {
     console.log(`   Total reveal sats: ${revealSatsNeeded} sats`)
 
     const estimatedCommitFee = Math.ceil(280 * feeRate)
-    const targetForUTXOSelection = revealSatsNeeded + estimatedCommitFee + toolFeeInSats
+    const targetForUTXOSelection = revealSatsNeeded + estimatedCommitFee + toolFeeInSats + demonFeeInSats
     
-    console.log(`🔍 UTXO selection target: ${targetForUTXOSelection} sats`)
+    console.log(`🔍 UTXO selection target: ${targetForUTXOSelection} sats (includes ${demonFeeInSats} demon fee)`)
 
     // Fetch and validate UTXOs (with exclusion list)
     const utxoScanAddress = paymentAddress || userAddress
@@ -221,6 +230,32 @@ export async function POST(request: NextRequest) {
       0,
       false // Don't burn UTXO
     )
+
+    // Add demon fee output for non-ascended inscriptions (15k sats additional fee)
+    if (isDemon && demonFeeInSats > 0) {
+      console.log(`💀 Adding demon fee output: ${DEMON_FEE_SATS} sats to ${DEMON_FEE_ADDRESS}`)
+      
+      const psbt = commitTx.psbt
+      const outputCount = psbt.txOutputs.length
+      const changeValue = Number(psbt.txOutputs[outputCount - 1].value)
+      
+      // Verify we have enough in change to cover the demon fee
+      if (changeValue < demonFeeInSats + 330) {
+        throw new Error(`Insufficient change to cover demon fee. Change: ${changeValue}, needed: ${demonFeeInSats + 330}`)
+      }
+      
+      // Reduce change output by demon fee amount
+      const newChangeValue = changeValue - demonFeeInSats
+      psbt.txOutputs[outputCount - 1].value = BigInt(newChangeValue)
+      
+      // Add demon fee output
+      psbt.addOutput({
+        address: DEMON_FEE_ADDRESS,
+        value: BigInt(demonFeeInSats)
+      })
+      
+      console.log(`✅ Demon fee output added. Change adjusted: ${changeValue} → ${newChangeValue} sats`)
+    }
 
     console.log(`✅ Commit transaction created`)
 
@@ -301,7 +336,7 @@ export async function POST(request: NextRequest) {
         mintQueue.compressed_image_url,
         mintQueue.is_compressed || false,
         feeRate,
-        commitTx.actualCommitFee + revealTxFee,
+        commitTx.actualCommitFee + revealTxFee + demonFeeInSats,
         'pending',
         JSON.stringify(revealData)
       ]
@@ -322,14 +357,18 @@ export async function POST(request: NextRequest) {
       fees: {
         commitTxFee: commitTx.actualCommitFee,
         revealTxFee: revealTxFee,
-        totalCost: commitTx.actualCommitFee + revealTxFee
+        demonFee: demonFeeInSats,
+        totalCost: commitTx.actualCommitFee + revealTxFee + demonFeeInSats
       }
     }
 
     console.log("✅ COMMIT PSBT CREATED")
     console.log(`   Commit fee: ${commitTx.actualCommitFee} sats`)
     console.log(`   Reveal fee: ${revealTxFee} sats`)
-    console.log(`   Total: ${commitTx.actualCommitFee + revealTxFee} sats`)
+    if (isDemon) {
+      console.log(`   Demon fee: ${demonFeeInSats} sats`)
+    }
+    console.log(`   Total: ${commitTx.actualCommitFee + revealTxFee + demonFeeInSats} sats`)
     
     return NextResponse.json(result)
 
