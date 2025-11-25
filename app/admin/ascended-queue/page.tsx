@@ -48,6 +48,7 @@ export default function AscendedQueueAdminPage() {
     regeneratedImageBlobUrl: string
   } | null>(null)
   const [applyingRegenerate, setApplyingRegenerate] = useState(false)
+  const [activeTab, setActiveTab] = useState<'ascended' | 'demon'>('ascended')
 
   const LIMIT = 10
 
@@ -68,11 +69,11 @@ export default function AscendedQueueAdminPage() {
     }
   }, [])
 
-  const loadMintQueue = useCallback(async (page: number) => {
+  const loadMintQueue = useCallback(async (page: number, type: 'ascended' | 'demon' = 'ascended') => {
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/admin/ascended-queue/mint-queue?page=${page}&limit=${LIMIT}`,
+        `/api/admin/ascended-queue/mint-queue?page=${page}&limit=${LIMIT}&type=${type}`,
         { cache: 'no-store' }
       )
       if (!response.ok) throw new Error('Failed to load mint queue')
@@ -118,14 +119,14 @@ export default function AscendedQueueAdminPage() {
         method: 'DELETE',
       })
       if (!response.ok) throw new Error('Failed to delete')
-      await loadMintQueue(currentPage)
+      await loadMintQueue(currentPage, activeTab)
     } catch (error) {
       console.error('Failed to delete:', error)
       alert('Failed to delete record')
     } finally {
       setDeleting(null)
     }
-  }, [currentPage, loadMintQueue])
+  }, [currentPage, activeTab, loadMintQueue])
 
   const handleEdit = useCallback((record: MintQueueRecord) => {
     setEditing(record.id)
@@ -155,7 +156,7 @@ export default function AscendedQueueAdminPage() {
         }),
       })
       if (!response.ok) throw new Error('Failed to update')
-      await loadMintQueue(currentPage)
+      await loadMintQueue(currentPage, activeTab)
       setEditing(null)
       setEditForm(null)
     } catch (error) {
@@ -164,7 +165,7 @@ export default function AscendedQueueAdminPage() {
     } finally {
       setSaving(false)
     }
-  }, [editForm, currentPage, loadMintQueue])
+  }, [editForm, currentPage, activeTab, loadMintQueue])
 
   const handleRegenerate = useCallback(async (record: MintQueueRecord) => {
     if (regenerating || !record.generation_prompt) {
@@ -232,7 +233,7 @@ export default function AscendedQueueAdminPage() {
       if (!response.ok) throw new Error('Failed to apply regenerated image')
 
       setRegenerateComparison(null)
-      await loadMintQueue(currentPage)
+      await loadMintQueue(currentPage, activeTab)
       alert('Regenerated image applied successfully!')
     } catch (error) {
       console.error('Failed to apply regenerated image:', error)
@@ -240,18 +241,18 @@ export default function AscendedQueueAdminPage() {
     } finally {
       setApplyingRegenerate(false)
     }
-  }, [regenerateComparison, currentPage, loadMintQueue])
+  }, [regenerateComparison, currentPage, activeTab, loadMintQueue])
 
   useEffect(() => {
     void loadMissingWallets()
-    void loadMintQueue(1)
-  }, [loadMissingWallets, loadMintQueue])
+    void loadMintQueue(1, activeTab)
+  }, [loadMissingWallets, loadMintQueue, activeTab])
 
   return (
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <h1 className="text-3xl font-bold uppercase tracking-wider text-amber-200">
-          Ascended Queue Admin
+          Mint Queue Admin
         </h1>
 
         {/* Missing Profiles Section */}
@@ -311,14 +312,45 @@ export default function AscendedQueueAdminPage() {
         {/* Mint Queue Section */}
         <section className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold uppercase tracking-wide text-amber-200">
-              Mint Queue Records ({totalRecords})
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold uppercase tracking-wide text-amber-200">
+                Mint Queue Records ({totalRecords})
+              </h2>
+              {/* Tabs */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setActiveTab('ascended')
+                    setCurrentPage(1)
+                  }}
+                  className={`px-4 py-2 text-sm font-medium uppercase tracking-wide rounded-lg transition ${
+                    activeTab === 'ascended'
+                      ? 'bg-amber-500 text-black'
+                      : 'bg-amber-950/50 text-amber-300 hover:bg-amber-900/50'
+                  }`}
+                >
+                  Ascended
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('demon')
+                    setCurrentPage(1)
+                  }}
+                  className={`px-4 py-2 text-sm font-medium uppercase tracking-wide rounded-lg transition ${
+                    activeTab === 'demon'
+                      ? 'bg-red-500 text-black'
+                      : 'bg-red-950/50 text-red-300 hover:bg-red-900/50'
+                  }`}
+                >
+                  Demons
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 onClick={() => {
                   setCurrentPage(1)
-                  void loadMintQueue(1)
+                  void loadMintQueue(1, activeTab)
                 }}
                 disabled={loading}
                 variant="outline"
@@ -509,7 +541,7 @@ export default function AscendedQueueAdminPage() {
                       onClick={() => {
                         const newPage = currentPage - 1
                         setCurrentPage(newPage)
-                        void loadMintQueue(newPage)
+                        void loadMintQueue(newPage, activeTab)
                       }}
                       disabled={currentPage === 1 || loading}
                       variant="outline"
@@ -521,7 +553,7 @@ export default function AscendedQueueAdminPage() {
                       onClick={() => {
                         const newPage = currentPage + 1
                         setCurrentPage(newPage)
-                        void loadMintQueue(newPage)
+                        void loadMintQueue(newPage, activeTab)
                       }}
                       disabled={currentPage === totalPages || loading}
                       variant="outline"

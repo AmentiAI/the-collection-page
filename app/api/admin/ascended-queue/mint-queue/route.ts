@@ -9,18 +9,24 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const offset = (page - 1) * limit
+    const type = searchParams.get('type') || 'ascended' // 'ascended' or 'demon'
 
     const pool = getPool()
 
-    // Get total count (only source_inscription_id starting with 'ascended_')
+    // Build WHERE clause based on type
+    const whereClause = type === 'demon' 
+      ? `WHERE source_inscription_id NOT LIKE 'ascended_%'`
+      : `WHERE source_inscription_id LIKE 'ascended_%'`
+
+    // Get total count
     const countResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM ascended_images_mint_queue
-      WHERE source_inscription_id LIKE 'ascended_%'
+      ${whereClause}
     `)
     const total = parseInt(countResult.rows[0]?.total || '0')
 
-    // Get paginated records (only source_inscription_id starting with 'ascended_')
+    // Get paginated records
     const result = await pool.query(
       `
       SELECT 
@@ -33,7 +39,7 @@ export async function GET(request: NextRequest) {
         generation_prompt,
         created_at
       FROM ascended_images_mint_queue
-      WHERE source_inscription_id LIKE 'ascended_%'
+      ${whereClause}
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
       `,

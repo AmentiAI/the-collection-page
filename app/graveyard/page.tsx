@@ -29,6 +29,7 @@ type WalletProfile = {
   avatar_url?: string | null
   ascension_powder?: number | null
   has_grave_robbed?: boolean
+  is_dead_demon_holder?: boolean
 }
 
 const GRAVEYARD_LIMIT = 180
@@ -162,12 +163,13 @@ function GraveyardContent() {
     return searchParams.get('showbuttons') === '1'
   }, [searchParams])
   
-  // Regenerate buttons: Show for grave robbers OR showbuttons=1
+  // Regenerate buttons: Show for grave robbers OR Dead Demons holders OR showbuttons=1
   const showRegenerateButtons = useMemo(() => {
     const showButtonsParam = searchParams.get('showbuttons') === '1'
     const hasGraveRobbed = profile?.has_grave_robbed === true
-    console.log('[Graveyard] showRegenerateButtons check:', { showButtonsParam, hasGraveRobbed, profile })
-    return showButtonsParam || hasGraveRobbed
+    const isDeadDemonHolder = profile?.is_dead_demon_holder === true
+    console.log('[Graveyard] showRegenerateButtons check:', { showButtonsParam, hasGraveRobbed, isDeadDemonHolder, profile })
+    return showButtonsParam || hasGraveRobbed || isDeadDemonHolder
   }, [searchParams, profile])
 
   // Check holder status
@@ -197,6 +199,15 @@ function GraveyardContent() {
       const hasUnlistedOrdinals = hasUnlisted && !hasAnyListed
       const hasBurns = burnsData.success && burnsData.hasBurns
       setIsHolder(hasUnlistedOrdinals || hasBurns)
+      
+      // Update profile with grave robbing and Dead Demon status
+      if (burnsData.success) {
+        setProfile(prev => ({
+          ...prev,
+          has_grave_robbed: burnsData.hasGraveRobbed === true,
+          is_dead_demon_holder: burnsData.is_dead_demon_holder === true,
+        }))
+      }
     }).catch(() => {
       if (!cancelled) setIsHolder(false)
     }).finally(() => {
@@ -1831,7 +1842,7 @@ function GraveyardContent() {
                     />
                     )}
                     
-                    {/* Regenerate button - show for grave robbers OR showbuttons=1 */}
+                    {/* Regenerate button - show for grave robbers OR Dead Demons holders OR showbuttons=1 */}
                     {showRegenerateButtons && (
                       <button
                         type="button"

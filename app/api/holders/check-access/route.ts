@@ -35,8 +35,17 @@ export async function GET(request: NextRequest) {
     const graveRobbingCount = graveRobbingResult.rows[0]?.count ?? 0
     const hasGraveRobbed = graveRobbingCount > 0
 
-    // Allow access if they have burns OR have successfully grave robbed
-    const hasAccess = hasBurns || hasGraveRobbed
+    // Check if wallet is a Dead Demon holder (has ascended inscriptions)
+    const deadDemonResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1) AND inscription_id LIKE 'ascended_%'`,
+      [walletAddress],
+    )
+
+    const deadDemonCount = deadDemonResult.rows[0]?.count ?? 0
+    const isDeadDemonHolder = deadDemonCount > 0
+
+    // Allow access if they have burns OR have successfully grave robbed OR are Dead Demon holders
+    const hasAccess = hasBurns || hasGraveRobbed || isDeadDemonHolder
 
     return NextResponse.json(
       {
@@ -45,6 +54,8 @@ export async function GET(request: NextRequest) {
         burnCount,
         graveRobbingCount,
         hasGraveRobbed,
+        deadDemonCount,
+        is_dead_demon_holder: isDeadDemonHolder,
       },
       {
         headers: {
