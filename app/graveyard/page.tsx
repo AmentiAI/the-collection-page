@@ -145,6 +145,10 @@ function GraveyardContent() {
   const [graveRobLoading, setGraveRobLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
   
+  // Throttle mint queue fetches
+  const lastMintQueueFetch = useRef<number>(0)
+  const MINT_QUEUE_THROTTLE_MS = 3000 // Minimum 3 seconds between calls
+  
   // Regenerate states
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const [regenerateComparison, setRegenerateComparison] = useState<{
@@ -398,8 +402,16 @@ function GraveyardContent() {
     void loadGraveyard()
   }, [ordinalAddress, loadGraveyard])
 
-  const fetchMintQueueImages = useCallback(async () => {
+  const fetchMintQueueImages = useCallback(async (force = false) => {
     if (!ordinalAddress) return
+
+    // Throttle: Don't fetch if called too recently (unless forced)
+    const now = Date.now()
+    if (!force && (now - lastMintQueueFetch.current) < MINT_QUEUE_THROTTLE_MS) {
+      console.log(`⏸️ Throttling mint queue fetch (${now - lastMintQueueFetch.current}ms since last call)`)
+      return
+    }
+    lastMintQueueFetch.current = now
 
     try {
       const response = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(ordinalAddress)}`, {
@@ -439,8 +451,8 @@ function GraveyardContent() {
               if (compressResponse.ok) {
                 const compressData = await compressResponse.json()
                 console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
-                // Refresh to show updated sizes
-                setTimeout(() => fetchMintQueueImages(), 1000)
+                // Refresh to show updated sizes (throttled)
+                setTimeout(() => fetchMintQueueImages(false), 2000)
               }
             } catch (compressError) {
               console.error(`Failed to auto-compress ${record.id}:`, compressError)
@@ -463,8 +475,8 @@ function GraveyardContent() {
     if (hasInProgressMint && ordinalAddress) {
       console.log('🔄 Auto-refreshing mint queue (in-progress mint detected)')
       const refreshInterval = setInterval(() => {
-        fetchMintQueueImages()
-      }, 5000) // Refresh every 5 seconds
+        fetchMintQueueImages(false) // Use throttled version
+      }, 15000) // Refresh every 15 seconds (was 5)
       
       return () => clearInterval(refreshInterval)
     }
@@ -492,62 +504,8 @@ function GraveyardContent() {
           setIsFirstAscensionLimbo(isFirstAscension)
         }
         
-        // Fetch mint queue with mint status from new API
-        try {
-          const mintQueueResponse = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(ordinalAddress)}`, {
-            headers: { 'Cache-Control': 'no-store' },
-          })
-          const mintQueueData = await mintQueueResponse.json().catch(() => null)
-          
-          if (mintQueueResponse.ok && mintQueueData?.success) {
-            const records = mintQueueData.records.map((record: any) => ({
-              id: record.id,
-              imageUrl: record.imageBlobUrl || record.imageUrl,
-              sourceInscriptionId: record.sourceInscriptionId,
-              hasSilver: record.hasSilver,
-              hasGlow: record.hasGlow,
-              compressedImageUrl: record.compressedImageUrl,
-              compressedSizeBytes: record.compressedSizeBytes,
-              isCompressed: record.isCompressed,
-              mintInscription: record.mintInscription // Include mint status data
-            }))
-            
-            setMintQueueImages(records)
-            
-            // Auto-compress uncompressed images
-            records.forEach(async (record: any) => {
-              if (!record.isCompressed && record.imageUrl) {
-                console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
-                try {
-                  const compressResponse = await fetch('/api/graveyard/mint/compress', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      mintQueueId: record.id,
-                      imageUrl: record.imageUrl
-                    })
-                  })
-                  
-                  if (compressResponse.ok) {
-                    const compressData = await compressResponse.json()
-                    console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
-                    // Refresh to show updated sizes
-                    setTimeout(fetchMintQueueImages, 1000)
-                  }
-                } catch (compressError) {
-                  console.error(`Failed to auto-compress ${record.id}:`, compressError)
-                }
-              }
-            })
-          } else {
-            // Fallback to old data if new API fails
-            setMintQueueImages(payload.mintQueue || [])
-          }
-        } catch (mintQueueError) {
-          console.error('Error loading mint queue:', mintQueueError)
-          // Fallback to old data
-          setMintQueueImages(payload.mintQueue || [])
-        }
+        // Fetch mint queue with mint status from new API (use throttled function)
+        await fetchMintQueueImages(true) // Force fetch on initial load
         
         // Auto-open modal if there's a pending limbo entry and no modal is currently open
         // Use functional update to check current state
@@ -1837,8 +1795,8 @@ function GraveyardContent() {
                       isCompressed={mint.isCompressed || false}
                       existingMintInscription={mint.mintInscription}
                       onMintComplete={() => {
-                        // Refresh mint queue data
-                        fetchMintQueueImages()
+                        // Refresh mint queue data (force to bypass throttle)
+                        fetchMintQueueImages(true)
                       }}
                       onMintStart={() => {
                         toast.info('Minting started - Please sign the transaction in your wallet')
