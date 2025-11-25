@@ -261,3 +261,4 @@ The minting system provides:
 - ✅ **WebP compression** for massive cost savings
 - ✅ **Clear error messages** with actionable guidance
 
+

@@ -12,10 +12,11 @@ const CIRCLE_DURATION_BONUS_MS = 10 * 60 * 1000 // 10 minutes (bonus_credits 20 
 const MIN_COMPLETION_COUNT = 36 // 36 out of 40 must complete
 const MIN_COMPLETION_COUNT_BONUS = 18 // 18 out of 20 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
-const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Portal summoning enabled (1 = one global circle allowed)
+const MAX_ACTIVE_CIRCLES_GLOBAL = 999 // No global limit (using 24hr cooldown instead)
+const COOLDOWN_HOURS = 24 // 24-hour cooldown per user between portal initiations
 // Set to false to disable damned pool circles at the API level
 const DAMNED_POOL_MODE_ENABLED = true // Keep enabled for viewing/completing existing circles
-const DAMNED_POOL_CREATION_ENABLED = false // Disabled: New portal circle creation is no longer allowed
+const DAMNED_POOL_CREATION_ENABLED = true // Enabled with 24hr cooldown
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations
@@ -308,6 +309,35 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Check 24-hour cooldown - has user created a portal circle in the last 24 hours?
+      const cooldownCheckRes = await client.query(
+        `
+          SELECT created_at
+          FROM damned_pool_circles
+          WHERE LOWER(creator_wallet) = LOWER($1)
+            AND created_at > NOW() - INTERVAL '${COOLDOWN_HOURS} hours'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [creatorWallet],
+      )
+
+      if (cooldownCheckRes.rows.length > 0) {
+        const lastCreated = new Date(cooldownCheckRes.rows[0].created_at)
+        const cooldownEnds = new Date(lastCreated.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000)
+        const hoursRemaining = Math.ceil((cooldownEnds.getTime() - Date.now()) / (1000 * 60 * 60))
+        
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `Portal circle cooldown active. You can initiate another portal in ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}.`,
+            cooldownEnds: cooldownEnds.toISOString(),
+          },
+          { status: 429 },
+        )
+      }
+
     // Check if the abyss burn window is currently active (abyss is "opened")
       const abyssWindowRes = await client.query(
       `
@@ -327,32 +357,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-      // Check if there is already an active damned pool globally (any mode)
-      await client.query(
-        `
-          SELECT id FROM damned_pool_circles
-          WHERE status IN ('open', 'filling', 'ready')
-          FOR UPDATE
-        `,
-        
-      )
-      const globalActiveCountRes = await client.query(
-        `
-          SELECT COUNT(*)::int AS active_count
-          FROM damned_pool_circles
-          WHERE status IN ('open', 'filling', 'ready')
-        `,
-        
-      )
-      const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
-
-      if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
-        await client.query('ROLLBACK')
-        return NextResponse.json(
-          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active damned pool allowed globally.` },
-          { status: 409 },
-        )
-      }
+      // Global limit check removed - now using 24-hour per-user cooldown instead
 
       const conflictRes = await client.query(
         `
