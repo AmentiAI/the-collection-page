@@ -182,6 +182,29 @@ export async function POST(request: NextRequest) {
         )
       }
       
+      // Consolidate records: Transfer ownership from linked wallet to primary wallet
+      console.log(`[wallet/link] Consolidating records from ${linkedWallet} to ${primaryWallet}`)
+      
+      // Update abyss_burns: Change ordinal_wallet from linked wallet to primary wallet
+      const burnsUpdateResult = await pool.query(
+        `UPDATE abyss_burns 
+         SET ordinal_wallet = $1, updated_at = NOW()
+         WHERE LOWER(ordinal_wallet) = LOWER($2)`,
+        [primaryWallet, linkedWallet]
+      )
+      const burnsUpdated = burnsUpdateResult.rowCount || 0
+      console.log(`[wallet/link] Updated ${burnsUpdated} abyss_burns records`)
+      
+      // Update ascended_images_mint_queue: Change wallet_address from linked wallet to primary wallet
+      const mintQueueUpdateResult = await pool.query(
+        `UPDATE ascended_images_mint_queue 
+         SET wallet_address = $1
+         WHERE LOWER(wallet_address) = LOWER($2)`,
+        [primaryWallet, linkedWallet]
+      )
+      const mintQueueUpdated = mintQueueUpdateResult.rowCount || 0
+      console.log(`[wallet/link] Updated ${mintQueueUpdated} ascended_images_mint_queue records`)
+      
       await pool.query('COMMIT')
 
       // Consume the link token so it can't be reused
@@ -197,7 +220,11 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Wallet linked successfully',
         primaryWallet,
-        linkedWallet
+        linkedWallet,
+        consolidated: {
+          abyss_burns: burnsUpdated,
+          mint_queue: mintQueueUpdated,
+        }
       })
     } catch (error) {
       await pool.query('ROLLBACK')
