@@ -295,22 +295,17 @@ export function validateFeeRate(
 }
 
 export async function fetchToolFeeSettings() {
-  const fullBaseUrl = process.env.SERVER_URL || 'http://localhost:3000'
+  // Read settings directly from env vars instead of self-fetch to avoid production timeout issues
+  const toolFeeValue = 0 // 0 sats for pass holders
+  const platformFeeAddress = process.env.PLATFORM_FEE_ADDRESS || "3KWMjoT5nVpsUfJrxP1dqyM1b7EMXD3fSY"
   
-  console.log(`🔍 SERVER_URL DEBUG:`)
-  console.log(`   process.env.SERVER_URL: ${process.env.SERVER_URL || 'undefined'}`)
-  console.log(`   fullBaseUrl: ${fullBaseUrl}`)
-  console.log(`   Full fetch URL: ${fullBaseUrl}/api/settings/public`)
-  
-  const settingsResponse = await fetch(`${fullBaseUrl}/api/settings/public`, {
-    headers: { 'Content-Type': 'application/json' }
-  })
-  const settings = await settingsResponse.json()
-  const toolFeeValue = settings.inscribeToolFee || 0
+  console.log(`🔧 Tool fee settings:`)
+  console.log(`   Tool fee: ${toolFeeValue} sats`)
+  console.log(`   Platform fee address: ${platformFeeAddress}`)
   
   // Convert using EXACT same logic as frontend - but apply conditionally for pass holders
   const toolFeeFromSettings = toolFeeValue < 1 ? Math.round(toolFeeValue * 100000000) : toolFeeValue
-  const toolFeeAddressFromSettings = settings.platformFeeAddress || "3KWMjoT5nVpsUfJrxP1dqyM1b7EMXD3fSY"
+  const toolFeeAddressFromSettings = platformFeeAddress
   
   return {
     toolFeeFromSettings,
