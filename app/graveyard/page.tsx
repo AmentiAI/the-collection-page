@@ -157,11 +157,17 @@ function GraveyardContent() {
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
   
-  // Check if showbuttons=1 query parameter is present
-  const showButtons = useMemo(() => {
+  // Mint buttons: ONLY show with showbuttons=1
+  const showMintButtons = useMemo(() => {
+    return searchParams.get('showbuttons') === '1'
+  }, [searchParams])
+  
+  // Regenerate buttons: Show for grave robbers OR showbuttons=1
+  const showRegenerateButtons = useMemo(() => {
     const showButtonsParam = searchParams.get('showbuttons') === '1'
-    console.log('[Graveyard] showButtons check:', { showButtonsParam, profile })
-    return showButtonsParam
+    const hasGraveRobbed = profile?.has_grave_robbed === true
+    console.log('[Graveyard] showRegenerateButtons check:', { showButtonsParam, hasGraveRobbed, profile })
+    return showButtonsParam || hasGraveRobbed
   }, [searchParams, profile])
 
   // Check holder status
@@ -1807,8 +1813,8 @@ function GraveyardContent() {
                       </div>
                     )}
                     
-                    {/* Mint Button - only show if showbuttons=1 */}
-                    {showButtons && (
+                    {/* Mint Button - ONLY show with showbuttons=1 */}
+                    {showMintButtons && (
                       <MintButton
                         mintQueueId={mint.id}
                         imageUrl={mint.imageUrl}
@@ -1825,8 +1831,8 @@ function GraveyardContent() {
                     />
                     )}
                     
-                    {/* Regenerate button - only show if showbuttons=1 */}
-                    {showButtons && (
+                    {/* Regenerate button - show for grave robbers OR showbuttons=1 */}
+                    {showRegenerateButtons && (
                       <button
                         type="button"
                         onClick={() => handleRegenerate(mint.id, mint.imageUrl)}
