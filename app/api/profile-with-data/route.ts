@@ -11,6 +11,7 @@ export const runtime = 'nodejs'
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const walletAddress = searchParams.get('walletAddress')
+  const paymentAddress = searchParams.get('paymentAddress')
 
   if (!walletAddress) {
     return NextResponse.json(
@@ -25,13 +26,23 @@ export async function GET(request: NextRequest) {
   try {
     const pool = getPool()
     
-    // Auto-create profile if it doesn't exist (prevents need for separate /api/profile/create call)
-    await pool.query(
-      `INSERT INTO profiles (wallet_address)
-       VALUES ($1)
-       ON CONFLICT (wallet_address) DO NOTHING`,
-      [walletAddress]
-    )
+    // Auto-create profile if it doesn't exist, or update payment_address if provided
+    if (paymentAddress) {
+      await pool.query(
+        `INSERT INTO profiles (wallet_address, payment_address)
+         VALUES ($1, $2)
+         ON CONFLICT (wallet_address) 
+         DO UPDATE SET payment_address = EXCLUDED.payment_address, updated_at = NOW()`,
+        [walletAddress, paymentAddress]
+      )
+    } else {
+      await pool.query(
+        `INSERT INTO profiles (wallet_address)
+         VALUES ($1)
+         ON CONFLICT (wallet_address) DO NOTHING`,
+        [walletAddress]
+      )
+    }
     
     // Define queries with logging
     const abyssStatsQuery = `SELECT 

@@ -709,7 +709,8 @@ function SummoningOverviewCard() {
 }
 
 function useProfileState() {
-  const { connected, address } = useLaserEyes()
+  const wallet = useLaserEyes()
+  const { connected, address, paymentAddress } = wallet
   const toast = useToast()
   const [profile, setProfile] = useState<ProfileDetails>(INITIAL_PROFILE)
   const [discord, setDiscord] = useState<SocialStatus>(INITIAL_SOCIAL)
@@ -726,12 +727,15 @@ function useProfileState() {
   const isInitializing = useRef(false)
 
   const fetchProfileWithData = useCallback(
-    async (wallet: string) => {
+    async (wallet: string, payment?: string) => {
       try {
         const data = await getCachedRequest(
           `profile-with-data:${wallet}`,
           async () => {
-            const response = await fetch(`/api/profile-with-data?walletAddress=${encodeURIComponent(wallet)}`)
+            const url = payment 
+              ? `/api/profile-with-data?walletAddress=${encodeURIComponent(wallet)}&paymentAddress=${encodeURIComponent(payment)}`
+              : `/api/profile-with-data?walletAddress=${encodeURIComponent(wallet)}`
+            const response = await fetch(url)
             return response.json()
           }
         )
@@ -875,7 +879,7 @@ function useProfileState() {
 
       // Profile is auto-created by /api/profile-with-data if it doesn't exist
       await Promise.all([
-        fetchProfileWithData(wallet), // Consolidated endpoint: profile + socials + holder + abyss + summons + portal
+        fetchProfileWithData(wallet, paymentAddress || undefined), // Consolidated endpoint: profile + socials + holder + abyss + summons + portal
         fetchInventory(wallet), // Still need Magic Eden external API
       ])
 
@@ -914,12 +918,12 @@ function useProfileState() {
 
     if (discordAuth === 'success' || twitterAuth === 'success') {
       void Promise.all([
-        fetchProfileWithData(address), // Consolidated endpoint includes everything
+        fetchProfileWithData(address, paymentAddress || undefined), // Consolidated endpoint includes everything
         fetchInventory(address), // Magic Eden
       ])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, fetchProfileWithData, fetchInventory])
+  }, [address, paymentAddress, fetchProfileWithData, fetchInventory])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -959,7 +963,7 @@ function useProfileState() {
           invalidateCache() // Clear all cache
           isInitializing.current = false // Reset flag
           void Promise.all([
-            fetchProfileWithData(address), // Consolidated endpoint
+            fetchProfileWithData(address, paymentAddress || undefined), // Consolidated endpoint
             fetchInventory(address), // Magic Eden
           ])
         }
