@@ -205,6 +205,48 @@ export async function POST(request: NextRequest) {
       const mintQueueUpdated = mintQueueUpdateResult.rowCount || 0
       console.log(`[wallet/link] Updated ${mintQueueUpdated} ascended_images_mint_queue records`)
       
+      // Consolidate ascension_powder: Transfer from linked wallet to primary wallet
+      // First, ensure both wallets have profile records
+      await pool.query(
+        `INSERT INTO profiles (wallet_address, ascension_powder)
+         VALUES ($1, 0), ($2, 0)
+         ON CONFLICT (wallet_address) DO NOTHING`,
+        [primaryWallet, linkedWallet]
+      )
+      
+      // Get current powder amounts
+      const powderResult = await pool.query(
+        `SELECT 
+           (SELECT COALESCE(ascension_powder, 0) FROM profiles WHERE LOWER(wallet_address) = LOWER($1)) as primary_powder,
+           (SELECT COALESCE(ascension_powder, 0) FROM profiles WHERE LOWER(wallet_address) = LOWER($2)) as linked_powder`,
+        [primaryWallet, linkedWallet]
+      )
+      
+      const primaryPowderBefore = Number(powderResult.rows[0]?.primary_powder ?? 0)
+      const linkedPowderBefore = Number(powderResult.rows[0]?.linked_powder ?? 0)
+      const totalPowderAfter = primaryPowderBefore + linkedPowderBefore
+      
+      console.log(`[wallet/link] Consolidating ascension_powder:`)
+      console.log(`  Primary wallet (${primaryWallet}): ${primaryPowderBefore} powder`)
+      console.log(`  Linked wallet (${linkedWallet}): ${linkedPowderBefore} powder`)
+      console.log(`  Total after consolidation: ${totalPowderAfter} powder`)
+      
+      // Update primary wallet with combined powder
+      await pool.query(
+        `UPDATE profiles 
+         SET ascension_powder = $1, updated_at = NOW()
+         WHERE LOWER(wallet_address) = LOWER($2)`,
+        [totalPowderAfter, primaryWallet]
+      )
+      
+      // Zero out linked wallet's powder
+      await pool.query(
+        `UPDATE profiles 
+         SET ascension_powder = 0, updated_at = NOW()
+         WHERE LOWER(wallet_address) = LOWER($1)`,
+        [linkedWallet]
+      )
+      
       await pool.query('COMMIT')
 
       // Consume the link token so it can't be reused
@@ -224,6 +266,12 @@ export async function POST(request: NextRequest) {
         consolidated: {
           abyss_burns: burnsUpdated,
           mint_queue: mintQueueUpdated,
+          ascension_powder: {
+            primary_before: primaryPowderBefore,
+            linked_before: linkedPowderBefore,
+            primary_after: totalPowderAfter,
+            transferred: linkedPowderBefore,
+          }
         }
       })
     } catch (error) {
