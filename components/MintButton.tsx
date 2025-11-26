@@ -90,7 +90,7 @@ export function MintButton({
       toast.error(message)
     } else {
       toast.info(message)
-    }
+      }
   }, [toast])
 
   // Define createAndBroadcastReveal with useCallback to avoid recreating on every render
@@ -611,21 +611,21 @@ export function MintButton({
     <div className="flex flex-col gap-2">
       {/* Fee Rate Input - Hide when completed */}
       {status !== 'completed' && (
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-yellow-400" />
-          <Input
-            type="number"
-            value={feeRate}
-            onChange={(e) => setFeeRate(parseFloat(e.target.value) || 0)}
-            min="0.1"
-            max="1000"
-            step="0.01"
+      <div className="flex items-center gap-2">
+        <Zap className="h-4 w-4 text-yellow-400" />
+        <Input
+          type="number"
+          value={feeRate}
+          onChange={(e) => setFeeRate(parseFloat(e.target.value) || 0)}
+          min="0.1"
+          max="1000"
+          step="0.01"
             disabled={isProcessing}
-            className="w-24 h-8 text-sm"
-            placeholder="sat/vB"
-          />
-          <span className="text-xs text-gray-400">sat/vB</span>
-        </div>
+          className="w-24 h-8 text-sm"
+          placeholder="sat/vB"
+        />
+        <span className="text-xs text-gray-400">sat/vB</span>
+      </div>
       )}
 
       {/* Cost Breakdown Display */}

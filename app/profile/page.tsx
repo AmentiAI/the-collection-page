@@ -125,6 +125,7 @@ function ProfileContent() {
     twitter,
     inventory,
     isHolder,
+    totalHoldings,
     executioner,
     bonusAllowance,
     summons,
@@ -180,6 +181,7 @@ function ProfileContent() {
             connected={connected}
             inventory={inventory}
             isHolder={isHolder}
+            totalHoldings={totalHoldings}
             executioner={executioner}
             bonusAllowance={bonusAllowance}
             summons={summons}
@@ -346,6 +348,7 @@ function ProfileStatuses({
   connected,
   inventory,
   isHolder,
+  totalHoldings,
   executioner,
   bonusAllowance,
   summons,
@@ -356,6 +359,7 @@ function ProfileStatuses({
   connected: boolean
   inventory: InventorySummary
   isHolder: boolean | null
+  totalHoldings: number
   executioner: boolean | null
   bonusAllowance: number
   summons: SummonOverview
@@ -385,7 +389,7 @@ function ProfileStatuses({
     if (isHolder === true) {
       return {
         value: 'Holder',
-        subtitle: `${inventory.tokenCount} damned ordinal${inventory.tokenCount === 1 ? '' : 's'} detected`,
+        subtitle: `${totalHoldings} damned ordinal${totalHoldings === 1 ? '' : 's'} detected`,
         tone: 'success' as const,
       }
     }
@@ -717,6 +721,7 @@ function useProfileState() {
   const [twitter, setTwitter] = useState<SocialStatus>(INITIAL_SOCIAL)
   const [inventory, setInventory] = useState<InventorySummary>(INITIAL_INVENTORY)
   const [isHolder, setIsHolder] = useState<boolean | null>(null)
+  const [totalHoldings, setTotalHoldings] = useState<number>(0)
   const [executioner, setExecutioner] = useState<boolean | null>(null)
   const [bonusAllowance, setBonusAllowance] = useState<number>(0)
   const [summons, setSummons] = useState<SummonOverview>(INITIAL_SUMMON_OVERVIEW)
@@ -772,6 +777,7 @@ function useProfileState() {
           // Set holder status (includes both burns and grave robbing)
           if (data.holder) {
             setIsHolder(data.holder.isHolder)
+            setTotalHoldings(data.holder.totalHoldings ?? 0)
       }
           
           // Set executioner status from abyss stats
@@ -950,6 +956,7 @@ function useProfileState() {
       twitter,
       inventory,
       isHolder,
+      totalHoldings,
       executioner,
       bonusAllowance,
       summons,
@@ -979,6 +986,7 @@ function useProfileState() {
       twitter,
       inventory,
       isHolder,
+      totalHoldings,
       executioner,
       bonusAllowance,
       summons,

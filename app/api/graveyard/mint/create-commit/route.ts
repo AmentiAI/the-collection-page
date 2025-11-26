@@ -344,17 +344,17 @@ export async function POST(request: NextRequest) {
       usedUtxos: usedUtxos, // Return used UTXOs for frontend to exclude
       fees: {
         commitTxFee: commitTx.actualCommitFee,
-        revealTxFee: revealTxFee,
+        revealTxFee: revealSatsNeeded, // Total reveal cost (fee + inscription output + buffer)
         toolFee: toolFeeInSats,
-        totalCost: commitTx.actualCommitFee + revealTxFee + toolFeeInSats
+        totalCost: commitTx.actualCommitFee + revealSatsNeeded + toolFeeInSats
       }
     }
 
     console.log("✅ COMMIT PSBT CREATED")
     console.log(`   Commit fee: ${commitTx.actualCommitFee} sats`)
-    console.log(`   Reveal fee: ${revealTxFee} sats`)
+    console.log(`   Reveal cost: ${revealSatsNeeded} sats (fee: ${revealTxFee} + output: 330 + buffer: ${safetyBuffer})`)
     console.log(`   Ascension Cost: ${toolFeeInSats} sats (${isDemon ? 'Demon' : 'Ascended'})`)
-    console.log(`   Total: ${commitTx.actualCommitFee + revealTxFee + toolFeeInSats} sats`)
+    console.log(`   Total: ${commitTx.actualCommitFee + revealSatsNeeded + toolFeeInSats} sats`)
     
     return NextResponse.json(result)
 

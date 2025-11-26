@@ -152,6 +152,12 @@ export async function GET(request: NextRequest) {
         hasBurns: false,
         hasGraveRobbed: false,
         isHolder: false,
+        totalHoldings: 0,
+        holdingsBreakdown: {
+          inWallet: 0,
+          inBurns: 0,
+          inMintQueue: 0,
+        },
       },
       abyssStats: {
         ascensionTotal: 0,
@@ -198,19 +204,80 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Get linked wallets for holder count calculation
+    let allWallets = [normalizedWallet]
+    const baseUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    try {
+      const linkedResponse = await fetch(`${baseUrl}/api/wallet/linked?walletAddress=${encodeURIComponent(walletAddress)}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000) // 5s timeout
+      })
+      if (linkedResponse.ok) {
+        const linkedData = await linkedResponse.json()
+        if (linkedData.success && Array.isArray(linkedData.allWallets)) {
+          allWallets = linkedData.allWallets.map((w: string) => w.toLowerCase())
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch linked wallets for holder count, using primary only:', error)
+    }
+
+    // Calculate holder counts (including linked wallets)
+    const holderCounts = await Promise.allSettled([
+      // 1. Ordinals in wallet (via Magic Eden API - already handles linked wallets with includeLinked=true)
+      fetch(`${baseUrl}/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&includeLinked=true&fetchAll=true`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10000) // 10s timeout
+      }).then(async (res) => {
+        if (!res.ok) return { total: 0 }
+        const data = await res.json()
+        return { total: data.total || (Array.isArray(data.tokens) ? data.tokens.length : 0) }
+      }).catch(() => ({ total: 0 })),
+
+      // 2. Ordinals in abyss_burns (hidden=false)
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM abyss_burns
+         WHERE (LOWER(ordinal_wallet) = ANY($1::text[]) OR LOWER(payment_wallet) = ANY($1::text[]))
+           AND (hidden IS NULL OR hidden = FALSE)`,
+        [allWallets]
+      ),
+
+      // 3. Ordinals in ascended_images_mint_queue
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM ascended_images_mint_queue
+         WHERE LOWER(wallet_address) = ANY($1::text[])`,
+        [allWallets]
+      ),
+    ])
+
+    const inWallet = holderCounts[0].status === 'fulfilled' ? (holderCounts[0].value.total || 0) : 0
+    const inBurns = holderCounts[1].status === 'fulfilled' && holderCounts[1].value.rows[0] 
+      ? Number(holderCounts[1].value.rows[0].count || 0) 
+      : 0
+    const inMintQueue = holderCounts[2].status === 'fulfilled' && holderCounts[2].value.rows[0]
+      ? Number(holderCounts[2].value.rows[0].count || 0)
+      : 0
+
+    const totalHoldings = inWallet + inBurns + inMintQueue
+
     // Parse holder result
- 
     if (holderResult.status === 'fulfilled') {
-    
       if (holderResult.value.rows[0]) {
         const row = holderResult.value.rows[0]
-        
-       
-        
         response.holder.hasBurns = Boolean(row.has_burns)
         response.holder.hasGraveRobbed = Boolean(row.has_grave_robbed)
-        response.holder.isHolder = Boolean(row.has_burns || row.has_grave_robbed)
+        response.holder.isHolder = Boolean(row.has_burns || row.has_grave_robbed || totalHoldings > 0)
       }
+    }
+
+    // Set holder counts
+    response.holder.totalHoldings = totalHoldings
+    response.holder.holdingsBreakdown = {
+      inWallet,
+      inBurns,
+      inMintQueue,
     }  
 
     // Parse abyss stats result
