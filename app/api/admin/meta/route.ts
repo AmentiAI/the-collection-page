@@ -131,12 +131,19 @@ export async function GET() {
       
       // Add Ascended trait based on source_inscription_id
       const isAscended = row.source_inscription_id?.startsWith('ascended_') || false
-      const ascendedTrait = {
-        trait_type: 'Ascended',
-        value: isAscended ? 'Angelic' : 'Demonic'
-      }
+      const ascendedValue = isAscended ? 'Angelic' : 'Demonic'
+      const prefix = `${ascendedValue} `
+      
+      // Prefix all trait values with "Demonic " or "Angelic "
+      attributes.forEach((attr) => {
+        attr.value = `${prefix}${attr.value}`
+      })
       
       // Add the Ascended trait to the attributes
+      const ascendedTrait = {
+        trait_type: 'Ascended',
+        value: ascendedValue
+      }
       attributes.push(ascendedTrait)
 
       return {
@@ -150,6 +157,14 @@ export async function GET() {
 
     // Combine original metadata with minted metadata
     const allMetadata = [...metadata, ...mintedMetadata]
+
+    // Post-process: Replace "Pikachu Hat" with "P-Hat" in all attribute values
+    allMetadata.forEach((item) => {
+      item.meta.attributes = item.meta.attributes.map((attr) => ({
+        ...attr,
+        value: attr.value.replace(/Pikachu Hat/g, 'P-Hat')
+      }))
+    })
 
     return NextResponse.json({
       success: true,
