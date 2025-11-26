@@ -149,6 +149,31 @@ const tokensCommand = {
   ],
 };
 
+const tipCommand = {
+  name: 'tip',
+  description: 'Tip ascension powder to another user',
+  options: [
+    {
+      name: 'user',
+      type: ApplicationCommandOptionType.User,
+      description: 'The user to tip',
+      required: true,
+    },
+    {
+      name: 'amount',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Amount of ascension powder to tip',
+      required: true,
+      min_value: 1,
+    },
+  ],
+};
+
+const powderCommand = {
+  name: 'powder',
+  description: 'Check your ascension powder balance',
+};
+
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -178,7 +203,7 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
-    const commands = [verifyCommand, checkHoldersCommand, checkinCommand, dualityCommand];
+    const commands = [verifyCommand, checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand];
     if (FLASHNET_COMMANDS_ENABLED) {
       commands.push(priceCommand, infoCommand, tokensCommand);
     }
@@ -2139,6 +2164,170 @@ client.on(Events.InteractionCreate, async interaction => {
         content: `❌ **Error**\n\nAn error occurred during check-in: ${error.message}`,
       });
     }
+    return;
+  }
+
+  // Handle tip command
+  if (interaction.commandName === 'tip') {
+    await interaction.deferReply({ ephemeral: false }); // Public reply so recipient can see
+    
+    try {
+      const recipientUser = interaction.options.getUser('user', true);
+      const amount = interaction.options.getInteger('amount', true);
+
+      if (!recipientUser) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nPlease specify a valid user to tip.',
+        });
+        return;
+      }
+
+      if (amount <= 0) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nTip amount must be greater than 0.',
+        });
+        return;
+      }
+
+      if (recipientUser.id === interaction.user.id) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nYou cannot tip yourself.',
+        });
+        return;
+      }
+
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/tip`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderDiscordId: interaction.user.id,
+          recipientDiscordId: recipientUser.id,
+          amount: amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\n${errorData.error || `Failed to process tip: ${response.status}`}`,
+        });
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const embed = new EmbedBuilder()
+          .setTitle('💎 Tip Successful!')
+          .setDescription(
+            `<@${interaction.user.id}> tipped **${amount} ascension powder** to <@${recipientUser.id}>!`
+          )
+          .addFields(
+            {
+              name: 'Sender Balance',
+              value: `${data.sender.powderAfter.toLocaleString()} powder`,
+              inline: true,
+            },
+            {
+              name: 'Recipient Balance',
+              value: `${data.recipient.powderAfter.toLocaleString()} powder`,
+              inline: true,
+            }
+          )
+          .setColor(0x2ecc71)
+          .setTimestamp(new Date());
+
+        await interaction.editReply({
+          content: `<@${recipientUser.id}>`,
+          embeds: [embed],
+        });
+      } else {
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\n${data.error || 'Unknown error occurred'}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error during tip:', error);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred while processing the tip: ${error.message}`,
+      });
+    }
+    return;
+  }
+
+  // Handle powder command
+  if (interaction.commandName === 'powder') {
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/balance?discordUserId=${encodeURIComponent(interaction.user.id)}`;
+      console.log(`[Powder] Fetching balance for Discord user ${interaction.user.id} from ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[Powder] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          const text = await response.text();
+          console.log(`[Powder] Error response body: ${text}`);
+          errorData = text ? JSON.parse(text) : { error: 'Unknown error' };
+        } catch (parseError) {
+          console.error('[Powder] Failed to parse error response:', parseError);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        await interaction.editReply({
+          content: `❌ **Error**\n\n${errorData.error || `Failed to fetch balance: ${response.status}`}`,
+        });
+        return;
+      }
+
+      const data = await response.json();
+      console.log(`[Powder] Response data:`, JSON.stringify(data));
+
+      if (data.success) {
+        const embed = new EmbedBuilder()
+          .setTitle('💎 Ascension Powder Balance')
+          .setDescription(`You have **${data.balance.toLocaleString()}** ascension powder`)
+          .addFields(
+            {
+              name: 'Wallet',
+              value: `\`${data.wallet ? `${data.wallet.slice(0, 6)}...${data.wallet.slice(-4)}` : 'N/A'}\``,
+              inline: true,
+            },
+            {
+              name: 'Balance',
+              value: `${data.balance.toLocaleString()} powder`,
+              inline: true,
+            }
+          )
+          .setColor(0x9b59b6)
+          .setTimestamp(new Date());
+
+        await interaction.editReply({
+          embeds: [embed],
+        });
+      } else {
+        await interaction.editReply({
+          content: `❌ **Error**\n\n${data.error || 'Failed to fetch balance'}\n\n${data.balance !== undefined ? `Your balance: ${data.balance}` : ''}`,
+        });
+      }
+    } catch (error) {
+      console.error('[Powder] Error fetching balance:', error);
+      console.error('[Powder] Error stack:', error.stack);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred while fetching your balance: ${error.message || 'Unknown error'}`,
+      });
+    }
+    return;
   }
 });
 
