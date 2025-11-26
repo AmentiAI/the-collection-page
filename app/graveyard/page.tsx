@@ -1801,18 +1801,6 @@ function GraveyardContent() {
                     />
                     )}
                     
-                    {/* Regenerate button - show for grave robbers OR Dead Demons holders OR showbuttons=1, but NOT if mint is completed */}
-                    {showRegenerateButtons && mint.mintInscription?.status !== 'completed' && (
-                      <button
-                        type="button"
-                        onClick={() => handleRegenerate(mint.id, mint.imageUrl)}
-                        disabled={regenerating === mint.id || regenerationAllowance <= 0}
-                        className="w-full rounded-lg border border-purple-500/40 bg-purple-600/20 px-3 py-1.5 text-[9px] font-mono uppercase tracking-[0.3em] text-purple-200 transition hover:bg-purple-600/30 disabled:cursor-not-allowed disabled:opacity-50"
-                        title={regenerationAllowance <= 0 ? 'No regenerations available. Complete summons to earn more.' : ''}
-                      >
-                          {regenerating === mint.id ? 'Regenerating...' : `Regenerate (${regenerationAllowance})`}
-                      </button>
-                    )}
                   </div>
                 </article>
               ))}
