@@ -22,7 +22,6 @@ const client = new Client({
   ],
 });
 
-const VERIFY_API_URL = process.env.NEXT_PUBLIC_VERIFY_API_URL || 'https://thedamned.xyz/api/verify';
 const HOLDERS_CHANNEL_ID = process.env.HOLDERS_CHANNEL_ID;
 const HOLDER_ROLE_ID = process.env.HOLDER_ROLE_ID;
 const BOT_STATUS_CHANNEL_ID = process.env.BOT_STATUS_CHANNEL_ID;
@@ -72,19 +71,6 @@ const PAIRING_COOLDOWN_MINUTES = Number(process.env.DUALITY_PAIRING_COOLDOWN_MIN
 
 // Slash command handler
 client.commands = new Collection();
-
-const verifyCommand = {
-  name: 'verify',
-  description: 'Verify your wallet or get instructions',
-  options: [
-    {
-      name: 'code',
-      type: ApplicationCommandOptionType.String,
-      description: 'Your verification code (leave empty for instructions)',
-      required: false,
-    },
-  ],
-};
 
 const checkHoldersCommand = {
   name: 'checkholders',
@@ -203,19 +189,67 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
-    const commands = [verifyCommand, checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand];
+    const commands = [checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand];
     if (FLASHNET_COMMANDS_ENABLED) {
       commands.push(priceCommand, infoCommand, tokensCommand);
     }
 
-    await rest.put(
+    console.log(`Registering ${commands.length} commands:`, commands.map(c => c.name).join(', '));
+
+    const registeredCommands = await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
       { body: commands }
     );
 
     console.log('Successfully registered application commands.');
+    console.log('Registered commands:', commands.map(c => `/${c.name}`).join(', '));
+
+    // Set permissions for public commands (powder, tip) to allow everyone
+    // Get the guild ID for permissions
+    const guildId = process.env.GUILD_ID;
+    if (guildId && Array.isArray(registeredCommands)) {
+      try {
+        // Find the @everyone role ID (it's the same as the guild ID)
+        const everyoneRoleId = guildId;
+
+        // Commands that should be available to everyone
+        const publicCommands = ['powder', 'tip', 'checkin', 'duality'];
+        
+        for (const cmd of registeredCommands) {
+          if (publicCommands.includes(cmd.name)) {
+            try {
+              // Set permissions to allow @everyone to use the command
+              await rest.put(
+                Routes.applicationCommandPermissions(process.env.CLIENT_ID, guildId, cmd.id),
+                {
+                  body: {
+                    permissions: [
+                      {
+                        id: everyoneRoleId,
+                        type: 1, // ROLE type
+                        permission: true, // Allow
+                      },
+                    ],
+                  },
+                }
+              );
+              console.log(`✅ Set permissions for /${cmd.name} to allow everyone`);
+            } catch (permError) {
+              console.warn(`⚠️  Could not set permissions for /${cmd.name}:`, permError.message);
+              console.warn('   Command will still work, but may have default Discord permissions.');
+            }
+          }
+        }
+      } catch (permError) {
+        console.warn('⚠️  Could not set command permissions:', permError.message);
+        console.warn('   Make sure your bot has "Manage Server" permission.');
+      }
+    }
   } catch (error) {
     console.error('Error registering commands:', error);
+    if (error.response) {
+      console.error('Discord API error response:', error.response.data);
+    }
   }
 }
 
@@ -1866,134 +1900,6 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
 
-  if (interaction.commandName === 'verify') {
-    const code = interaction.options.getString('code');
-
-    await interaction.deferReply({ ephemeral: true });
-
-    // If no code provided, show instructions
-    if (!code) {
-      const websiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz';
-      await interaction.editReply({
-        content: `📋 **How to Verify Your Wallet**\n\n` +
-          `1️⃣ Go to: ${websiteUrl}\n` +
-          `2️⃣ Connect your wallet\n` +
-          `3️⃣ Get your verification code\n` +
-          `4️⃣ Use: \`/verify code:\` and paste your code\n\n` +
-          `*Example: \`/verify code: ABC12345\``,
-      });
-      return;
-    }
-
-        try {
-      // Call the verify API endpoint
-      console.log(`Attempting to verify code: ${code}`);
-      const response = await fetch(`${VERIFY_API_URL}?code=${encodeURIComponent(code)}`);
-      
-      if (!response.ok) {
-        console.error(`API returned error status: ${response.status} ${response.statusText}`);
-        const errorText = await response.text();
-        console.error(`Error response: ${errorText}`);
-        await interaction.editReply({
-          content: `❌ **API Error**\n\nThe verification server returned an error (${response.status}). Please try again later.`,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      console.log(`API response:`, JSON.stringify(data));
-
-      if (data.valid && data.address) {
-        // User is verified - assign the holder role
-        const member = interaction.member;
-        const role = interaction.guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-
-                if (role) {
-          // Check if user already has the role
-          if (member.roles.cache.has(role.id)) {
-            await interaction.editReply({
-              content: `✅ **You're already verified!**\n\nYou already have the holder role.\nYour address: \`${data.address}\``,
-            });
-            console.log(`User ${interaction.user.tag} (${interaction.user.id}) already has the role`);
-            return;
-          }
-
-          // Check bot permissions
-          const botMember = interaction.guild.members.cache.get(client.user.id);
-          if (!botMember.permissions.has('ManageRoles')) {
-            console.error('Bot does not have ManageRoles permission');
-            await interaction.editReply({
-              content: '✅ Verification successful, but the bot does not have permission to assign roles. Please contact an administrator.',
-            });
-            return;
-          }
-
-          // Check role hierarchy (bot's highest role must be higher than the role to assign)
-          const botHighestRole = botMember.roles.highest;
-          if (botHighestRole.comparePositionTo(role) <= 0) {
-            console.error(`Bot's role (${botHighestRole.name}) is not higher than holder role (${role.name})`);
-            await interaction.editReply({
-              content: '✅ Verification successful, but the bot\'s role is not high enough in the role hierarchy. Please contact an administrator.',
-            });
-            return;
-          }
-
-          try {
-            await member.roles.add(role);
-            
-            // Link Discord user to wallet address in database
-            try {
-              const linkResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/link`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  discordUserId: interaction.user.id,
-                  walletAddress: data.address
-                })
-              });
-              
-              if (linkResponse.ok) {
-                console.log(`✅ Linked Discord user ${interaction.user.id} to wallet ${data.address}`);
-              } else {
-                console.error(`Failed to link Discord user: ${linkResponse.status}`);
-              }
-            } catch (linkError) {
-              console.error('Error linking Discord user:', linkError);
-            }
-            
-            await interaction.editReply({
-              content: `✅ **Verification successful!**\n\nYou've been verified as a holder of The Damned ordinals.\nYour address: \`${data.address}\`\n\nThe holder role has been assigned to you.`,
-            });
-            console.log(`✅ Verified user ${interaction.user.tag} (${interaction.user.id}) with address ${data.address}`);
-          } catch (error) {
-            console.error('Error assigning role:', error);
-            console.error('Error details:', error.message, error.code);
-            await interaction.editReply({
-              content: `✅ Verification successful, but there was an error assigning your role: ${error.message}\n\nPlease contact an administrator.`,
-            });
-          }
-        } else {
-          console.error(`Holder role with ID ${process.env.HOLDER_ROLE_ID} not found in guild`);
-          await interaction.editReply({
-            content: '✅ Verification successful, but the holder role was not found. Please contact an administrator.',
-          });
-        }
-      } else {
-        // Verification failed
-        await interaction.editReply({
-          content: `❌ **Verification failed**\n\n${data.message || 'Invalid or expired verification code. Please generate a new code from the website.'}`,
-        });
-      }
-    } catch (error) {
-      console.error('Error during verification:', error);
-      console.error('Error stack:', error.stack);
-      console.error('Error message:', error.message);
-      await interaction.editReply({
-        content: `❌ **Error occurred**\n\nAn error occurred during verification: ${error.message}\n\nPlease ensure the verification server is running and try again.`,
-      });
-    }
-  }
-  
   if (interaction.commandName === 'duality') {
     await interaction.deferReply({ ephemeral: true });
     try {
@@ -2197,6 +2103,9 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/tip`;
+      console.log(`[Tip] Processing tip from ${interaction.user.id} to ${recipientUser.id} for ${amount} powder`);
+      console.log(`[Tip] API URL: ${apiUrl}`);
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2207,15 +2116,44 @@ client.on(Events.InteractionCreate, async interaction => {
         }),
       });
 
+      console.log(`[Tip] Response status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        let errorData;
+        let errorText = '';
+        try {
+          errorText = await response.text();
+          console.log(`[Tip] Error response body: ${errorText}`);
+          errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
+        } catch (parseError) {
+          console.error('[Tip] Failed to parse error response:', parseError);
+          console.error('[Tip] Raw error text:', errorText);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` };
+        }
+        
+        const errorMessage = errorData.error || `Failed to process tip: ${response.status}`;
+        console.error(`[Tip] Tip failed: ${errorMessage}`);
+        
         await interaction.editReply({
-          content: `❌ **Tip Failed**\n\n${errorData.error || `Failed to process tip: ${response.status}`}`,
+          content: `❌ **Tip Failed**\n\n${errorMessage}`,
         });
         return;
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        const responseText = await response.text();
+        console.log(`[Tip] Response body: ${responseText}`);
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('[Tip] Failed to parse success response:', parseError);
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\nReceived invalid response from server. Please try again.`,
+        });
+        return;
+      }
+
+      console.log(`[Tip] Response data:`, JSON.stringify(data));
 
       if (data.success) {
         const embed = new EmbedBuilder()
@@ -2226,12 +2164,12 @@ client.on(Events.InteractionCreate, async interaction => {
           .addFields(
             {
               name: 'Sender Balance',
-              value: `${data.sender.powderAfter.toLocaleString()} powder`,
+              value: `${data.sender?.powderAfter?.toLocaleString() || '0'} powder`,
               inline: true,
             },
             {
               name: 'Recipient Balance',
-              value: `${data.recipient.powderAfter.toLocaleString()} powder`,
+              value: `${data.recipient?.powderAfter?.toLocaleString() || '0'} powder`,
               inline: true,
             }
           )
@@ -2242,15 +2180,20 @@ client.on(Events.InteractionCreate, async interaction => {
           content: `<@${recipientUser.id}>`,
           embeds: [embed],
         });
+        console.log(`[Tip] Tip successful: ${amount} powder transferred`);
       } else {
+        const errorMessage = data.error || 'Unknown error occurred';
+        console.error(`[Tip] Tip failed (success=false): ${errorMessage}`);
         await interaction.editReply({
-          content: `❌ **Tip Failed**\n\n${data.error || 'Unknown error occurred'}`,
+          content: `❌ **Tip Failed**\n\n${errorMessage}`,
         });
       }
     } catch (error) {
-      console.error('Error during tip:', error);
+      console.error('[Tip] Error during tip:', error);
+      console.error('[Tip] Error stack:', error.stack);
+      console.error('[Tip] Error message:', error.message);
       await interaction.editReply({
-        content: `❌ **Error**\n\nAn error occurred while processing the tip: ${error.message}`,
+        content: `❌ **Error**\n\nAn error occurred while processing the tip: ${error.message || 'Unknown error'}\n\nPlease try again or contact support if the issue persists.`,
       });
     }
     return;
@@ -2386,7 +2329,6 @@ setInterval(async () => {
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Discord bot is ready! Logged in as ${client.user.tag}`);
   console.log(`Bot ID: ${client.user.id}`);
-  console.log(`Verify API URL: ${VERIFY_API_URL}`);
   console.log(`Guild ID: ${process.env.GUILD_ID}`);
   console.log(`Client ID: ${process.env.CLIENT_ID}`);
   console.log(`Holder Role ID: ${process.env.HOLDER_ROLE_ID}`);
