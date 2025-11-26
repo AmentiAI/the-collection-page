@@ -148,8 +148,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Tool fee varies based on inscription type
-    const ASCENDED_FEE_SATS = 6500
-    const DEMON_FEE_SATS = 6500
+    const ASCENDED_FEE_SATS = 5500
+    const DEMON_FEE_SATS = 5500
     const TOOL_FEE_ADDRESS = '3KWMjoT5nVpsUfJrxP1dqyM1b7EMXD3fSY'
     
     const toolFeeInSats = isDemon ? DEMON_FEE_SATS : ASCENDED_FEE_SATS
