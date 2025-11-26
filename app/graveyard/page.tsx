@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { MintButton } from '@/components/MintButton'
-import ChestCallout from '@/components/ChestCallout'
 
 type GraveyardEntry = {
   inscriptionId: string
@@ -897,14 +896,6 @@ function GraveyardContent() {
           )}
         </div>
 
-        {/* Treasure Chest - 500 Ascension Powder */}
-        <ChestCallout 
-          eventKey="graveyard_chest_500_v2" 
-          size="lg" 
-          className="my-4"
-          grantEndpoint="/api/ascension/grant"
-          grantAmount={500}
-        />
 
         {!isWalletConnected || !ordinalAddress ? (
           <section className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-red-600/40 bg-black/80 px-6 py-16 text-center shadow-[0_0_35px_rgba(220,38,38,0.35)]">
