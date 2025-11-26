@@ -475,7 +475,7 @@ function GraveyardContent() {
       console.log('🔄 Auto-refreshing mint queue (in-progress mint detected)')
       const refreshInterval = setInterval(() => {
         fetchMintQueueImages(false) // Use throttled version
-      }, 15000) // Refresh every 15 seconds (was 5)
+      }, 20000) // Refresh every 15 seconds (was 5)
       
       return () => clearInterval(refreshInterval)
     }
@@ -1783,8 +1783,8 @@ function GraveyardContent() {
                       </div>
                     )}
                     
-                    {/* Mint Button - ONLY show with showbuttons=1 */}
-                    {showMintButtons && (
+                    {/* Mint Button - Show with showbuttons=1 OR if source_inscription_id starts with "ascended_" */}
+                    {(showMintButtons || mint.sourceInscriptionId?.toLowerCase().startsWith('ascended_')) && (
                     <MintButton
                       mintQueueId={mint.id}
                       imageUrl={mint.imageUrl}
