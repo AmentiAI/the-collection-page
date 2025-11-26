@@ -328,7 +328,7 @@ export async function GET(request: NextRequest) {
       
       const total = demons + angels
       const angelPercentage = total > 0 ? Math.round((angels / total) * 100) : 0
-      const gatesOpen = angelPercentage > 50
+      const gatesOpen = angelPercentage >= 51
       
       return NextResponse.json({ 
         success: true, 
