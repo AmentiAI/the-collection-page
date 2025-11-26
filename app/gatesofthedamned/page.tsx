@@ -553,10 +553,26 @@ export default function GatesOfTheDamnedPage() {
                   </div>
                 </div>
                 {ratioData?.gatesOpen && (
-                  <div className="space-y-4">
-                    <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-emerald-500 animate-pulse">
-                      GATES ARE OPENING!
-                    </p>
+                  <div className="space-y-6 mt-8">
+                    <div className="text-center space-y-4">
+                      <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-emerald-500 animate-pulse">
+                        GATES ARE CLOSED! WAIT NO... THE GATES ARE OPEN!!!!
+                      </p>
+                      <div className="space-y-3 text-sm md:text-base font-mono text-emerald-300/90 leading-relaxed">
+                        <p className="text-emerald-400 font-semibold">
+                          The Angels have entered the fray — mint now.
+                        </p>
+                        <p className="text-emerald-300/80 italic">
+                          On Dec 10, a token with no name tears through the void.
+                        </p>
+                        <p className="text-emerald-300/80 italic">
+                          The Nov 29 gathering begins the unraveling.
+                        </p>
+                        <p className="text-emerald-400 font-semibold pt-2 border-t border-emerald-500/30">
+                          The faithful will feast. The late will kneel.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {!isLoading && !ratioData?.gatesOpen && (
