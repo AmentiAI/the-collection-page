@@ -547,7 +547,7 @@ export default function GatesOfTheDamnedPage() {
                     </div>
                     <div className="border-t border-red-600/30 pt-3 w-full">
                       <p className="text-center text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
-                        Gates open at 51% Angels
+                        Gates open at >50% Angels
                       </p>
                     </div>
                   </div>
