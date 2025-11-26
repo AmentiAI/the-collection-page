@@ -118,7 +118,7 @@ export default function GatesOfTheDamnedPage() {
             angels: data.angels,
             total: data.total,
             angelPercentage: data.angelPercentage,
-            gatesOpen: data.gatesOpen,
+            gatesOpen: true, // Always show gates as open
           })
         }
       } catch (error) {
@@ -511,47 +511,6 @@ export default function GatesOfTheDamnedPage() {
               </span>
             </h1>
               <div className="space-y-6">
-                <p className="text-base md:text-lg text-red-500 font-mono tracking-widest uppercase">
-                  THE BALANCE OF POWER
-                </p>
-                <div className="space-y-4">
-                  {/* Angels vs Demons Ratio */}
-                  <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center rounded-lg border border-red-600/60 bg-black/60 px-6 py-6 space-y-4">
-                    <div className="w-full space-y-3">
-                      {/* Angels */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-mono uppercase tracking-[0.3em] text-emerald-400">Angels</span>
-                        <span className="text-2xl font-mono text-emerald-200">
-                          {isLoading ? '—' : ratioData?.angels ?? 0}
-                        </span>
-                      </div>
-                      {/* Progress Bar */}
-                      <div className="relative h-8 w-full overflow-hidden rounded-full border border-red-600/40 bg-red-950/50">
-                        <div 
-                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
-                          style={{ width: `${isLoading ? 0 : ratioData?.angelPercentage ?? 0}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-sm font-mono font-bold text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.9)]">
-                            {isLoading ? '—' : `${ratioData?.angelPercentage ?? 0}%`}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Demons */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-mono uppercase tracking-[0.3em] text-red-400">Demons</span>
-                        <span className="text-2xl font-mono text-red-200">
-                          {isLoading ? '—' : ratioData?.demons ?? 0}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="border-t border-red-600/30 pt-3 w-full">
-                      <p className="text-center text-xs font-mono uppercase tracking-[0.3em] text-amber-400/80">
-                        Gates open at 51% Angels
-                      </p>
-                    </div>
-                  </div>
-                </div>
                 {ratioData?.gatesOpen && (
                   <div className="space-y-6 mt-8">
                     <div className="text-center space-y-4">
@@ -573,13 +532,6 @@ export default function GatesOfTheDamnedPage() {
                         </p>
                       </div>
                     </div>
-                  </div>
-                )}
-                {!isLoading && !ratioData?.gatesOpen && (
-                  <div className="space-y-4">
-                    <p className="text-xl md:text-2xl font-bold font-mono tracking-[0.4em] uppercase text-red-500">
-                      GATES REMAIN SEALED
-                    </p>
                   </div>
                 )}
               </div>

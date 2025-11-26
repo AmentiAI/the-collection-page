@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -67,6 +67,13 @@ const adminLinks: AdminLink[] = [
     description: 'Manage mint queue, missing profiles, and second ascension images',
     icon: <Sparkles className="h-8 w-8" />,
     color: 'purple',
+  },
+  {
+    href: '/admin/mint-inscriptions',
+    title: 'Mint Inscriptions',
+    description: 'View and monitor mint inscription records with pagination',
+    icon: <Coins className="h-8 w-8" />,
+    color: 'blue',
   },
 ]
 
