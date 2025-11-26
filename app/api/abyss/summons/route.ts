@@ -181,7 +181,8 @@ export async function GET(request: NextRequest) {
                   'role', sp.role,
                   'joinedAt', sp.joined_at,
                   'username', pr.username,
-                  'avatarUrl', pr.avatar_url
+                  'avatarUrl', pr.avatar_url,
+                  'discordUserId', du.discord_user_id
                 )
               ) FILTER (WHERE sp.id IS NOT NULL),
               '[]'::json
@@ -189,6 +190,7 @@ export async function GET(request: NextRequest) {
           FROM abyss_summons s
           LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
           LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
+          LEFT JOIN discord_users du ON du.profile_id = pr.id
           WHERE LOWER(s.creator_wallet) = LOWER($1)
           GROUP BY s.id
           ORDER BY s.created_at DESC
@@ -212,7 +214,8 @@ export async function GET(request: NextRequest) {
                   'role', sp.role,
                   'joinedAt', sp.joined_at,
                   'username', pr.username,
-                  'avatarUrl', pr.avatar_url
+                  'avatarUrl', pr.avatar_url,
+                  'discordUserId', du.discord_user_id
                 )
               ) FILTER (WHERE sp.id IS NOT NULL),
               '[]'::json
@@ -222,6 +225,7 @@ export async function GET(request: NextRequest) {
             ON target.summon_id = s.id AND LOWER(target.wallet) = LOWER($1)
           LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
           LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
+          LEFT JOIN discord_users du ON du.profile_id = pr.id
           GROUP BY s.id
           ORDER BY s.created_at DESC
           LIMIT 25

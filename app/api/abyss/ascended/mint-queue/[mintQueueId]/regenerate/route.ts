@@ -113,17 +113,17 @@ export async function GET(request: NextRequest, { params }: { params: { mintQueu
       // Check and deduct regeneration allowance (with row lock)
       const allowanceRes = await client.query(
         `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1) FOR UPDATE`,
-        [walletAddressRaw],
-      )
-      const available = Number(allowanceRes.rows[0]?.available ?? 0)
+      [walletAddressRaw],
+    )
+    const available = Number(allowanceRes.rows[0]?.available ?? 0)
 
-      if (available <= 0) {
+    if (available <= 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ 
-          success: false, 
-          error: 'No regeneration allowances available. Complete summons to earn more.' 
-        }, { status: 403 })
-      }
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No regeneration allowances available. Complete summons to earn more.' 
+      }, { status: 403 })
+    }
 
       // Deduct 1 from allowance immediately (credit is burned on generation)
       await client.query(
@@ -136,38 +136,38 @@ export async function GET(request: NextRequest, { params }: { params: { mintQueu
         [walletAddressRaw],
       )
 
-      // Get the mint queue entry and verify ownership
+    // Get the mint queue entry and verify ownership
       const mintQueueRes = await client.query(
-        `
-          SELECT 
-            mq.id,
-            mq.wallet_address,
-            mq.image_url,
-            mq.image_blob_url,
-            mq.generation_prompt,
-            mq.source_inscription_id
-          FROM ascended_images_mint_queue mq
-          WHERE mq.id = $1
-            AND LOWER(mq.wallet_address) = LOWER($2)
+      `
+        SELECT 
+          mq.id,
+          mq.wallet_address,
+          mq.image_url,
+          mq.image_blob_url,
+          mq.generation_prompt,
+          mq.source_inscription_id
+        FROM ascended_images_mint_queue mq
+        WHERE mq.id = $1
+          AND LOWER(mq.wallet_address) = LOWER($2)
           FOR UPDATE
-        `,
-        [mintQueueId, walletAddressRaw],
-      )
+      `,
+      [mintQueueId, walletAddressRaw],
+    )
 
-      if (mintQueueRes.rows.length === 0) {
+    if (mintQueueRes.rows.length === 0) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'Mint queue entry not found or not owned by you.' }, { status: 404 })
-      }
+      return NextResponse.json({ success: false, error: 'Mint queue entry not found or not owned by you.' }, { status: 404 })
+    }
 
-      const mintQueue = mintQueueRes.rows[0]
-      
-      if (!mintQueue.generation_prompt) {
+    const mintQueue = mintQueueRes.rows[0]
+    
+    if (!mintQueue.generation_prompt) {
         await client.query('ROLLBACK')
-        return NextResponse.json({ success: false, error: 'No generation prompt found for this image.' }, { status: 400 })
-      }
+      return NextResponse.json({ success: false, error: 'No generation prompt found for this image.' }, { status: 400 })
+    }
 
-      // Generate new image using the same prompt
-      const { imageUrl, imageBase64, imageBlobUrl } = await generateMutantMonsterImage(mintQueue.generation_prompt)
+    // Generate new image using the same prompt
+    const { imageUrl, imageBase64, imageBlobUrl } = await generateMutantMonsterImage(mintQueue.generation_prompt)
 
       // Get remaining allowance
       const updatedAllowanceRes = await client.query(
@@ -178,12 +178,12 @@ export async function GET(request: NextRequest, { params }: { params: { mintQueu
 
       await client.query('COMMIT')
 
-      return NextResponse.json({
-        success: true,
-        originalImageUrl: mintQueue.image_blob_url || mintQueue.image_url,
-        regeneratedImageUrl: imageBlobUrl || imageUrl,
-        regeneratedImageBase64: imageBase64,
-        regeneratedImageBlobUrl: imageBlobUrl,
+    return NextResponse.json({
+      success: true,
+      originalImageUrl: mintQueue.image_blob_url || mintQueue.image_url,
+      regeneratedImageUrl: imageBlobUrl || imageUrl,
+      regeneratedImageBase64: imageBase64,
+      regeneratedImageBlobUrl: imageBlobUrl,
         remainingAllowance, // Return updated allowance
       })
     } catch (error) {

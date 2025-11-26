@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       'treasure_chest_initial': 20,
       'graveyard_chest': 60,
       'graveyard_chest_500': 500,
+      'graveyard_chest_500_v2': 500,
     }
     const grantAmount = eventAmounts[eventKey] ?? DEFAULT_GRANT_AMOUNT
 

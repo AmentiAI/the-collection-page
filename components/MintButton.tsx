@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,6 +75,24 @@ export function MintButton({
     totalCost: number
   } | null>(null)
 
+  // Track which toasts have been shown to prevent duplicates
+  const shownToastsRef = useRef<Set<string>>(new Set())
+
+  // Helper to show toast only once per key
+  const showToastOnce = useCallback((key: string, message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (shownToastsRef.current.has(key)) {
+      return
+    }
+    shownToastsRef.current.add(key)
+    if (type === 'success') {
+      toast.success(message)
+    } else if (type === 'error') {
+      toast.error(message)
+    } else {
+      toast.info(message)
+    }
+  }, [toast])
+
   // Define createAndBroadcastReveal with useCallback to avoid recreating on every render
   const createAndBroadcastReveal = useCallback(async (mintId: string, commitTx: string) => {
     try {
@@ -124,7 +142,7 @@ export function MintButton({
       
       // Wait for reveal confirmation
       setStatus('waiting_reveal_confirmation')
-      toast.success('Reveal broadcast! Waiting for confirmation...')
+      showToastOnce(`reveal_broadcast_${mintId}`, 'Reveal broadcast! Waiting for confirmation...')
       
     } catch (error) {
       console.error('Reveal failed:', error)
@@ -169,7 +187,7 @@ export function MintButton({
           if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
             console.log('✅ Commit already in mempool on mount, auto-broadcasting reveal...')
             setCommitTxId(data.mint.commitTxId)
-            toast.success('Commit confirmed! Broadcasting reveal transaction...')
+            showToastOnce(`commit_confirmed_${mintInscriptionId}`, 'Commit confirmed! Broadcasting reveal transaction...')
             await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
           } else if (data.mint.status === 'completed' && status === 'waiting_reveal_confirmation') {
             console.log('✅ Reveal already confirmed on mount!')
@@ -178,7 +196,7 @@ export function MintButton({
             if (paymentAddress) {
               clearExcludedUtxos(paymentAddress)
             }
-            toast.success(`Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
+            showToastOnce(`mint_completed_${mintInscriptionId}`, `Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
             onMintComplete?.()
           }
         }
@@ -188,7 +206,7 @@ export function MintButton({
     }
 
     checkStatus()
-  }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, toast, onMintComplete, existingMintInscription])
+  }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, showToastOnce, onMintComplete, existingMintInscription])
 
   // Sync status when existingMintInscription changes
   useEffect(() => {
@@ -258,7 +276,7 @@ export function MintButton({
               console.log('✅ Commit in mempool, auto-broadcasting reveal...')
               setCommitTxId(data.mint.commitTxId)
               clearInterval(pollInterval)
-              toast.success('Commit confirmed! Broadcasting reveal transaction...')
+              showToastOnce(`commit_confirmed_${mintInscriptionId}`, 'Commit confirmed! Broadcasting reveal transaction...')
               
               // Automatically broadcast reveal
               await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
@@ -275,7 +293,7 @@ export function MintButton({
                 console.log('🧹 Cleared UTXO exclusions (mint completed)')
               }
               
-              toast.success(`Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
+              showToastOnce(`mint_completed_${mintInscriptionId}`, `Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
               onMintComplete?.()
             }
           } else if (data.mint.status === 'completed') {
@@ -287,6 +305,7 @@ export function MintButton({
             if (paymentAddress) {
               clearExcludedUtxos(paymentAddress)
             }
+            showToastOnce(`mint_completed_${mintInscriptionId}`, `Mint completed! Inscription ID: ${data.mint.inscriptionId}`)
             onMintComplete?.()
           }
         }
@@ -299,7 +318,7 @@ export function MintButton({
       console.log(`🛑 Stopping status polling for mint ${mintInscriptionId}`)
       clearInterval(pollInterval)
     }
-  }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, toast, onMintComplete])
+  }, [mintInscriptionId, status, createAndBroadcastReveal, paymentAddress, showToastOnce, onMintComplete])
 
   const compressImage = async () => {
     setStatus('compressing')
@@ -546,7 +565,7 @@ export function MintButton({
 
       setCommitTxId(txId)
       setStatus('waiting_commit_confirmation')
-      toast.success('Commit broadcast! Waiting for confirmation before reveal...')
+      showToastOnce(`commit_broadcast_${commitData.mintInscriptionId}`, 'Commit broadcast! Waiting for confirmation before reveal...')
 
      } catch (error) {
        console.error('Mint failed:', error)

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
@@ -73,82 +73,114 @@ async function ensureSummonInfrastructure(pool: Pool) {
   markTableInitialized('abyss_summons_leaderboard')
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const pool = getPool()
     await ensureSummonInfrastructure(pool)
 
-    const result = await pool.query(`
-      WITH completed_summons AS (
-        -- Abyss summons completed
-        SELECT id, LOWER(creator_wallet) AS wallet, completed_at
-        FROM abyss_summons
-        WHERE status = 'completed'
-        UNION ALL
-        -- Damned pool (portal) circles completed
-        SELECT id, LOWER(creator_wallet) AS wallet, completed_at
-        FROM damned_pool_circles
-        WHERE status = 'completed'
-      ),
-      hosted AS (
-        SELECT wallet, COUNT(*) AS hosted_count, MAX(completed_at) AS last_hosted_at
-        FROM completed_summons
-        GROUP BY wallet
-      ),
-      participation AS (
-        SELECT wallet, COUNT(*) AS participations, MAX(last_participated_at) AS last_participated_at
-        FROM (
-          -- Abyss participants
-          SELECT LOWER(asp.wallet) AS wallet, s.completed_at AS last_participated_at
-        FROM abyss_summon_participants asp
-        INNER JOIN abyss_summons s ON s.id = asp.summon_id
-        WHERE s.status = 'completed'
+    // Check if we should refresh the materialized view (optional query param)
+    const { searchParams } = new URL(request.url)
+    const refresh = searchParams.get('refresh') === 'true'
+
+    // Use materialized view for fast queries (fallback to old query if view doesn't exist)
+    let result
+    try {
+      if (refresh) {
+        // Refresh the materialized view (this is slow, so only do it on-demand)
+        await pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard_stats_mv')
+      }
+
+      // Query from materialized view (much faster)
+      result = await pool.query(`
+        SELECT
+          ls.wallet,
+          pr.username,
+          pr.avatar_url,
+          du.discord_user_id,
+          ls.burns,
+          ls.confirmed_burn_count,
+          ls.hosted_count AS hosted,
+          ls.participations AS participated,
+          ls.last_burn_at,
+          ls.last_hosted_at,
+          ls.last_participated_at,
+          ls.score
+        FROM leaderboard_stats_mv ls
+        LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = ls.wallet
+        LEFT JOIN discord_users du ON du.profile_id = pr.id
+        ORDER BY ls.score DESC, ls.burns DESC, ls.hosted_count DESC, ls.participations DESC, ls.wallet
+      `)
+    } catch (viewError) {
+      // Fallback to old query if materialized view doesn't exist yet
+      console.warn('[leaderboard] Materialized view not found, using fallback query:', viewError)
+      result = await pool.query(`
+        WITH completed_summons AS (
+          SELECT id, LOWER(creator_wallet) AS wallet, completed_at
+          FROM abyss_summons
+          WHERE status = 'completed'
           UNION ALL
-          -- Damned pool participants (count those who are in a circle that reached completed)
-          SELECT LOWER(dpp.wallet) AS wallet, dpc.completed_at AS last_participated_at
-          FROM damned_pool_participants dpp
-          INNER JOIN damned_pool_circles dpc ON dpc.id = dpp.circle_id
-          WHERE dpc.status = 'completed'
-        ) t
-        GROUP BY wallet
-      ),
-      burns AS (
-        SELECT LOWER(ordinal_wallet) AS wallet,
-               COUNT(*) AS burn_count,
-               COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed_burn_count,
-               MAX(updated_at) AS last_burn_at
-        FROM abyss_burns
-        GROUP BY LOWER(ordinal_wallet)
-      ),
-      combined AS (
-        SELECT wallet FROM hosted
-        UNION
-        SELECT wallet FROM participation
-      )
-      SELECT
-        c.wallet,
-        pr.username,
-        pr.avatar_url,
-        du.discord_user_id,
-        COALESCE(b.burn_count, 0) AS burns,
-        COALESCE(b.confirmed_burn_count, 0) AS confirmed_burns,
-        COALESCE(h.hosted_count, 0) AS hosted,
-        COALESCE(p.participations, 0) AS participated,
-        b.last_burn_at,
-        h.last_hosted_at,
-        p.last_participated_at,
-        (COALESCE(b.burn_count, 0) * 6)
-          + (COALESCE(h.hosted_count, 0) * 2)
-          + (COALESCE(p.participations, 0) * 1) AS score
-      FROM combined c
-      LEFT JOIN burns b ON b.wallet = c.wallet
-      LEFT JOIN hosted h ON h.wallet = c.wallet
-      LEFT JOIN participation p ON p.wallet = c.wallet
-      LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = c.wallet
-      LEFT JOIN discord_users du ON du.profile_id = pr.id
-      WHERE COALESCE(h.hosted_count, 0) > 0 OR COALESCE(p.participations, 0) > 0
-      ORDER BY score DESC, burns DESC, hosted DESC, participated DESC, c.wallet
-    `)
+          SELECT id, LOWER(creator_wallet) AS wallet, completed_at
+          FROM damned_pool_circles
+          WHERE status = 'completed'
+        ),
+        hosted AS (
+          SELECT wallet, COUNT(*) AS hosted_count, MAX(completed_at) AS last_hosted_at
+          FROM completed_summons
+          GROUP BY wallet
+        ),
+        participation AS (
+          SELECT wallet, COUNT(*) AS participations, MAX(last_participated_at) AS last_participated_at
+          FROM (
+            SELECT LOWER(asp.wallet) AS wallet, s.completed_at AS last_participated_at
+            FROM abyss_summon_participants asp
+            INNER JOIN abyss_summons s ON s.id = asp.summon_id
+            WHERE s.status = 'completed'
+            UNION ALL
+            SELECT LOWER(dpp.wallet) AS wallet, dpc.completed_at AS last_participated_at
+            FROM damned_pool_participants dpp
+            INNER JOIN damned_pool_circles dpc ON dpc.id = dpp.circle_id
+            WHERE dpc.status = 'completed'
+          ) t
+          GROUP BY wallet
+        ),
+        burns AS (
+          SELECT LOWER(ordinal_wallet) AS wallet,
+                 COUNT(*) AS burn_count,
+                 COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed_burn_count,
+                 MAX(updated_at) AS last_burn_at
+          FROM abyss_burns
+          GROUP BY LOWER(ordinal_wallet)
+        ),
+        combined AS (
+          SELECT wallet FROM hosted
+          UNION
+          SELECT wallet FROM participation
+        )
+        SELECT
+          c.wallet,
+          pr.username,
+          pr.avatar_url,
+          du.discord_user_id,
+          COALESCE(b.burn_count, 0) AS burns,
+          COALESCE(b.confirmed_burn_count, 0) AS confirmed_burns,
+          COALESCE(h.hosted_count, 0) AS hosted,
+          COALESCE(p.participations, 0) AS participated,
+          b.last_burn_at,
+          h.last_hosted_at,
+          p.last_participated_at,
+          (COALESCE(b.burn_count, 0) * 6)
+            + (COALESCE(h.hosted_count, 0) * 2)
+            + (COALESCE(p.participations, 0) * 1) AS score
+        FROM combined c
+        LEFT JOIN burns b ON b.wallet = c.wallet
+        LEFT JOIN hosted h ON h.wallet = c.wallet
+        LEFT JOIN participation p ON p.wallet = c.wallet
+        LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = c.wallet
+        LEFT JOIN discord_users du ON du.profile_id = pr.id
+        WHERE COALESCE(h.hosted_count, 0) > 0 OR COALESCE(p.participations, 0) > 0
+        ORDER BY score DESC, burns DESC, hosted DESC, participated DESC, c.wallet
+      `)
+    }
 
     const entries = result.rows.map((row) => ({
       wallet: (row.wallet ?? '').toString(),

@@ -899,7 +899,7 @@ function GraveyardContent() {
 
         {/* Treasure Chest - 500 Ascension Powder */}
         <ChestCallout 
-          eventKey="graveyard_chest_500" 
+          eventKey="graveyard_chest_500_v2" 
           size="lg" 
           className="my-4"
           grantEndpoint="/api/ascension/grant"
