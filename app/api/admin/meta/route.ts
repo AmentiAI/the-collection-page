@@ -35,12 +35,24 @@ function parseTraitsFromPrompt(prompt: string): Array<{ trait_type: string; valu
   // Parse each trait line (format: "Type: Name - Description")
   const traitLines = traitsSection.split('\n').filter(line => line.trim())
   
+  // Traits to exclude from metadata
+  const excludedTraits = new Set([
+    'CUSTOM RULES',
+    'BORDER',
+    'QUALITY'
+  ])
+  
   for (const line of traitLines) {
     // Match pattern: "Type: Name - Description"
     const match = line.match(/^([^:]+):\s*([^-]+)\s*-/)
     if (match) {
       let traitType = match[1].trim()
       const traitValue = match[2].trim()
+      
+      // Skip excluded traits
+      if (excludedTraits.has(traitType)) {
+        continue
+      }
       
       // Normalize trait type names
       if (traitType.toLowerCase().includes('hand')) {
@@ -101,6 +113,7 @@ export async function GET() {
     const mintedResult = await pool.query(`
       SELECT 
         mq.generation_prompt,
+        mq.source_inscription_id,
         mi.inscription_id
       FROM ascended_images_mint_queue mq
       INNER JOIN mint_inscriptions mi ON mi.mint_queue_id = mq.id
@@ -115,6 +128,16 @@ export async function GET() {
     // Add minted inscriptions to metadata
     const mintedMetadata: MetadataItem[] = mintedResult.rows.map((row, index) => {
       const attributes = parseTraitsFromPrompt(row.generation_prompt || '')
+      
+      // Add Ascended trait based on source_inscription_id
+      const isAscended = row.source_inscription_id?.startsWith('ascended_') || false
+      const ascendedTrait = {
+        trait_type: 'Ascended',
+        value: isAscended ? 'Angelic' : 'Demonic'
+      }
+      
+      // Add the Ascended trait to the attributes
+      attributes.push(ascendedTrait)
 
       return {
         id: row.inscription_id,
