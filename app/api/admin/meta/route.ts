@@ -96,12 +96,45 @@ export async function GET() {
       }
     })
 
+    // Get minted inscriptions from ascended_images_mint_queue
+    // JOIN with mint_inscriptions to get the actual inscription_id
+    const mintedResult = await pool.query(`
+      SELECT 
+        mq.generation_prompt,
+        mi.inscription_id
+      FROM ascended_images_mint_queue mq
+      INNER JOIN mint_inscriptions mi ON mi.mint_queue_id = mq.id
+      WHERE mq.mint_status = 'minted'
+        AND mi.inscription_id IS NOT NULL
+        AND mi.inscription_id != ''
+      ORDER BY mi.completed_at ASC
+    `)
+
+    console.log(`[admin/meta][GET] Found ${mintedResult.rows.length} minted inscriptions to add to metadata`)
+
+    // Add minted inscriptions to metadata
+    const mintedMetadata: MetadataItem[] = mintedResult.rows.map((row, index) => {
+      const attributes = parseTraitsFromPrompt(row.generation_prompt || '')
+
+      return {
+        id: row.inscription_id,
+        meta: {
+          name: `The Damned #${unburnedPrompts.length + index + 1}`,
+          attributes
+        }
+      }
+    })
+
+    // Combine original metadata with minted metadata
+    const allMetadata = [...metadata, ...mintedMetadata]
+
     return NextResponse.json({
       success: true,
       totalOriginal: allPrompts.length,
       totalBurned: burnedInscriptionIds.size,
       totalUnburned: unburnedPrompts.length,
-      metadata
+      totalMinted: mintedResult.rows.length,
+      metadata: allMetadata
     })
   } catch (error) {
     console.error('[admin/meta][GET]', error)

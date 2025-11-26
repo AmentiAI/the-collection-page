@@ -9,6 +9,7 @@ type MetadataResponse = {
   totalOriginal?: number
   totalBurned?: number
   totalUnburned?: number
+  totalMinted?: number
   metadata?: Array<{
     id: string
     meta: {
@@ -85,7 +86,7 @@ export default function MetaGeneratorPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-4xl font-bold mb-2 text-red-500">Metadata Generator</h1>
         <p className="text-gray-400 mb-8">
-          Generate metadata for The Damned collection, excluding burned inscriptions
+          Generate metadata for The Damned collection, excluding burned inscriptions and including minted inscriptions from the graveyard
         </p>
 
         <div className="mb-6 flex gap-4">
@@ -137,7 +138,7 @@ export default function MetaGeneratorPage() {
 
         {data && (
           <div className="mb-6 p-4 bg-gray-900 rounded border border-gray-700">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-gray-400">Total Original:</span>
                 <span className="ml-2 font-bold text-white">{data.totalOriginal}</span>
@@ -150,7 +151,17 @@ export default function MetaGeneratorPage() {
                 <span className="text-gray-400">Total Unburned:</span>
                 <span className="ml-2 font-bold text-green-500">{data.totalUnburned}</span>
               </div>
+              <div>
+                <span className="text-gray-400">Total Minted:</span>
+                <span className="ml-2 font-bold text-purple-500">{data.totalMinted || 0}</span>
+              </div>
             </div>
+            {data.metadata && (
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <span className="text-gray-400">Total Metadata Items:</span>
+                <span className="ml-2 font-bold text-white">{data.metadata.length}</span>
+              </div>
+            )}
           </div>
         )}
 
