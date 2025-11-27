@@ -12,11 +12,11 @@ const CIRCLE_DURATION_BONUS_MS = 10 * 60 * 1000 // 10 minutes (bonus_credits 20 
 const MIN_COMPLETION_COUNT = 36 // 36 out of 40 must complete
 const MIN_COMPLETION_COUNT_BONUS = 18 // 18 out of 20 must complete
 const MAX_ACTIVE_CIRCLES_PER_USER = 1 // Only 1 damned pool at a time per user
-const MAX_ACTIVE_CIRCLES_GLOBAL = 999 // No global limit (using 24hr cooldown instead)
+const MAX_ACTIVE_CIRCLES_GLOBAL = 1 // Only 1 global portal circle at a time
 const COOLDOWN_HOURS = 24 // 24-hour cooldown per user between portal initiations
 // Set to false to disable damned pool circles at the API level
 const DAMNED_POOL_MODE_ENABLED = true // Keep enabled for viewing/completing existing circles
-const DAMNED_POOL_CREATION_ENABLED = false // Disabled - no new portal circles
+const DAMNED_POOL_CREATION_ENABLED = true // Enabled - portal circles can be created
 
 async function ensureDamnedPoolInfrastructure(pool: Pool) {
   // Skip if already initialized in this process to avoid slow DDL operations
