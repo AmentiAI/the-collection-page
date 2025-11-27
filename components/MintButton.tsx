@@ -487,74 +487,18 @@ export function MintButton({
       // Step 3: Sign commit PSBT with wallet
       setStatus('signing_commit')
       
-      const shouldAutoBroadcast = feeRate >= 1
+      // Disable auto-broadcast to ensure mint_inscriptions record is properly saved
+      // We'll always broadcast manually through our API to track the transaction
+      const shouldAutoBroadcast = false
       const walletResult = await client.signPsbt(commitData.commitPsbt, true, shouldAutoBroadcast)
+      
+      // Always extract and broadcast manually to ensure record is updated
+      setStatus('broadcasting_commit')
       
       let txId: string
       
-      if (typeof walletResult === 'string' && walletResult.length > 0) {
-        // Wallet already broadcast
-        txId = walletResult
-        console.log('✅ Wallet broadcast commit tx:', txId)
-        
-        // CRITICAL: Update database even when wallet auto-broadcasts
-        try {
-          const updateResponse = await fetch('/api/graveyard/mint/broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              mintInscriptionId: commitData.mintInscriptionId,
-              txType: 'commit',
-              feeRate,
-              txId: txId // Wallet already broadcast, just update DB
-            })
-          })
-          
-          const updateData = await updateResponse.json()
-          if (!updateData.success) {
-            console.warn('⚠️ Failed to update DB after wallet auto-broadcast:', updateData.error)
-            // Don't throw - transaction is already broadcast, just DB update failed
-          } else {
-            console.log('✅ Updated database record after wallet auto-broadcast')
-          }
-        } catch (updateError) {
-          console.error('⚠️ Error updating DB after wallet auto-broadcast:', updateError)
-          // Don't throw - transaction is already broadcast, just DB update failed
-        }
-      } else if (walletResult && typeof walletResult === 'object' && 'txId' in walletResult && walletResult.txId) {
-        // Wallet returned txId
-        txId = walletResult.txId
-        console.log('✅ Wallet broadcast commit tx:', txId)
-        
-        // CRITICAL: Update database even when wallet auto-broadcasts
-        try {
-          const updateResponse = await fetch('/api/graveyard/mint/broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              mintInscriptionId: commitData.mintInscriptionId,
-              txType: 'commit',
-              feeRate,
-              txId: txId // Wallet already broadcast, just update DB
-            })
-          })
-          
-          const updateData = await updateResponse.json()
-          if (!updateData.success) {
-            console.warn('⚠️ Failed to update DB after wallet auto-broadcast:', updateData.error)
-            // Don't throw - transaction is already broadcast, just DB update failed
-          } else {
-            console.log('✅ Updated database record after wallet auto-broadcast')
-          }
-        } catch (updateError) {
-          console.error('⚠️ Error updating DB after wallet auto-broadcast:', updateError)
-          // Don't throw - transaction is already broadcast, just DB update failed
-        }
-      } else {
-        // Extract and broadcast manually
-        setStatus('broadcasting_commit')
-        
-        const bitcoin = require('bitcoinjs-lib')
+      // Extract signed PSBT and broadcast through our API
+      const bitcoin = require('bitcoinjs-lib')
         const eccModule = await import('@bitcoinerlab/secp256k1')
         if (typeof bitcoin.initEccLib === 'function') {
           try {
@@ -649,6 +593,9 @@ export function MintButton({
           txId = broadcastData.txId
           console.log('✅ Commit transaction broadcast:', txId)
         }
+
+      if (!txId) {
+        throw new Error('Failed to get transaction ID after broadcast')
       }
 
       setCommitTxId(txId)

@@ -222,21 +222,21 @@ export function calculateCommitTxSize(
   const remainingOutputs = outputCount - processedOutputs
   
   if (remainingOutputs > 0) {
-    switch (paymentAddressType) {
-      case 'P2PKH':
-        outCount1 += remainingOutputs
-        break
-      case 'P2SH':
-        outCount3 += remainingOutputs
-        break
-      case 'P2TR':
-        outCountBc1p += remainingOutputs
-        break
-      case 'P2WPKH':
-        outCountBc1q += remainingOutputs
-        break
-      default:
-        outCount3 += remainingOutputs
+  switch (paymentAddressType) {
+    case 'P2PKH':
+      outCount1 += remainingOutputs
+      break
+    case 'P2SH':
+      outCount3 += remainingOutputs
+      break
+    case 'P2TR':
+      outCountBc1p += remainingOutputs
+      break
+    case 'P2WPKH':
+      outCountBc1q += remainingOutputs
+      break
+    default:
+      outCount3 += remainingOutputs
     }
   }
 

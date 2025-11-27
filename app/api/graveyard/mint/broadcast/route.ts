@@ -85,10 +85,9 @@ async function ensureMintInfrastructure(pool: Pool) {
 
 interface BroadcastRequest {
   mintInscriptionId: string
-  txHex?: string // Optional if txId is provided (wallet already broadcast)
+  txHex: string
   txType: 'commit' | 'reveal'
   feeRate: number
-  txId?: string // Optional: if provided, wallet already broadcast, just update DB
 }
 
 async function broadcastViaSandshrew(txHex: string) {
@@ -201,50 +200,33 @@ async function smartBroadcast(txHex: string, feeRate: number, txType: 'commit' |
 
 export async function POST(request: NextRequest) {
   // Read body ONCE at the top level (available in both try and catch blocks)
-  const { mintInscriptionId, txHex, txType, feeRate, txId: providedTxId }: BroadcastRequest = await request.json()
+  const { mintInscriptionId, txHex, txType, feeRate }: BroadcastRequest = await request.json()
   
   try {
+    console.log(`📡 Broadcasting ${txType} transaction for mint ${mintInscriptionId}`)
+    console.log(`   Fee rate: ${feeRate} sat/vB`)
+    console.log(`   TX hex length: ${txHex.length}`)
+
     // Ensure tables exist
     const pool = getPool()
     await ensureMintInfrastructure(pool)
 
-    let txId: string
-
-    // If txId is provided, wallet already broadcast - just update DB
-    if (providedTxId) {
-      console.log(`📡 Wallet already broadcast ${txType} transaction: ${providedTxId}`)
-      console.log(`   Updating database record for mint ${mintInscriptionId}`)
-      txId = providedTxId
-    } else {
-      // Need to broadcast ourselves
-      if (!txHex) {
-        return NextResponse.json(
-          { success: false, error: 'txHex is required when txId is not provided' },
-          { status: 400 }
-        )
-      }
-
-      console.log(`📡 Broadcasting ${txType} transaction for mint ${mintInscriptionId}`)
-      console.log(`   Fee rate: ${feeRate} sat/vB`)
-      console.log(`   TX hex length: ${txHex.length}`)
-
-      // Broadcast the transaction (reveal MUST go to mempool.space)
-      txId = await smartBroadcast(txHex, feeRate, txType)
-      
-      console.log(`✅ ${txType} transaction broadcast: ${txId}`)
-    }
+    // Broadcast the transaction (reveal MUST go to mempool.space)
+    const txId = await smartBroadcast(txHex, feeRate, txType)
+    
+    console.log(`✅ ${txType} transaction broadcast: ${txId}`)
 
     // Update mint inscription record (pool already initialized above)
     if (txType === 'commit') {
       await pool.query(
         `UPDATE mint_inscriptions
          SET commit_tx_id = $1,
-             ${txHex ? 'signed_commit_tx_hex = $2,' : ''}
+             signed_commit_tx_hex = $2,
              mint_status = 'commit_broadcast',
              commit_broadcast_at = NOW(),
              last_checked_at = NOW()
-         WHERE id = ${txHex ? '$3' : '$2'}`,
-        txHex ? [txId, txHex, mintInscriptionId] : [txId, mintInscriptionId]
+         WHERE id = $3`,
+        [txId, txHex, mintInscriptionId]
       )
       
       console.log(`✅ Updated mint record with commit tx: ${txId}`)
@@ -254,12 +236,12 @@ export async function POST(request: NextRequest) {
         `UPDATE mint_inscriptions
          SET reveal_tx_id = $1,
              inscription_id = $2,
-             ${txHex ? 'signed_reveal_tx_hex = $3,' : ''}
+             signed_reveal_tx_hex = $3,
              mint_status = 'reveal_broadcast',
              reveal_broadcast_at = NOW(),
              last_checked_at = NOW()
-         WHERE id = ${txHex ? '$4' : '$3'}`,
-        txHex ? [txId, `${txId}i0`, txHex, mintInscriptionId] : [txId, `${txId}i0`, mintInscriptionId]
+         WHERE id = $4`,
+        [txId, `${txId}i0`, txHex, mintInscriptionId]
       )
       
       console.log(`✅ Updated mint record with reveal tx: ${txId}`)
