@@ -1721,26 +1721,7 @@ function GraveyardContent() {
                           {mint.mintInscription.status === 'failed' && '❌ Failed'}
                           {!['pending', 'commit_broadcast', 'commit_in_mempool', 'reveal_broadcast', 'completed', 'failed'].includes(mint.mintInscription.status) && mint.mintInscription.status}
                         </p>
-                        {mint.mintInscription.commitTxId && (
-                          <a 
-                            href={`https://mempool.space/tx/${mint.mintInscription.commitTxId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-center text-[8px] text-blue-400 hover:text-blue-300 underline"
-                          >
-                            View Commit TX
-                          </a>
-                        )}
-                        {mint.mintInscription.inscriptionId && (
-                          <a 
-                            href={`https://ordinals.com/inscription/${mint.mintInscription.inscriptionId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-center text-[8px] text-emerald-400 hover:text-emerald-300 underline"
-                          >
-                            View Inscription
-                          </a>
-                        )}
+                        
                       </div>
                     ) : (
                       <p className="text-center text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-200/70">

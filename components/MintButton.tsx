@@ -94,7 +94,10 @@ export function MintButton({
   }, [toast])
 
   // Define createAndBroadcastReveal with useCallback to avoid recreating on every render
-  const createAndBroadcastReveal = useCallback(async (mintId: string, commitTx: string) => {
+  const createAndBroadcastReveal = useCallback(async (mintId: string, commitTx: string, retryCount = 0) => {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY_MS = 2000
+    
     try {
       setStatus('creating_reveal')
       
@@ -111,7 +114,21 @@ export function MintButton({
       const revealData = await revealResponse.json()
       
       if (!revealData.success) {
-        throw new Error(revealData.error || 'Failed to create reveal transaction')
+        const errorMsg = revealData.error || 'Failed to create reveal transaction'
+        
+        // Check if error is due to commit not being found yet (race condition)
+        const isRetryableError = errorMsg.toLowerCase().includes('not found') || 
+                                 errorMsg.toLowerCase().includes('not available') ||
+                                 errorMsg.toLowerCase().includes('not in mempool') ||
+                                 errorMsg.toLowerCase().includes('bad-txns-inputs-missingorspent')
+        
+        if (isRetryableError && retryCount < MAX_RETRIES) {
+          console.log(`⚠️ Reveal creation failed (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms...`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+          return createAndBroadcastReveal(mintId, commitTx, retryCount + 1)
+        }
+        
+        throw new Error(errorMsg)
       }
 
       console.log('✅ Reveal transaction created:', revealData.txId)
@@ -133,7 +150,21 @@ export function MintButton({
       const broadcastData = await broadcastResponse.json()
       
       if (!broadcastData.success) {
-        throw new Error(broadcastData.error || 'Failed to broadcast reveal transaction')
+        const errorMsg = broadcastData.error || 'Failed to broadcast reveal transaction'
+        
+        // Check if error is retryable (same conditions as above)
+        const isRetryableError = errorMsg.toLowerCase().includes('not found') || 
+                                 errorMsg.toLowerCase().includes('not available') ||
+                                 errorMsg.toLowerCase().includes('not in mempool') ||
+                                 errorMsg.toLowerCase().includes('bad-txns-inputs-missingorspent')
+        
+        if (isRetryableError && retryCount < MAX_RETRIES) {
+          console.log(`⚠️ Reveal broadcast failed (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms...`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+          return createAndBroadcastReveal(mintId, commitTx, retryCount + 1)
+        }
+        
+        throw new Error(errorMsg)
       }
 
       console.log('✅ Reveal transaction broadcast:', broadcastData.txId)
@@ -151,7 +182,7 @@ export function MintButton({
       setStatus('reveal_failed') // Special status for reveal failure
       toast.error(`Reveal failed: ${errorMsg} - You can retry below`)
     }
-  }, [feeRate, toast])
+  }, [feeRate, toast, showToastOnce])
 
   // Check status immediately on mount if waiting for commit or reveal
   useEffect(() => {
@@ -185,9 +216,13 @@ export function MintButton({
         
         if (data.success) {
           if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
-            console.log('✅ Commit already in mempool on mount, auto-broadcasting reveal...')
+            console.log('✅ Commit already in mempool on mount, waiting 2 seconds before broadcasting reveal...')
             setCommitTxId(data.mint.commitTxId)
             showToastOnce(`commit_confirmed_${mintInscriptionId}`, 'Commit confirmed! Broadcasting reveal transaction...')
+            
+            // Wait 2 seconds to ensure commit is fully indexed in mempool before revealing
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            
             await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)
           } else if (data.mint.status === 'completed' && status === 'waiting_reveal_confirmation') {
             console.log('✅ Reveal already confirmed on mount!')
@@ -272,11 +307,14 @@ export function MintButton({
             console.log(`✅ Status changed to: ${data.mint.status}`)
             
             if (data.mint.status === 'commit_in_mempool' && status === 'waiting_commit_confirmation') {
-              // Commit found in mempool, automatically broadcast reveal
-              console.log('✅ Commit in mempool, auto-broadcasting reveal...')
+              // Commit found in mempool, wait a moment for it to be fully indexed before broadcasting reveal
+              console.log('✅ Commit in mempool, waiting 2 seconds before broadcasting reveal...')
               setCommitTxId(data.mint.commitTxId)
               clearInterval(pollInterval)
               showToastOnce(`commit_confirmed_${mintInscriptionId}`, 'Commit confirmed! Broadcasting reveal transaction...')
+              
+              // Wait 2 seconds to ensure commit is fully indexed in mempool before revealing
+              await new Promise(resolve => setTimeout(resolve, 2000))
               
               // Automatically broadcast reveal
               await createAndBroadcastReveal(mintInscriptionId, data.mint.commitTxId)

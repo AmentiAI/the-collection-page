@@ -5,7 +5,7 @@ import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 const ABYSS_CAP = 500
 const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
-const BURN_COOLDOWN_MS = 30 * 60 * 1_000
+const BURN_COOLDOWN_MS = 15 * 60 * 1_000
 
 export const dynamic = 'force-dynamic'
 

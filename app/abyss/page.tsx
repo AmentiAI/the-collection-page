@@ -178,7 +178,7 @@ function FullAbyssMenu({
   )
 }
 const BURN_STATUS_CHECK_INTERVAL_MS = 20_000
-const BURN_COOLDOWN_MS = 30 * 60 * 1_000
+const BURN_COOLDOWN_MS = 15 * 60 * 1_000
 const RESERVED_STORAGE_KEY = 'abyss-reserved-utxos'
 
 const AVERAGE_TAPROOT_INPUT_VBYTES = 58
