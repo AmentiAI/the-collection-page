@@ -371,7 +371,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-      // Global limit check removed - now using 24-hour per-user cooldown instead
+      // Check global limit - only 1 portal circle can exist globally at a time
+      const globalActiveCountRes = await client.query(
+        `
+          SELECT COUNT(*)::int AS active_count
+          FROM damned_pool_circles
+          WHERE status IN ('open', 'filling', 'ready')
+        `,
+      )
+      const globalActiveCount = Number(globalActiveCountRes.rows[0]?.active_count ?? 0)
+
+      if (globalActiveCount >= MAX_ACTIVE_CIRCLES_GLOBAL) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { success: false, error: `Maximum of ${MAX_ACTIVE_CIRCLES_GLOBAL} active portal circle allowed globally. Please wait for the current portal to complete or expire.` },
+          { status: 409 },
+        )
+      }
 
       const conflictRes = await client.query(
         `

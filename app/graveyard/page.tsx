@@ -162,10 +162,8 @@ function GraveyardContent() {
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
   
-  // Mint buttons: ONLY show with showbuttons=1
-  const showMintButtons = useMemo(() => {
-    return searchParams.get('showbuttons') === '1'
-  }, [searchParams])
+  // Mint buttons: Always show for available mints
+  const showMintButtons = true
   
   // Regenerate buttons: Always show (no restrictions)
   const showRegenerateButtons = true
@@ -1783,8 +1781,8 @@ function GraveyardContent() {
                       </div>
                     )}
                     
-                    {/* Mint Button - Show with showbuttons=1 OR if source_inscription_id starts with "ascended_" */}
-                    {(showMintButtons || mint.sourceInscriptionId?.toLowerCase().startsWith('ascended_')) && (
+                    {/* Mint Button - Always show for available mints */}
+                    {showMintButtons && (
                     <MintButton
                       mintQueueId={mint.id}
                       imageUrl={mint.imageUrl}
