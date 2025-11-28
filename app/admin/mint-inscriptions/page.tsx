@@ -168,12 +168,23 @@ export default function MintInscriptionsAdminPage() {
     setVerifyingReveal(mintId)
     try {
       const MEMPOOL_URL = 'https://mempool.space/api'
+      
+      // Try to fetch the transaction status
       const statusResponse = await fetch(`${MEMPOOL_URL}/tx/${revealTxId}/status`, {
         cache: 'no-store'
       })
       
+      // If 404, transaction definitely doesn't exist
+      if (statusResponse.status === 404) {
+        setRevealVerification(prev => ({
+          ...prev,
+          [mintId]: { exists: false, confirmed: false, confirmations: 0 }
+        }))
+        return
+      }
+      
+      // If not ok, assume not found
       if (!statusResponse.ok) {
-        // Transaction not found
         setRevealVerification(prev => ({
           ...prev,
           [mintId]: { exists: false, confirmed: false, confirmations: 0 }
@@ -182,6 +193,18 @@ export default function MintInscriptionsAdminPage() {
       }
       
       const statusData = await statusResponse.json()
+      
+      // Check if the response indicates the transaction exists
+      // mempool.space returns an object with 'confirmed' property if tx exists
+      // If it's null or undefined, the tx doesn't exist
+      if (statusData === null || statusData === undefined || (statusData.confirmed === undefined && statusData.block_height === undefined)) {
+        setRevealVerification(prev => ({
+          ...prev,
+          [mintId]: { exists: false, confirmed: false, confirmations: 0 }
+        }))
+        return
+      }
+      
       const isConfirmed = statusData.confirmed === true
       
       // Get confirmation count
@@ -206,6 +229,7 @@ export default function MintInscriptionsAdminPage() {
       }))
     } catch (error) {
       console.error('Failed to verify reveal:', error)
+      // On error, assume not found
       setRevealVerification(prev => ({
         ...prev,
         [mintId]: { exists: false, confirmed: false, confirmations: 0 }
