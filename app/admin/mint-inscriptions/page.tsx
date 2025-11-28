@@ -46,6 +46,8 @@ export default function MintInscriptionsAdminPage() {
   const [walletSearch, setWalletSearch] = useState('')
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null)
   const [broadcastingReveal, setBroadcastingReveal] = useState<string | null>(null)
+  const [verifyingReveal, setVerifyingReveal] = useState<string | null>(null)
+  const [revealVerification, setRevealVerification] = useState<Record<string, { exists: boolean; confirmed: boolean; confirmations: number }>>({})
 
   const LIMIT = 10
 
@@ -157,6 +159,59 @@ export default function MintInscriptionsAdminPage() {
       alert(`Failed to broadcast reveal: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setBroadcastingReveal(null)
+    }
+  }
+
+  const handleVerifyReveal = async (mintId: string, revealTxId: string) => {
+    if (verifyingReveal) return
+    
+    setVerifyingReveal(mintId)
+    try {
+      const MEMPOOL_URL = process.env.NEXT_PUBLIC_MEMPOOL_API_URL || 'https://mempool.space/api'
+      const statusResponse = await fetch(`${MEMPOOL_URL}/tx/${revealTxId}/status`, {
+        cache: 'no-store'
+      })
+      
+      if (!statusResponse.ok) {
+        // Transaction not found
+        setRevealVerification(prev => ({
+          ...prev,
+          [mintId]: { exists: false, confirmed: false, confirmations: 0 }
+        }))
+        return
+      }
+      
+      const statusData = await statusResponse.json()
+      const isConfirmed = statusData.confirmed === true
+      
+      // Get confirmation count
+      let confirmations = 0
+      if (isConfirmed && statusData.block_height) {
+        try {
+          const blocksResponse = await fetch(`${MEMPOOL_URL}/blocks/tip/height`, {
+            cache: 'no-store'
+          })
+          if (blocksResponse.ok) {
+            const currentHeight = await blocksResponse.json()
+            confirmations = Math.max(0, currentHeight - statusData.block_height + 1)
+          }
+        } catch (e) {
+          if (isConfirmed) confirmations = 1
+        }
+      }
+      
+      setRevealVerification(prev => ({
+        ...prev,
+        [mintId]: { exists: true, confirmed: isConfirmed, confirmations }
+      }))
+    } catch (error) {
+      console.error('Failed to verify reveal:', error)
+      setRevealVerification(prev => ({
+        ...prev,
+        [mintId]: { exists: false, confirmed: false, confirmations: 0 }
+      }))
+    } finally {
+      setVerifyingReveal(null)
     }
   }
 
@@ -315,6 +370,35 @@ export default function MintInscriptionsAdminPage() {
                             {mint.reveal_tx_id.substring(0, 12)}...
                             <ExternalLink className="h-3 w-3" />
                           </a>
+                          <Button
+                            onClick={() => handleVerifyReveal(mint.id, mint.reveal_tx_id!)}
+                            disabled={verifyingReveal === mint.id}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-6 px-2"
+                            title="Verify reveal transaction exists on mempool.space"
+                          >
+                            {verifyingReveal === mint.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              'Verify'
+                            )}
+                          </Button>
+                          {revealVerification[mint.id] && (
+                            <span className={`text-xs px-2 py-0.5 rounded border ${
+                              revealVerification[mint.id].exists
+                                ? revealVerification[mint.id].confirmed
+                                  ? 'bg-green-900/50 text-green-300 border-green-700'
+                                  : 'bg-yellow-900/50 text-yellow-300 border-yellow-700'
+                                : 'bg-red-900/50 text-red-300 border-red-700'
+                            }`}>
+                              {revealVerification[mint.id].exists
+                                ? revealVerification[mint.id].confirmed
+                                  ? `✅ Confirmed (${revealVerification[mint.id].confirmations} conf)`
+                                  : '⏳ In Mempool'
+                                : '❌ Not Found'}
+                            </span>
+                          )}
                           {mint.is_rbf_replaced && (
                             <div className="flex items-center gap-1">
                               <span className="text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded border border-red-700">
