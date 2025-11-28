@@ -1782,8 +1782,8 @@ function GraveyardContent() {
                     />
                     )}
 
-                    {/* Regenerate button - Only show if no mint has been started */}
-                    {!mint.mintInscription && regenerationAllowance > 0 && (
+                    {/* Regenerate button - Show if no mint has been started OR status is awaiting_mint */}
+                    {(!mint.mintInscription || mint.mintInscription.status === 'awaiting_mint') && regenerationAllowance > 0 && (
                       <button
                         type="button"
                         onClick={() => handleRegenerate(mint.id, mint.imageUrl)}

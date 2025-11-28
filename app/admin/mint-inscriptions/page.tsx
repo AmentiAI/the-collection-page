@@ -205,13 +205,15 @@ export default function MintInscriptionsAdminPage() {
         return
       }
       
-      // Check if transaction actually exists - must have 'confirmed' property
-      // If confirmed is undefined and no block_height, transaction doesn't exist
-      const hasConfirmedProperty = 'confirmed' in statusData
-      const hasBlockHeight = statusData.block_height !== undefined && statusData.block_height !== null
+      // Check if transaction actually exists
+      // mempool.space returns { confirmed: boolean } for existing transactions
+      // If confirmed is not a boolean and no block_height, transaction doesn't exist
+      const confirmedIsBoolean = typeof statusData.confirmed === 'boolean'
+      const hasBlockHeight = typeof statusData.block_height === 'number' && statusData.block_height !== null
       
-      if (!hasConfirmedProperty && !hasBlockHeight) {
-        // Transaction doesn't exist - no confirmed property and no block_height
+      // Transaction only exists if we have a boolean confirmed value OR a block_height
+      if (!confirmedIsBoolean && !hasBlockHeight) {
+        // Transaction doesn't exist - no valid confirmed property and no block_height
         setRevealVerification(prev => ({
           ...prev,
           [mintId]: { exists: false, confirmed: false, confirmations: 0 }
