@@ -33,6 +33,8 @@ type MintInscription = {
   source_inscription_id: string | null
   image_blob_url: string | null
   compressed_image_url: string | null
+  is_rbf_replaced?: boolean
+  rbf_replacement_tx?: string | null
 }
 
 export default function MintInscriptionsAdminPage() {
@@ -43,6 +45,7 @@ export default function MintInscriptionsAdminPage() {
   const [totalRecords, setTotalRecords] = useState(0)
   const [walletSearch, setWalletSearch] = useState('')
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null)
+  const [broadcastingReveal, setBroadcastingReveal] = useState<string | null>(null)
 
   const LIMIT = 10
 
@@ -127,6 +130,36 @@ export default function MintInscriptionsAdminPage() {
     }
   }
 
+  const handleBroadcastReveal = async (mintId: string) => {
+    if (broadcastingReveal) return
+    
+    setBroadcastingReveal(mintId)
+    try {
+      const response = await fetch('/api/admin/mint-inscriptions/broadcast-reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mintInscriptionId: mintId })
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        alert(`Failed to broadcast reveal: ${data.error || 'Unknown error'}`)
+        return
+      }
+
+      alert(`✅ Reveal transaction broadcast successfully!\n\nReveal TX: ${data.revealTxId}\nInscription ID: ${data.inscriptionId || 'Pending'}`)
+      
+      // Reload the page to show updated status
+      loadMintInscriptions(currentPage, walletSearch)
+    } catch (error) {
+      console.error('Failed to broadcast reveal:', error)
+      alert(`Failed to broadcast reveal: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setBroadcastingReveal(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -201,11 +234,31 @@ export default function MintInscriptionsAdminPage() {
                       <span className="text-gray-400 text-sm">ID:</span>
                       <span className="ml-2 font-mono text-xs">{mint.id.substring(0, 8)}...</span>
                     </div>
-                    <div>
-                      <span className="text-gray-400 text-sm">Status:</span>
-                      <span className={`ml-2 font-semibold ${getStatusColor(mint.mint_status)}`}>
-                        {mint.mint_status}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <span className="text-gray-400 text-sm">Status:</span>
+                        <span className={`ml-2 font-semibold ${getStatusColor(mint.mint_status)}`}>
+                          {mint.mint_status}
+                        </span>
+                      </div>
+                      {mint.mint_status === 'commit_in_mempool' && !mint.reveal_tx_id && (
+                        <Button
+                          onClick={() => handleBroadcastReveal(mint.id)}
+                          disabled={broadcastingReveal === mint.id}
+                          size="sm"
+                          variant="outline"
+                          className="ml-2 text-xs h-7"
+                        >
+                          {broadcastingReveal === mint.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Broadcasting...
+                            </>
+                          ) : (
+                            'Broadcast Reveal'
+                          )}
+                        </Button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-400 text-sm">Wallet:</span>
@@ -253,15 +306,42 @@ export default function MintInscriptionsAdminPage() {
                     {mint.reveal_tx_id && (
                       <div>
                         <span className="text-gray-400 text-sm">Reveal TX:</span>
-                        <a
-                          href={`https://mempool.space/tx/${mint.reveal_tx_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 font-mono text-xs text-green-400 hover:text-green-300 underline inline-flex items-center gap-1"
-                        >
-                          {mint.reveal_tx_id.substring(0, 12)}...
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <div className="inline-flex items-center gap-2 flex-wrap">
+                          <a
+                            href={`https://mempool.space/tx/${mint.reveal_tx_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 font-mono text-xs text-green-400 hover:text-green-300 underline inline-flex items-center gap-1"
+                          >
+                            {mint.reveal_tx_id.substring(0, 12)}...
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          {mint.is_rbf_replaced && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded border border-red-700">
+                                ⚠️ RBF Replaced
+                              </span>
+                              {mint.rbf_replacement_tx && (
+                                <a
+                                  href={`https://mempool.space/tx/${mint.rbf_replacement_tx}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-orange-400 hover:text-orange-300 underline inline-flex items-center gap-1"
+                                  title="View replacement transaction"
+                                >
+                                  Replacement: {mint.rbf_replacement_tx.substring(0, 8)}...
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!mint.reveal_tx_id && mint.commit_confirmed_at && mint.mint_status !== 'completed' && (
+                      <div>
+                        <span className="text-gray-400 text-sm">Reveal TX:</span>
+                        <span className="ml-2 text-xs text-yellow-400">Not found</span>
                       </div>
                     )}
                     {mint.inscription_id && (

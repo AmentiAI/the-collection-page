@@ -242,6 +242,52 @@ export async function POST(request: NextRequest) {
              WHERE id = (SELECT mint_queue_id FROM mint_inscriptions WHERE id = $1)`,
             [mintInscriptionId]
           )
+        } else if (!revealStatus.inMempool && mint.commit_confirmed_at) {
+          // Reveal not found and commit is confirmed - check for RBF
+          // If commit output was spent by a different transaction, it's likely RBF
+          try {
+            const MEMPOOL_URL = process.env.MEMPOOL_API_URL || 'https://mempool.space/api'
+            const commitTxResponse = await fetch(`${MEMPOOL_URL}/tx/${mint.commit_tx_id}`, {
+              cache: 'no-store'
+            })
+            
+            if (commitTxResponse.ok) {
+              const commitTxData = await commitTxResponse.json()
+              // Find the commit output (usually the first output is the inscription output)
+              // Check if it was spent by a different transaction
+              if (commitTxData.vout && commitTxData.vout.length > 0) {
+                const commitOutput = commitTxData.vout[0]
+                if (commitOutput.spent && commitOutput.spent_txid && commitOutput.spent_txid !== mint.reveal_tx_id) {
+                  // Commit output was spent by a different transaction - likely RBF
+                  console.log(`⚠️ Reveal TX ${mint.reveal_tx_id} not found, but commit output was spent by ${commitOutput.spent_txid} - likely RBF`)
+                  
+                  await pool.query(
+                    `UPDATE mint_inscriptions
+                     SET error_message = $1,
+                         mint_status = 'reveal_failed',
+                         last_checked_at = NOW()
+                     WHERE id = $2`,
+                    [`Reveal transaction replaced by RBF. Commit output spent by: ${commitOutput.spent_txid}`, mintInscriptionId]
+                  )
+                  updatedStatus = 'reveal_failed'
+                  shouldUpdate = true
+                } else if (!commitOutput.spent) {
+                  // Commit output not spent yet - reveal might still be pending
+                  console.log(`⏳ Commit output not spent yet, reveal may still be pending`)
+                }
+              }
+            }
+          } catch (rbfCheckError) {
+            console.warn(`Failed to check for RBF:`, rbfCheckError)
+          }
+          
+          // Update last checked time
+          await pool.query(
+            `UPDATE mint_inscriptions
+             SET last_checked_at = NOW()
+             WHERE id = $1`,
+            [mintInscriptionId]
+          )
         } else {
           // Update last checked time
           await pool.query(

@@ -67,9 +67,64 @@ export async function GET(request: NextRequest) {
       queryParams
     )
 
+    // Check for RBF on records that might be affected
+    const MEMPOOL_URL = process.env.MEMPOOL_API_URL || 'https://mempool.space/api'
+    const recordsWithRbfCheck = await Promise.all(
+      result.rows.map(async (record) => {
+        // Check for RBF if:
+        // - Has reveal_tx_id
+        // - Commit is confirmed
+        // - Reveal is not confirmed
+        // - Reveal tx is not found in mempool
+        if (
+          record.reveal_tx_id &&
+          record.commit_confirmed_at &&
+          !record.reveal_confirmed_at &&
+          record.commit_tx_id
+        ) {
+          try {
+            // Check if reveal tx exists
+            const revealStatusResponse = await fetch(`${MEMPOOL_URL}/tx/${record.reveal_tx_id}/status`, {
+              cache: 'no-store'
+            })
+            
+            if (!revealStatusResponse.ok) {
+              // Reveal tx not found - check if commit output was spent by different tx
+              const commitTxResponse = await fetch(`${MEMPOOL_URL}/tx/${record.commit_tx_id}`, {
+                cache: 'no-store'
+              })
+              
+              if (commitTxResponse.ok) {
+                const commitTxData = await commitTxResponse.json()
+                // Check first output (usually the inscription output)
+                if (commitTxData.vout && commitTxData.vout.length > 0) {
+                  const commitOutput = commitTxData.vout[0]
+                  if (commitOutput.spent && commitOutput.spent_txid && commitOutput.spent_txid !== record.reveal_tx_id) {
+                    // Commit output was spent by a different transaction - RBF detected
+                    return {
+                      ...record,
+                      is_rbf_replaced: true,
+                      rbf_replacement_tx: commitOutput.spent_txid
+                    }
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`Failed to check RBF for record ${record.id}:`, error)
+          }
+        }
+        
+        return {
+          ...record,
+          is_rbf_replaced: false
+        }
+      })
+    )
+
     return NextResponse.json({
       success: true,
-      records: result.rows,
+      records: recordsWithRbfCheck,
       total,
       page,
       limit,
