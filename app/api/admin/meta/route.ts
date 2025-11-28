@@ -130,6 +130,7 @@ export async function GET() {
     // Add minted inscriptions to metadata
     const mintedMetadata: MetadataItem[] = mintedResult.rows.map((row, index) => {
       const attributes = parseTraitsFromPrompt(row.generation_prompt || '')
+      const promptText = (row.generation_prompt || '').toLowerCase()
       
       // Add Ascended trait based on source_inscription_id
       const isAscended = row.source_inscription_id?.startsWith('ascended_') || false
@@ -148,6 +149,20 @@ export async function GET() {
       }
       attributes.push(ascendedTrait)
 
+      // Detect Silver trait (check for "silver plated" in prompt)
+      const hasSilver = promptText.includes('silver plated')
+      attributes.push({
+        trait_type: 'Silver',
+        value: hasSilver ? 'True' : 'False'
+      })
+
+      // Detect Glow trait (check for "holy light" in prompt)
+      const hasGlow = promptText.includes('holy light')
+      attributes.push({
+        trait_type: 'Glow',
+        value: hasGlow ? 'True' : 'False'
+      })
+
       return {
         id: row.inscription_id,
         meta: {
@@ -160,8 +175,16 @@ export async function GET() {
     // Combine original metadata with minted metadata
     const allMetadata = [...metadata, ...mintedMetadata]
 
-    // Post-process: Replace "Pikachu Hat" with "P-Hat" in all attribute values
+    // Post-process: 
+    // 1. Remove FORBIDDEN traits
+    // 2. Replace "Pikachu Hat" with "P-Hat" in all attribute values
     allMetadata.forEach((item) => {
+      // Remove FORBIDDEN traits
+      item.meta.attributes = item.meta.attributes.filter(
+        (attr) => attr.trait_type !== 'FORBIDDEN'
+      )
+      
+      // Replace "Pikachu Hat" with "P-Hat"
       item.meta.attributes = item.meta.attributes.map((attr) => ({
         ...attr,
         value: attr.value.replace(/Pikachu Hat/g, 'P-Hat')
