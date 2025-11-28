@@ -227,6 +227,32 @@ export default function MintInscriptionsAdminPage() {
         ...prev,
         [mintId]: { exists: true, confirmed: isConfirmed, confirmations }
       }))
+
+      // If confirmed, update the database status to 'completed'
+      if (isConfirmed) {
+        try {
+          const updateResponse = await fetch('/api/graveyard/mint/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mintInscriptionId: mintId,
+              pollForConfirmation: true
+            })
+          })
+
+          if (updateResponse.ok) {
+            const updateData = await updateResponse.json()
+            if (updateData.success && updateData.statusChanged) {
+              console.log('✅ Database status updated to completed')
+              // Reload the page to show updated status
+              loadMintInscriptions(currentPage, walletSearch)
+            }
+          }
+        } catch (updateError) {
+          console.error('Failed to update database status:', updateError)
+          // Don't fail the verification if update fails
+        }
+      }
     } catch (error) {
       console.error('Failed to verify reveal:', error)
       // On error, assume not found
