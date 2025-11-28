@@ -50,16 +50,29 @@ const formatDateTime = (value: string | null) => {
   return date.toLocaleString()
 }
 
-const formatDaysSince = (value: string | null) => {
+const formatHoursUntil7Days = (value: string | null) => {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return '1 day ago'
-  return `${diffDays} days ago`
+  const diffHours = diffMs / (1000 * 60 * 60)
+  const hoursUntil7Days = 168 - diffHours // 7 days = 168 hours
+  
+  if (hoursUntil7Days <= 0) {
+    return '7+ days ago'
+  }
+  
+  const hours = Math.floor(hoursUntil7Days)
+  const minutes = Math.floor((hoursUntil7Days - hours) * 60)
+  
+  if (hours === 0) {
+    return `${minutes}m until 7 days`
+  }
+  if (minutes === 0) {
+    return `${hours}h until 7 days`
+  }
+  return `${hours}h ${minutes}m until 7 days`
 }
 
 export default function AbyssBurnsAdminPage() {
@@ -447,7 +460,7 @@ export default function AbyssBurnsAdminPage() {
                       </td>
                       <td className="px-3 py-2 text-red-200/80">
                         <div className="flex flex-col">
-                          <span>{formatDaysSince(record.updatedAt)}</span>
+                          <span>{formatHoursUntil7Days(record.updatedAt)}</span>
                           <span className="text-xs text-red-300/60">{formatDateTime(record.updatedAt)}</span>
                         </div>
                       </td>
