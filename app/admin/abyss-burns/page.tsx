@@ -50,6 +50,18 @@ const formatDateTime = (value: string | null) => {
   return date.toLocaleString()
 }
 
+const formatDaysSince = (value: string | null) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return '1 day ago'
+  return `${diffDays} days ago`
+}
+
 export default function AbyssBurnsAdminPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'remaining'>('all')
   const [records, setRecords] = useState<AbyssBurnRecord[]>([])
@@ -391,7 +403,7 @@ export default function AbyssBurnsAdminPage() {
                   <th className="px-3 py-2 text-left">Source</th>
                   <th className="px-3 py-2 text-left">Burn Powder</th>
                   <th className="px-3 py-2 text-left">Profile Powder</th>
-                  <th className="px-3 py-2 text-left">Created</th>
+                  <th className="px-3 py-2 text-left">Updated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-900/60">
@@ -433,7 +445,12 @@ export default function AbyssBurnsAdminPage() {
                       <td className="px-3 py-2 text-blue-300 font-semibold">
                         {record.profileAscensionPowder.toLocaleString()}
                       </td>
-                      <td className="px-3 py-2 text-red-200/80">{formatDateTime(record.createdAt)}</td>
+                      <td className="px-3 py-2 text-red-200/80">
+                        <div className="flex flex-col">
+                          <span>{formatDaysSince(record.updatedAt)}</span>
+                          <span className="text-xs text-red-300/60">{formatDateTime(record.updatedAt)}</span>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
