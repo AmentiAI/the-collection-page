@@ -194,10 +194,24 @@ export default function MintInscriptionsAdminPage() {
       
       const statusData = await statusResponse.json()
       
-      // Check if the response indicates the transaction exists
       // mempool.space returns an object with 'confirmed' property if tx exists
-      // If it's null or undefined, the tx doesn't exist
-      if (statusData === null || statusData === undefined || (statusData.confirmed === undefined && statusData.block_height === undefined)) {
+      // If confirmed is explicitly false or undefined, and there's no block_height, tx doesn't exist
+      // A valid response should have 'confirmed' as a boolean (true or false)
+      if (statusData === null || statusData === undefined) {
+        setRevealVerification(prev => ({
+          ...prev,
+          [mintId]: { exists: false, confirmed: false, confirmations: 0 }
+        }))
+        return
+      }
+      
+      // Check if transaction actually exists - must have 'confirmed' property
+      // If confirmed is undefined and no block_height, transaction doesn't exist
+      const hasConfirmedProperty = 'confirmed' in statusData
+      const hasBlockHeight = statusData.block_height !== undefined && statusData.block_height !== null
+      
+      if (!hasConfirmedProperty && !hasBlockHeight) {
+        // Transaction doesn't exist - no confirmed property and no block_height
         setRevealVerification(prev => ({
           ...prev,
           [mintId]: { exists: false, confirmed: false, confirmations: 0 }
