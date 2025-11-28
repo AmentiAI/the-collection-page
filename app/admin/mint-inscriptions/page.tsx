@@ -48,6 +48,8 @@ export default function MintInscriptionsAdminPage() {
   const [broadcastingReveal, setBroadcastingReveal] = useState<string | null>(null)
   const [verifyingReveal, setVerifyingReveal] = useState<string | null>(null)
   const [revealVerification, setRevealVerification] = useState<Record<string, { exists: boolean; confirmed: boolean; confirmations: number }>>({})
+  const [pickingWinner, setPickingWinner] = useState(false)
+  const [winner, setWinner] = useState<{ wallet: string; totalEligible: number; walletMintCount: number } | null>(null)
 
   const LIMIT = 10
 
@@ -129,6 +131,36 @@ export default function MintInscriptionsAdminPage() {
     } catch (error) {
       console.error('Failed to copy:', error)
       alert('Failed to copy to clipboard')
+    }
+  }
+
+  const handlePickWinner = async () => {
+    if (pickingWinner) return
+    
+    setPickingWinner(true)
+    setWinner(null)
+    try {
+      const response = await fetch('/api/admin/mint-inscriptions/pick-winner', {
+        cache: 'no-store'
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        alert(`Failed to pick winner: ${data.error || 'Unknown error'}`)
+        return
+      }
+
+      setWinner({
+        wallet: data.winner,
+        totalEligible: data.totalEligible,
+        walletMintCount: data.walletMintCount
+      })
+    } catch (error) {
+      console.error('Failed to pick winner:', error)
+      alert(`Failed to pick winner: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setPickingWinner(false)
     }
   }
 
@@ -284,7 +316,60 @@ export default function MintInscriptionsAdminPage() {
   return (
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Mint Inscriptions Admin</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Mint Inscriptions Admin</h1>
+          <Button
+            onClick={handlePickWinner}
+            disabled={pickingWinner}
+            variant="outline"
+            className="bg-purple-600/20 border-purple-500/40 text-purple-200 hover:bg-purple-600/30"
+          >
+            {pickingWinner ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Picking Winner...
+              </>
+            ) : (
+              '🎲 Pick Winner'
+            )}
+          </Button>
+        </div>
+
+        {winner && (
+          <div className="mb-6 p-4 bg-purple-900/30 border border-purple-500/50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-purple-200 mb-2">🎉 Winner Selected!</h2>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 text-sm">Wallet:</span>
+                    <span className="font-mono text-sm text-purple-300">{winner.wallet}</span>
+                    <button
+                      onClick={() => copyToClipboard(winner.wallet, 'winner')}
+                      className="text-gray-400 hover:text-white transition-colors"
+                      title="Copy wallet address"
+                    >
+                      {copiedWallet === 'winner' ? (
+                        <Check className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Completed Mints: {winner.walletMintCount} | Total Eligible: {winner.totalEligible}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setWinner(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Search Bar */}
         <form onSubmit={handleSearch} className="mb-6">
