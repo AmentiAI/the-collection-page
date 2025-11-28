@@ -165,8 +165,8 @@ function GraveyardContent() {
   // Mint buttons: Always show for available mints
   const showMintButtons = true
   
-  // Regenerate buttons: Always show (no restrictions)
-  const showRegenerateButtons = true
+  // Regenerate buttons: Only show if no mint has been started (mintInscription is null/undefined)
+  // Once mint status changes, hide the regenerate button
 
   // Check holder status
   useEffect(() => {
@@ -1776,8 +1776,23 @@ function GraveyardContent() {
                       }}
                       onMintStart={() => {
                         toast.info('Minting started - Please sign the transaction in your wallet')
+                        // Refresh to hide regenerate button once mint starts
+                        fetchMintQueueImages(true)
                       }}
                     />
+                    )}
+
+                    {/* Regenerate button - Only show if no mint has been started */}
+                    {!mint.mintInscription && regenerationAllowance > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRegenerate(mint.id, mint.imageUrl)}
+                        disabled={regenerating === mint.id || regenerationAllowance <= 0}
+                        className="w-full rounded-lg border border-purple-500/40 bg-purple-600/20 px-3 py-1.5 text-[9px] font-mono uppercase tracking-[0.3em] text-purple-200 transition hover:bg-purple-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        title={regenerationAllowance <= 0 ? 'No regenerations available. Complete summons to earn more.' : ''}
+                      >
+                        {regenerating === mint.id ? 'Regenerating...' : `Regenerate (${regenerationAllowance})`}
+                      </button>
                     )}
                     
                   </div>

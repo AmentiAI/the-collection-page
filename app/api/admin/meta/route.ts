@@ -110,6 +110,7 @@ export async function GET() {
 
     // Get minted inscriptions from ascended_images_mint_queue
     // JOIN with mint_inscriptions to get the actual inscription_id
+    // Only include inscriptions where mint_status = 'completed' in mint_inscriptions table
     const mintedResult = await pool.query(`
       SELECT 
         mq.generation_prompt,
@@ -118,6 +119,7 @@ export async function GET() {
       FROM ascended_images_mint_queue mq
       INNER JOIN mint_inscriptions mi ON mi.mint_queue_id = mq.id
       WHERE mq.mint_status = 'minted'
+        AND mi.mint_status = 'completed'
         AND mi.inscription_id IS NOT NULL
         AND mi.inscription_id != ''
       ORDER BY mi.completed_at ASC
