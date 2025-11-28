@@ -167,7 +167,7 @@ export default function MintInscriptionsAdminPage() {
     
     setVerifyingReveal(mintId)
     try {
-      const MEMPOOL_URL = process.env.NEXT_PUBLIC_MEMPOOL_API_URL || 'https://mempool.space/api'
+      const MEMPOOL_URL = 'https://mempool.space/api'
       const statusResponse = await fetch(`${MEMPOOL_URL}/tx/${revealTxId}/status`, {
         cache: 'no-store'
       })
@@ -374,7 +374,6 @@ export default function MintInscriptionsAdminPage() {
                             onClick={() => handleVerifyReveal(mint.id, mint.reveal_tx_id!)}
                             disabled={verifyingReveal === mint.id}
                             variant="outline"
-                            size="sm"
                             className="text-xs h-6 px-2"
                             title="Verify reveal transaction exists on mempool.space"
                           >
