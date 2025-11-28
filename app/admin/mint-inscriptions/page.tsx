@@ -245,7 +245,6 @@ export default function MintInscriptionsAdminPage() {
                         <Button
                           onClick={() => handleBroadcastReveal(mint.id)}
                           disabled={broadcastingReveal === mint.id}
-                          size="sm"
                           variant="outline"
                           className="ml-2 text-xs h-7"
                         >
