@@ -39,7 +39,8 @@ function parseTraitsFromPrompt(prompt: string): Array<{ trait_type: string; valu
   const excludedTraits = new Set([
     'CUSTOM RULES',
     'BORDER',
-    'QUALITY'
+    'QUALITY',
+    'TRAIT RENDERING'
   ])
   
   for (const line of traitLines) {
