@@ -150,18 +150,24 @@ export async function GET() {
       attributes.push(ascendedTrait)
 
       // Detect Silver trait (check for "silver plated" in prompt)
+      // Only add if True
       const hasSilver = promptText.includes('silver plated')
-      attributes.push({
-        trait_type: 'Silver',
-        value: hasSilver ? 'True' : 'False'
-      })
+      if (hasSilver) {
+        attributes.push({
+          trait_type: 'Silver',
+          value: 'True'
+        })
+      }
 
       // Detect Glow trait (check for "holy light" in prompt)
+      // Only add if True
       const hasGlow = promptText.includes('holy light')
-      attributes.push({
-        trait_type: 'Glow',
-        value: hasGlow ? 'True' : 'False'
-      })
+      if (hasGlow) {
+        attributes.push({
+          trait_type: 'Glow',
+          value: 'True'
+        })
+      }
 
       return {
         id: row.inscription_id,
