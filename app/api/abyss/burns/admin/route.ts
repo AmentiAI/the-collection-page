@@ -112,7 +112,10 @@ export async function GET(request: NextRequest) {
              created_at,
              updated_at,
              confirmed_at,
-             last_checked_at
+             last_checked_at,
+             hidden,
+             ascension_powder,
+             image_blob_url
       FROM abyss_burns
       ${whereClause}
       ORDER BY created_at DESC
@@ -137,6 +140,9 @@ export async function GET(request: NextRequest) {
         updatedAt: row.updated_at,
         confirmedAt: row.confirmed_at,
         lastCheckedAt: row.last_checked_at,
+        hidden: row.hidden ?? false,
+        ascensionPowder: Number(row.ascension_powder ?? 0),
+        imageBlobUrl: row.image_blob_url ?? null,
       })),
     })
   } catch (error) {

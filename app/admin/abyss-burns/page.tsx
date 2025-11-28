@@ -19,6 +19,28 @@ type AbyssBurnRecord = {
   updatedAt: string | null
   confirmedAt: string | null
   lastCheckedAt: string | null
+  hidden?: boolean
+  ascensionPowder?: number
+  imageBlobUrl?: string | null
+  profileAscensionPowder?: number
+}
+
+type RemainingBurnRecord = {
+  id: string
+  inscriptionId: string
+  txId: string
+  ordinalWallet: string
+  paymentWallet: string
+  status: string
+  source: string
+  summonId?: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  confirmedAt: string | null
+  lastCheckedAt: string | null
+  ascensionPowder: number
+  profileAscensionPowder: number
+  imageBlobUrl: string | null
 }
 
 const formatDateTime = (value: string | null) => {
@@ -29,8 +51,11 @@ const formatDateTime = (value: string | null) => {
 }
 
 export default function AbyssBurnsAdminPage() {
+  const [activeTab, setActiveTab] = useState<'all' | 'remaining'>('all')
   const [records, setRecords] = useState<AbyssBurnRecord[]>([])
+  const [remainingRecords, setRemainingRecords] = useState<RemainingBurnRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [remainingLoading, setRemainingLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [limit, setLimit] = useState(500)
   const [statusFilter, setStatusFilter] = useState('')
@@ -75,9 +100,46 @@ export default function AbyssBurnsAdminPage() {
     }
   }, [limit, statusFilter])
 
+  const loadRemainingRecords = useCallback(async () => {
+    try {
+      setRemainingLoading(true)
+      setError(null)
+
+      const response = await fetch(`/api/abyss/burns/admin/remaining`, {
+        cache: 'no-store',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`)
+      }
+
+      const data = (await response.json()) as {
+        success: boolean
+        error?: string
+        total?: number
+        records?: RemainingBurnRecord[]
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch remaining records')
+      }
+
+      setRemainingRecords(data.records ?? [])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load remaining burns'
+      setError(message)
+    } finally {
+      setRemainingLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    void loadRecords()
-  }, [loadRecords])
+    if (activeTab === 'all') {
+      void loadRecords()
+    } else if (activeTab === 'remaining') {
+      void loadRemainingRecords()
+    }
+  }, [loadRecords, loadRemainingRecords, activeTab])
 
   const handleCheckTx = useCallback(async (txId: string) => {
     if (!txId) {
@@ -141,45 +203,92 @@ export default function AbyssBurnsAdminPage() {
               <h1 className="text-2xl font-semibold tracking-[0.35em] text-red-400 uppercase">Abyss Burns</h1>
               <p className="text-sm text-red-200/60">Administrative overview of all abyss burn submissions.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-xs uppercase tracking-[0.35em] text-red-300">Limit</label>
-                <Input
-                  type="number"
-                  value={limit}
-                  onChange={(event) => setLimit(Number(event.target.value) || 0)}
-                  min={1}
-                  max={500}
-                  className="h-9 w-24 border-red-700/60 bg-black/60 text-red-100"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs uppercase tracking-[0.35em] text-red-300">Status</label>
-                <Input
-                  placeholder="pending | confirmed"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="h-9 w-44 border-red-700/60 bg-black/60 text-red-100"
-                />
-              </div>
-              <Button
-                onClick={() => loadRecords()}
-                disabled={loading}
-                className="flex items-center gap-2 border border-red-500 bg-red-700/70 text-xs uppercase tracking-[0.25em] text-red-50 hover:bg-red-600"
+            
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-red-700/40">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] transition ${
+                  activeTab === 'all'
+                    ? 'border-b-2 border-red-400 text-red-300'
+                    : 'text-red-200/60 hover:text-red-200'
+                }`}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh
-              </Button>
+                All Burns
+              </button>
+              <button
+                onClick={() => setActiveTab('remaining')}
+                className={`px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] transition ${
+                  activeTab === 'remaining'
+                    ? 'border-b-2 border-red-400 text-red-300'
+                    : 'text-red-200/60 hover:text-red-200'
+                }`}
+              >
+                Remaining {activeTab === 'remaining' && `(${remainingRecords.length})`}
+              </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs tracking-[0.25em] text-red-300/80">
-            <span>Total loaded: {records.length}</span>
-            {Object.entries(statusSummary).map(([status, count]) => (
-              <span key={status}>
-                {status}: {count}
-              </span>
-            ))}
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            {activeTab === 'all' && (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs uppercase tracking-[0.35em] text-red-300">Limit</label>
+                  <Input
+                    type="number"
+                    value={limit}
+                    onChange={(event) => setLimit(Number(event.target.value) || 0)}
+                    min={1}
+                    max={500}
+                    className="h-9 w-24 border-red-700/60 bg-black/60 text-red-100"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs uppercase tracking-[0.35em] text-red-300">Status</label>
+                  <Input
+                    placeholder="pending | confirmed"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="h-9 w-44 border-red-700/60 bg-black/60 text-red-100"
+                  />
+                </div>
+                <Button
+                  onClick={() => loadRecords()}
+                  disabled={loading}
+                  className="flex items-center gap-2 border border-red-500 bg-red-700/70 text-xs uppercase tracking-[0.25em] text-red-50 hover:bg-red-600"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Refresh
+                </Button>
+              </div>
+            )}
+            {activeTab === 'remaining' && (
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => loadRemainingRecords()}
+                  disabled={remainingLoading}
+                  className="flex items-center gap-2 border border-red-500 bg-red-700/70 text-xs uppercase tracking-[0.25em] text-red-50 hover:bg-red-600"
+                >
+                  {remainingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Refresh
+                </Button>
+              </div>
+            )}
           </div>
+          {activeTab === 'all' && (
+            <div className="flex flex-wrap items-center gap-4 text-xs tracking-[0.25em] text-red-300/80">
+              <span>Total loaded: {records.length}</span>
+              {Object.entries(statusSummary).map(([status, count]) => (
+                <span key={status}>
+                  {status}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+          {activeTab === 'remaining' && (
+            <div className="flex flex-wrap items-center gap-4 text-xs tracking-[0.25em] text-red-300/80">
+              <span>Total remaining: {remainingRecords.length}</span>
+            </div>
+          )}
           {error && (
             <div className="rounded border border-red-600/60 bg-red-950/40 px-3 py-2 text-sm text-red-200">
               {error}
@@ -187,106 +296,179 @@ export default function AbyssBurnsAdminPage() {
           )}
         </header>
 
-        <div className="overflow-auto rounded-lg border border-red-700/40 bg-black/70 shadow-[0_0_20px_rgba(220,38,38,0.25)]">
-          <table className="min-w-full divide-y divide-red-800 text-sm">
-            <thead className="bg-red-950/40 uppercase tracking-[0.35em] text-red-300">
-              <tr>
-                <th className="px-3 py-2 text-left">Inscription</th>
-                <th className="px-3 py-2 text-left">Tx</th>
-                <th className="px-3 py-2 text-left">Ordinal Wallet</th>
-                <th className="px-3 py-2 text-left">Payment Wallet</th>
-                <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">Source</th>
-                <th className="px-3 py-2 text-left">Summon ID</th>
-                <th className="px-3 py-2 text-left">Created</th>
-                <th className="px-3 py-2 text-left">Updated</th>
-                <th className="px-3 py-2 text-left">Confirmed</th>
-                <th className="px-3 py-2 text-left">Last Checked</th>
-                <th className="px-3 py-2 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-red-900/60">
-              {records.length === 0 && !loading ? (
+        {activeTab === 'all' && (
+          <div className="overflow-auto rounded-lg border border-red-700/40 bg-black/70 shadow-[0_0_20px_rgba(220,38,38,0.25)]">
+            <table className="min-w-full divide-y divide-red-800 text-sm">
+              <thead className="bg-red-950/40 uppercase tracking-[0.35em] text-red-300">
                 <tr>
-                  <td colSpan={12} className="px-3 py-6 text-center text-xs uppercase tracking-[0.35em] text-red-300/70">
-                    No records found.
-                  </td>
+                  <th className="px-3 py-2 text-left">Inscription</th>
+                  <th className="px-3 py-2 text-left">Tx</th>
+                  <th className="px-3 py-2 text-left">Ordinal Wallet</th>
+                  <th className="px-3 py-2 text-left">Payment Wallet</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Source</th>
+                  <th className="px-3 py-2 text-left">Summon ID</th>
+                  <th className="px-3 py-2 text-left">Created</th>
+                  <th className="px-3 py-2 text-left">Updated</th>
+                  <th className="px-3 py-2 text-left">Confirmed</th>
+                  <th className="px-3 py-2 text-left">Last Checked</th>
+                  <th className="px-3 py-2 text-left">Actions</th>
                 </tr>
-              ) : (
-                records.map((record) => (
-                  <tr key={record.id} className="hover:bg-red-900/20">
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      <CopyCell value={record.inscriptionId} label="Inscription ID" onCopy={handleCopy} />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      <CopyCell value={record.txId} label="Transaction ID" onCopy={handleCopy} />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200/90">
-                      <CopyCell value={record.ordinalWallet} label="Ordinal Wallet" onCopy={handleCopy} />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200/70">
-                      <CopyCell value={record.paymentWallet} label="Payment Wallet" onCopy={handleCopy} />
-                    </td>
-                    <td className="px-3 py-2 uppercase tracking-[0.3em] text-red-100">
-                      {record.status}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      {record.source}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-red-200">
-                      <CopyCell value={record.summonId ?? null} label="Summon ID" onCopy={handleCopy} />
-                    </td>
-                    <td className="px-3 py-2 text-red-200/80">{formatDateTime(record.createdAt)}</td>
-                    <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.updatedAt)}</td>
-                    <td className="px-3 py-2 text-green-300/80">{formatDateTime(record.confirmedAt)}</td>
-                    <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.lastCheckedAt)}</td>
-                    <td className="px-3 py-2">
-                      <Button
-                        variant="outline"
-                        className="flex items-center gap-1 border-red-500/70 text-[11px] uppercase tracking-[0.25em] text-red-200 hover:bg-red-800/20"
-                        onClick={() => handleCheckTx(record.txId)}
-                        disabled={txCheckLoading === record.txId}
-                      >
-                        {txCheckLoading === record.txId ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Search className="h-3 w-3" />
-                        )}
-                        Check TX
-                      </Button>
+              </thead>
+              <tbody className="divide-y divide-red-900/60">
+                {records.length === 0 && !loading ? (
+                  <tr>
+                    <td colSpan={12} className="px-3 py-6 text-center text-xs uppercase tracking-[0.35em] text-red-300/70">
+                      No records found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          {loading && (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-red-200">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Loading records…</span>
-            </div>
-          )}
-        </div>
-
-        <section className="rounded-lg border border-red-700/40 bg-black/70 p-6 shadow-[0_0_20px_rgba(220,38,38,0.3)]">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Inscription IDs (JSON)</h2>
-            <Button
-              variant="outline"
-              className="flex items-center gap-2 border-red-500/60 text-xs uppercase tracking-[0.3em] text-red-100 hover:bg-red-800/20"
-              onClick={() => handleCopy(inscriptionJson, 'Inscription list')}
-              disabled={!records.length}
-            >
-              <Copy className="h-3 w-3" />
-              Copy JSON
-            </Button>
+                ) : (
+                  records.map((record) => (
+                    <tr key={record.id} className="hover:bg-red-900/20">
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        <CopyCell value={record.inscriptionId} label="Inscription ID" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        <CopyCell value={record.txId} label="Transaction ID" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200/90">
+                        <CopyCell value={record.ordinalWallet} label="Ordinal Wallet" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200/70">
+                        <CopyCell value={record.paymentWallet} label="Payment Wallet" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 uppercase tracking-[0.3em] text-red-100">
+                        {record.status}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        {record.source}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        <CopyCell value={record.summonId ?? null} label="Summon ID" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 text-red-200/80">{formatDateTime(record.createdAt)}</td>
+                      <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.updatedAt)}</td>
+                      <td className="px-3 py-2 text-green-300/80">{formatDateTime(record.confirmedAt)}</td>
+                      <td className="px-3 py-2 text-red-200/70">{formatDateTime(record.lastCheckedAt)}</td>
+                      <td className="px-3 py-2">
+                        <Button
+                          variant="outline"
+                          className="flex items-center gap-1 border-red-500/70 text-[11px] uppercase tracking-[0.25em] text-red-200 hover:bg-red-800/20"
+                          onClick={() => handleCheckTx(record.txId)}
+                          disabled={txCheckLoading === record.txId}
+                        >
+                          {txCheckLoading === record.txId ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Search className="h-3 w-3" />
+                          )}
+                          Check TX
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-red-200">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Loading records…</span>
+              </div>
+            )}
           </div>
-          <textarea
-            readOnly
-            value={inscriptionJson}
-            className="mt-4 h-48 w-full resize-none rounded-lg border border-red-700/30 bg-black/80 p-3 font-mono text-xs text-red-200"
-          />
-        </section>
+        )}
+
+        {activeTab === 'remaining' && (
+          <div className="overflow-auto rounded-lg border border-red-700/40 bg-black/70 shadow-[0_0_20px_rgba(220,38,38,0.25)]">
+            <table className="min-w-full divide-y divide-red-800 text-sm">
+              <thead className="bg-red-950/40 uppercase tracking-[0.35em] text-red-300">
+                <tr>
+                  <th className="px-3 py-2 text-left">Image</th>
+                  <th className="px-3 py-2 text-left">Inscription</th>
+                  <th className="px-3 py-2 text-left">Ordinal Wallet</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Source</th>
+                  <th className="px-3 py-2 text-left">Burn Powder</th>
+                  <th className="px-3 py-2 text-left">Profile Powder</th>
+                  <th className="px-3 py-2 text-left">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-900/60">
+                {remainingRecords.length === 0 && !remainingLoading ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-6 text-center text-xs uppercase tracking-[0.35em] text-red-300/70">
+                      No remaining burns found.
+                    </td>
+                  </tr>
+                ) : (
+                  remainingRecords.map((record) => (
+                    <tr key={record.id} className="hover:bg-red-900/20">
+                      <td className="px-3 py-2">
+                        {record.imageBlobUrl ? (
+                          <img
+                            src={record.imageBlobUrl}
+                            alt={record.inscriptionId}
+                            className="h-16 w-16 object-cover rounded border border-red-700/40"
+                          />
+                        ) : (
+                          <span className="text-red-300/50 text-xs">No image</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        <CopyCell value={record.inscriptionId} label="Inscription ID" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200/90">
+                        <CopyCell value={record.ordinalWallet} label="Ordinal Wallet" onCopy={handleCopy} />
+                      </td>
+                      <td className="px-3 py-2 uppercase tracking-[0.3em] text-red-100">
+                        {record.status}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-red-200">
+                        {record.source}
+                      </td>
+                      <td className="px-3 py-2 text-purple-300 font-semibold">
+                        {record.ascensionPowder.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-blue-300 font-semibold">
+                        {record.profileAscensionPowder.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-red-200/80">{formatDateTime(record.createdAt)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            {remainingLoading && (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-red-200">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Loading remaining burns…</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'all' && (
+          <section className="rounded-lg border border-red-700/40 bg-black/70 p-6 shadow-[0_0_20px_rgba(220,38,38,0.3)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Inscription IDs (JSON)</h2>
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 border-red-500/60 text-xs uppercase tracking-[0.3em] text-red-100 hover:bg-red-800/20"
+                onClick={() => handleCopy(inscriptionJson, 'Inscription list')}
+                disabled={!records.length}
+              >
+                <Copy className="h-3 w-3" />
+                Copy JSON
+              </Button>
+            </div>
+            <textarea
+              readOnly
+              value={inscriptionJson}
+              className="mt-4 h-48 w-full resize-none rounded-lg border border-red-700/30 bg-black/80 p-3 font-mono text-xs text-red-200"
+            />
+          </section>
+        )}
       </div>
 
       {copiedMessage && (
