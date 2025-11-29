@@ -33,6 +33,7 @@ type WalletProfile = {
 }
 
 const GRAVEYARD_LIMIT = 180
+const GRAVEROBBING_ENABLED = false // Feature flag to enable/disable grave robbing
 
 function formatRelativeTime(value?: string | null) {
   if (!value) {
@@ -388,7 +389,9 @@ function GraveyardContent() {
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
       void loadGraveyard()
-      void loadGraveRobEligibleCount()
+      if (GRAVEROBBING_ENABLED) {
+        void loadGraveRobEligibleCount()
+      }
     }
   }, [isWalletConnected, ordinalAddress, loadGraveyard, loadGraveRobEligibleCount])
 
@@ -907,63 +910,65 @@ function GraveyardContent() {
           </section>
         ) : (
           <>
-            {/* Grave Robbing Section */}
-            <section className="rounded-3xl border border-amber-600/40 bg-amber-950/20 px-6 py-5 shadow-[0_0_35px_rgba(251,191,36,0.25)]">
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-amber-200">
-                      Grave Robbing
-                    </h2>
-                  </div>
-                  {graveRobEligibleCount !== null && (
-                    <span className="text-sm font-mono uppercase tracking-[0.3em] text-amber-300/80">
-                      {graveRobEligibleCount} Eligible
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
-                    Spend 150 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
-                  </p>
-                  
-                  {(graveRobEligibleCount ?? 0) > 0 && (
+            {/* Grave Robbing Section - Disabled */}
+            {GRAVEROBBING_ENABLED && (
+              <section className="rounded-3xl border border-amber-600/40 bg-amber-950/20 px-6 py-5 shadow-[0_0_35px_rgba(251,191,36,0.25)]">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Button
-                        type="button"
-                        onClick={handleGraveRob}
-                        disabled={graveRobbing || graveRobLoading || powderAvailable < 150}
-                        className="border border-amber-500 bg-amber-700/80 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {graveRobbing || graveRobLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Robbing...
-                          </>
-                        ) : (
-                          'Attempt Grave Rob (150 Powder)'
-                        )}
-                      </Button>
-                      {powderAvailable < 150 && (
-                        <span className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
-                          Insufficient powder ({powderAvailable}/150)
-                        </span>
-                      )}
+                      <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-amber-200">
+                        Grave Robbing
+                      </h2>
                     </div>
-                  )}
-                  {graveRobEligibleCount === 0 && (
-                    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
-                      Grave robbing is over, all graves have been robbed.
+                    {graveRobEligibleCount !== null && (
+                      <span className="text-sm font-mono uppercase tracking-[0.3em] text-amber-300/80">
+                        {graveRobEligibleCount} Eligible
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-amber-200/70">
+                      Spend 150 powder for a 10% chance to steal ownership of an abandoned grave (no powder used in over 1 week).
                     </p>
-                  )}
-                  {graveRobEligibleCount === null && (
-                    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
-                      Loading eligible graves...
-                    </p>
-                  )}
+                    
+                    {(graveRobEligibleCount ?? 0) > 0 && (
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          onClick={handleGraveRob}
+                          disabled={graveRobbing || graveRobLoading || powderAvailable < 150}
+                          className="border border-amber-500 bg-amber-700/80 px-6 py-2 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {graveRobbing || graveRobLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Robbing...
+                            </>
+                          ) : (
+                            'Attempt Grave Rob (150 Powder)'
+                          )}
+                        </Button>
+                        {powderAvailable < 150 && (
+                          <span className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                            Insufficient powder ({powderAvailable}/150)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {graveRobEligibleCount === 0 && (
+                      <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                        Grave robbing is over, all graves have been robbed.
+                      </p>
+                    )}
+                    {graveRobEligibleCount === null && (
+                      <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
+                        Loading eligible graves...
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             <section className="flex flex-col gap-5">
             {error && (
