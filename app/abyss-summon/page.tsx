@@ -1166,10 +1166,6 @@ export default function AbyssSummonPage() {
       <Header 
         connected={Boolean(ordinalAddress)} 
         showMusicControls={true}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={handleVolumeChange}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={handleMusicMutedChange}
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
