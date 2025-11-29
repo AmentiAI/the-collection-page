@@ -6,7 +6,7 @@ Added a dynamic warning system on the graveyard page that displays different ima
 ## Three Warning States
 
 ### 1. **Dedication Warning** (waters.png)
-**Triggers when:** User has 2+ mint queue records of ONLY one type (all ascended OR all non-ascended)
+**Triggers when:** User has 1+ mint queue records of ONLY one type (all ascended OR all non-ascended)
 
 **Visual:**
 - Image: `waters.png`
@@ -84,11 +84,10 @@ const nonAscendedCount = records.filter(r =>
   !r.sourceInscriptionId?.toLowerCase().startsWith('ascended_')
 ).length
 
-// Dedication check (only one type, 2+ records)
-const totalRecords = ascendedCount + nonAscendedCount
+// Dedication check (only one type)
 const isOnlyOneSide = (ascendedCount > 0 && nonAscendedCount === 0) || 
                       (ascendedCount === 0 && nonAscendedCount > 0)
-showDedication = isOnlyOneSide && totalRecords > 1
+showDedication = isOnlyOneSide
 
 // Both sides check
 playingBothSides = ascendedCount > 0 && nonAscendedCount > 0
@@ -119,9 +118,10 @@ image = ascendedCount > nonAscendedCount ? 'heavenly' : 'awaken'
 - 3 non-ascended inscriptions
 - **Result:** 🔥 Awoken warning (red)
 
-**Example 5: No Warning**
-- 1 inscription (either type)
-- **Result:** No warning shown
+**Example 5: Dedication (Single Inscription)**
+- 1 ascended inscription
+- 0 non-ascended inscriptions
+- **Result:** 💧 Waters warning (cyan)
 
 ---
 
@@ -147,7 +147,7 @@ const [showDedicationWarning, setShowDedicationWarning] = useState(false)
 - **Animated:** All images have pulse animation
 - **Themed:** Each warning has appropriate color scheme (cyan/amber/red)
 - **Dynamic:** Automatically updates when mint queue changes
-- **Non-intrusive:** Only shows when 2+ records exist
+- **Shows with 1+:** Dedication warning shows even with single inscription
 
 ## Future Enhancements
 

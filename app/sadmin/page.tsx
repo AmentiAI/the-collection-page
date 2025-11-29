@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -74,6 +74,13 @@ const adminLinks: AdminLink[] = [
     description: 'View and monitor mint inscription records with pagination',
     icon: <Coins className="h-8 w-8" />,
     color: 'blue',
+  },
+  {
+    href: '/admin/megamonsters',
+    title: 'Mega Monster Creation',
+    description: 'Generate and manage mega monster images with AI',
+    icon: <Zap className="h-8 w-8" />,
+    color: 'cyan',
   },
 ]
 
