@@ -146,10 +146,6 @@ export default function Home() {
               onHolderVerified={handleHolderVerified}
               onVerifyingStart={handleVerifyingStart}
               onConnectedChange={setConnected}
-              musicVolume={musicVolume}
-              onMusicVolumeChange={setMusicVolume}
-              isMusicMuted={isMusicMuted}
-              onMusicMutedChange={setIsMusicMuted}
             />
                         <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">                                                               

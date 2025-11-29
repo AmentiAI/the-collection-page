@@ -90,10 +90,6 @@ export default function CancelTransactionPage() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
       <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-sky-400" /></div>}>

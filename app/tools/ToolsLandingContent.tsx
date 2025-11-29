@@ -71,10 +71,6 @@ export default function ToolsLandingContent() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
       <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <div className="px-4 py-12 md:px-8">

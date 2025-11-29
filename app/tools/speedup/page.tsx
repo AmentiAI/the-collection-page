@@ -143,10 +143,6 @@ function SpeedupPage() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
       <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense
