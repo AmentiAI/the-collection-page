@@ -144,6 +144,8 @@ function GraveyardContent() {
   const [graveRobbing, setGraveRobbing] = useState(false)
   const [graveRobLoading, setGraveRobLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
+  const [hasPlayedBothSides, setHasPlayedBothSides] = useState(false)
+  const [bothSidesImage, setBothSidesImage] = useState<'heavenly' | 'awaken'>('awaken')
   
   // Throttle mint queue fetches
   const lastMintQueueFetch = useRef<number>(0)
@@ -433,6 +435,18 @@ function GraveyardContent() {
         }))
         
         setMintQueueImages(records)
+        
+        // Check if user has both ascended and non-ascended records (playing both sides)
+        const ascendedCount = records.filter((r: any) => r.sourceInscriptionId?.toLowerCase().startsWith('ascended_')).length
+        const nonAscendedCount = records.filter((r: any) => r.sourceInscriptionId && !r.sourceInscriptionId?.toLowerCase().startsWith('ascended_')).length
+        const hasAscended = ascendedCount > 0
+        const hasNonAscended = nonAscendedCount > 0
+        setHasPlayedBothSides(hasAscended && hasNonAscended)
+        
+        // Determine which image to show based on which side has more
+        if (hasAscended && hasNonAscended) {
+          setBothSidesImage(ascendedCount > nonAscendedCount ? 'heavenly' : 'awaken')
+        }
         
         // Auto-compress uncompressed images to show KB sizes
         records.forEach(async (record: any) => {
@@ -964,6 +978,58 @@ function GraveyardContent() {
                       <p className="text-xs uppercase tracking-[0.3em] text-amber-300/60">
                         Loading eligible graves...
                       </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Awoken Warning - Playing Both Sides */}
+            {hasPlayedBothSides && (
+              <section className={`relative overflow-hidden rounded-3xl border-2 bg-black/95 ${
+                bothSidesImage === 'heavenly' 
+                  ? 'border-amber-500/60 shadow-[0_0_60px_rgba(251,191,36,0.8)]' 
+                  : 'border-red-500/60 shadow-[0_0_60px_rgba(220,38,38,0.8)]'
+              }`}>
+              
+                  <div className="relative z-10 flex flex-col items-center gap-6 px-8 py-10 text-center">
+                    <div className="relative h-96 w-96 animate-pulse md:h-[32rem] md:w-[32rem]">
+                      <Image
+                        src={bothSidesImage === 'heavenly' ? '/heavenly.png' : '/awaken.png'}
+                        alt={bothSidesImage === 'heavenly' ? 'Divine presence' : 'Something has awoken'}
+                        fill
+                        className={`object-contain ${
+                          bothSidesImage === 'heavenly'
+                            ? 'drop-shadow-[0_0_30px_rgba(251,191,36,0.9)]'
+                            : 'drop-shadow-[0_0_30px_rgba(220,38,38,0.9)]'
+                        }`}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-3">
+                    {bothSidesImage === 'heavenly' ? (
+                      <>
+                        <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-amber-200 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)] md:text-3xl">
+                          Divine Conflict
+                        </h2>
+                        <p className="max-w-2xl text-base font-semibold uppercase tracking-[0.35em] text-amber-300/90 drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]">
+                          The heavens watch your indecision!
+                        </p>
+                        <p className="mt-2 max-w-xl text-xs uppercase tracking-[0.3em] text-amber-200/70">
+                          You have chosen to walk both the path of the ascended and the damned. This defiance does not go unnoticed.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-red-200 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)] md:text-3xl">
+                          Playing Both Sides?
+                        </h2>
+                        <p className="max-w-2xl text-base font-semibold uppercase tracking-[0.35em] text-red-300/90 drop-shadow-[0_0_10px_rgba(220,38,38,0.6)]">
+                          Your ignorance has awoken something!
+                        </p>
+                        <p className="mt-2 max-w-xl text-xs uppercase tracking-[0.3em] text-red-200/70">
+                          You have chosen to walk both the path of the ascended and the damned. This defiance does not go unnoticed.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
