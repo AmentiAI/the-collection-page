@@ -586,6 +586,7 @@ export async function GET(request: NextRequest) {
             FROM abyss_burns
             WHERE LOWER(ordinal_wallet) = LOWER($1)
               AND hidden = FALSE
+              AND status = 'confirmed'
             ORDER BY created_at DESC
             LIMIT ${graveyardLimit}
           `,
