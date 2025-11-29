@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pool from '@/lib/db'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +22,7 @@ export async function PATCH(
       image_blob_url
     } = body
 
+    const pool = getPool()
     client = await pool.connect()
 
     // Build dynamic update query based on provided fields
@@ -114,6 +115,7 @@ export async function DELETE(
   try {
     const { id } = await context.params
 
+    const pool = getPool()
     client = await pool.connect()
 
     const result = await client.query(

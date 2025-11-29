@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pool from '@/lib/db'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '10', 10)))
     const offset = (page - 1) * limit
 
+    const pool = getPool()
     client = await pool.connect()
 
     // Get total count
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const pool = getPool()
     client = await pool.connect()
 
     const result = await client.query(

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
-import pool from '@/lib/db'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
@@ -77,6 +77,7 @@ export async function POST(
   try {
     const { id } = await context.params
     
+    const pool = getPool()
     client = await pool.connect()
 
     // Get the record to retrieve the prompt
