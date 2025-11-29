@@ -769,10 +769,6 @@ function DashboardContent() {
           onHolderVerified={handleHolderVerified}
           onVerifyingStart={handleVerifyingStart}
           onConnectedChange={() => {}}
-          musicVolume={musicVolume}
-          onMusicVolumeChange={setMusicVolume}
-          isMusicMuted={isMusicMuted}
-          onMusicMutedChange={setIsMusicMuted}
         />
 
         {connected && address && (
