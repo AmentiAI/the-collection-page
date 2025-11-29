@@ -197,6 +197,8 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
     initialHolder ? 'holder' : 'unknown'
   )
   const [holderMessage, setHolderMessage] = useState<string | null>(null)
+  const [showCostConfirmation, setShowCostConfirmation] = useState(false)
+  const [pendingSpeedupCost, setPendingSpeedupCost] = useState<number>(0)
 
   const holderAllowed = holderStatus === 'holder'
 
@@ -942,6 +944,28 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
       return
     }
 
+    // Calculate the cost for this speedup
+    let speedupCostSats = 0
+    if (selectedStrategy === 'rbf' && analysis) {
+      speedupCostSats = analysis.requiredRbfFee
+    } else if (estimate) {
+      speedupCostSats = estimate.recommendedChildFee
+    }
+
+    // Threshold: 0.0001 BTC = 10,000 sats
+    const COST_WARNING_THRESHOLD = 10000
+
+    // If cost exceeds threshold and not already confirmed, show confirmation
+    if (speedupCostSats > COST_WARNING_THRESHOLD && !showCostConfirmation) {
+      setPendingSpeedupCost(speedupCostSats)
+      setShowCostConfirmation(true)
+      return
+    }
+
+    // Reset confirmation state
+    setShowCostConfirmation(false)
+    setPendingSpeedupCost(0)
+
     if (selectedStrategy === 'rbf') {
       await performRbf()
     } else {
@@ -1268,6 +1292,57 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
                           <span>You&rsquo;ll receive back: {estimate.userReceives} sats</span>
                       </div>
                     </div>
+
+                    {showCostConfirmation && (
+                      <div className="rounded-2xl border border-amber-400/40 bg-amber-500/15 p-6 shadow-[0_20px_50px_-20px_rgba(251,191,36,0.5)]">
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 rounded-full bg-amber-400/20 p-3">
+                            <AlertCircle className="h-6 w-6 text-amber-300" />
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <h3 className="text-lg font-semibold text-amber-100">High Cost Warning</h3>
+                            <p className="text-sm text-amber-200">
+                              You are about to spend a large amount of BTC on this speedup transaction.
+                            </p>
+                            <div className="rounded-xl border border-amber-400/30 bg-black/30 p-4">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-amber-100">
+                                  {formatSats(pendingSpeedupCost)}
+                                </span>
+                                <span className="text-sm text-amber-200">sats</span>
+                                <span className="mx-2 text-amber-400">≈</span>
+                                <span className="text-xl font-semibold text-amber-100">
+                                  {(pendingSpeedupCost / 100000000).toFixed(8)}
+                                </span>
+                                <span className="text-sm text-amber-200">BTC</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-amber-300">
+                              Are you sure you want to proceed with this speedup?
+                            </p>
+                            <div className="flex gap-3 pt-2">
+                              <Button
+                                onClick={() => void executeSpeedup()}
+                                disabled={broadcasting}
+                                className="flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_30px_-12px_rgba(251,191,36,0.8)] transition hover:scale-[1.02] hover:shadow-[0_16px_36px_-16px_rgba(251,191,36,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
+                              >
+                                Yes, I Confirm
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setShowCostConfirmation(false)
+                                  setPendingSpeedupCost(0)
+                                }}
+                                disabled={broadcasting}
+                                className="flex-1 items-center justify-center rounded-xl border border-slate-600/50 bg-slate-900/60 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:bg-slate-800/60 disabled:opacity-50"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <Button
                       onClick={() => void executeSpeedup()}

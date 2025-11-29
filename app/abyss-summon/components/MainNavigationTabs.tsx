@@ -28,18 +28,6 @@ export default function MainNavigationTabs({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => handleModeChange('abyss')}
-          className={[
-            'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
-            !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
-              ? 'border-red-500 bg-red-700/80 text-red-100 shadow-[0_0_18px_rgba(220,38,38,0.45)]'
-              : 'border-red-700/50 bg-black/70 text-red-200/80 hover:border-red-500/70',
-          ].join(' ')}
-        >
-          Abyss
-        </button>
-        <button
-          type="button"
           onClick={() => handleModeChange('powder')}
           className={[
             'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.35em] transition whitespace-normal break-words',
@@ -61,18 +49,6 @@ export default function MainNavigationTabs({
           ].join(' ')}
         >
           Portal
-        </button>
-        <button
-          type="button"
-          onClick={() => handleModeChange('dead_demons')}
-          className={[
-            'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
-            IS_DEAD_DEMONS_MODE
-              ? 'border-purple-400 bg-purple-700/80 text-purple-100 shadow-[0_0_18px_rgba(168,85,247,0.45)]'
-              : 'border-purple-600/50 bg-black/70 text-purple-200/80 hover:border-purple-400/70',
-          ].join(' ')}
-        >
-          Dead Demons
         </button>
       </div>
       <div className="flex w-full flex-wrap items-center justify-center gap-2 gap-y-2 sm:w-auto sm:justify-start">
