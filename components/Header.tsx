@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamicImport from 'next/dynamic'
 import Link from 'next/link'
+import { useMusicPlayer } from '@/providers/MusicPlayerProvider'
 
 // Lazy load WalletConnect to prevent LaserEyes from loading immediately
 const WalletConnect = dynamicImport(() => import('./WalletConnect'), {
@@ -17,10 +18,6 @@ interface HeaderProps {
   onHolderVerified?: (isHolder: boolean, address?: string) => void
   onVerifyingStart?: () => void
   onConnectedChange?: (connected: boolean) => void
-  musicVolume?: number
-  onMusicVolumeChange?: (volume: number) => void
-  isMusicMuted?: boolean
-  onMusicMutedChange?: (muted: boolean) => void
   showMusicControls?: boolean
 }
 
@@ -31,12 +28,9 @@ export default function Header({
   onHolderVerified, 
   onVerifyingStart, 
   onConnectedChange,
-  musicVolume = 30,
-  onMusicVolumeChange,
-  isMusicMuted = false,
-  onMusicMutedChange,
   showMusicControls = true,
 }: HeaderProps) {
+  const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted } = useMusicPlayer()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -264,7 +258,7 @@ export default function Header({
             {showMusicControls && (
               <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50">
                 <button
-                  onClick={() => onMusicMutedChange?.(!isMusicMuted)}
+                  onClick={() => setIsMusicMuted(!isMusicMuted)}
                   className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors"
                   aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
                 >
@@ -286,10 +280,10 @@ export default function Header({
                   value={musicVolume}
                   onChange={(e) => {
                     const newVolume = Number(e.target.value)
-                    onMusicVolumeChange?.(newVolume)
+                    setMusicVolume(newVolume)
                     // If dragging slider up from 0, unmute automatically
                     if (newVolume > 0 && isMusicMuted) {
-                      onMusicMutedChange?.(false)
+                      setIsMusicMuted(false)
                     }
                   }}
                   className="w-20 accent-red-600"
@@ -326,7 +320,7 @@ export default function Header({
         {showMusicControls && (
           <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50">
             <button
-              onClick={() => onMusicMutedChange?.(!isMusicMuted)}
+              onClick={() => setIsMusicMuted(!isMusicMuted)}
               className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors"
               aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
             >
@@ -348,10 +342,10 @@ export default function Header({
               value={musicVolume}
                 onChange={(e) => {
                   const newVolume = Number(e.target.value)
-                  onMusicVolumeChange?.(newVolume)
+                  setMusicVolume(newVolume)
                   // If dragging slider up from 0, unmute automatically
                   if (newVolume > 0 && isMusicMuted) {
-                    onMusicMutedChange?.(false)
+                    setIsMusicMuted(false)
                   }
                 }}
               className="w-20 accent-red-600"

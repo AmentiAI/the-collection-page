@@ -146,6 +146,7 @@ function GraveyardContent() {
   const [now, setNow] = useState(Date.now())
   const [hasPlayedBothSides, setHasPlayedBothSides] = useState(false)
   const [bothSidesImage, setBothSidesImage] = useState<'heavenly' | 'awaken'>('awaken')
+  const [showDedicationWarning, setShowDedicationWarning] = useState(false)
   
   // Throttle mint queue fetches
   const lastMintQueueFetch = useRef<number>(0)
@@ -441,6 +442,13 @@ function GraveyardContent() {
         const nonAscendedCount = records.filter((r: any) => r.sourceInscriptionId && !r.sourceInscriptionId?.toLowerCase().startsWith('ascended_')).length
         const hasAscended = ascendedCount > 0
         const hasNonAscended = nonAscendedCount > 0
+        
+        // Check for dedication to one side (only one type, and more than 1 record)
+        const totalRecords = ascendedCount + nonAscendedCount
+        const isOnlyOneSide = (hasAscended && !hasNonAscended) || (!hasAscended && hasNonAscended)
+        setShowDedicationWarning(isOnlyOneSide && totalRecords > 1)
+        
+        // Check for playing both sides
         setHasPlayedBothSides(hasAscended && hasNonAscended)
         
         // Determine which image to show based on which side has more
@@ -979,6 +987,33 @@ function GraveyardContent() {
                         Loading eligible graves...
                       </p>
                     )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Dedication Warning - Committed to One Side */}
+            {showDedicationWarning && (
+              <section className="relative overflow-hidden rounded-3xl border-2 border-cyan-500/60 bg-black/95 shadow-[0_0_60px_rgba(6,182,212,0.8)]">
+                <div className="relative z-10 flex flex-col items-center gap-6 px-8 py-10 text-center">
+                  <div className="relative h-96 w-96 animate-pulse md:h-[32rem] md:w-[32rem]">
+                    <Image
+                      src="/waters.png"
+                      alt="Dedication recognized"
+                      fill
+                      className="object-contain drop-shadow-[0_0_30px_rgba(6,182,212,0.9)]"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-cyan-200 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)] md:text-3xl">
+                      Unwavering Loyalty
+                    </h2>
+                    <p className="max-w-2xl text-base font-semibold uppercase tracking-[0.35em] text-cyan-300/90 drop-shadow-[0_0_10px_rgba(6,182,212,0.6)]">
+                      Your dedication to one faction is remarkable
+                    </p>
+                    <p className="mt-2 max-w-xl text-xs uppercase tracking-[0.3em] text-cyan-200/70">
+                      The waters stir in recognition of your commitment. You have chosen your path with clarity.
+                    </p>
                   </div>
                 </div>
               </section>
