@@ -443,10 +443,9 @@ function GraveyardContent() {
         const hasAscended = ascendedCount > 0
         const hasNonAscended = nonAscendedCount > 0
         
-        // Check for dedication to one side (only one type, and more than 1 record)
-        const totalRecords = ascendedCount + nonAscendedCount
+        // Check for dedication to one side (only one type)
         const isOnlyOneSide = (hasAscended && !hasNonAscended) || (!hasAscended && hasNonAscended)
-        setShowDedicationWarning(isOnlyOneSide && totalRecords > 1)
+        setShowDedicationWarning(isOnlyOneSide)
         
         // Check for playing both sides
         setHasPlayedBothSides(hasAscended && hasNonAscended)
