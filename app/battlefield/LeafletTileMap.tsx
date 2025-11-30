@@ -259,7 +259,7 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
       <Tooltip 
         permanent={isMobile || false}
         direction="top"
-        offset={[0, -50]}
+        offset={isMobile ? [0, -15] : [0, -50]}
         className="landmark-tooltip"
         interactive={false}
         opacity={1}
