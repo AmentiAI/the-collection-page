@@ -11,7 +11,7 @@ export async function GET() {
     const result = await client.query(
       `SELECT id, name, type, sprite_x as "spriteX", sprite_y as "spriteY", 
               sprite_width as "spriteWidth", sprite_height as "spriteHeight",
-              map_x as "mapX", map_y as "mapY", url
+              map_x as "mapX", map_y as "mapY", url, sprite_source as "spriteSource"
        FROM landmarks
        ORDER BY type, name`
     )
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   let client
   try {
     const body = await request.json()
-    const { name, type, spriteX, spriteY, spriteWidth, spriteHeight, mapX, mapY, url } = body
+    const { name, type, spriteX, spriteY, spriteWidth, spriteHeight, mapX, mapY, url, spriteSource } = body
 
     if (!name || !type || spriteX === undefined || spriteY === undefined || 
         spriteWidth === undefined || spriteHeight === undefined || 
@@ -66,13 +66,21 @@ export async function POST(request: NextRequest) {
 
     client = await getPool().connect()
 
+    const spriteSourceValue = spriteSource || 'landmarks.png'
+    if (spriteSourceValue !== 'landmarks.png' && spriteSourceValue !== 'landmarks2.png') {
+      return NextResponse.json(
+        { error: 'spriteSource must be landmarks.png or landmarks2.png' },
+        { status: 400 }
+      )
+    }
+
     const result = await client.query(
-      `INSERT INTO landmarks (name, type, sprite_x, sprite_y, sprite_width, sprite_height, map_x, map_y, url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO landmarks (name, type, sprite_x, sprite_y, sprite_width, sprite_height, map_x, map_y, url, sprite_source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, name, type, sprite_x as "spriteX", sprite_y as "spriteY", 
                  sprite_width as "spriteWidth", sprite_height as "spriteHeight",
-                 map_x as "mapX", map_y as "mapY", url`,
-      [name, type, spriteXInt, spriteYInt, spriteWidthInt, spriteHeightInt, mapXInt, mapYInt, url || null]
+                 map_x as "mapX", map_y as "mapY", url, sprite_source as "spriteSource"`,
+      [name, type, spriteXInt, spriteYInt, spriteWidthInt, spriteHeightInt, mapXInt, mapYInt, url || null, spriteSourceValue]
     )
 
     return NextResponse.json({

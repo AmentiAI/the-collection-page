@@ -19,6 +19,7 @@ interface Landmark {
   type: 'demonic' | 'angelic'
   name: string
   url?: string
+  spriteSource?: string
 }
 
 export default function LandmarkEditorPage() {
@@ -41,6 +42,8 @@ export default function LandmarkEditorPage() {
   const [landmarkPreviews, setLandmarkPreviews] = useState<Record<string, string>>({})
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null)
   const [clickedCoords, setClickedCoords] = useState<{ x: number; y: number } | null>(null)
+  const [selectedSpriteSource, setSelectedSpriteSource] = useState<'landmarks.png' | 'landmarks2.png'>('landmarks.png')
+  const landmarks2ImageRef = useRef<HTMLImageElement | null>(null)
 
   // Load images
   useEffect(() => {
@@ -55,9 +58,14 @@ export default function LandmarkEditorPage() {
     landmarksImg.src = '/landmarks.png'
     landmarksImg.onload = () => {
       landmarksImageRef.current = landmarksImg
-      drawLandmarksSprite()
     }
-  }, [])
+
+    const landmarks2Img = new Image()
+    landmarks2Img.src = '/landmarks2.png'
+    landmarks2Img.onload = () => {
+      landmarks2ImageRef.current = landmarks2Img
+    }
+  }, []) // Load images once on mount
 
   const drawMap = useCallback(() => {
     const canvas = mapCanvasRef.current
@@ -102,7 +110,9 @@ export default function LandmarkEditorPage() {
   const drawLandmarksSprite = useCallback(() => {
     const canvas = landmarksCanvasRef.current
     const ctx = canvas?.getContext('2d')
-    const img = landmarksImageRef.current
+    const img = selectedSpriteSource === 'landmarks.png' 
+      ? landmarksImageRef.current 
+      : landmarks2ImageRef.current
     if (!canvas || !ctx || !img) return
 
     canvas.width = img.width
@@ -117,13 +127,16 @@ export default function LandmarkEditorPage() {
       ctx.strokeRect(spriteSelection.x, spriteSelection.y, spriteSelection.width, spriteSelection.height)
     }
 
-    // Draw existing landmark sprites
+    // Draw existing landmark sprites (only from the currently selected image)
     landmarks.forEach((landmark) => {
-      ctx.strokeStyle = landmark.type === 'demonic' ? 'red' : 'cyan'
-      ctx.lineWidth = 2
-      ctx.strokeRect(landmark.spriteX, landmark.spriteY, landmark.spriteWidth, landmark.spriteHeight)
+      const landmarkSource = landmark.spriteSource || 'landmarks.png'
+      if (landmarkSource === selectedSpriteSource) {
+        ctx.strokeStyle = landmark.type === 'demonic' ? 'red' : 'cyan'
+        ctx.lineWidth = 2
+        ctx.strokeRect(landmark.spriteX, landmark.spriteY, landmark.spriteWidth, landmark.spriteHeight)
+      }
     })
-  }, [landmarks, spriteSelection])
+  }, [landmarks, spriteSelection, selectedSpriteSource])
 
   useEffect(() => {
     drawMap()
@@ -179,6 +192,7 @@ export default function LandmarkEditorPage() {
         type: newLandmarkType,
         name: newLandmarkName || `${newLandmarkType} Landmark ${landmarks.filter(l => l.type === newLandmarkType).length + 1}`,
         url: newLandmarkUrl.trim() || undefined,
+        spriteSource: selectedSpriteSource,
       }
       setLandmarks(prev => [...prev, newLandmark])
       setSpriteSelection(null)
@@ -258,7 +272,10 @@ export default function LandmarkEditorPage() {
   // Generate cropped image preview for a landmark
   const generateLandmarkPreview = useCallback((landmark: Landmark): Promise<string> => {
     return new Promise((resolve) => {
-      const img = landmarksImageRef.current
+      const spriteSource = landmark.spriteSource || 'landmarks.png'
+      const img = spriteSource === 'landmarks.png' 
+        ? landmarksImageRef.current 
+        : landmarks2ImageRef.current
       if (!img) {
         resolve('')
         return
@@ -390,6 +407,7 @@ export default function LandmarkEditorPage() {
                 mapX: landmark.mapX,
                 mapY: landmark.mapY,
                 url: landmark.url || null, // Explicitly send null for empty/undefined URLs
+                spriteSource: landmark.spriteSource || 'landmarks.png',
               }),
             })
             
@@ -421,6 +439,7 @@ export default function LandmarkEditorPage() {
                 mapX: landmark.mapX,
                 mapY: landmark.mapY,
                 url: landmark.url || null, // Explicitly send null for empty/undefined URLs
+                spriteSource: landmark.spriteSource || 'landmarks.png',
               }),
             })
             
@@ -465,7 +484,34 @@ export default function LandmarkEditorPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Landmarks Sprite Sheet */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold">1. Select Sprite from landmarks.png</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">1. Select Sprite</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedSpriteSource('landmarks.png')}
+                  className={`px-4 py-2 rounded border-2 ${
+                    selectedSpriteSource === 'landmarks.png'
+                      ? 'bg-red-600 border-red-400 text-white'
+                      : 'bg-black border-gray-600 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  landmarks.png
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedSpriteSource('landmarks2.png')
+                    setSpriteSelection(null) // Clear selection when switching
+                  }}
+                  className={`px-4 py-2 rounded border-2 ${
+                    selectedSpriteSource === 'landmarks2.png'
+                      ? 'bg-red-600 border-red-400 text-white'
+                      : 'bg-black border-gray-600 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  landmarks2.png
+                </button>
+              </div>
+            </div>
             <div className="border-2 border-red-500/50 rounded overflow-auto max-h-[600px]">
               <canvas
                 ref={landmarksCanvasRef}

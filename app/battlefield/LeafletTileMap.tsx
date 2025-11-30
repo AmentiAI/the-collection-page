@@ -31,6 +31,7 @@ interface Landmark {
   name: string
   url?: string
   imageUrl?: string // Optional standalone image URL (instead of sprite sheet)
+  spriteSource?: string // Which sprite sheet image to use (landmarks.png or landmarks2.png)
 }
 
 // Convert map coordinates (0-2048) to Leaflet CRS.Simple coordinates
@@ -182,7 +183,8 @@ function LandmarkMarker({ landmark }: { landmark: Landmark }) {
       img.onerror = (e) => {
         console.error('Failed to load landmark sprite for', landmark.name, e)
       }
-      img.src = '/landmarks.png'
+      const spriteSource = landmark.spriteSource || 'landmarks.png'
+      img.src = `/${spriteSource}`
     }
   }, [landmark, isHovered])
   

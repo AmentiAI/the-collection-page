@@ -21,7 +21,7 @@ export async function PATCH(
     }
     
     const body = await request.json()
-    const { name, type, spriteX, spriteY, spriteWidth, spriteHeight, mapX, mapY, url } = body
+    const { name, type, spriteX, spriteY, spriteWidth, spriteHeight, mapX, mapY, url, spriteSource } = body
 
     client = await getPool().connect()
 
@@ -65,6 +65,16 @@ export async function PATCH(
       updates.push(`url = $${paramCount++}`)
       values.push(url || null)
     }
+    if (spriteSource !== undefined) {
+      if (spriteSource !== 'landmarks.png' && spriteSource !== 'landmarks2.png') {
+        return NextResponse.json(
+          { error: 'spriteSource must be landmarks.png or landmarks2.png' },
+          { status: 400 }
+        )
+      }
+      updates.push(`sprite_source = $${paramCount++}`)
+      values.push(spriteSource)
+    }
 
     if (updates.length === 0) {
       return NextResponse.json(
@@ -81,7 +91,7 @@ export async function PATCH(
        WHERE id = $${paramCount}
        RETURNING id, name, type, sprite_x as "spriteX", sprite_y as "spriteY", 
                  sprite_width as "spriteWidth", sprite_height as "spriteHeight",
-                 map_x as "mapX", map_y as "mapY", url`,
+                 map_x as "mapX", map_y as "mapY", url, sprite_source as "spriteSource"`,
       values
     )
 

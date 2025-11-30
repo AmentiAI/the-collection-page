@@ -19,6 +19,7 @@ interface Landmark {
   name: string
   url?: string
   imageUrl?: string // Optional standalone image URL (instead of sprite sheet)
+  spriteSource?: string // Which sprite sheet image to use (landmarks.png or landmarks2.png)
 }
 
 export default function BattlefieldPage() {

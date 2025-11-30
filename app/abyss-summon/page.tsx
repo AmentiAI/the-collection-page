@@ -66,11 +66,7 @@ export default function AbyssSummonPage() {
     : IS_DAMNED_POOL_MODE
     ? 'Damned pool circles are currently paused.'
     : 'The summoning has been completed. Thank you for your efforts!'
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const autoplayAttemptedRef = useRef(false)
   const finaleBeepedRef = useRef<Set<string>>(new Set())
-  const lastLoadedSongRef = useRef<string | null>(null)
-  const shouldContinuePlaylistRef = useRef(false)
   const lastLoadedAddressRef = useRef<string | null>(null)
   const currentModeRef = useRef<Mode>(mode)
 
@@ -102,20 +98,6 @@ export default function AbyssSummonPage() {
   const [inscriptionsInCircles, setInscriptionsInCircles] = useState<Set<string>>(new Set())
   const lastAccessCheckAddressRef = useRef<string | null>(null)
   const leaderboardLoadingRef = useRef(false)
-  const [musicReady, setMusicReady] = useState(false)
-  const [musicPlaying, setMusicPlaying] = useState(false)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(15)
-  const musicControlsDisabled = !musicReady && !musicPlaying
-  
-  // Playlist of 4 songs to cycle through
-  const playlist = useMemo(() => [
-    '/music/abysssummon2.mp3',
-    '/music/summon2.mp3',
-    '/music/summon.mp3',
-    '/music/The Damned 3.mp3',
-  ], [])
-  const [currentSongIndex, setCurrentSongIndex] = useState(0)
 
   // Use "rock" instead of "ascension powder" if burn count is 0
   const useRockTerminology = burnCount === 0
@@ -348,125 +330,6 @@ export default function AbyssSummonPage() {
     }
   }, [now, summons, createdSummons, joinedSummons, ordinalAddress, IS_DAMNED_POOL_MODE, IS_DEAD_DEMONS_MODE, SUMMON_DURATION_MS])
 
-  // Set up audio element once on mount
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const handlePlay = () => {
-      setMusicPlaying(true)
-      shouldContinuePlaylistRef.current = true
-    }
-    const handlePause = () => {
-      setMusicPlaying(false)
-      // Only stop playlist continuation if user manually paused
-      // (not if it paused due to song ending)
-      if (audioRef.current && audioRef.current.ended === false) {
-        shouldContinuePlaylistRef.current = false
-      }
-    }
-    const handleCanPlay = () => {
-      setMusicReady(true)
-      if (!autoplayAttemptedRef.current) {
-        autoplayAttemptedRef.current = true
-        // Try to play, but don't worry if blocked (user can start via controls)
-        audio.play().catch(() => {
-          // Autoplay blocked; this is normal - user interaction will allow playback
-        })
-      }
-    }
-    
-    const handleUserInteraction = () => {
-      // Once user has interacted, try to play if audio is ready
-      // Check current state directly from audio element
-      const currentAudio = audioRef.current
-      if (currentAudio && currentAudio.readyState >= 2 && currentAudio.paused) {
-        // Only play if volume is greater than 0 (not muted)
-        if (currentAudio.volume > 0) {
-          currentAudio.play().catch(() => {})
-      }
-    }
-    }
-    
-    // Listen for any user interaction to enable playback
-    document.addEventListener('click', handleUserInteraction, { once: true })
-    document.addEventListener('touchstart', handleUserInteraction, { once: true })
-
-    audio.addEventListener('play', handlePlay)
-    audio.addEventListener('pause', handlePause)
-    audio.addEventListener('canplay', handleCanPlay, { once: true })
-
-    return () => {
-      audio.removeEventListener('play', handlePlay)
-      audio.removeEventListener('pause', handlePause)
-      document.removeEventListener('click', handleUserInteraction)
-      document.removeEventListener('touchstart', handleUserInteraction)
-    }
-  }, [])
-
-  // Handle playlist song changes and initial load
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const newSrc = playlist[currentSongIndex]
-    
-    // Only change src if it's actually different from what we last loaded
-    if (lastLoadedSongRef.current !== newSrc) {
-      lastLoadedSongRef.current = newSrc
-      audio.src = newSrc
-      audio.load()
-      
-      // Auto-play if we should continue the playlist (user started it and it hasn't been manually paused)
-      if (shouldContinuePlaylistRef.current && !isMusicMuted && audio.volume > 0) {
-        const playOnLoad = () => {
-          const currentAudio = audioRef.current
-          if (currentAudio && currentAudio.paused && shouldContinuePlaylistRef.current) {
-            currentAudio.play().catch(() => {})
-          }
-        }
-        audio.addEventListener('loadeddata', playOnLoad, { once: true })
-        audio.addEventListener('canplay', playOnLoad, { once: true })
-      }
-    }
-  }, [currentSongIndex, playlist, isMusicMuted, musicPlaying])
-
-  // Set up ended handler separately to avoid re-attaching on every change
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const handleEnded = () => {
-      // When song ends, move to next song in playlist
-      // Keep playlist continuation flag true so next song auto-plays
-      shouldContinuePlaylistRef.current = true
-      const nextIndex = (currentSongIndex + 1) % playlist.length
-      setCurrentSongIndex(nextIndex)
-    }
-
-    audio.addEventListener('ended', handleEnded)
-
-    return () => {
-      audio.removeEventListener('ended', handleEnded)
-    }
-  }, [currentSongIndex, playlist])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-    audio.volume = isMusicMuted ? 0 : musicVolume / 100
-    
-    // If unmuted and audio is paused, try to play (user may have interacted)
-    if (!isMusicMuted && audio.paused && musicReady) {
-      audio.play().catch(() => {
-        // Autoplay may still be blocked, that's okay
-      })
-    }
-  }, [musicVolume, isMusicMuted, musicReady])
-
-  useEffect(() => () => {
-    audioRef.current?.pause()
-  }, [])
 
   const activeSummons = useMemo(
     () => summons.filter((summon) => ACTIVE_SUMMON_STATUSES.has(summon.status)),
@@ -872,61 +735,6 @@ export default function AbyssSummonPage() {
   // // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, [SUMMON_LEADERBOARD_ENABLED])
 
-  const handleToggleMusic = useCallback(() => {
-    const audio = audioRef.current
-    if (!audio) return
-    if (musicPlaying) {
-      audio.pause()
-    } else {
-      audio.play().catch(() => {
-        setMusicReady(true)
-      })
-    }
-  }, [musicPlaying])
-
-  const handleToggleMute = useCallback(() => {
-    setIsMusicMuted((prev) => {
-      const next = !prev
-      if (!next && musicVolume === 0) {
-        setMusicVolume(30)
-      }
-      if (!next && audioRef.current && audioRef.current.paused) {
-        audioRef.current.play().catch(() => {})
-      }
-      return next
-    })
-  }, [musicVolume])
-
-  const handleMusicMutedChange = useCallback((muted: boolean) => {
-    setIsMusicMuted(muted)
-    const audio = audioRef.current
-    if (!audio) return
-    
-    if (!muted) {
-      // Unmuting: ensure volume is set and play if paused
-      if (musicVolume === 0) {
-        setMusicVolume(30)
-      }
-      if (audio.paused) {
-        audio.play().catch(() => {
-          // Autoplay may be blocked, but user interaction should allow it
-        })
-      }
-    }
-    // When muting, the volume effect will handle setting volume to 0
-  }, [musicVolume])
-
-  const handleVolumeChange = useCallback((value: number) => {
-    setMusicVolume(value)
-    if (value > 0) {
-      setIsMusicMuted(false)
-      if (audioRef.current && audioRef.current.paused) {
-        audioRef.current.play().catch(() => {})
-      }
-    } else {
-      setIsMusicMuted(true)
-    }
-  }, [])
 
   const handleCreateSummon = useCallback(async () => {
     if (SUMMONING_DISABLED) {
@@ -1141,16 +949,7 @@ export default function AbyssSummonPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
-      <audio
-        ref={audioRef}
-        src={playlist[currentSongIndex]}
-        preload="auto"
-        onError={(event) => {
-          console.error('Summon audio failed to load', event.currentTarget.error)
-        }}
-      />
-
-      {/* Music controls rendered in Header; floating controls removed for consistency */}
+      {/* Music controls rendered in Header; uses global MusicPlayerProvider */}
 
       <div className="pointer-events-none absolute inset-0 -z-10">
         <Image
