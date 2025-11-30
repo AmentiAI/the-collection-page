@@ -126,16 +126,16 @@ export default function BattlefieldPage() {
 
           {/* Coordinate display overlay */}
             {mouseCoords && (
-            <div className="absolute bottom-4 left-4 bg-black/80 border border-green-500/50 px-4 py-3 rounded z-[1000]">
-              <div className="text-sm font-mono text-green-400">
+            <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-black/80 border border-green-500/50 px-2 py-1.5 md:px-4 md:py-3 rounded z-[1000]">
+              <div className="text-xs md:text-sm font-mono text-green-400">
                 <div>X: {mouseCoords.x}, Y: {mouseCoords.y}</div>
               </div>
             </div>
           )}
           
           {/* Landmarks count */}
-          <div className="absolute top-4 right-4 bg-black/80 border border-green-500/50 px-4 py-3 rounded z-[1000]">
-            <div className="text-sm font-mono text-green-400">
+          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-black/80 border border-green-500/50 px-2 py-1.5 md:px-4 md:py-3 rounded z-[1000]">
+            <div className="text-xs md:text-sm font-mono text-green-400">
               <div>🔥 Demonic: {allLandmarks.filter(l => l.type === 'demonic').length}</div>
               <div>✨ Angelic: {allLandmarks.filter(l => l.type === 'angelic').length}</div>
               <div>📍 Total: {allLandmarks.length}</div>

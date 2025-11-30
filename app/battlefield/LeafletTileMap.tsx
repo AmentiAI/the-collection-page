@@ -270,11 +270,11 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
   )
 }
 
-function MapInit() {
+function MapInit({ isMobile }: { isMobile: boolean }) {
   const map = useMap()
   
   useEffect(() => {
-    console.log('🟡 Test 4: Map initialized')
+    console.log('🟡 Test 4: Map initialized, isMobile:', isMobile)
     console.log('🟡 Map center:', map.getCenter())
     console.log('🟡 Map zoom:', map.getZoom())
     console.log('🟡 Map bounds:', map.getBounds())
@@ -282,19 +282,24 @@ function MapInit() {
     setTimeout(() => {
       try {
         map.invalidateSize()
+        
+        // Set zoom first based on mobile detection
+        const targetZoom = isMobile ? -2 : 0
+        map.setZoom(targetZoom, { animate: false })
+        
         // Use same bounds format as editor: SW = [MAP_HEIGHT, 0], NE = [0, MAP_WIDTH]
         // This ensures the map shows exactly 0-4096 x 0-2728 range
         const sw = L.latLng(MAP_HEIGHT, 0) // bottom-left
         const ne = L.latLng(0, MAP_WIDTH)  // top-right
         const bounds = L.latLngBounds(sw, ne)
-        map.fitBounds(bounds, { padding: [0, 0], animate: false })
-        console.log('✅ Test 4: Fit bounds called')
+        map.fitBounds(bounds, { padding: [0, 0], animate: false, maxZoom: targetZoom })
+        console.log('✅ Test 4: Fit bounds called with zoom:', targetZoom)
         console.log('✅ Test 4: Bounds SW:', sw.lat, sw.lng, 'NE:', ne.lat, ne.lng)
       } catch (error) {
         console.error('❌ Test 4: Fit bounds error:', error)
       }
     }, 100)
-  }, [map])
+  }, [map, isMobile])
   
   return null
 }
@@ -306,13 +311,24 @@ export default function LeafletTileMap({
   landmarks?: Landmark[]
   onCoordsChange?: (coords: { x: number; y: number } | null) => void 
 }) {
-  const [isMobile, setIsMobile] = useState(false)
+  // Initialize mobile detection immediately (not in useEffect)
+  // Check both screen width and touch capability for better mobile detection
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const isSmallScreen = window.innerWidth < 768
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+      // Consider mobile if small screen OR touch device (covers tablets too)
+      return isSmallScreen || (isTouchDevice && window.innerWidth < 1024)
+    }
+    return false
+  })
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768) // 768px is typical tablet/mobile breakpoint
+      const isSmallScreen = window.innerWidth < 768
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+      setIsMobile(isSmallScreen || (isTouchDevice && window.innerWidth < 1024))
     }
-    checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
@@ -351,7 +367,7 @@ export default function LeafletTileMap({
         console.log('🟢 Test 4: MapContainer ready')
       }}
     >
-      <MapInit />
+      <MapInit isMobile={isMobile} />
       <ImageOverlay
         url="/content.jpg"
         bounds={bounds}
