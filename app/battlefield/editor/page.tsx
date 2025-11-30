@@ -131,9 +131,9 @@ export default function LandmarkEditorPage() {
     landmarks.forEach((landmark) => {
       const landmarkSource = landmark.spriteSource || 'landmarks.png'
       if (landmarkSource === selectedSpriteSource) {
-        ctx.strokeStyle = landmark.type === 'demonic' ? 'red' : 'cyan'
-        ctx.lineWidth = 2
-        ctx.strokeRect(landmark.spriteX, landmark.spriteY, landmark.spriteWidth, landmark.spriteHeight)
+      ctx.strokeStyle = landmark.type === 'demonic' ? 'red' : 'cyan'
+      ctx.lineWidth = 2
+      ctx.strokeRect(landmark.spriteX, landmark.spriteY, landmark.spriteWidth, landmark.spriteHeight)
       }
     })
   }, [landmarks, spriteSelection, selectedSpriteSource])

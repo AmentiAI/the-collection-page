@@ -111,21 +111,21 @@ export default function BattlefieldPage() {
         }
       `}} />
       <div className="h-screen bg-black text-white overflow-hidden flex flex-col">
-        <Header
-          isHolder={isHolder}
-          isVerifying={isVerifying}
-          connected={false}
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={false}
           onHolderVerified={setIsHolder}
           onVerifyingStart={() => setIsVerifying(true)}
-          onConnectedChange={() => {}}
+        onConnectedChange={() => {}}
           showMusicControls={true}
-        />
-        
+      />
+
         <div className="flex-1 map-container relative">
           <LeafletTileMap landmarks={allLandmarks} onCoordsChange={setMouseCoords} />
-          
+
           {/* Coordinate display overlay */}
-          {mouseCoords && (
+            {mouseCoords && (
             <div className="absolute bottom-4 left-4 bg-black/80 border border-green-500/50 px-4 py-3 rounded z-[1000]">
               <div className="text-sm font-mono text-green-400">
                 <div>X: {mouseCoords.x}, Y: {mouseCoords.y}</div>

@@ -306,6 +306,17 @@ export default function LeafletTileMap({
   landmarks?: Landmark[]
   onCoordsChange?: (coords: { x: number; y: number } | null) => void 
 }) {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768) // 768px is typical tablet/mobile breakpoint
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   useEffect(() => {
     console.log('🟣 Test 4: LeafletTileMap component mounted')
     console.log(`🟣 Test 4: Received ${landmarks.length} landmarks`)
@@ -315,13 +326,14 @@ export default function LeafletTileMap({
   }, [landmarks])
   
   const bounds: [[number, number], [number, number]] = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]]
+  const initialZoom = isMobile ? -2 : 0 // Much less zoom on mobile
   
   return (
     <MapContainer
       center={[MAP_HEIGHT / 2, MAP_WIDTH / 2]}
-      zoom={0}
-      minZoom={0}
-      maxZoom={0}
+      zoom={initialZoom}
+      minZoom={isMobile ? -2 : 0}
+      maxZoom={isMobile ? -2 : 0}
       zoomControl={false}
       scrollWheelZoom={false}
       doubleClickZoom={false}
