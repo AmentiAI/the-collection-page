@@ -5,14 +5,21 @@ export const dynamic = 'force-dynamic'
 
 // Verify cron secret for security
 function verifyCronSecret(request: NextRequest): boolean {
+  // Check if this is a Vercel cron job (Vercel sends x-vercel-cron header)
+  const vercelCron = request.headers.get('x-vercel-cron')
+  if (vercelCron === '1') {
+    return true // Allow Vercel cron jobs
+  }
+  
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
   
+  // If no secret is set, allow in development
   if (!cronSecret) {
-    // In development, allow without secret
     return process.env.NODE_ENV === 'development'
   }
   
+  // If secret is set, require matching authorization header
   return authHeader === `Bearer ${cronSecret}`
 }
 

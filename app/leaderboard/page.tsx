@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Header from '@/components/Header'
-import { Loader2, Trophy, Sword, Shield, Skull, Heart } from 'lucide-react'
+import { Loader2, Trophy, Sword, Shield, Skull, Heart, Medal } from 'lucide-react'
 
 interface LeaderboardEntry {
   side: 'Angelic' | 'Demonic'
@@ -13,14 +13,30 @@ interface LeaderboardEntry {
   last_updated: string
 }
 
+interface IndividualLeader {
+  wallet_address: string
+  trait: 'Angelic' | 'Demonic'
+  total_battles: number
+  total_deaths: number
+  total_resurrections: number
+  score: number
+}
+
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [angelicLeaders, setAngelicLeaders] = useState<IndividualLeader[]>([])
+  const [demonicLeaders, setDemonicLeaders] = useState<IndividualLeader[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingLeaders, setLoadingLeaders] = useState(true)
 
   useEffect(() => {
     fetchLeaderboard()
+    fetchIndividualLeaders()
     // Refresh every 30 seconds
-    const interval = setInterval(fetchLeaderboard, 30000)
+    const interval = setInterval(() => {
+      fetchLeaderboard()
+      fetchIndividualLeaders()
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -38,6 +54,38 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchIndividualLeaders = async () => {
+    try {
+      setLoadingLeaders(true)
+      const [angelicResponse, demonicResponse] = await Promise.all([
+        fetch('/api/leaderboard/individual?side=Angelic&limit=10'),
+        fetch('/api/leaderboard/individual?side=Demonic&limit=10'),
+      ])
+
+      if (angelicResponse.ok) {
+        const angelicData = await angelicResponse.json()
+        if (angelicData.success) {
+          setAngelicLeaders(angelicData.leaders)
+        }
+      }
+
+      if (demonicResponse.ok) {
+        const demonicData = await demonicResponse.json()
+        if (demonicData.success) {
+          setDemonicLeaders(demonicData.leaders)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching individual leaders:', error)
+    } finally {
+      setLoadingLeaders(false)
+    }
+  }
+
+  const formatWallet = (wallet: string) => {
+    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
   }
 
   const angelic = leaderboard.find((e) => e.side === 'Angelic')
@@ -192,6 +240,98 @@ export default function LeaderboardPage() {
         {!loading && leaderboard.length > 0 && (
           <div className="mt-8 text-center text-sm text-gray-500">
             Last updated: {new Date(leaderboard[0].last_updated).toLocaleString()}
+          </div>
+        )}
+
+        {/* Individual Leaders */}
+        {!loadingLeaders && (angelicLeaders.length > 0 || demonicLeaders.length > 0) && (
+          <div className="mt-16">
+            <h2 className="text-3xl font-black uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
+              <Medal className="h-8 w-8 text-yellow-500" />
+              Top Individual Leaders
+            </h2>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Top Angelic Leaders */}
+              {angelicLeaders.length > 0 && (
+                <div className="border-2 border-cyan-500/50 rounded-lg p-6 bg-black/60">
+                  <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-cyan-400 mb-6">
+                    Top Angels
+                  </h3>
+                  <div className="space-y-3">
+                    {angelicLeaders.map((leader, index) => (
+                      <div
+                        key={leader.wallet_address}
+                        className="flex items-center justify-between p-4 bg-black/40 rounded border border-cyan-500/30"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-500/20 border-2 border-cyan-500/50 flex items-center justify-center font-bold text-cyan-400">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono text-sm text-gray-300 truncate">
+                              {formatWallet(leader.wallet_address)}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {leader.total_battles} battles • {leader.total_deaths} deaths • {leader.total_resurrections} res
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-cyan-400">
+                            {leader.score.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500">score</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top Demonic Leaders */}
+              {demonicLeaders.length > 0 && (
+                <div className="border-2 border-red-500/50 rounded-lg p-6 bg-black/60">
+                  <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-red-400 mb-6">
+                    Top Demons
+                  </h3>
+                  <div className="space-y-3">
+                    {demonicLeaders.map((leader, index) => (
+                      <div
+                        key={leader.wallet_address}
+                        className="flex items-center justify-between p-4 bg-black/40 rounded border border-red-500/30"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center font-bold text-red-400">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono text-sm text-gray-300 truncate">
+                              {formatWallet(leader.wallet_address)}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {leader.total_battles} battles • {leader.total_deaths} deaths • {leader.total_resurrections} res
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-red-400">
+                            {leader.score.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500">score</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {loadingLeaders && (
+          <div className="mt-16 flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
           </div>
         )}
       </div>
