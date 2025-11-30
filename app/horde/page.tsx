@@ -50,7 +50,7 @@ export default function HordePage() {
             <Skull className="h-12 w-12 md:h-16 md:w-16 text-red-500" />
           </div>
           <p className="text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto">
-            Witness the terror of the Mega Monsters. These abominations attack all armies every hour.
+             These abominations attack all armies every hour.
           </p>
         </div>
 
@@ -96,9 +96,7 @@ export default function HordePage() {
                       {monster.totalFights.toLocaleString()} Fights
                     </span>
                   </div>
-                  <p className="text-sm text-gray-300 line-clamp-2">
-                    {monster.prompt}
-                  </p>
+                
                   <p className="text-xs text-gray-500 mt-2">
                     Joined: {new Date(monster.createdAt).toLocaleDateString()}
                   </p>
