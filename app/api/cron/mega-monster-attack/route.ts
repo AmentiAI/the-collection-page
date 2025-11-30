@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Process each wallet's armies
-    for (const [wallet, walletArmies] of armiesByWallet.entries()) {
+    for (const [wallet, walletArmies] of Array.from(armiesByWallet.entries())) {
       // Fetch ordinals from Magic Eden to get trait information
       let angelCount = 0
       let demonCount = 0
