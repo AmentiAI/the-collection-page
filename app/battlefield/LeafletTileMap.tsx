@@ -91,7 +91,7 @@ function MapCoordinates({ onCoordsChange }: { onCoordsChange: (coords: { x: numb
 }
 
 // Landmark marker component
-function LandmarkMarker({ landmark }: { landmark: Landmark }) {
+function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?: boolean }) {
   const router = useRouter()
   const [lat, lng] = mapToLatLng(landmark.mapX, landmark.mapY)
   const [icon, setIcon] = useState<L.DivIcon | null>(null)
@@ -255,7 +255,7 @@ function LandmarkMarker({ landmark }: { landmark: Landmark }) {
       autoPan={false}
     >
       <Tooltip 
-        permanent={false}
+        permanent={isMobile || false}
         direction="top"
         offset={[0, -50]}
         className="landmark-tooltip"
@@ -369,7 +369,7 @@ export default function LeafletTileMap({
       
       {/* Render landmarks */}
       {landmarks.map((landmark) => (
-        <LandmarkMarker key={landmark.id || `${landmark.mapX}-${landmark.mapY}`} landmark={landmark} />
+        <LandmarkMarker key={landmark.id || `${landmark.mapX}-${landmark.mapY}`} landmark={landmark} isMobile={isMobile} />
       ))}
     </MapContainer>
   )
