@@ -214,7 +214,7 @@ export default function BattlePage() {
                 No Battle-Ready Ordinals
               </h2>
               <p className="text-gray-500">
-                You don't have any ordinals with Angelic or Demonic traits, or
+                You don&apos;t have any ordinals with Angelic or Demonic traits, or
                 they are all listed.
               </p>
             </div>
