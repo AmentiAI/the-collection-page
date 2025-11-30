@@ -153,7 +153,7 @@ function ProfileContent() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80" />
       </div>
 
-      <Header connected={connected} showMusicControls={false} />
+      <Header connected={connected} showMusicControls={true} />
 
       {!connected && (
         <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center justify-center gap-8 px-4 py-32 md:px-8">
