@@ -46,7 +46,7 @@ export async function GET(
         .webp({ quality: 85 })
         .toBuffer()
       
-      return new NextResponse(blackTile, {
+      return new NextResponse(new Uint8Array(blackTile), {
         headers: {
           'Content-Type': 'image/webp',
           'Cache-Control': 'public, max-age=31536000, immutable',
@@ -102,7 +102,7 @@ export async function GET(
         .webp({ quality: 85 })
         .toBuffer()
       
-      return new NextResponse(blackTile, {
+      return new NextResponse(new Uint8Array(blackTile), {
         headers: {
           'Content-Type': 'image/webp',
           'Cache-Control': 'public, max-age=31536000, immutable',
@@ -145,7 +145,7 @@ export async function GET(
 
       console.log(`✅ Tile generated successfully: ${tile.length} bytes for z=${z}, x=${x}, y=${y}`)
       
-      return new NextResponse(tile, {
+      return new NextResponse(new Uint8Array(tile), {
         headers: {
           'Content-Type': 'image/webp',
           'Cache-Control': 'public, max-age=31536000, immutable',
