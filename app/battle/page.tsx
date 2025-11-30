@@ -33,6 +33,8 @@ export default function BattlePage() {
   const [loading, setLoading] = useState(false)
   const [hasListed, setHasListed] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+  const [attackLogs, setAttackLogs] = useState<any[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -81,11 +83,40 @@ export default function BattlePage() {
     }
   }, [address, toast])
 
+  const fetchAttackLogs = useCallback(async () => {
+    if (!address) {
+      setAttackLogs([])
+      return
+    }
+
+    setLoadingLogs(true)
+    try {
+      const response = await fetch(
+        `/api/battle/attack-logs?walletAddress=${encodeURIComponent(address)}`,
+        { cache: 'no-store' }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch attack logs')
+      }
+
+      const data = await response.json()
+      setAttackLogs(data.logs || [])
+    } catch (error) {
+      console.error('Error fetching attack logs:', error)
+      setAttackLogs([])
+    } finally {
+      setLoadingLogs(false)
+    }
+  }, [address])
+
   useEffect(() => {
     if (connected && address && !hasListed) {
       fetchBattleOrdinals()
+      fetchAttackLogs()
     } else {
       setOrdinals([])
+      setAttackLogs([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, address, hasListed])
@@ -380,6 +411,103 @@ export default function BattlePage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Attack Logs Section */}
+              {connected && !hasListed && attackLogs.length > 0 && (
+                <section>
+                  <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-yellow-500 mb-6 flex items-center gap-3">
+                    <Sword className="h-8 w-8" />
+                    Horde Attack Log
+                  </h2>
+                  <div className="bg-black/60 border-2 border-yellow-500/50 rounded-lg p-6 max-h-96 overflow-y-auto">
+                    {loadingLogs ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {attackLogs.map((log) => {
+                          // Find the army image from the ordinals data already loaded
+                          const armyOrdinal = ordinals.find(o => o.inscriptionId === log.inscription_id)
+                          const armyImageUrl = armyOrdinal?.imageUrl || null
+                          
+                          return (
+                            <div
+                              key={log.id}
+                              className="flex items-center gap-4 p-3 bg-black/40 rounded border border-yellow-500/30"
+                            >
+                              {/* Monster Image */}
+                              <div className="flex-shrink-0">
+                                {log.monster_image_url ? (
+                                  <div className="relative w-16 h-16 rounded border-2 border-yellow-500/50 overflow-hidden">
+                                    <Image
+                                      src={log.monster_image_url}
+                                      alt="Horde Monster"
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-16 h-16 rounded border-2 border-yellow-500/50 bg-gray-800 flex items-center justify-center">
+                                    <Sword className="h-6 w-6 text-yellow-500" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Attack Arrow */}
+                              <div className="flex-shrink-0 text-yellow-500">
+                                <Sword className="h-5 w-5 rotate-90" />
+                              </div>
+
+                              {/* Army Image */}
+                              <div className="flex-shrink-0">
+                                {armyImageUrl ? (
+                                  <div className="relative w-16 h-16 rounded border-2 border-red-500/50 overflow-hidden">
+                                    <Image
+                                      src={armyImageUrl}
+                                      alt="Army"
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-16 h-16 rounded border-2 border-red-500/50 bg-gray-800 flex items-center justify-center">
+                                    <Shield className="h-6 w-6 text-red-500" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Attack Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs text-gray-400 mb-1">
+                                  {log.was_blocked ? (
+                                    <span className="text-green-400 font-bold">🛡️ BLOCKED</span>
+                                  ) : (
+                                    <span>
+                                      <span className="text-red-400 font-bold">-{log.damage} damage</span>
+                                      {' '}({log.life_force_before} → {log.life_force_after} HP)
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-500 font-mono">
+                                  {log.inscription_id?.slice(0, 8)}...
+                                </div>
+                              </div>
+
+                              {/* Timestamp */}
+                              <div className="flex-shrink-0 text-xs text-gray-500 ml-4">
+                                {new Date(log.created_at).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
