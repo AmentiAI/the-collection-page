@@ -43,12 +43,34 @@ function mapToLatLng(mapX: number, mapY: number): [number, number] {
 }
 
 // Component to track mouse coordinates - uses pixel coordinates directly
-// Simple: pixel position = (container position / visible map size) * map dimension
+// Throttled to improve performance during dragging
 function MapCoordinates({ onCoordsChange }: { onCoordsChange: (coords: { x: number; y: number } | null) => void }) {
   const map = useMap()
+  const lastUpdateRef = useRef<number>(0)
+  const isDraggingRef = useRef<boolean>(false)
+  const throttleDelay = 50 // Update coordinates every 50ms max
   
   useMapEvents({
+    mousedown: () => {
+      isDraggingRef.current = true
+    },
+    mouseup: () => {
+      isDraggingRef.current = false
+    },
+    dragstart: () => {
+      isDraggingRef.current = true
+    },
+    dragend: () => {
+      isDraggingRef.current = false
+    },
     mousemove: (e) => {
+      // Skip coordinate updates during drag for better performance
+      if (isDraggingRef.current) return
+      
+      const now = Date.now()
+      if (now - lastUpdateRef.current < throttleDelay) return
+      lastUpdateRef.current = now
+      
       const container = map.getContainer()
       if (!container) return
       
@@ -366,6 +388,10 @@ export default function LeafletTileMap({
       maxBounds={L.latLngBounds([0, 0], [MAP_HEIGHT, MAP_WIDTH])}
       maxBoundsViscosity={1.0}
       worldCopyJump={false}
+      preferCanvas={true}
+      fadeAnimation={false}
+      zoomAnimation={false}
+      markerZoomAnimation={false}
       whenReady={() => {
         console.log('🟢 Test 4: MapContainer ready')
       }}
@@ -375,6 +401,7 @@ export default function LeafletTileMap({
         url="/content.jpg"
         bounds={bounds}
         opacity={1}
+        interactive={false}
         eventHandlers={{
           load: () => {
             console.log('✅ Test 4: Image overlay loaded')

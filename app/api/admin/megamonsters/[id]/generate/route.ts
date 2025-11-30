@@ -21,6 +21,8 @@ async function generateMegaMonsterImage(prompt: string): Promise<{ imageUrl: str
       model: 'gpt-image-1',
       prompt: prompt,
       size: '1024x1024',
+      quality: "high",  // if you really want high
+      n: 1,   
     }),
   })
 
