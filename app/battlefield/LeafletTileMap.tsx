@@ -107,7 +107,8 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
   
   // Calculate icon size based on mobile zoom level
   // At zoom -2 (mobile), we're zoomed out 4x, so icons should be 4x smaller
-  const iconSize = isMobile ? 24 : 96 // 96 / 4 = 24 for mobile zoom -2
+  // But make them 50% bigger for better visibility: 24 * 1.5 = 36
+  const iconSize = isMobile ? 36 : 96 // 36px on mobile (50% bigger than proportional), 96px on desktop
 
   // Create icon with hover glow effect
   const createIcon = (hovered: boolean) => {
