@@ -27,6 +27,21 @@ export default function BattlefieldPage() {
   const [isVerifying, setIsVerifying] = useState(false)
   const [landmarks, setLandmarks] = useState<Landmark[]>([])
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      if (typeof window !== 'undefined') {
+        const isSmallScreen = window.innerWidth < 768
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+        setIsMobile(isSmallScreen || (isTouchDevice && window.innerWidth < 1024))
+      }
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Load landmarks from API
   useEffect(() => {
@@ -69,8 +84,10 @@ export default function BattlefieldPage() {
     name: 'Angel',
     imageUrl: '/angel-right-1.png',
   }
-  // Combine API landmarks with special demon landmark
-  const allLandmarks = [...landmarks, demonLandmark, angelLandmark]
+  // Combine API landmarks with special demon and angel landmarks (hide on mobile)
+  const allLandmarks = isMobile 
+    ? landmarks 
+    : [...landmarks, demonLandmark, angelLandmark]
 
   return (
     <>

@@ -105,9 +105,12 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
     console.log(`   Leaflet coords: lat=${lat.toFixed(2)}, lng=${lng.toFixed(2)} (using directly, no conversion)`)
   }, [landmark, lat, lng])
   
+  // Calculate icon size based on mobile zoom level
+  // At zoom -2 (mobile), we're zoomed out 4x, so icons should be 4x smaller
+  const iconSize = isMobile ? 24 : 96 // 96 / 4 = 24 for mobile zoom -2
+
   // Create icon with hover glow effect
   const createIcon = (hovered: boolean) => {
-    const iconSize = 96
     const cursorStyle = landmark.url ? 'cursor: pointer;' : ''
     // No glow in initial creation - glow is added via filter on hover
     
@@ -120,7 +123,6 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
   }
 
   useEffect(() => {
-    const iconSize = 96
     const cursorStyle = landmark.url ? 'cursor: pointer;' : ''
     
     // If landmark has a standalone image URL, use it directly
@@ -186,7 +188,7 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
       const spriteSource = landmark.spriteSource || 'landmarks.png'
       img.src = `/${spriteSource}`
     }
-  }, [landmark, isHovered])
+  }, [landmark, isHovered, isMobile, iconSize])
   
   // Always render marker - use fallback icon if custom icon hasn't loaded
   const displayIcon = icon || createIcon(isHovered)
