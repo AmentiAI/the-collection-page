@@ -162,8 +162,7 @@ export default function PoolOfLifePage() {
   const armiesNeedingHeal = armies.filter(a => a.lifeForce < 100)
 
   return (
-    <>
-      <LaserEyesWrapper />
+    <LaserEyesWrapper>
       <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
@@ -288,7 +287,7 @@ export default function PoolOfLifePage() {
           )}
         </div>
       </div>
-    </>
+    </LaserEyesWrapper>
   )
 }
 

@@ -148,8 +148,7 @@ export default function ResurrectPage() {
   }, [address, toast, fetchDeadArmies])
 
   return (
-    <>
-      <LaserEyesWrapper />
+    <LaserEyesWrapper>
       <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
@@ -273,7 +272,7 @@ export default function ResurrectPage() {
           )}
         </div>
       </div>
-    </>
+    </LaserEyesWrapper>
   )
 }
 
