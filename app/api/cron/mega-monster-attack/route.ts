@@ -43,6 +43,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Increment total_fights for each monster that participates in this attack
+    // This tracks how many times each monster has attacked
+    for (const monster of monstersResult.rows) {
+      await client.query(
+        'UPDATE mega_monsters SET total_fights = total_fights + 1 WHERE id = $1',
+        [monster.id]
+      )
+    }
+
     // Get all armies that are ready for battle (not dead, not in sanctuary)
     const armiesResult = await client.query(`
       SELECT 

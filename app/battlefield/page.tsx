@@ -58,6 +58,93 @@ export default function BattlefieldPage() {
       })
   }, [])
 
+  // Create rain drops dynamically
+  useEffect(() => {
+    const rainOverlay = document.getElementById('rain-overlay')
+    if (!rainOverlay) return
+
+    // Clear existing drops
+    rainOverlay.innerHTML = ''
+
+    // Create rain drops - adjust count based on screen size for performance
+    const dropCount = isMobile ? 30 : 60
+    const drops: HTMLDivElement[] = []
+
+    for (let i = 0; i < dropCount; i++) {
+      const drop = document.createElement('div')
+      drop.className = 'rain-drop'
+      drop.style.left = `${Math.random() * 100}%`
+      drop.style.animationDuration = `${0.5 + Math.random() * 0.5}s`
+      drop.style.animationDelay = `${Math.random() * 2}s`
+      drop.style.opacity = `${0.3 + Math.random() * 0.4}`
+      rainOverlay.appendChild(drop)
+      drops.push(drop)
+    }
+
+    return () => {
+      // Cleanup on unmount
+      drops.forEach(drop => drop.remove())
+    }
+  }, [isMobile])
+
+  // Lightning flash effect using JavaScript for better control
+  useEffect(() => {
+    const lightningOverlay = document.getElementById('lightning-overlay')
+    if (!lightningOverlay) return
+
+    let timeoutId: NodeJS.Timeout
+
+    const flashLightning = () => {
+      // Random delay between 8-15 seconds for less frequent flashes
+      const delay = 4000 + Math.random() * 11000
+      
+      timeoutId = setTimeout(() => {
+        // First flash
+        lightningOverlay.style.background = 'rgba(255, 255, 255, 0.9)'
+        lightningOverlay.style.opacity = '1'
+        
+        setTimeout(() => {
+          lightningOverlay.style.background = 'rgba(255, 255, 255, 0)'
+          lightningOverlay.style.opacity = '0'
+          
+          // Second flash (quick)
+          setTimeout(() => {
+            lightningOverlay.style.background = 'rgba(255, 255, 255, 1)'
+            lightningOverlay.style.opacity = '1'
+            
+            setTimeout(() => {
+              lightningOverlay.style.background = 'rgba(255, 255, 255, 0)'
+              lightningOverlay.style.opacity = '0'
+              
+              // Third flash (fade)
+              setTimeout(() => {
+                lightningOverlay.style.background = 'rgba(255, 255, 255, 0.6)'
+                lightningOverlay.style.opacity = '1'
+                
+                setTimeout(() => {
+                  lightningOverlay.style.background = 'rgba(255, 255, 255, 0)'
+                  lightningOverlay.style.opacity = '0'
+                  
+                  // Schedule next flash
+                  flashLightning()
+                }, 50)
+              }, 30)
+            }, 30)
+          }, 20)
+        }, 50)
+      }, delay)
+    }
+
+    // Start the lightning cycle
+    flashLightning()
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      lightningOverlay.style.background = 'rgba(255, 255, 255, 0)'
+      lightningOverlay.style.opacity = '0'
+    }
+  }, [])
+
   // Add demon image as a special landmark
   const demonLandmark: Landmark = {
     id: 'demon-left-1',
@@ -126,6 +213,51 @@ export default function BattlefieldPage() {
         .leaflet-marker-icon[class*="popup"] {
           display: none !important;
         }
+        
+        /* Rain effect - lightweight CSS animation */
+        .rain-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 10;
+          overflow: hidden;
+        }
+        
+        .rain-drop {
+          position: absolute;
+          width: 2px;
+          height: 20px;
+          background: linear-gradient(to bottom, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.2));
+          animation: rain-fall linear infinite;
+        }
+        
+        @keyframes rain-fall {
+          0% {
+            transform: translateY(-100vh) translateX(0);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100vh) translateX(20px);
+            opacity: 0.3;
+          }
+        }
+        
+        /* Lightning flash effect */
+        .lightning-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 5;
+          background: rgba(255, 255, 255, 0);
+          opacity: 0;
+          transition: background 0.05s ease, opacity 0.05s ease;
+        }
       `}} />
       <div className="h-screen bg-black text-white overflow-hidden flex flex-col">
       <Header
@@ -139,6 +271,12 @@ export default function BattlefieldPage() {
       />
 
         <div className="flex-1 map-container relative">
+          {/* Lightning flash overlay */}
+          <div className="lightning-overlay" id="lightning-overlay" />
+          
+          {/* Rain overlay */}
+          <div className="rain-overlay" id="rain-overlay" />
+          
           <LeafletTileMap landmarks={allLandmarks} onCoordsChange={setMouseCoords} />
 
           {/* Coordinate display overlay */}
