@@ -50,6 +50,22 @@ html {
   background: #ff0000;
 }
 
+/* Leaflet map tile rendering fixes */
+.leaflet-tile-container img {
+  image-rendering: auto;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.leaflet-tile {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
 @keyframes pulse-glow {
   0%, 100% { 
     opacity: 1;

@@ -30,7 +30,7 @@ export default function RootLayout({
         <ToastProvider>
           <LaserEyesWrapper>
             <MusicPlayerProvider>
-              {children}
+            {children}
             </MusicPlayerProvider>
           </LaserEyesWrapper>
         </ToastProvider>

@@ -169,11 +169,11 @@ export default function Header({
           </a>
         ))}
         <Link
-          href="/gatesofthedamned"
+          href="/battlefield"
           className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wider px-3 py-1 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"                   
           style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}              
         >
-          🔥 GATES
+          ⚔️ REDEMPTION
         </Link>
         <Link
           href="/profile"
@@ -181,13 +181,6 @@ export default function Header({
           style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
         >
           👁 PROFILE
-        </Link>
-        <Link
-          href="/tools"
-          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wider px-3 py-1 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"
-          style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
-        >
-          ⚙ TOOLS
         </Link>
       </div>
       {menuOpen && (
@@ -211,12 +204,12 @@ export default function Header({
           </div>
           <div className="flex flex-col items-stretch gap-3">
             <Link
-              href="/gatesofthedamned"
+              href="/battlefield"
               className="w-full text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm uppercase tracking-wider px-3 py-2 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"
               style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
               onClick={() => setMenuOpen(false)}
             >
-              🔥 GATES
+              ⚔️ REDEMPTION
             </Link>
             <Link
               href="/profile"
@@ -225,14 +218,6 @@ export default function Header({
               onClick={() => setMenuOpen(false)}
             >
               👁 PROFILE
-            </Link>
-            <Link
-              href="/tools"
-              className="w-full text-[#ff0000] hover:text-[#ff6b6b] transition-colors duration-200 font-bold text-sm uppercase tracking-wider px-3 py-2 border-2 border-[#ff0000] rounded hover:bg-[#ff0000]/20"
-              style={{ filter: 'drop-shadow(2px 2px 0 #000) drop-shadow(-2px -2px 0 #000) drop-shadow(2px -2px 0 #000) drop-shadow(-2px 2px 0 #000)' }}
-              onClick={() => setMenuOpen(false)}
-            >
-              ⚙ TOOLS
             </Link>
           </div>
           <div className="flex flex-col items-center gap-3">

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface MusicPlayerContextType {
   musicVolume: number
@@ -28,6 +29,7 @@ interface MusicPlayerProviderProps {
 }
 
 export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
+  const pathname = usePathname()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoplayAttemptedRef = useRef(false)
   const lastLoadedSongRef = useRef<string | null>(null)
@@ -38,6 +40,9 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [musicReady, setMusicReady] = useState(false)
   const [currentSongIndex, setCurrentSongIndex] = useState(0)
+
+  // Check if we're on an admin page
+  const isAdminPage = pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin')
 
   // Playlist of 4 songs to cycle through
   const playlist = useMemo(() => [
@@ -164,6 +169,27 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
       })
     }
   }, [musicVolume, isMusicMuted, musicReady])
+
+  // Pause music on admin pages
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    if (isAdminPage) {
+      // Pause music when entering admin pages
+      if (!audio.paused) {
+        audio.pause()
+        shouldContinuePlaylistRef.current = false
+      }
+    } else {
+      // Resume music when leaving admin pages (if it was playing before)
+      if (audio.paused && shouldContinuePlaylistRef.current && !isMusicMuted && musicReady) {
+        audio.play().catch(() => {
+          // Autoplay may be blocked, that's okay
+        })
+      }
+    }
+  }, [isAdminPage, isMusicMuted, musicReady])
 
   const value = {
     musicVolume,
