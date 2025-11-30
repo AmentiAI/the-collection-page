@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Check if army is dead and resurrection time has passed
     const checkResult = await client.query(
-      `SELECT is_dead, resurrection_time
+      `SELECT is_dead, resurrection_time, trait
        FROM battle_ordinals
        WHERE LOWER(wallet_address) = LOWER($1)
          AND inscription_id = $2
@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const armyTrait = checkResult.rows[0]?.trait as 'Angelic' | 'Demonic' | null
+
     // Resurrect the army
     await client.query(
       `UPDATE battle_ordinals
@@ -68,6 +70,17 @@ export async function POST(request: NextRequest) {
          AND inscription_id = $2`,
       [walletAddress, inscriptionId]
     )
+
+    // Update leaderboard: increment resurrections for this side
+    if (armyTrait) {
+      await client.query(`
+        UPDATE angel_demon_leaderboard
+        SET 
+          total_resurrections = total_resurrections + 1,
+          last_updated = NOW()
+        WHERE side = $1
+      `, [armyTrait])
+    }
 
     return NextResponse.json({
       success: true,

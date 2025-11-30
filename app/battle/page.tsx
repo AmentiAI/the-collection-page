@@ -133,6 +133,10 @@ export default function BattlePage() {
       setUpdatingStatus(inscriptionId)
 
       try {
+        // Find the ordinal to get its trait
+        const ordinal = ordinals.find((o) => o.inscriptionId === inscriptionId)
+        const trait = ordinal?.trait
+
         const response = await fetch('/api/battle/status', {
           method: 'PATCH',
           headers: {
@@ -142,6 +146,7 @@ export default function BattlePage() {
             walletAddress: address,
             inscriptionId,
             status: newStatus,
+            trait: trait, // Include trait when setting status
           }),
         })
 

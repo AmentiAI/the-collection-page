@@ -25,14 +25,31 @@ export async function PATCH(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Upsert battle status (set life_force to 100 if new record)
-    await client.query(
-      `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force)
-       VALUES ($1, $2, $3, 100)
-       ON CONFLICT (wallet_address, inscription_id)
-       DO UPDATE SET status = $3, updated_at = NOW()`,
-      [walletAddress, inscriptionId, status]
-    )
+    // Get trait from request body (should be passed from frontend)
+    const { trait } = body
+    const validTrait = trait === 'Angelic' || trait === 'Demonic' ? trait : null
+
+    // Upsert battle status (set life_force to 100 if new record, store trait if provided)
+    if (validTrait) {
+      await client.query(
+        `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force, trait)
+         VALUES ($1, $2, $3, 100, $4)
+         ON CONFLICT (wallet_address, inscription_id)
+         DO UPDATE SET 
+           status = $3, 
+           trait = COALESCE(EXCLUDED.trait, battle_ordinals.trait),
+           updated_at = NOW()`,
+        [walletAddress, inscriptionId, status, validTrait]
+      )
+    } else {
+      await client.query(
+        `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force)
+         VALUES ($1, $2, $3, 100)
+         ON CONFLICT (wallet_address, inscription_id)
+         DO UPDATE SET status = $3, updated_at = NOW()`,
+        [walletAddress, inscriptionId, status]
+      )
+    }
 
     return NextResponse.json({
       success: true,

@@ -162,6 +162,13 @@ export async function GET(request: NextRequest) {
         
         // Attack each target
         for (const army of targetsForThisMonster) {
+          // Fetch army trait for leaderboard tracking
+          const armyTraitResult = await client.query(
+            'SELECT trait FROM battle_ordinals WHERE id = $1',
+            [army.id]
+          )
+          const armyTrait = armyTraitResult.rows[0]?.trait as 'Angelic' | 'Demonic' | null
+          
           // Use the current life_force from the query (already fetched above)
           const currentLifeForce = army.life_force
           const currentlyDead = army.is_dead
@@ -200,7 +207,7 @@ export async function GET(request: NextRequest) {
             WHERE id = $3
           `, [newLifeForce, isNowDead, army.id])
 
-          // Log the attack
+          // Log the attack with trait
           await client.query(`
             INSERT INTO mega_monster_attack_logs (
               monster_id,
@@ -209,8 +216,9 @@ export async function GET(request: NextRequest) {
               damage,
               was_blocked,
               life_force_before,
-              life_force_after
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+              life_force_after,
+              trait
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           `, [
             monster.id,
             wallet,
@@ -218,8 +226,32 @@ export async function GET(request: NextRequest) {
             damage,
             wasBlocked,
             currentLifeForce,
-            newLifeForce
+            newLifeForce,
+            armyTrait
           ])
+
+          // Update leaderboard stats: increment battles for this side
+          if (armyTrait) {
+            await client.query(`
+              INSERT INTO angel_demon_leaderboard (side, total_battles, total_deaths, total_resurrections)
+              VALUES ($1, 1, 0, 0)
+              ON CONFLICT (side) 
+              DO UPDATE SET 
+                total_battles = angel_demon_leaderboard.total_battles + 1,
+                last_updated = NOW()
+            `, [armyTrait])
+          }
+
+          // Update leaderboard stats: increment deaths if army died
+          if (isNowDead && !currentlyDead && armyTrait) {
+            await client.query(`
+              UPDATE angel_demon_leaderboard
+              SET 
+                total_deaths = total_deaths + 1,
+                last_updated = NOW()
+              WHERE side = $1
+            `, [armyTrait])
+          }
 
           attacksProcessed++
           if (isNowDead && !currentlyDead) {

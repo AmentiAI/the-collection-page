@@ -4,53 +4,38 @@ import { getPool } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  let client
   try {
-    const searchParams = request.nextUrl.searchParams
-    const type = searchParams.get('type') || 'good' // 'good' or 'evil'
-    const limit = parseInt(searchParams.get('limit') || '50')
-    
-    const pool = getPool()
-    
-    let query = ''
-    if (type === 'good') {
-      query = `
-        SELECT 
-          p.*,
-          p.total_good_karma as total_points,
-          RANK() OVER (ORDER BY p.total_good_karma DESC) as rank
-        FROM profiles p
-        WHERE p.total_good_karma > 0
-          AND p.chosen_side = 'good'
-        ORDER BY p.total_good_karma DESC
-        LIMIT $1
-      `
-    } else {
-      query = `
-        SELECT 
-          p.*,
-          p.total_bad_karma as total_points,
-          RANK() OVER (ORDER BY p.total_bad_karma DESC) as rank
-        FROM profiles p
-        WHERE p.total_bad_karma > 0
-          AND p.chosen_side = 'evil'
-        ORDER BY p.total_bad_karma DESC
-        LIMIT $1
-      `
-    }
-    
-    const result = await pool.query(query, [limit])
-    
+    client = await getPool().connect()
+
+    // Get leaderboard stats for both sides
+    // Score is calculated as: total_battles - total_deaths
+    const result = await client.query(`
+      SELECT 
+        side,
+        total_battles,
+        total_deaths,
+        total_resurrections,
+        score,
+        last_updated
+      FROM angel_demon_leaderboard
+      ORDER BY score DESC, total_battles DESC
+    `)
+
     return NextResponse.json({
+      success: true,
       leaderboard: result.rows,
-      type
     })
   } catch (error) {
-    console.error('Leaderboard fetch error:', error)
+    console.error('Error fetching leaderboard:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     )
+  } finally {
+    if (client) client.release()
   }
 }
-
-
