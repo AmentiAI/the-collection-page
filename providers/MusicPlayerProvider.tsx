@@ -44,8 +44,9 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
   // Check if we're on an admin page
   const isAdminPage = pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin')
 
-  // Playlist of 4 songs to cycle through
+  // Playlist of 5 songs to cycle through
   const playlist = useMemo(() => [
+    '/music/rapsong.mp3',
     '/music/abysssummon2.mp3',
     '/music/summon2.mp3',
     '/music/summon.mp3',

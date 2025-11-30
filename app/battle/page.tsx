@@ -270,7 +270,6 @@ export default function BattlePage() {
                           )}
                           {!ordinal.status ? (
                             <Button
-                              size="sm"
                               className="w-full text-[10px] py-1 bg-cyan-600 hover:bg-cyan-700 text-white border border-cyan-500"
                               onClick={() => updateStatus(ordinal.inscriptionId, 'ready')}
                               disabled={updatingStatus === ordinal.inscriptionId}
@@ -283,7 +282,6 @@ export default function BattlePage() {
                             </Button>
                           ) : (
                             <Button
-                              size="sm"
                               variant="outline"
                               className="w-full text-[10px] py-1 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/50"
                               onClick={() => updateStatus(ordinal.inscriptionId, ordinal.status === 'ready' ? 'sanctuary' : 'ready')}
@@ -353,7 +351,6 @@ export default function BattlePage() {
                           )}
                           {!ordinal.status ? (
                             <Button
-                              size="sm"
                               className="w-full text-[10px] py-1 bg-red-600 hover:bg-red-700 text-white border border-red-500"
                               onClick={() => updateStatus(ordinal.inscriptionId, 'ready')}
                               disabled={updatingStatus === ordinal.inscriptionId}
@@ -366,7 +363,6 @@ export default function BattlePage() {
                             </Button>
                           ) : (
                             <Button
-                              size="sm"
                               variant="outline"
                               className="w-full text-[10px] py-1 border border-red-500/50 text-red-400 hover:bg-red-950/50"
                               onClick={() => updateStatus(ordinal.inscriptionId, ordinal.status === 'ready' ? 'sanctuary' : 'ready')}

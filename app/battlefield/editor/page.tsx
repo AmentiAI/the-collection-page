@@ -638,14 +638,14 @@ export default function LandmarkEditorPage() {
                   
                   <div className="flex gap-2 flex-shrink-0">
                     <Button
-                      size="sm"
+             
                       variant="outline"
                       onClick={() => setSelectedLandmark(landmark)}
                     >
                       Edit
                     </Button>
                     <Button
-                      size="sm"
+                    
                       variant="outline"
                       onClick={() => handleDelete(landmark)}
                       className="text-red-400 hover:text-red-300 hover:border-red-400"
