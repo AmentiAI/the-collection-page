@@ -61,22 +61,28 @@ export default function SparkPage() {
     }
   }
 
-  const formatCurrency = (value: number | null) => {
+  const formatCurrency = (value: number | null | string) => {
     if (value === null || value === undefined) return 'N/A'
-    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
-    if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`
-    return `$${value.toFixed(2)}`
+    const num = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(num) || !isFinite(num)) return 'N/A'
+    if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`
+    if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`
+    return `$${num.toFixed(2)}`
   }
 
-  const formatNumber = (value: number | null) => {
+  const formatNumber = (value: number | null | string) => {
     if (value === null || value === undefined) return 'N/A'
-    return value.toLocaleString(undefined, { maximumFractionDigits: 6 })
+    const num = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(num) || !isFinite(num)) return 'N/A'
+    return num.toLocaleString(undefined, { maximumFractionDigits: 6 })
   }
 
-  const formatPercent = (value: number | null) => {
+  const formatPercent = (value: number | null | string) => {
     if (value === null || value === undefined) return 'N/A'
-    const sign = value >= 0 ? '+' : ''
-    return `${sign}${value.toFixed(2)}%`
+    const num = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(num) || !isFinite(num)) return 'N/A'
+    const sign = num >= 0 ? '+' : ''
+    return `${sign}${num.toFixed(2)}%`
   }
 
   const getTokenSymbol = (pool: FlashnetPool, side: 'a' | 'b') => {
