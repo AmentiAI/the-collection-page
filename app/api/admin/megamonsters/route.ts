@@ -29,8 +29,10 @@ export async function GET(request: NextRequest) {
         commit_txid,
         broadcast_txid,
         prompt,
+        name,
         image_data,
         image_blob_url,
+        full_body_image_blob_url,
         created_at,
         updated_at
       FROM mega_monsters
@@ -68,7 +70,8 @@ export async function POST(request: NextRequest) {
       inscription_id, 
       commit_txid, 
       broadcast_txid, 
-      prompt 
+      prompt,
+      name
     } = body
 
     if (!prompt || typeof prompt !== 'string') {
@@ -88,12 +91,13 @@ export async function POST(request: NextRequest) {
         inscription_id,
         commit_txid,
         broadcast_txid,
-        prompt
+        prompt,
+        name
       )
-      VALUES ($1, $2, $3, $4, $5)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
       `,
-      [wallet_address || null, inscription_id || null, commit_txid || null, broadcast_txid || null, prompt]
+      [wallet_address || null, inscription_id || null, commit_txid || null, broadcast_txid || null, prompt, name || null]
     )
 
     return NextResponse.json({

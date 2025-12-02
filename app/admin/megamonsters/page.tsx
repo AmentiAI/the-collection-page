@@ -12,8 +12,10 @@ type MegaMonster = {
   commit_txid: string | null
   broadcast_txid: string | null
   prompt: string
+  name: string | null
   image_data: string | null
   image_blob_url: string | null
+  full_body_image_blob_url: string | null
   created_at: string
   updated_at: string
 }
@@ -25,6 +27,7 @@ type EditingRecord = {
   commit_txid: string
   broadcast_txid: string
   prompt: string
+  name: string
 }
 
 export default function MegaMonstersAdminPage() {
@@ -39,6 +42,7 @@ export default function MegaMonstersAdminPage() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
+  const [generatingFullBody, setGeneratingFullBody] = useState<string | null>(null)
   const [regenerateComparison, setRegenerateComparison] = useState<{
     recordId: string
     originalImageUrl: string
@@ -53,6 +57,7 @@ export default function MegaMonstersAdminPage() {
     commit_txid: '',
     broadcast_txid: '',
     prompt: '',
+    name: '',
   })
   const [creating, setCreating] = useState(false)
 
@@ -103,6 +108,7 @@ export default function MegaMonstersAdminPage() {
         commit_txid: '',
         broadcast_txid: '',
         prompt: '',
+        name: '',
       })
       setShowCreateForm(false)
       
@@ -144,6 +150,7 @@ export default function MegaMonstersAdminPage() {
       commit_txid: record.commit_txid || '',
       broadcast_txid: record.broadcast_txid || '',
       prompt: record.prompt,
+      name: record.name || '',
     })
   }, [])
 
@@ -166,6 +173,7 @@ export default function MegaMonstersAdminPage() {
           commit_txid: editForm.commit_txid || null,
           broadcast_txid: editForm.broadcast_txid || null,
           prompt: editForm.prompt,
+          name: editForm.name || null,
         }),
       })
       if (!response.ok) throw new Error('Failed to update')
@@ -213,6 +221,40 @@ export default function MegaMonstersAdminPage() {
       setGenerating(null)
     }
   }, [generating, currentPage, loadMonsters])
+
+  const handleGenerateFullBody = useCallback(async (record: MegaMonster) => {
+    if (generatingFullBody || !record.prompt) {
+      if (!record.prompt) {
+        alert('No prompt available for this record')
+      }
+      return
+    }
+
+    setGeneratingFullBody(record.id)
+    try {
+      const response = await fetch(
+        `/api/admin/megamonsters/${record.id}/generate-fullbody`,
+        {
+          method: 'POST',
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate full body image')
+      }
+
+      // Reload to show the new full body image
+      await loadMonsters(currentPage)
+      alert('Full body image generated successfully!')
+    } catch (error) {
+      console.error('Failed to generate full body:', error)
+      alert(error instanceof Error ? error.message : 'Failed to generate full body image')
+    } finally {
+      setGeneratingFullBody(null)
+    }
+  }, [generatingFullBody, currentPage, loadMonsters])
 
   const handleRegenerate = useCallback(async (record: MegaMonster) => {
     if (regenerating || !record.prompt) {
@@ -325,6 +367,16 @@ export default function MegaMonstersAdminPage() {
           <section className="mb-8 rounded-3xl border border-cyan-600/40 bg-black/80 p-6">
             <h2 className="text-2xl font-bold text-cyan-300 mb-4">New Mega Monster</h2>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-cyan-300/70 uppercase mb-1">Name</label>
+                <input
+                  type="text"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="Monster name (optional)"
+                  className="w-full px-4 py-2 bg-black border border-cyan-500/30 rounded-lg text-cyan-200 placeholder-cyan-500/30"
+                />
+              </div>
               <div>
                 <label className="block text-sm text-cyan-300/70 uppercase mb-1">Prompt *</label>
                 <textarea
@@ -456,6 +508,16 @@ export default function MegaMonstersAdminPage() {
                         {isEditing ? (
                           <>
                             <div>
+                              <label className="block text-xs text-cyan-300/70 uppercase mb-1">Name</label>
+                              <input
+                                type="text"
+                                value={editForm?.name || ''}
+                                onChange={(e) => editForm && setEditForm({ ...editForm, name: e.target.value })}
+                                placeholder="Monster name (optional)"
+                                className="w-full px-3 py-1 text-xs bg-black border border-cyan-500/30 rounded text-cyan-200"
+                              />
+                            </div>
+                            <div>
                               <label className="block text-xs text-cyan-300/70 uppercase mb-1">Prompt</label>
                               <textarea
                                 value={editForm?.prompt || ''}
@@ -504,6 +566,12 @@ export default function MegaMonstersAdminPage() {
                           </>
                         ) : (
                           <>
+                            {monster.name && (
+                              <div>
+                                <span className="text-xs text-cyan-300/70 uppercase">Name:</span>
+                                <p className="text-xs text-cyan-200 mt-1 font-bold">{monster.name}</p>
+                              </div>
+                            )}
                             <div>
                               <span className="text-xs text-cyan-300/70 uppercase">Prompt:</span>
                               <p className="text-xs text-cyan-200 mt-1">{monster.prompt}</p>
@@ -581,18 +649,32 @@ export default function MegaMonstersAdminPage() {
                                 )}
                               </Button>
                             ) : (
-                              <Button
-                                onClick={() => handleRegenerate(monster)}
-                                disabled={regenerating === monster.id || !monster.prompt}
-                                className="text-purple-400 hover:text-purple-300 text-sm px-3 py-1.5 bg-transparent hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={!monster.prompt ? 'No generation prompt available' : 'Regenerate image'}
-                              >
-                                {regenerating === monster.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Sparkles className="h-4 w-4" />
-                                )}
-                              </Button>
+                              <>
+                                <Button
+                                  onClick={() => handleRegenerate(monster)}
+                                  disabled={regenerating === monster.id || !monster.prompt}
+                                  className="text-purple-400 hover:text-purple-300 text-sm px-3 py-1.5 bg-transparent hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={!monster.prompt ? 'No generation prompt available' : 'Regenerate image'}
+                                >
+                                  {regenerating === monster.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  onClick={() => handleGenerateFullBody(monster)}
+                                  disabled={generatingFullBody === monster.id || !monster.prompt}
+                                  className="text-orange-400 hover:text-orange-300 text-sm px-3 py-1.5 bg-transparent hover:bg-orange-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={!monster.prompt ? 'No generation prompt available' : 'Generate full body image'}
+                                >
+                                  {generatingFullBody === monster.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <span className="text-xs">Full Body</span>
+                                  )}
+                                </Button>
+                              </>
                             )}
                             <Button
                               onClick={() => handleEdit(monster)}

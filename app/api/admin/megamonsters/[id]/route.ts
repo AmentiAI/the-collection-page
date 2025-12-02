@@ -18,6 +18,7 @@ export async function PATCH(
       commit_txid, 
       broadcast_txid, 
       prompt,
+      name,
       image_data,
       image_blob_url
     } = body
@@ -53,6 +54,11 @@ export async function PATCH(
     if (prompt !== undefined) {
       updates.push(`prompt = $${paramCount}`)
       values.push(prompt)
+      paramCount++
+    }
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount}`)
+      values.push(name || null)
       paramCount++
     }
     if (image_data !== undefined) {

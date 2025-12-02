@@ -12,9 +12,11 @@ export async function GET() {
     const result = await client.query(`
       SELECT 
         id,
+        name,
         prompt,
         image_blob_url,
         image_data,
+        full_body_image_blob_url,
         COALESCE(total_fights, 0) as total_fights,
         created_at,
         updated_at
@@ -35,8 +37,10 @@ export async function GET() {
       
       return {
         id: monster.id,
+        name: monster.name,
         prompt: monster.prompt,
         imageUrl,
+        fullBodyImageUrl: monster.full_body_image_blob_url || null,
         createdAt: monster.created_at,
         updatedAt: monster.updated_at,
         totalFights: parseInt(monster.total_fights || '0', 10),
