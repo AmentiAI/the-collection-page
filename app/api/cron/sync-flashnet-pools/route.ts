@@ -140,6 +140,13 @@ export async function GET(request: NextRequest) {
       ALTER TABLE flashnet_sync_state ADD COLUMN IF NOT EXISTS btc_price_updated_at TIMESTAMPTZ
     `)
     
+    // Ensure a row exists in flashnet_sync_state (initialize if needed)
+    await db.query(`
+      INSERT INTO flashnet_sync_state (id)
+      VALUES (1)
+      ON CONFLICT (id) DO NOTHING
+    `)
+    
     // Check if BTC price needs updating (only if older than 5 minutes)
     let shouldUpdateBtcPrice = false
     try {
@@ -150,17 +157,22 @@ export async function GET(request: NextRequest) {
       
       if (!lastBtcUpdate) {
         shouldUpdateBtcPrice = true
+        console.log('[Flashnet Sync] No BTC price in database, will fetch from CoinGecko')
       } else {
         const timeSinceLastUpdate = Date.now() - new Date(lastBtcUpdate).getTime()
         shouldUpdateBtcPrice = timeSinceLastUpdate >= BTC_PRICE_SYNC_INTERVAL
+        if (shouldUpdateBtcPrice) {
+          console.log(`[Flashnet Sync] BTC price is ${Math.round(timeSinceLastUpdate / 1000 / 60)} minutes old, will update`)
+        }
       }
     } catch (error) {
+      console.warn('[Flashnet Sync] Error checking BTC price age:', error)
       shouldUpdateBtcPrice = true
     }
     
     // Fetch and store BTC price from CoinGecko only if needed
     if (shouldUpdateBtcPrice) {
-      console.log('[Flashnet Sync] Fetching BTC price from CoinGecko (price is older than 5 min)...')
+      console.log('[Flashnet Sync] Fetching BTC price from CoinGecko...')
       let btcPrice: number | null = null
       try {
         const btcResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
@@ -176,7 +188,11 @@ export async function GET(request: NextRequest) {
                 btc_price_usd = EXCLUDED.btc_price_usd,
                 btc_price_updated_at = NOW()
             `, [btcPrice])
+          } else {
+            console.warn('[Flashnet Sync] CoinGecko returned no BTC price')
           }
+        } else {
+          console.warn(`[Flashnet Sync] CoinGecko API returned status ${btcResponse.status}`)
         }
       } catch (error) {
         console.warn('[Flashnet Sync] Failed to fetch BTC price:', error)
