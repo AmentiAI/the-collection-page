@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
                   results[key] = meta
                 } else {
                   // Try to match by any identifier
-                  const matchedKey = limitedTokens.find(t => 
+                  const matchedKey = limitedTokens.find((t: string) => 
                     t.toLowerCase() === meta.token_identifier.toLowerCase() ||
                     (meta.token_address && t.toLowerCase() === meta.token_address.toLowerCase())
                   )
