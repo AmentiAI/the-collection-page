@@ -157,6 +157,25 @@ export async function ensureFlashnetTables(pool?: Pool) {
     CREATE INDEX IF NOT EXISTS idx_flashnet_token_metadata_identifier
       ON flashnet_token_metadata(token_identifier)
   `)
+
+  // Create flashnet_sync_state table for storing sync metadata and BTC price
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS flashnet_sync_state (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_metadata_sync TIMESTAMPTZ,
+      btc_price_usd NUMERIC,
+      btc_price_updated_at TIMESTAMPTZ,
+      CONSTRAINT single_row CHECK (id = 1)
+    )
+  `)
+  
+  // Add BTC price columns if they don't exist
+  await db.query(`
+    ALTER TABLE flashnet_sync_state ADD COLUMN IF NOT EXISTS btc_price_usd NUMERIC
+  `)
+  await db.query(`
+    ALTER TABLE flashnet_sync_state ADD COLUMN IF NOT EXISTS btc_price_updated_at TIMESTAMPTZ
+  `)
 }
 
 function getString(value: unknown): string | null {

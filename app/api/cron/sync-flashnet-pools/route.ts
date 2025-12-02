@@ -117,10 +117,54 @@ export async function GET(request: NextRequest) {
     // Upsert to database (updates fast-changing fields: prices, volume, TVL, reserves)
     const result = await upsertFlashnetPools(normalizedPools)
 
+    // Fetch and store BTC price from CoinGecko
+    console.log('[Flashnet Sync] Fetching BTC price from CoinGecko...')
+    let btcPrice: number | null = null
+    try {
+      const btcResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+      if (btcResponse.ok) {
+        const btcData = await btcResponse.json()
+        btcPrice = btcData.bitcoin?.usd ?? null
+        if (btcPrice) {
+          console.log(`[Flashnet Sync] BTC price: $${btcPrice.toLocaleString()}`)
+        }
+      }
+    } catch (error) {
+      console.warn('[Flashnet Sync] Failed to fetch BTC price:', error)
+    }
+
     // Metadata enrichment: Only run every 15 minutes (metadata changes rarely)
     // This reduces API calls while keeping trading data fresh every minute
     const METADATA_SYNC_INTERVAL = 15 * 60 * 1000 // 15 minutes in milliseconds
     const db = getPool()
+    
+    // Ensure sync_state table exists with btc_price column
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS flashnet_sync_state (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        last_metadata_sync TIMESTAMPTZ,
+        btc_price_usd NUMERIC,
+        btc_price_updated_at TIMESTAMPTZ,
+        CONSTRAINT single_row CHECK (id = 1)
+      )
+    `)
+    await db.query(`
+      ALTER TABLE flashnet_sync_state ADD COLUMN IF NOT EXISTS btc_price_usd NUMERIC
+    `)
+    await db.query(`
+      ALTER TABLE flashnet_sync_state ADD COLUMN IF NOT EXISTS btc_price_updated_at TIMESTAMPTZ
+    `)
+    
+    // Update BTC price in database
+    if (btcPrice) {
+      await db.query(`
+        INSERT INTO flashnet_sync_state (id, btc_price_usd, btc_price_updated_at)
+        VALUES (1, $1, NOW())
+        ON CONFLICT (id) DO UPDATE SET 
+          btc_price_usd = EXCLUDED.btc_price_usd,
+          btc_price_updated_at = NOW()
+      `, [btcPrice])
+    }
     
     // Check last metadata sync time from database
     let shouldSyncMetadata = false
@@ -137,14 +181,6 @@ export async function GET(request: NextRequest) {
         shouldSyncMetadata = timeSinceLastSync >= METADATA_SYNC_INTERVAL
       }
     } catch (error) {
-      // Table might not exist yet, create it and sync metadata
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS flashnet_sync_state (
-          id INTEGER PRIMARY KEY DEFAULT 1,
-          last_metadata_sync TIMESTAMPTZ,
-          CONSTRAINT single_row CHECK (id = 1)
-        )
-      `)
       shouldSyncMetadata = true
     }
     

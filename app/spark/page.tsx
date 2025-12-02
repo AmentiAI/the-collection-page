@@ -121,12 +121,22 @@ export default function SparkPage() {
 
   const fetchBtcPrice = async () => {
     try {
-      // Try to get BTC price from CoinGecko API
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+      // Get BTC price from our API (stored in database by cron job)
+      const response = await fetch('/api/flashnet/btc-price')
       if (response.ok) {
         const data = await response.json()
-        if (data.bitcoin?.usd) {
-          setBtcPrice(data.bitcoin.usd)
+        if (data.success && data.price) {
+          setBtcPrice(data.price)
+        }
+      } else {
+        console.warn('Failed to fetch BTC price from API, falling back to CoinGecko')
+        // Fallback to CoinGecko if our API fails
+        const fallbackResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json()
+          if (fallbackData.bitcoin?.usd) {
+            setBtcPrice(fallbackData.bitcoin.usd)
+          }
         }
       }
     } catch (error) {
