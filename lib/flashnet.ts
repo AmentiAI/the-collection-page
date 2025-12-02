@@ -909,8 +909,38 @@ export async function enrichPoolsWithMetadata(
 ): Promise<void> {
   const tokenIdentifiers = new Set<string>()
   for (const pool of pools) {
-    if (pool.asset_a_address) tokenIdentifiers.add(pool.asset_a_address)
-    if (pool.asset_b_address) tokenIdentifiers.add(pool.asset_b_address)
+    if (pool.asset_a_address) {
+      tokenIdentifiers.add(pool.asset_a_address)
+      // Also try to convert to bech32m format for lookup
+      try {
+        const bytes = toTokenIdentifierBytes(pool.asset_a_address, FLASHNET_NETWORK)
+        if (bytes) {
+          const bech32m = encodeBech32mTokenIdentifier({
+            tokenIdentifier: bytes,
+            network: FLASHNET_NETWORK,
+          })
+          tokenIdentifiers.add(bech32m)
+        }
+      } catch (e) {
+        // Ignore conversion errors
+      }
+    }
+    if (pool.asset_b_address) {
+      tokenIdentifiers.add(pool.asset_b_address)
+      // Also try to convert to bech32m format for lookup
+      try {
+        const bytes = toTokenIdentifierBytes(pool.asset_b_address, FLASHNET_NETWORK)
+        if (bytes) {
+          const bech32m = encodeBech32mTokenIdentifier({
+            tokenIdentifier: bytes,
+            network: FLASHNET_NETWORK,
+          })
+          tokenIdentifiers.add(bech32m)
+        }
+      } catch (e) {
+        // Ignore conversion errors
+      }
+    }
   }
 
   if (!tokenIdentifiers.size) return
@@ -924,21 +954,49 @@ export async function enrichPoolsWithMetadata(
     }
   }
 
+  // Check which tokens are missing metadata - check both hex and bech32m formats
   const missing = Array.from(tokenIdentifiers).filter(id => {
     const lowerId = id.toLowerCase()
-    return !existingMap.has(lowerId)
+    // Check if we have metadata for this identifier in any format
+    if (existingMap.has(lowerId)) return false
+    
+    // Also check if we have metadata by converting to other formats
+    try {
+      const bytes = toTokenIdentifierBytes(id, FLASHNET_NETWORK)
+      if (bytes) {
+        const hexKey = Buffer.from(bytes).toString('hex').toLowerCase()
+        if (existingMap.has(hexKey)) return false
+        
+        const bech32m = encodeBech32mTokenIdentifier({
+          tokenIdentifier: bytes,
+          network: FLASHNET_NETWORK,
+        })
+        if (existingMap.has(bech32m.toLowerCase())) return false
+      }
+    } catch (e) {
+      // Ignore conversion errors
+    }
+    
+    return true
   })
+  
   if (missing.length) {
+    console.log(`[Flashnet] Enriching ${missing.length} tokens with missing metadata`)
     for (const chunk of chunkArray(missing, FLASHNET_METADATA_BATCH_SIZE)) {
       try {
         const metadata = await fetchFlashnetTokenMetadata(client, chunk)
         if (metadata.length) {
+          console.log(`[Flashnet] Fetched ${metadata.length} metadata records, storing...`)
           await upsertFlashnetTokenMetadata(metadata)
+        } else {
+          console.warn(`[Flashnet] No metadata returned for chunk of ${chunk.length} tokens`)
         }
       } catch (error) {
         console.error('[Flashnet] token metadata fetch failed:', error)
       }
     }
+  } else {
+    console.log(`[Flashnet] All ${tokenIdentifiers.size} tokens already have metadata`)
   }
 }
 
