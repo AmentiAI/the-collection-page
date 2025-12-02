@@ -20,7 +20,8 @@ export async function PATCH(
       prompt,
       name,
       image_data,
-      image_blob_url
+      image_blob_url,
+      full_body_image_blob_url
     } = body
 
     const pool = getPool()
@@ -69,6 +70,11 @@ export async function PATCH(
     if (image_blob_url !== undefined) {
       updates.push(`image_blob_url = $${paramCount}`)
       values.push(image_blob_url || null)
+      paramCount++
+    }
+    if (full_body_image_blob_url !== undefined) {
+      updates.push(`full_body_image_blob_url = $${paramCount}`)
+      values.push(full_body_image_blob_url || null)
       paramCount++
     }
 

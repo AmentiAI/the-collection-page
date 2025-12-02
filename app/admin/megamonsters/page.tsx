@@ -28,6 +28,7 @@ type EditingRecord = {
   broadcast_txid: string
   prompt: string
   name: string
+  full_body_image_blob_url: string
 }
 
 export default function MegaMonstersAdminPage() {
@@ -153,6 +154,7 @@ export default function MegaMonstersAdminPage() {
       broadcast_txid: record.broadcast_txid || '',
       prompt: record.prompt,
       name: record.name || '',
+      full_body_image_blob_url: record.full_body_image_blob_url || '',
     })
   }, [])
 
@@ -176,6 +178,7 @@ export default function MegaMonstersAdminPage() {
           broadcast_txid: editForm.broadcast_txid || null,
           prompt: editForm.prompt,
           name: editForm.name || null,
+          full_body_image_blob_url: editForm.full_body_image_blob_url || null,
         }),
       })
       if (!response.ok) throw new Error('Failed to update')
@@ -608,6 +611,16 @@ export default function MegaMonstersAdminPage() {
                                 />
                               </div>
                             </div>
+                            <div>
+                              <label className="block text-xs text-cyan-300/70 uppercase mb-1">Full Body Image Blob URL</label>
+                              <input
+                                type="text"
+                                value={editForm?.full_body_image_blob_url || ''}
+                                onChange={(e) => editForm && setEditForm({ ...editForm, full_body_image_blob_url: e.target.value })}
+                                placeholder="https://..."
+                                className="w-full px-3 py-1 text-xs bg-black border border-cyan-500/30 rounded text-cyan-200"
+                              />
+                            </div>
                           </>
                         ) : (
                           <>
@@ -643,6 +656,19 @@ export default function MegaMonstersAdminPage() {
                               <div>
                                 <span className="text-xs text-cyan-300/70 uppercase">Broadcast:</span>
                                 <code className="ml-2 text-xs text-cyan-200">{monster.broadcast_txid}</code>
+                              </div>
+                            )}
+                            {monster.full_body_image_blob_url && (
+                              <div>
+                                <span className="text-xs text-cyan-300/70 uppercase">Full Body Image:</span>
+                                <a
+                                  href={monster.full_body_image_blob_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-2 text-xs text-cyan-200 hover:text-cyan-400 underline"
+                                >
+                                  View
+                                </a>
                               </div>
                             )}
                             <div>
@@ -728,13 +754,16 @@ export default function MegaMonstersAdminPage() {
                                       }
                                     }}
                                     disabled={uploadingFullBody === monster.id}
-                                    className="text-orange-400 hover:text-orange-300 text-sm px-3 py-1.5 bg-transparent hover:bg-orange-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="text-orange-400 hover:text-orange-300 text-sm px-3 py-1.5 bg-transparent hover:bg-orange-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                     title="Upload full body image"
                                   >
                                     {uploadingFullBody === monster.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
-                                      <Upload className="h-4 w-4" />
+                                      <>
+                                        <Upload className="h-4 w-4" />
+                                        <span className="text-xs">Upload Full Body</span>
+                                      </>
                                     )}
                                   </Button>
                                 </div>
