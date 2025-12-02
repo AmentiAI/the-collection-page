@@ -8,6 +8,8 @@ import {
   attachStoredMetadataToPools,
   getFlashnetClient,
   enrichPoolsWithMetadata,
+  normalizePool,
+  type FlashnetPoolRecord,
 } from '@/lib/flashnet'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +22,8 @@ export async function GET(request: NextRequest) {
     const search = url.searchParams.get('search')?.trim() ?? ''
     const limitParam = url.searchParams.get('limit')
     const offsetParam = url.searchParams.get('offset')
+    const sortBy = url.searchParams.get('sortBy') as 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee' | null
+    const sortDirection = (url.searchParams.get('sortDirection') as 'asc' | 'desc') || 'desc'
 
     let limit = Number(limitParam ?? (search ? 5 : 25))
     let offset = Number(offsetParam ?? 0)
@@ -47,18 +51,21 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const [rawPools, total] = await Promise.all([
-      listFlashnetPools({ limit, offset }),
+    // Serve from database only (cron job keeps it updated)
+    // This is much faster and can handle hundreds of concurrent requests
+    const [rawPools, dbTotal] = await Promise.all([
+      listFlashnetPools({ limit, offset, sortBy: sortBy || undefined, sortDirection }),
       countFlashnetPools(),
     ])
 
+    // Attach metadata to pools (from database, no SDK calls)
     const pools = await attachStoredMetadataToPools(rawPools)
 
     return NextResponse.json({
       success: true,
       pools,
       count: pools.length,
-      total,
+      total: dbTotal,
     })
   } catch (error) {
     console.error('Flashnet pools GET error:', error)

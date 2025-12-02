@@ -165,6 +165,19 @@ function hexStringToBytes(value: string): Uint8Array | null {
 }
 
 function toTokenIdentifierBytes(identifier: string, network: NetworkType): Uint8Array | null {
+  // Bitcoin's official identifier in Flashnet (from docs)
+  const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+  
+  // Check if this is Bitcoin's identifier
+  if (identifier === BTC_PUBKEY || identifier.toLowerCase() === BTC_PUBKEY.toLowerCase()) {
+    // Convert hex string to bytes
+    const bytes = new Uint8Array(32)
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = 0x02
+    }
+    return bytes
+  }
+  
   try {
     const decoded = decodeBech32mTokenIdentifier(identifier as Bech32mTokenIdentifier, network)
     return decoded.tokenIdentifier?.length === 32 ? decoded.tokenIdentifier : null
@@ -173,7 +186,10 @@ function toTokenIdentifierBytes(identifier: string, network: NetworkType): Uint8
     if (hexBytes && hexBytes.length === 32) {
       return hexBytes
     }
-    console.warn('[Flashnet] Skipping non-token identifier', identifier)
+    // Don't warn for Bitcoin identifier - it's valid
+    if (identifier !== BTC_PUBKEY && identifier.toLowerCase() !== BTC_PUBKEY.toLowerCase()) {
+      console.warn('[Flashnet] Skipping non-token identifier', identifier)
+    }
     return null
   }
 }
@@ -184,7 +200,7 @@ function getNumber(value: unknown): number | null {
   return Number.isFinite(num) ? num : null
 }
 
-function normalizePool(pool: any): FlashnetPoolRecord | null {
+export function normalizePool(pool: any): FlashnetPoolRecord | null {
   if (!pool) return null
 
   const lpPublicKey = getString(pool.lpPublicKey || pool.lp_public_key)
@@ -385,16 +401,44 @@ export async function upsertFlashnetPools(
 export async function listFlashnetPools({
   limit = 25,
   offset = 0,
+  sortBy,
+  sortDirection = 'desc',
 }: {
   limit?: number
   offset?: number
+  sortBy?: 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee'
+  sortDirection?: 'asc' | 'desc'
 } = {}): Promise<FlashnetPoolRecord[]> {
   const db = getPool()
+  
+  // Build ORDER BY clause
+  let orderBy = 'COALESCE(tvl_asset_b, 0) DESC, COALESCE(volume_24h_asset_b, 0) DESC'
+  if (sortBy) {
+    const direction = sortDirection === 'asc' ? 'ASC' : 'DESC'
+    switch (sortBy) {
+      case 'tvl':
+        orderBy = `COALESCE(tvl_asset_b, 0) ${direction}`
+        break
+      case 'volume':
+        orderBy = `COALESCE(volume_24h_asset_b, 0) ${direction}`
+        break
+      case 'price_change':
+        orderBy = `COALESCE(price_change_percent_24h, 0) ${direction}`
+        break
+      case 'lp_fee':
+        orderBy = `COALESCE(lp_fee_bps, 0) ${direction}`
+        break
+      case 'host_fee':
+        orderBy = `COALESCE(host_fee_bps, 0) ${direction}`
+        break
+    }
+  }
+  
   const res = await db.query<FlashnetPoolRecord>(
     `
       SELECT *
       FROM flashnet_pools
-      ORDER BY COALESCE(tvl_asset_b, 0) DESC, COALESCE(volume_24h_asset_b, 0) DESC
+      ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
     `,
     [Math.max(1, Math.min(200, limit)), Math.max(0, offset)],
@@ -586,15 +630,46 @@ export async function upsertFlashnetTokenMetadata(
 export async function listFlashnetTokenMetadata(tokenIdentifiers: string[]) {
   if (!tokenIdentifiers.length) return []
   const db = getPool()
+  
+  // Build lookup keys: include original, lowercase, and hex representation for bech32m tokens
+  const lookupKeys = new Set<string>()
+  for (const id of tokenIdentifiers) {
+    lookupKeys.add(id)
+    lookupKeys.add(id.toLowerCase())
+    
+    // Try to convert bech32m to hex for lookup
+    try {
+      const bytes = toTokenIdentifierBytes(id, FLASHNET_NETWORK)
+      if (bytes) {
+        const hexKey = Buffer.from(bytes).toString('hex').toLowerCase()
+        lookupKeys.add(hexKey)
+      }
+    } catch (e) {
+      // Ignore conversion errors
+    }
+  }
+  
+  // Search by both token_identifier and token_address to catch all matches
   const res = await db.query<FlashnetTokenMetadataRecord>(
     `
       SELECT token_identifier, token_address, name, ticker, decimals, max_supply, icon_url
       FROM flashnet_token_metadata
       WHERE token_identifier = ANY($1)
+         OR token_address = ANY($1)
+         OR LOWER(token_identifier) = ANY($1)
+         OR LOWER(token_address) = ANY($1)
     `,
-    [tokenIdentifiers],
+    [Array.from(lookupKeys).map(id => id.toLowerCase())],
   )
   return res.rows
+}
+
+// Manual supply overrides for tokens where SDK doesn't return max_supply
+// Format: token_identifier (bech32m) or token_address (hex) -> supply in raw units (with decimals)
+const MANUAL_SUPPLY_OVERRIDES: Record<string, string> = {
+  // UTXO token: 21 million with 6 decimals = 21,000,000 * 10^6 = 21,000,000,000,000
+  'btkn1pzvck7xzt96vj4h9agnyu493t7a9jdc4v3j2z3n3fs4cwlcq9yps2zgm4z': '21000000000000', // 21M with 6 decimals
+  '08998b78c25974c956e5ea264e54b15fba5937156464a146714c2b877f002903': '21000000000000', // UTXO hex address
 }
 
 function normalizeTokenMetadata(
@@ -628,6 +703,30 @@ function normalizeTokenMetadata(
       maxSupply = supplyString
     }
   }
+  
+  // Apply manual override if maxSupply is missing
+  if (!maxSupply) {
+    const override = MANUAL_SUPPLY_OVERRIDES[tokenIdentifier] || 
+                     (item.tokenAddress ? MANUAL_SUPPLY_OVERRIDES[item.tokenAddress] : null)
+    if (override) {
+      maxSupply = override
+      console.log('[Flashnet] Applied manual supply override for', item.tokenTicker || item.tokenName, ':', maxSupply)
+    }
+  }
+  
+  // Debug: Log raw SDK response for first few tokens to understand format
+  if (maxSupply) {
+    console.log('[Flashnet] Token metadata from SDK:', {
+      tokenIdentifier: tokenIdentifier.slice(0, 20) + '...',
+      name: item.tokenName,
+      ticker: item.tokenTicker,
+      rawMaxSupply: item.maxSupply,
+      normalizedMaxSupply: maxSupply,
+      decimals,
+      maxSupplyType: typeof item.maxSupply,
+      isOverride: !item.maxSupply && !!MANUAL_SUPPLY_OVERRIDES[tokenIdentifier],
+    })
+  }
 
   return {
     token_identifier: tokenIdentifier,
@@ -646,7 +745,17 @@ export async function fetchFlashnetTokenMetadata(
 ): Promise<FlashnetTokenMetadataRecord[]> {
   if (!identifiers.length) return []
 
-  const decodedIds = identifiers
+  // Bitcoin's official identifier - don't try to fetch metadata for it
+  const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+  const filteredIdentifiers = identifiers.filter(id => 
+    id !== BTC_PUBKEY && id.toLowerCase() !== BTC_PUBKEY.toLowerCase()
+  )
+
+  if (!filteredIdentifiers.length) {
+    return []
+  }
+
+  const decodedIds = filteredIdentifiers
     .map(identifier => toTokenIdentifierBytes(identifier, FLASHNET_NETWORK))
     .filter((bytes): bytes is Uint8Array => !!bytes)
 
@@ -668,26 +777,84 @@ export async function fetchFlashnetTokenMetadata(
     throw new Error('Unable to determine coordinator address for Spark token client')
   }
 
+  // Don't create a new client each time - reuse the connection manager's client
+  // The connection manager handles client lifecycle
   const sparkTokenClient = await connectionManager.createSparkTokenClient(coordinatorAddress)
   try {
     const response = await sparkTokenClient.query_token_metadata({
       tokenIdentifiers: decodedIds,
     })
 
+    // Debug: Log raw SDK response to understand structure - log ALL fields
+    if (response?.tokenMetadata && response.tokenMetadata.length > 0) {
+      const firstToken = response.tokenMetadata[0]
+      const utxoToken = response.tokenMetadata.find((t: any) => 
+        t.tokenTicker === 'UTXO' || t.tokenName === 'UTXO'
+      )
+      
+      console.log('[Flashnet] Raw SDK response - ALL FIELDS:', {
+        count: response.tokenMetadata.length,
+        firstToken: {
+          ...firstToken,
+          tokenIdentifier: firstToken?.tokenIdentifier ? 
+            Buffer.from(firstToken.tokenIdentifier).toString('hex') : null,
+          allFields: Object.keys(firstToken || {}),
+        },
+        utxoToken: utxoToken ? {
+          ...utxoToken,
+          tokenIdentifier: utxoToken?.tokenIdentifier ? 
+            Buffer.from(utxoToken.tokenIdentifier).toString('hex') : null,
+          allFields: Object.keys(utxoToken || {}),
+        } : null,
+      })
+    }
+
     const records =
       response?.tokenMetadata
         ?.map((item: any) => normalizeTokenMetadata(item, config.getNetworkType?.() ?? FLASHNET_NETWORK))
         .filter((record: FlashnetTokenMetadataRecord | null): record is FlashnetTokenMetadataRecord => !!record) ?? []
 
+    // Try to get token state/supply for tokens missing max_supply
+    // Check if sparkTokenClient has query_token_state or similar method
+    const tokensNeedingSupply = records.filter((r: FlashnetTokenMetadataRecord) => !r.max_supply)
+    if (tokensNeedingSupply.length > 0 && typeof sparkTokenClient.query_token_state === 'function') {
+      try {
+        for (const record of tokensNeedingSupply) {
+          try {
+            const bytes = toTokenIdentifierBytes(record.token_identifier, config.getNetworkType?.() ?? FLASHNET_NETWORK)
+            if (bytes) {
+              const stateResponse = await sparkTokenClient.query_token_state({
+                tokenIdentifier: bytes,
+              })
+              
+              // Check if state has totalSupply, currentSupply, or similar
+              if (stateResponse) {
+                console.log('[Flashnet] Token state for', record.ticker || record.name, ':', stateResponse)
+                // Try to extract supply from state
+                const supply = stateResponse.totalSupply ?? stateResponse.currentSupply ?? stateResponse.supply
+                if (supply !== null && supply !== undefined) {
+                  record.max_supply = typeof supply === 'bigint' ? supply.toString() : String(supply)
+                  console.log('[Flashnet] Found supply from token state:', record.max_supply)
+                }
+              }
+            }
+          } catch (err) {
+            // Ignore individual token state query errors
+            console.warn('[Flashnet] Failed to query token state for', record.ticker || record.name, err)
+          }
+        }
+      } catch (err) {
+        console.warn('[Flashnet] Token state query failed:', err)
+      }
+    }
+
     return records
   } catch (error) {
     console.warn('[Flashnet] token metadata fetch failed:', error instanceof Error ? error.message : error)
     return []
-  } finally {
-    if (sparkTokenClient?.close) {
-      sparkTokenClient.close()
-    }
   }
+  // Don't close the client - let the connection manager handle it
+  // Closing it causes "Channel has been shut down" errors
 }
 
 export function chunkArray<T>(items: T[], size: number): T[][] {
@@ -711,9 +878,18 @@ export async function enrichPoolsWithMetadata(
   if (!tokenIdentifiers.size) return
 
   const existing = await listFlashnetTokenMetadata(Array.from(tokenIdentifiers))
-  const existingMap = new Map(existing.map(record => [record.token_identifier, record]))
+  // Build a map that can be looked up by both token_identifier and token_address
+  const existingMap = new Map<string, FlashnetTokenMetadataRecord>()
+  for (const record of existing) {
+    for (const key of buildMetadataLookupKeys(record)) {
+      existingMap.set(key, record)
+    }
+  }
 
-  const missing = Array.from(tokenIdentifiers).filter(id => !existingMap.has(id))
+  const missing = Array.from(tokenIdentifiers).filter(id => {
+    const lowerId = id.toLowerCase()
+    return !existingMap.has(lowerId)
+  })
   if (missing.length) {
     for (const chunk of chunkArray(missing, FLASHNET_METADATA_BATCH_SIZE)) {
       try {
@@ -733,8 +909,38 @@ export async function getTokenMetadataMapForPools(
 ): Promise<Map<string, FlashnetTokenMetadataRecord>> {
   const identifiers = new Set<string>()
   for (const pool of pools) {
-    if (pool.asset_a_address) identifiers.add(pool.asset_a_address)
-    if (pool.asset_b_address) identifiers.add(pool.asset_b_address)
+    if (pool.asset_a_address) {
+      identifiers.add(pool.asset_a_address)
+      // Also try to add as bech32m if it's not already
+      try {
+        const bytes = toTokenIdentifierBytes(pool.asset_a_address, FLASHNET_NETWORK)
+        if (bytes) {
+          const bech32m = encodeBech32mTokenIdentifier({
+            tokenIdentifier: bytes,
+            network: FLASHNET_NETWORK,
+          })
+          identifiers.add(bech32m)
+        }
+      } catch (e) {
+        // Ignore conversion errors
+      }
+    }
+    if (pool.asset_b_address) {
+      identifiers.add(pool.asset_b_address)
+      // Also try to add as bech32m if it's not already
+      try {
+        const bytes = toTokenIdentifierBytes(pool.asset_b_address, FLASHNET_NETWORK)
+        if (bytes) {
+          const bech32m = encodeBech32mTokenIdentifier({
+            tokenIdentifier: bytes,
+            network: FLASHNET_NETWORK,
+          })
+          identifiers.add(bech32m)
+        }
+      } catch (e) {
+        // Ignore conversion errors
+      }
+    }
   }
   if (!identifiers.size) return new Map()
   const records = await listFlashnetTokenMetadata(Array.from(identifiers))
@@ -756,15 +962,134 @@ export async function attachStoredMetadataToPools(
   pools: FlashnetPoolRecord[],
 ): Promise<FlashnetPoolWithMetadata[]> {
   const metadataMap = await getTokenMetadataMapForPools(pools)
-  return pools.map(pool => ({
-    ...pool,
-    asset_a_metadata: pool.asset_a_address
-      ? metadataMap.get(pool.asset_a_address.toLowerCase()) ?? null
-      : null,
-    asset_b_metadata: pool.asset_b_address
-      ? metadataMap.get(pool.asset_b_address.toLowerCase()) ?? null
-      : null,
-  }))
+  // Bitcoin's official identifier in Flashnet (from docs: https://docs.flashnet.xyz/products/flashnet-amm/swaps)
+  const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+  
+  return pools.map(pool => {
+    // Try multiple lookup strategies for asset A
+    let assetAMetadata: FlashnetTokenMetadataRecord | null = null
+    if (pool.asset_a_address) {
+      // Check if this is Bitcoin - if so, create synthetic metadata
+      if (pool.asset_a_address === BTC_PUBKEY || pool.asset_a_address.toLowerCase() === BTC_PUBKEY.toLowerCase()) {
+        assetAMetadata = {
+          token_identifier: BTC_PUBKEY,
+          token_address: BTC_PUBKEY,
+          name: 'Bitcoin',
+          ticker: 'BTC',
+          decimals: 8,
+          max_supply: '2100000000000000', // 21M BTC in satoshis
+          icon_url: null,
+        }
+      } else {
+        const lowerAddress = pool.asset_a_address.toLowerCase()
+        assetAMetadata = metadataMap.get(lowerAddress) ?? null
+        
+        // Verify the metadata actually matches this address (not Bitcoin)
+        if (assetAMetadata) {
+          const metadataAddress = assetAMetadata.token_address?.toLowerCase() || assetAMetadata.token_identifier?.toLowerCase()
+          const metadataIsBitcoin = metadataAddress === BTC_PUBKEY.toLowerCase() || 
+                                    assetAMetadata.ticker?.toLowerCase() === 'btc' ||
+                                    assetAMetadata.name?.toLowerCase() === 'bitcoin'
+          
+          // If metadata is for Bitcoin but this address is not Bitcoin, ignore it
+          if (metadataIsBitcoin && lowerAddress !== BTC_PUBKEY.toLowerCase()) {
+            assetAMetadata = null
+          }
+        }
+        
+        // If not found by address, try converting to token identifier format
+        if (!assetAMetadata) {
+          try {
+            const bytes = toTokenIdentifierBytes(pool.asset_a_address, FLASHNET_NETWORK)
+            if (bytes) {
+              const hexKey = Buffer.from(bytes).toString('hex').toLowerCase()
+              const foundMetadata = metadataMap.get(hexKey) ?? null
+              
+              // Verify the metadata actually matches this address (not Bitcoin)
+              if (foundMetadata) {
+                const metadataAddress = foundMetadata.token_address?.toLowerCase() || foundMetadata.token_identifier?.toLowerCase()
+                const metadataIsBitcoin = metadataAddress === BTC_PUBKEY.toLowerCase() || 
+                                          foundMetadata.ticker?.toLowerCase() === 'btc' ||
+                                          foundMetadata.name?.toLowerCase() === 'bitcoin'
+                
+                // If metadata is for Bitcoin but this address is not Bitcoin, ignore it
+                if (!metadataIsBitcoin || lowerAddress === BTC_PUBKEY.toLowerCase()) {
+                  assetAMetadata = foundMetadata
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore conversion errors
+          }
+        }
+      }
+    }
+    
+    // Try multiple lookup strategies for asset B
+    let assetBMetadata: FlashnetTokenMetadataRecord | null = null
+    if (pool.asset_b_address) {
+      // Check if this is Bitcoin - if so, create synthetic metadata
+      if (pool.asset_b_address === BTC_PUBKEY || pool.asset_b_address.toLowerCase() === BTC_PUBKEY.toLowerCase()) {
+        assetBMetadata = {
+          token_identifier: BTC_PUBKEY,
+          token_address: BTC_PUBKEY,
+          name: 'Bitcoin',
+          ticker: 'BTC',
+          decimals: 8,
+          max_supply: '2100000000000000', // 21M BTC in satoshis
+          icon_url: null,
+        }
+      } else {
+        const lowerAddress = pool.asset_b_address.toLowerCase()
+        assetBMetadata = metadataMap.get(lowerAddress) ?? null
+        
+        // Verify the metadata actually matches this address (not Bitcoin)
+        if (assetBMetadata) {
+          const metadataAddress = assetBMetadata.token_address?.toLowerCase() || assetBMetadata.token_identifier?.toLowerCase()
+          const metadataIsBitcoin = metadataAddress === BTC_PUBKEY.toLowerCase() || 
+                                    assetBMetadata.ticker?.toLowerCase() === 'btc' ||
+                                    assetBMetadata.name?.toLowerCase() === 'bitcoin'
+          
+          // If metadata is for Bitcoin but this address is not Bitcoin, ignore it
+          if (metadataIsBitcoin && lowerAddress !== BTC_PUBKEY.toLowerCase()) {
+            assetBMetadata = null
+          }
+        }
+        
+        // If not found by address, try converting to token identifier format
+        if (!assetBMetadata) {
+          try {
+            const bytes = toTokenIdentifierBytes(pool.asset_b_address, FLASHNET_NETWORK)
+            if (bytes) {
+              const hexKey = Buffer.from(bytes).toString('hex').toLowerCase()
+              const foundMetadata = metadataMap.get(hexKey) ?? null
+              
+              // Verify the metadata actually matches this address (not Bitcoin)
+              if (foundMetadata) {
+                const metadataAddress = foundMetadata.token_address?.toLowerCase() || foundMetadata.token_identifier?.toLowerCase()
+                const metadataIsBitcoin = metadataAddress === BTC_PUBKEY.toLowerCase() || 
+                                          foundMetadata.ticker?.toLowerCase() === 'btc' ||
+                                          foundMetadata.name?.toLowerCase() === 'bitcoin'
+                
+                // If metadata is for Bitcoin but this address is not Bitcoin, ignore it
+                if (!metadataIsBitcoin || lowerAddress === BTC_PUBKEY.toLowerCase()) {
+                  assetBMetadata = foundMetadata
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore conversion errors
+          }
+        }
+      }
+    }
+    
+    return {
+      ...pool,
+      asset_a_metadata: assetAMetadata,
+      asset_b_metadata: assetBMetadata,
+    }
+  })
 }
 
 function buildMetadataLookupKeys(record: { token_identifier: string; token_address: string | null }): string[] {

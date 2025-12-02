@@ -1320,14 +1320,17 @@ async function handleFlashnetInteraction(interaction) {
 
   let pool = await getStoredFlashnetPool(query);
 
-  if (!pool) {
-    await syncFlashnetPools(true);
-    pool = await getStoredFlashnetPool(query);
-  }
+  // Note: Pool sync is now handled by cron job every 5 minutes
+  // Fallback sync removed - if pool not found, it will be in next cron run
+  // If you need immediate sync for new pools, uncomment below:
+  // if (!pool) {
+  //   await syncFlashnetPools(true);
+  //   pool = await getStoredFlashnetPool(query);
+  // }
 
   if (!pool) {
     await interaction.editReply({
-      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync.`,
+      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync (cron runs every 5 minutes).`,
     });
     return;
   }
@@ -1853,14 +1856,17 @@ async function handleFlashnetInteraction(interaction) {
 
   let pool = await getStoredFlashnetPool(query);
 
-  if (!pool) {
-    await syncFlashnetPools(true);
-    pool = await getStoredFlashnetPool(query);
-  }
+  // Note: Pool sync is now handled by cron job every 5 minutes
+  // Fallback sync removed - if pool not found, it will be in next cron run
+  // If you need immediate sync for new pools, uncomment below:
+  // if (!pool) {
+  //   await syncFlashnetPools(true);
+  //   pool = await getStoredFlashnetPool(query);
+  // }
 
   if (!pool) {
     await interaction.editReply({
-      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync.`,
+      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync (cron runs every 5 minutes).`,
     });
     return;
   }
@@ -2275,15 +2281,8 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 // Periodic job to check holders and manage roles (runs every hour)
-if (FLASHNET_COMMANDS_ENABLED) {
-  setInterval(async () => {
-    try {
-      await syncFlashnetPools();
-    } catch (error) {
-      console.error('[Flashnet] Scheduled pool sync error:', error);
-    }
-  }, FLASHNET_POLL_INTERVAL_MS);
-}
+// Note: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools) every 5 minutes
+// Removed redundant periodic sync here
 
 setInterval(() => {
   void syncHolderAndSpecialRoles();
@@ -2333,9 +2332,8 @@ client.once(Events.ClientReady, async () => {
   console.log(`Client ID: ${process.env.CLIENT_ID}`);
   console.log(`Holder Role ID: ${process.env.HOLDER_ROLE_ID}`);
   await registerCommands();
-  if (FLASHNET_COMMANDS_ENABLED) {
-    await syncFlashnetPools(true);
-  }
+  // Note: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools) every 5 minutes
+  // Removed startup sync - cron will handle it
   await handleDualityWeeklyCycle(client);
   await syncHolderAndSpecialRoles();
 });
