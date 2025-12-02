@@ -1102,62 +1102,9 @@ async function listFlashnetPoolsFromSdk(limit, offset) {
 }
 
 async function syncFlashnetPools(force = false) {
-  if (!FLASHNET_COMMANDS_ENABLED) return;
-  if (flashnetSyncInProgress) return;
-
-  const now = Date.now();
-  if (!force && now - flashnetLastSync < FLASHNET_POLL_INTERVAL_MS) {
-    return;
-  }
-
-  flashnetSyncInProgress = true;
-
-  try {
-    console.log('[Flashnet] Syncing pools from Flashnet SDK...');
-    const allPools = [];
-    let offset = 0;
-
-    while (allPools.length < FLASHNET_MAX_SYNC_POOLS) {
-      const page = await listFlashnetPoolsFromSdk(FLASHNET_PAGE_SIZE, offset);
-      const pools = Array.isArray(page?.pools) ? page.pools : Array.isArray(page) ? page : [];
-
-      if (!pools.length) break;
-
-      allPools.push(...pools);
-
-      if (pools.length < FLASHNET_PAGE_SIZE) {
-        break;
-      }
-
-      offset += FLASHNET_PAGE_SIZE;
-    }
-
-    if (!allPools.length) {
-      console.log('[Flashnet] No pools returned from SDK.');
-      return;
-    }
-
-    const payload = allPools.slice(0, FLASHNET_MAX_SYNC_POOLS);
-
-    const res = await apiFetch('/api/flashnet/pools', {
-      method: 'POST',
-      body: JSON.stringify({ pools: payload }),
-    });
-
-    if (!res.ok) {
-      console.error('[Flashnet] Failed to upsert pools:', res.status, res.data);
-      return;
-    }
-
-    console.log(
-      `[Flashnet] Upserted pools — inserted: ${res.data?.inserted ?? 0}, updated: ${res.data?.updated ?? 0}`
-    );
-    flashnetLastSync = Date.now();
-  } catch (error) {
-    console.error('[Flashnet] Pool sync error:', error);
-  } finally {
-    flashnetSyncInProgress = false;
-  }
+  // DISABLED: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools)
+  // This function no longer makes SDK calls or saves anything
+  return;
 }
 
 async function getStoredFlashnetPool(searchTerm) {
@@ -1638,62 +1585,9 @@ async function listFlashnetPoolsFromSdk(limit, offset) {
 }
 
 async function syncFlashnetPools(force = false) {
-  if (!FLASHNET_COMMANDS_ENABLED) return;
-  if (flashnetSyncInProgress) return;
-
-  const now = Date.now();
-  if (!force && now - flashnetLastSync < FLASHNET_POLL_INTERVAL_MS) {
-    return;
-  }
-
-  flashnetSyncInProgress = true;
-
-  try {
-    console.log('[Flashnet] Syncing pools from Flashnet SDK...');
-    const allPools = [];
-    let offset = 0;
-
-    while (allPools.length < FLASHNET_MAX_SYNC_POOLS) {
-      const page = await listFlashnetPoolsFromSdk(FLASHNET_PAGE_SIZE, offset);
-      const pools = Array.isArray(page?.pools) ? page.pools : Array.isArray(page) ? page : [];
-
-      if (!pools.length) break;
-
-      allPools.push(...pools);
-
-      if (pools.length < FLASHNET_PAGE_SIZE) {
-        break;
-      }
-
-      offset += FLASHNET_PAGE_SIZE;
-    }
-
-    if (!allPools.length) {
-      console.log('[Flashnet] No pools returned from SDK.');
-      return;
-    }
-
-    const payload = allPools.slice(0, FLASHNET_MAX_SYNC_POOLS);
-
-    const res = await apiFetch('/api/flashnet/pools', {
-      method: 'POST',
-      body: JSON.stringify({ pools: payload }),
-    });
-
-    if (!res.ok) {
-      console.error('[Flashnet] Failed to upsert pools:', res.status, res.data);
-      return;
-    }
-
-    console.log(
-      `[Flashnet] Upserted pools — inserted: ${res.data?.inserted ?? 0}, updated: ${res.data?.updated ?? 0}`
-    );
-    flashnetLastSync = Date.now();
-  } catch (error) {
-    console.error('[Flashnet] Pool sync error:', error);
-  } finally {
-    flashnetSyncInProgress = false;
-  }
+  // DISABLED: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools)
+  // This function no longer makes SDK calls or saves anything
+  return;
 }
 
 async function getStoredFlashnetPool(searchTerm) {

@@ -61,6 +61,7 @@ export default function SparkPage() {
   const [sortColumn, setSortColumn] = useState<SortColumn | null>('change')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [hideLowCap, setHideLowCap] = useState(true) // Pre-selected: hide market caps below $4000
+  const [hideOldPools, setHideOldPools] = useState(false) // Hide pools created > 4 hours ago
   const [favorites, setFavorites] = useState<Set<string>>(new Set()) // Favorite pool lp_public_keys
   const limit = 20
 
@@ -112,12 +113,12 @@ export default function SparkPage() {
       }
     }, 15000) // 15 seconds - faster updates for trading data
     return () => clearInterval(interval)
-  }, [page, sortColumn, sortDirection, hideLowCap]) // Refetch when these change
+  }, [page, sortColumn, sortDirection, hideLowCap, hideOldPools]) // Refetch when these change
 
   // Reset to page 0 when sorting or filter changes
   useEffect(() => {
     setPage(0)
-  }, [sortColumn, sortDirection, hideLowCap])
+  }, [sortColumn, sortDirection, hideLowCap, hideOldPools])
 
   const fetchBtcPrice = async () => {
     try {
@@ -199,11 +200,16 @@ export default function SparkPage() {
         limit: limit.toString(),
       })
       
-      // Add filter parameter if hideLowCap is enabled
-      // Note: Market cap filtering requires client-side calculation, so we'll fetch all and filter client-side for now
-      // TODO: Implement server-side market cap filtering in the API
+      // Add filter parameters
+      const filters: string[] = []
       if (hideLowCap) {
-        params.set('filter', 'low_caps') // For future server-side filtering
+        filters.push('low_caps')
+      }
+      if (hideOldPools) {
+        filters.push('old_pools') // Hide pools created > 4 hours ago
+      }
+      if (filters.length > 0) {
+        params.set('filter', filters.join(','))
       }
       
       // Add sorting parameters
@@ -927,7 +933,7 @@ export default function SparkPage() {
         ) : (
           <>
             {/* Filter Controls */}
-            <div className="mb-4 flex items-center justify-end gap-4">
+            <div className="mb-4 flex items-center justify-end gap-4 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="checkbox"
@@ -937,6 +943,17 @@ export default function SparkPage() {
                 />
                 <span className="text-gray-300 text-sm font-medium group-hover:text-yellow-400 transition-colors">
                   Hide low cap (&lt; $4,000)
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={hideOldPools}
+                  onChange={(e) => setHideOldPools(e.target.checked)}
+                  className="w-4 h-4 text-yellow-500 bg-black border-yellow-500/50 rounded focus:ring-yellow-500 focus:ring-2 cursor-pointer"
+                />
+                <span className="text-gray-300 text-sm font-medium group-hover:text-yellow-400 transition-colors">
+                  Hide old pools (&gt; 4 hours)
                 </span>
               </label>
             </div>

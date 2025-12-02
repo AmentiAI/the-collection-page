@@ -46,8 +46,10 @@ export async function GET(request: NextRequest) {
     const sortDirection = (sortDirectionParam === '0' || sortDirectionParam === 'asc') ? 'asc' : 
                          (sortDirectionParam === '1' || sortDirectionParam === 'desc') ? 'desc' : 'desc'
     
-    // Check if we need to filter by market cap
-    const minMarketCap = filterParam === 'low_caps' ? 4000 : undefined
+    // Parse filter parameters (can be comma-separated)
+    const filters = filterParam ? filterParam.split(',').map(f => f.trim()) : []
+    const minMarketCap = filters.includes('low_caps') ? 4000 : undefined
+    const hideOldPools = filters.includes('old_pools') // Hide pools created > 4 hours ago
 
     // Calculate limit and offset
     let limit = pageParam 
@@ -139,6 +141,18 @@ export async function GET(request: NextRequest) {
         }
         
         return false // Can't calculate market cap, exclude
+      })
+    }
+    
+    // Filter out old pools (created > 4 hours ago) if needed
+    if (hideOldPools) {
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours in milliseconds
+      filteredPools = filteredPools.filter(pool => {
+        if (!pool.created_at) {
+          return false // Exclude pools without creation date
+        }
+        const createdAt = new Date(pool.created_at)
+        return createdAt >= fourHoursAgo // Only include pools created within last 4 hours
       })
     }
     
