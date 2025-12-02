@@ -152,9 +152,9 @@ export async function GET(request: NextRequest) {
     const result = await upsertFlashnetPools(normalizedPools)
     console.log(`[Flashnet Sync] Step 5: Upsert complete - inserted: ${result.inserted}, updated: ${result.updated}`)
 
-    // Metadata enrichment: Only run every 15 minutes (metadata changes rarely)
+    // Metadata enrichment: Only run every 5 minutes (metadata changes rarely)
     // This reduces API calls while keeping trading data fresh every minute
-    const METADATA_SYNC_INTERVAL = 15 * 60 * 1000 // 15 minutes in milliseconds
+    const METADATA_SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes in milliseconds
     const BTC_PRICE_SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes in milliseconds
     
     console.log('[Flashnet Sync] Step 6: Setting up sync state table...')
@@ -259,7 +259,7 @@ export async function GET(request: NextRequest) {
     
     console.log('[Flashnet Sync] Step 7: Checking metadata sync...')
     if (shouldSyncMetadata) {
-      console.log(`[Flashnet Sync] Enriching pools with metadata (runs every 15 min)...`)
+      console.log(`[Flashnet Sync] Enriching pools with metadata (runs every 5 min)...`)
       try {
         await enrichPoolsWithMetadata(client, result.records)
         await db.query(`
@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {
         // Continue even if metadata enrichment fails
       }
     } else {
-      console.log(`[Flashnet Sync] Skipping metadata sync (only updates every 15 min, trading data updated every 1 min)`)
+      console.log(`[Flashnet Sync] Skipping metadata sync (only updates every 5 min, trading data updated every 1 min)`)
     }
 
     const duration = Date.now() - startTime
