@@ -71,60 +71,95 @@ export async function GET(request: NextRequest) {
     )
     console.log('[Flashnet Sync] Step 2: Client obtained')
 
-    const allPools: any[] = []
-    let offset = 0
     const PAGE_SIZE = 50 // SDK page size
-    const MAX_POOLS = 200 // Only fetch top 200 pools by TVL (most active/relevant)
+    const MAX_POOLS = 500 // Fetch top 500 pools by TVL (increased from 200 to catch more pools)
+    const PARALLEL_BATCH_SIZE = 5 // Fetch 5 pages in parallel at once (250 pools per batch)
+    const TOTAL_BATCHES = Math.ceil(MAX_POOLS / (PAGE_SIZE * PARALLEL_BATCH_SIZE)) // How many parallel batches we need
 
-    console.log('[Flashnet Sync] Step 3: Fetching pools from SDK (limiting to top 200 by TVL)...')
-    // Fetch top pools from SDK with pagination
-    while (allPools.length < MAX_POOLS) {
+    console.log(`[Flashnet Sync] Step 3: Fetching pools from SDK (up to ${MAX_POOLS} pools, ${PARALLEL_BATCH_SIZE} pages in parallel)...`)
+    
+    const allPools: any[] = []
+    const poolSet = new Set<string>() // Track unique pools by lp_public_key to avoid duplicates
+    
+    // Fetch pools in parallel batches
+    for (let batchIndex = 0; batchIndex < TOTAL_BATCHES; batchIndex++) {
       // Check if we're running out of time
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         console.warn(`[Flashnet Sync] Approaching timeout, stopping at ${allPools.length} pools`)
         break
       }
-
-      try {
-        console.log(`[Flashnet Sync] Fetching pools at offset ${offset}...`)
-        const sdkResponse = await withTimeout(
-          client.listPools({
-          limit: PAGE_SIZE,
-          offset,
-          sort: 'TVL_DESC',
-          }),
-          20000, // 20 second timeout per SDK call
-          `SDK listPools call at offset ${offset}`
+      
+      // Check if we have enough pools
+      if (allPools.length >= MAX_POOLS) {
+        break
+      }
+      
+      const batchStartOffset = batchIndex * PAGE_SIZE * PARALLEL_BATCH_SIZE
+      console.log(`[Flashnet Sync] Fetching batch ${batchIndex + 1}/${TOTAL_BATCHES} (offsets ${batchStartOffset}-${batchStartOffset + (PAGE_SIZE * PARALLEL_BATCH_SIZE) - 1})...`)
+      
+      // Create parallel requests for this batch
+      const batchPromises = []
+      for (let i = 0; i < PARALLEL_BATCH_SIZE; i++) {
+        const offset = batchStartOffset + (i * PAGE_SIZE)
+        if (offset >= MAX_POOLS) break // Don't fetch beyond our limit
+        
+        batchPromises.push(
+          withTimeout(
+            client.listPools({
+              limit: PAGE_SIZE,
+              offset,
+              sort: 'TVL_DESC',
+            }),
+            20000, // 20 second timeout per SDK call
+            `SDK listPools call at offset ${offset}`
+          ).then((sdkResponse) => {
+            const pools = Array.isArray(sdkResponse?.pools) 
+              ? sdkResponse.pools 
+              : Array.isArray(sdkResponse) 
+              ? sdkResponse 
+              : []
+            return { offset, pools }
+          }).catch((error) => {
+            console.error(`[Flashnet Sync] Error fetching pools at offset ${offset}:`, error)
+            return { offset, pools: [] }
+          })
         )
-        console.log(`[Flashnet Sync] SDK response received for offset ${offset}`)
-
-        const pools = Array.isArray(sdkResponse?.pools) 
-          ? sdkResponse.pools 
-          : Array.isArray(sdkResponse) 
-          ? sdkResponse 
-          : []
-
+      }
+      
+      // Wait for all parallel requests in this batch to complete
+      const batchResults = await Promise.all(batchPromises)
+      
+      // Process results and add unique pools
+      let batchTotal = 0
+      for (const { offset, pools } of batchResults) {
         if (!pools.length) {
           console.log(`[Flashnet Sync] No more pools at offset ${offset}`)
-          break
+          continue
         }
-
-        allPools.push(...pools)
-        console.log(`[Flashnet Sync] Fetched ${pools.length} pools (total: ${allPools.length})`)
-
-        // If we got fewer pools than requested, we've reached the end
-        if (pools.length < PAGE_SIZE) {
-          break
+        
+        // Add only unique pools (by lp_public_key)
+        for (const pool of pools) {
+          const poolKey = pool.lp_public_key || pool.lpPublicKey || pool.id
+          if (poolKey && !poolSet.has(poolKey)) {
+            poolSet.add(poolKey)
+            allPools.push(pool)
+            batchTotal++
+          }
         }
-
-        offset += PAGE_SIZE
-
-        // Small delay between requests to avoid overwhelming the connection
-        await new Promise(resolve => setTimeout(resolve, 100))
-      } catch (error) {
-        console.error(`[Flashnet Sync] Error fetching pools at offset ${offset}:`, error)
-        // Continue with what we have
+      }
+      
+      console.log(`[Flashnet Sync] Batch ${batchIndex + 1} complete: ${batchTotal} new pools (total: ${allPools.length})`)
+      
+      // If any batch returned fewer pools than expected, we've likely reached the end
+      const hasIncompleteBatch = batchResults.some(({ pools }) => pools.length > 0 && pools.length < PAGE_SIZE)
+      if (hasIncompleteBatch && batchTotal === 0) {
+        console.log(`[Flashnet Sync] Reached end of available pools`)
         break
+      }
+      
+      // If we got fewer pools than expected across the batch, we might be at the end
+      if (batchTotal < PAGE_SIZE * PARALLEL_BATCH_SIZE * 0.5) {
+        console.log(`[Flashnet Sync] Low pool count in batch, likely near end of available pools`)
       }
     }
 
