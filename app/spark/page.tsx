@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Header from '@/components/Header'
-import { Loader2, TrendingUp, TrendingDown, Coins, DollarSign, Activity, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, Coins, DollarSign, Activity, ArrowUp, ArrowDown, ArrowUpDown, Star } from 'lucide-react'
 import Image from 'next/image'
 
 interface FlashnetPool {
@@ -54,14 +54,52 @@ export default function SparkPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
+  const [filteredTotal, setFilteredTotal] = useState(0) // Total after filtering
   const [btcPrice, setBtcPrice] = useState<number | null>(null)
   const [metadataCache, setMetadataCache] = useState<Map<string, { max_supply: string | null; decimals: number | null }>>(new Map())
   const [metadataFetchPending, setMetadataFetchPending] = useState<Set<string>>(new Set())
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>('change')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [hideLowCap, setHideLowCap] = useState(true) // Pre-selected: hide market caps below $4000
+  const [favorites, setFavorites] = useState<Set<string>>(new Set()) // Favorite pool lp_public_keys
   const limit = 20
 
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('spark-favorites')
+      if (stored) {
+        setFavorites(new Set(JSON.parse(stored)))
+      }
+    } catch (error) {
+      console.warn('Failed to load favorites from localStorage:', error)
+    }
+  }, [])
+
+  // Save favorites to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('spark-favorites', JSON.stringify(Array.from(favorites)))
+    } catch (error) {
+      console.warn('Failed to save favorites to localStorage:', error)
+    }
+  }, [favorites])
+
+  const toggleFavorite = (lpPublicKey: string) => {
+    setFavorites(prev => {
+      const newFavorites = new Set(prev)
+      if (newFavorites.has(lpPublicKey)) {
+        newFavorites.delete(lpPublicKey)
+      } else {
+        newFavorites.add(lpPublicKey)
+      }
+      return newFavorites
+    })
+  }
+
+  const isFavorite = (lpPublicKey: string) => favorites.has(lpPublicKey)
+
+  // Fetch pools when page, sorting, or filter changes (server-side pagination/filtering/sorting)
   useEffect(() => {
     fetchPools()
     fetchBtcPrice()
@@ -74,7 +112,7 @@ export default function SparkPage() {
       }
     }, 30000) // 30 seconds - balances freshness with API costs
     return () => clearInterval(interval)
-  }, [page, sortColumn, sortDirection, hideLowCap])
+  }, [page, sortColumn, sortDirection, hideLowCap]) // Refetch when these change
 
   // Reset to page 0 when sorting or filter changes
   useEffect(() => {
@@ -152,40 +190,43 @@ export default function SparkPage() {
   const fetchPools = async () => {
     try {
       setLoading(true)
-      // When sorting client-side (market cap, price, etc), fetch ALL pools to sort across complete dataset
-      // For server-side sorting, let the server handle it with pagination
-      const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee', 'created']
-      const isServerSortable = sortColumn && serverSortableColumns.includes(sortColumn)
-      const isSorting = sortColumn && sortDirection
       
-      // If client-side sorting, fetch all pools (up to 200 limit). Otherwise use pagination
-      // Server-side sorting can use pagination since server handles the sort
-      const fetchLimit = (isSorting && !isServerSortable) ? 200 : limit
-      const fetchOffset = (isSorting && !isServerSortable) ? 0 : (page * limit)
-      
-      // Build query params - include sort params for server-side sorting of basic fields
+      // Build query params for server-side pagination, filtering, and sorting
       const params = new URLSearchParams({
-        limit: fetchLimit.toString(),
-        offset: fetchOffset.toString(),
+        page: (page + 1).toString(), // API uses 1-based pages
+        limit: limit.toString(),
       })
       
-      // Add server-side sorting for fields that can be sorted in DB
-      if (isServerSortable && sortDirection) {
-        if (sortColumn === 'volume') {
-          params.set('sortBy', 'volume')
-          params.set('sortDirection', sortDirection)
-        } else if (sortColumn === 'change') {
-          params.set('sortBy', 'price_change')
-          params.set('sortDirection', sortDirection)
-        } else if (sortColumn === 'lpFee') {
-          params.set('sortBy', 'lp_fee')
-          params.set('sortDirection', sortDirection)
-        } else if (sortColumn === 'hostFee') {
-          params.set('sortBy', 'host_fee')
-          params.set('sortDirection', sortDirection)
-        } else if (sortColumn === 'created') {
-          params.set('sortBy', 'created_at')
-          params.set('sortDirection', sortDirection)
+      // Add filter parameter if hideLowCap is enabled
+      // Note: Market cap filtering requires client-side calculation, so we'll fetch all and filter client-side for now
+      // TODO: Implement server-side market cap filtering in the API
+      if (hideLowCap) {
+        params.set('filter', 'low_caps') // For future server-side filtering
+      }
+      
+      // Add sorting parameters
+      if (sortColumn && sortDirection) {
+        // Map sortColumn to sortType format
+        const sortTypeMap: Record<SortColumn, string> = {
+          'volume': 'volume',
+          'change': '24_hr_change',
+          'lpFee': 'lp_fee',
+          'hostFee': 'host_fee',
+          'created': 'created',
+          'pair': 'pair', // Client-side only
+          'token': 'token', // Client-side only
+          'price': 'price', // Client-side only
+          'mc': 'mc', // Client-side only
+          'liquidity': 'liquidity', // Client-side only
+          'supply': 'supply', // Client-side only
+          'holders': 'holders', // Client-side only
+        }
+        
+        const sortType = sortTypeMap[sortColumn]
+        if (sortType) {
+          params.set('sortType', sortType)
+          // Map sortDirection: 'asc' -> '0', 'desc' -> '1'
+          params.set('sortDirection', sortDirection === 'asc' ? '0' : '1')
         }
       }
       
@@ -202,24 +243,7 @@ export default function SparkPage() {
         })
         data.pools?.forEach((pool: FlashnetPool, idx: number) => {
           const poolName = getPoolName(pool)
-          if (poolName.includes('SOON') || idx < 3) {
-            console.log(`[Spark] Pool ${idx} (${poolName}):`, {
-              lp_public_key: pool.lp_public_key,
-              asset_a_address: pool.asset_a_address,
-              asset_b_address: pool.asset_b_address,
-              asset_a_symbol: pool.asset_a_symbol,
-              asset_b_symbol: pool.asset_b_symbol,
-              asset_a_name: pool.asset_a_name,
-              asset_b_name: pool.asset_b_name,
-              asset_a_metadata: pool.asset_a_metadata,
-              asset_b_metadata: pool.asset_b_metadata,
-              asset_a_reserve: pool.asset_a_reserve,
-              asset_b_reserve: pool.asset_b_reserve,
-              asset_a_decimals: pool.asset_a_decimals,
-              asset_b_decimals: pool.asset_b_decimals,
-              tvl_asset_b: pool.tvl_asset_b,
-            })
-          }
+ 
         })
         // Filter out pools where Asset A is Bitcoin (BTC/TOKEN pools)
         // We only want to show TOKEN/BTC pools, not BTC/TOKEN
@@ -232,15 +256,16 @@ export default function SparkPage() {
           return true
         })
         setPools(filteredPools)
-        // Use API total from database (data.total) - this is the total count from DB
-        // When sorting, we fetch all pools so filteredPools.length is accurate
-        // When paginating, we use data.total from API (database count)
+        // Store the total from API (this is the total count from database after server-side filtering)
+        // Note: We still filter out BTC/TOKEN pools client-side, so the count might be slightly off
+        // TODO: Move BTC/TOKEN filtering to server-side
         if (data.total !== undefined && data.total !== null) {
           setTotal(data.total)
         } else {
-          // Fallback: if API doesn't return total, use filtered count
           setTotal(filteredPools.length)
         }
+        
+        // Note: filteredTotal will be calculated after filtering below
         
         // Fetch missing metadata for tokens without max_supply (batch request with debounce)
         const tokensToFetch = new Set<string>()
@@ -442,25 +467,7 @@ export default function SparkPage() {
       nameB = 'Bitcoin'
     }
     
-    // Debug: Log when we're still missing a symbol
-    if (!symbolA && !nameA && pool.asset_a_address) {
-      console.log('[Pool Debug] Asset A missing:', {
-        address: pool.asset_a_address,
-        symbol: pool.asset_a_symbol,
-        name: pool.asset_a_name,
-        metadata: pool.asset_a_metadata,
-        isBitcoin: isAssetABitcoin,
-      })
-    }
-    if (!symbolB && !nameB && pool.asset_b_address) {
-      console.log('[Pool Debug] Asset B missing:', {
-        address: pool.asset_b_address,
-        symbol: pool.asset_b_symbol,
-        name: pool.asset_b_name,
-        metadata: pool.asset_b_metadata,
-        isBitcoin: isAssetBBitcoin,
-      })
-    }
+ 
     
     // Prefer symbols for pair display (e.g., "BTC/DRAGON")
     if (symbolA && symbolB) return `${symbolA}/${symbolB}`
@@ -710,21 +717,31 @@ export default function SparkPage() {
     return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />
   }
 
-  // Filter pools by market cap if hideLowCap is enabled
-  const MIN_MARKET_CAP = 4000
-  const filteredByCap = hideLowCap 
-    ? pools.filter((pool) => {
-        const marketCap = getMarketCap(pool, 'a')
-        return marketCap !== null && marketCap >= MIN_MARKET_CAP
-      })
-    : pools
-
-  // For server-sortable columns (volume, change, lpFee, hostFee, created), pools are already sorted
-  // For client-sortable columns (pair, token, price, mc, liquidity, supply, holders), sort locally
-  const sortedPools = [...filteredByCap]
-  const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee', 'created']
-  const needsClientSort = sortColumn && sortDirection && !serverSortableColumns.includes(sortColumn)
+  // Server-side filtering is now handled by the API
+  // We still filter out BTC/TOKEN pools client-side as a safety check
+  // (though the API should also do this)
+  const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+  const filteredPools = useMemo(() => {
+    return pools.filter((pool) => {
+      const assetA = pool.asset_a_address?.toLowerCase()
+      return assetA !== BTC_PUBKEY.toLowerCase() && assetA !== null
+    })
+  }, [pools])
   
+  // Update filtered total (from API response)
+  useEffect(() => {
+    setFilteredTotal(total)
+  }, [total])
+
+  // Server-sortable columns are already sorted by the API
+  // Client-sortable columns (price, mc, liquidity, etc.) need client-side sorting
+  const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee', 'created']
+  const isServerSortable = sortColumn && serverSortableColumns.includes(sortColumn)
+  const sortedPools = [...filteredPools]
+  const needsClientSort = sortColumn && sortDirection && !isServerSortable
+  
+  // Only sort client-side if it's not a server-sortable column
+  // Server-sortable columns are already sorted by the API
   if (needsClientSort) {
     sortedPools.sort((a, b) => {
       let aValue: any = null
@@ -819,14 +836,33 @@ export default function SparkPage() {
     })
   }
 
-  // Calculate total pages - always paginate the sorted/filtered results
+  // Calculate total pages and pagination
   const isSorting = sortColumn && sortDirection
-  // Use filtered/sorted pool count for pagination
-  const displayablePools = sortedPools.length
-  const totalPages = Math.ceil(displayablePools / limit)
   
-  // Paginate the sorted/filtered pools
-  const paginatedPools = sortedPools.slice(page * limit, (page + 1) * limit)
+  // If using server-side sorting, pools are already paginated by the API
+  // If using client-side sorting, we need to paginate the sorted/filtered results
+  let paginatedPools: FlashnetPool[]
+  let totalPages: number
+  let displayablePools: number
+  
+  if (isServerSortable && isSorting) {
+    // Server-side sorted and filtered: use pools directly (already paginated by API)
+    paginatedPools = filteredPools
+    displayablePools = total // Use total from API (already filtered)
+    totalPages = Math.ceil(total / limit)
+  } else {
+    // Client-side sorted: paginate the sorted results
+    displayablePools = sortedPools.length
+    totalPages = Math.ceil(displayablePools / limit)
+    paginatedPools = sortedPools.slice(page * limit, (page + 1) * limit)
+  }
+  
+  // Ensure page doesn't exceed total pages when filter changes
+  useEffect(() => {
+    if (totalPages > 0 && page >= totalPages) {
+      setPage(Math.max(0, totalPages - 1))
+    }
+  }, [totalPages, page])
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -841,9 +877,18 @@ export default function SparkPage() {
           <p className="text-gray-400 text-lg mb-2">
             Flashnet Spark Token Pools
           </p>
-          {total > 0 && (
+          {!loading && (
             <p className="text-yellow-500 font-semibold text-sm mb-6">
-              {total} {total === 1 ? 'Token' : 'Tokens'} Available
+              {hideLowCap ? (
+                <>
+                  <span className="text-yellow-500">{total}</span> {total === 1 ? 'Token' : 'Tokens'} Available
+                  <span className="text-gray-500 text-xs ml-2">(filtered)</span>
+                </>
+              ) : (
+                <>
+                  {total} {total === 1 ? 'Token' : 'Tokens'} Available
+                </>
+              )}
             </p>
           )}
           {total === 0 && !loading && (
@@ -1062,78 +1107,48 @@ export default function SparkPage() {
                     
                     // Debug: Log supply calculation for first few pools and UTXO token
                     const isUTXOToken = poolName.includes('UTXO') || pool.asset_a_symbol?.toUpperCase() === 'UTXO' || pool.asset_a_name?.toUpperCase().includes('UTXO')
-                    if (pools.indexOf(pool) < 3 || isUTXOToken) {
-                      console.log(`[Supply Debug] ${poolName}:`, {
-                        isAssetABitcoin,
-                        assetAMetadataIsBitcoin,
-                        useMetadata,
-                        decimalsA,
-                        tokenASupply,
-                        rawSupply: tokenASupply ? parseFloat(tokenASupply) : null,
-                        displayedSupply: tokenASupply ? parseFloat(tokenASupply) / Math.pow(10, decimalsA) : null,
-                        metadataMaxSupply: pool.asset_a_metadata?.max_supply,
-                        cachedMaxSupply: cachedMetadata?.max_supply,
-                        asset_a_address: pool.asset_a_address,
-                        asset_a_symbol: pool.asset_a_symbol,
-                        asset_a_name: pool.asset_a_name,
-                        asset_a_metadata: pool.asset_a_metadata,
-                      })
-                    }
                     
-                    // Debug logging for SOON and UTXO pools
-                    if (poolName.includes('SOON') || poolName.includes('UTXO') || pool.asset_a_symbol?.toUpperCase() === 'UTXO') {
-                      console.log(`[${poolName.includes('UTXO') ? 'UTXO' : 'SOON'} Pool Debug]`, {
-                        poolName,
-                        tokenName,
-                        tokenPrice,
-                        tokenMarketCap,
-                        tokenLiquidity,
-                        tokenASupply,
-                        tokenHolders,
-                        decimalsA,
-                        asset_a_metadata: pool.asset_a_metadata,
-                        asset_a_name: pool.asset_a_name,
-                        asset_a_symbol: pool.asset_a_symbol,
-                        asset_a_reserve: pool.asset_a_reserve,
-                        asset_a_decimals: pool.asset_a_decimals,
-                        asset_a_address: pool.asset_a_address,
-                        asset_b_address: pool.asset_b_address,
-                        btcPrice,
-                        maxSupply: maxSupply,
-                        useMetadata,
-                        cachedMetadata,
-                      })
-                    }
+           
 
+                    const isFav = isFavorite(pool.lp_public_key)
+                    
                     return (
                       <tr
                         key={pool.lp_public_key}
-                        className="border-b border-yellow-500/20 hover:bg-black/40 transition-colors"
+                        onClick={() => toggleFavorite(pool.lp_public_key)}
+                        className={`border-b border-yellow-500/20 hover:bg-black/40 transition-colors cursor-pointer ${
+                          isFav ? 'bg-yellow-500/10' : ''
+                        }`}
                       >
                         {/* Token Name */}
                         <td className="py-1.5 px-3">
-                          {(() => {
-                            // Prefer token_address from metadata, fallback to asset_a_address
-                            const tokenAddress = pool.asset_a_metadata?.token_address || pool.asset_a_address
-                            
-                            if (tokenAddress) {
-                              return (
-                                <a
-                                  href={`https://luminex.io/spark/trade/${tokenAddress}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-white text-sm font-semibold hover:text-yellow-400 hover:underline transition-colors cursor-pointer"
-                                  title={`Trade ${tokenName} on Luminex Spark`}
-                                >
-                                  {tokenName || 'N/A'}
-                                </a>
-                              )
-                            } else {
-                              return (
-                                <span className="text-white text-sm">{tokenName || 'N/A'}</span>
-                              )
-                            }
-                          })()}
+                          <div className="flex items-center gap-2">
+                            <Star
+                              className={`h-4 w-4 flex-shrink-0 transition-all ${
+                                isFav 
+                                  ? 'fill-yellow-500 text-yellow-500' 
+                                  : 'text-gray-500 hover:text-yellow-500'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleFavorite(pool.lp_public_key)
+                              }}
+                            />
+                            {pool.lp_public_key ? (
+                              <a
+                                href={`https://luminex.io/spark/trade/${pool.lp_public_key}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-white text-sm font-semibold hover:text-yellow-400 hover:underline transition-colors"
+                                title={`Trade ${tokenName} on Luminex Spark`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {tokenName || 'N/A'}
+                              </a>
+                            ) : (
+                              <span className="text-white text-sm">{tokenName || 'N/A'}</span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Price */}
@@ -1145,15 +1160,40 @@ export default function SparkPage() {
 
                         {/* Market Cap */}
                         <td className="py-1.5 px-3 text-right">
-                          <span className="text-yellow-400 font-bold text-sm">
-                            {tokenMarketCap !== null ? formatCurrency(tokenMarketCap) : 'N/A'}
-                          </span>
+                          {tokenMarketCap !== null ? (() => {
+                            // Calculate fill percentage: 0% at $4k, 100% at $100k+
+                            const minCap = 4000
+                            const maxCap = 100000
+                            const fillPercent = tokenMarketCap < minCap 
+                              ? 0 
+                              : tokenMarketCap >= maxCap 
+                                ? 100 
+                                : ((tokenMarketCap - minCap) / (maxCap - minCap)) * 100
+                            
+                            return (
+                              <div className="relative w-28 h-6 mx-auto flex items-center justify-center">
+                                {/* Background bar */}
+                                <div className="absolute inset-0 bg-gray-800 rounded-full border border-yellow-500/30"></div>
+                                {/* Filled bar */}
+                                <div 
+                                  className="absolute inset-0 bg-yellow-500/40 rounded-full transition-all duration-300"
+                                  style={{ width: `${fillPercent}%` }}
+                                ></div>
+                                {/* Market cap text overlay */}
+                                <span className="relative z-10 text-yellow-400 font-bold text-xs px-1 whitespace-nowrap">
+                                  {formatCurrency(tokenMarketCap)}
+                                </span>
+                              </div>
+                            )
+                          })() : (
+                            <span className="text-gray-500 text-sm">N/A</span>
+                          )}
                         </td>
 
                         {/* Liquidity */}
                         <td className="py-1.5 px-3 text-right">
                           <span className="text-white font-bold text-sm">
-                            {tokenLiquidity !== null ? formatCurrency(tokenLiquidity) : 'N/A'}
+                            {tokenLiquidity !== null ? formatCurrency(tokenLiquidity * 2) : 'N/A'}
                           </span>
                         </td>
 
@@ -1167,19 +1207,7 @@ export default function SparkPage() {
                                
                                // Debug log for first few pools and UTXO token
                                const isUTXOToken = poolName.includes('UTXO') || pool.asset_a_symbol?.toUpperCase() === 'UTXO' || pool.asset_a_name?.toUpperCase().includes('UTXO')
-                               if (pools.indexOf(pool) < 3 || isUTXOToken) {
-                                 console.log(`[Supply Display] ${poolName}:`, {
-                                   tokenASupply,
-                                   rawSupply,
-                                   decimalsA,
-                                   adjustedSupply,
-                                   fromMetadata: useMetadata && pool.asset_a_metadata?.max_supply,
-                                   fromCache: cachedMetadata?.max_supply,
-                                   asset_a_address: pool.asset_a_address,
-                                   asset_a_symbol: pool.asset_a_symbol,
-                                   asset_a_name: pool.asset_a_name,
-                                 })
-                               }
+                
                                
                                return formatNumber(adjustedSupply)
                              })() : 'N/A'}

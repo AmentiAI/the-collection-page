@@ -130,6 +130,14 @@ export async function ensureFlashnetTables(pool?: Pool) {
     `CREATE INDEX IF NOT EXISTS idx_flashnet_pools_asset_b ON flashnet_pools((LOWER(asset_b_address)))`,
   )
   await db.query(`CREATE INDEX IF NOT EXISTS idx_flashnet_pools_host ON flashnet_pools((LOWER(host_name)))`)
+  
+  // Backfill created_at for existing records that don't have it
+  // Use last_synced_at as a fallback, or NOW() if that's also null
+  await db.query(`
+    UPDATE flashnet_pools
+    SET created_at = COALESCE(created_at, last_synced_at, NOW())
+    WHERE created_at IS NULL
+  `)
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS flashnet_token_metadata (
@@ -261,8 +269,30 @@ export function normalizePool(pool: any): FlashnetPoolRecord | null {
     current_price_a_in_b: getNumber(pool.currentPriceAInB ?? pool.current_price_a_in_b),
     lp_fee_bps: getNumber(pool.lpFeeBps ?? pool.lp_fee_bps),
     host_fee_bps: getNumber(pool.hostFeeBps ?? pool.host_fee_bps),
-    created_at: getString(pool.createdAt ?? pool.created_at),
-    updated_at: getString(pool.updatedAt ?? pool.updated_at),
+    // Extract createdAt - handle multiple field name variations and formats
+    created_at: (() => {
+      const value = pool.createdAt ?? pool.created_at ?? pool.createdAtTimestamp ?? pool.created_at_timestamp
+      if (!value) return null
+      // If it's already a string, return it
+      if (typeof value === 'string') return value
+      // If it's a Date object, convert to ISO string
+      if (value instanceof Date) return value.toISOString()
+      // If it's a number (timestamp), convert to ISO string
+      if (typeof value === 'number') return new Date(value).toISOString()
+      return getString(value)
+    })(),
+    // Extract updatedAt - handle multiple field name variations and formats
+    updated_at: (() => {
+      const value = pool.updatedAt ?? pool.updated_at ?? pool.updatedAtTimestamp ?? pool.updated_at_timestamp
+      if (!value) return null
+      // If it's already a string, return it
+      if (typeof value === 'string') return value
+      // If it's a Date object, convert to ISO string
+      if (value instanceof Date) return value.toISOString()
+      // If it's a number (timestamp), convert to ISO string
+      if (typeof value === 'number') return new Date(value).toISOString()
+      return getString(value)
+    })(),
   }
 }
 
@@ -324,7 +354,7 @@ export async function upsertFlashnetPools(
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, NOW()
+        $21, $22, COALESCE($23, NOW()), NOW()
       )
       ON CONFLICT (lp_public_key) DO UPDATE SET
         network = EXCLUDED.network,
@@ -347,7 +377,7 @@ export async function upsertFlashnetPools(
         current_price_a_in_b = EXCLUDED.current_price_a_in_b,
         lp_fee_bps = EXCLUDED.lp_fee_bps,
         host_fee_bps = EXCLUDED.host_fee_bps,
-        created_at = EXCLUDED.created_at,
+        created_at = COALESCE(EXCLUDED.created_at, flashnet_pools.created_at, NOW()),
         updated_at = EXCLUDED.updated_at,
         last_synced_at = NOW()
       RETURNING (xmax = 0) AS inserted
@@ -795,21 +825,7 @@ export async function fetchFlashnetTokenMetadata(
         t.tokenTicker === 'UTXO' || t.tokenName === 'UTXO'
       )
       
-      console.log('[Flashnet] Raw SDK response - ALL FIELDS:', {
-        count: response.tokenMetadata.length,
-        firstToken: {
-          ...firstToken,
-          tokenIdentifier: firstToken?.tokenIdentifier ? 
-            Buffer.from(firstToken.tokenIdentifier).toString('hex') : null,
-          allFields: Object.keys(firstToken || {}),
-        },
-        utxoToken: utxoToken ? {
-          ...utxoToken,
-          tokenIdentifier: utxoToken?.tokenIdentifier ? 
-            Buffer.from(utxoToken.tokenIdentifier).toString('hex') : null,
-          allFields: Object.keys(utxoToken || {}),
-        } : null,
-      })
+ 
     }
 
     const records =
