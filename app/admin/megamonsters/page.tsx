@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save, Sparkles, Plus, Zap, Upload } from 'lucide-react'
@@ -45,7 +45,7 @@ export default function MegaMonstersAdminPage() {
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const [generatingFullBody, setGeneratingFullBody] = useState<string | null>(null)
   const [uploadingFullBody, setUploadingFullBody] = useState<string | null>(null)
-  const [fileInputs, setFileInputs] = useState<Map<string, HTMLInputElement | null>>(new Map())
+  const fileInputsRef = useRef<Map<string, HTMLInputElement>>(new Map())
   const [regenerateComparison, setRegenerateComparison] = useState<{
     recordId: string
     originalImageUrl: string
@@ -741,14 +741,16 @@ export default function MegaMonstersAdminPage() {
                                     id={`fullbody-upload-${monster.id}`}
                                     onChange={(e) => handleFileInputChange(monster, e)}
                                     ref={(el) => {
-                                      const map = new Map(fileInputs)
-                                      map.set(monster.id, el)
-                                      setFileInputs(map)
+                                      if (el) {
+                                        fileInputsRef.current.set(monster.id, el)
+                                      } else {
+                                        fileInputsRef.current.delete(monster.id)
+                                      }
                                     }}
                                   />
                                   <Button
                                     onClick={() => {
-                                      const input = fileInputs.get(monster.id)
+                                      const input = fileInputsRef.current.get(monster.id)
                                       if (input) {
                                         input.click()
                                       }
