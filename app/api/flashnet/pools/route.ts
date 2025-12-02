@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const search = url.searchParams.get('search')?.trim() ?? ''
     const limitParam = url.searchParams.get('limit')
     const offsetParam = url.searchParams.get('offset')
-    const sortBy = url.searchParams.get('sortBy') as 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee' | null
+    const sortBy = url.searchParams.get('sortBy') as 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee' | 'created_at' | null
     const sortDirection = (url.searchParams.get('sortDirection') as 'asc' | 'desc') || 'desc'
 
     let limit = Number(limitParam ?? (search ? 5 : 25))
@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
     // This is much faster and can handle hundreds of concurrent requests
     const [rawPools, dbTotal] = await Promise.all([
       listFlashnetPools({ limit, offset, sortBy: sortBy || undefined, sortDirection }),
-      countFlashnetPools(),
-    ])
+          countFlashnetPools(),
+        ])
 
     // Attach metadata to pools (from database, no SDK calls)
     const pools = await attachStoredMetadataToPools(rawPools)

@@ -431,7 +431,7 @@ For production use with hundreds of concurrent users, we use a **background sync
 
 ```
 ┌─────────────────┐
-│  Vercel Cron    │  Every 5 minutes
+│  Vercel Cron    │  Every 15 minutes
 │  (Background)   │
 └────────┬────────┘
          │
@@ -482,7 +482,13 @@ For production use with hundreds of concurrent users, we use a **background sync
 
 ### Cron Job Details
 
-**Schedule**: Every 5 minutes (`*/5 * * * *`)
+**Schedule**: Every 15 minutes (`*/15 * * * *`)
+
+**Why 15 minutes?**
+- Pool data (prices, volume, TVL) changes frequently - 15 min is a good balance
+- Token metadata (names, symbols, supply) rarely changes - no need for frequent updates
+- Reduces API calls and costs while keeping data fresh
+- Users still see updated prices/volume within 15 minutes
 
 **What it does**:
 1. Fetches all pools from SDK (paginated, up to 1000 pools)
@@ -501,6 +507,20 @@ You can manually trigger the sync:
 curl -X GET "https://your-domain.com/api/cron/sync-flashnet-pools" \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
+
+### Update Frequency Considerations
+
+**15 minutes is a good balance because:**
+- **Pool data** (prices, volume, TVL) changes frequently - 15 min keeps it fresh
+- **Token metadata** (names, symbols, supply) rarely changes - no need for frequent updates
+- **Reduces costs** - Fewer API calls = lower costs
+- **Rate limits** - Less likely to hit SDK rate limits
+- **User experience** - 15 min is still very fresh for trading data
+
+**Alternative schedules:**
+- `*/10 * * * *` - Every 10 minutes (more frequent, higher costs)
+- `*/30 * * * *` - Every 30 minutes (less frequent, lower costs)
+- `0 * * * *` - Every hour (too infrequent for trading data)
 
 ### Monitoring
 
@@ -521,5 +541,5 @@ The Spark Tokens page implementation required careful handling of:
 
 The key insight was understanding that after filtering, pools are TOKEN/BTC pairs where Asset A is the token we want to display, not Asset B (Bitcoin). This fundamental understanding fixed the display issues and allowed proper metadata handling.
 
-The professional setup ensures the page can scale to hundreds of users by serving from a database that's kept fresh by background cron jobs, rather than hitting the SDK on every request.
+The professional setup ensures the page can scale to hundreds of users by serving from a database that's kept fresh by background cron jobs (every 15 minutes), rather than hitting the SDK on every request. This balances data freshness with API costs and rate limits.
 

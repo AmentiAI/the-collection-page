@@ -7,6 +7,7 @@ import {
   normalizePool,
   type FlashnetPoolRecord,
 } from '@/lib/flashnet'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,18 +114,56 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Flashnet Sync] Upserting ${normalizedPools.length} pools to database...`)
     
-    // Upsert to database
+    // Upsert to database (updates fast-changing fields: prices, volume, TVL, reserves)
     const result = await upsertFlashnetPools(normalizedPools)
 
-    console.log(`[Flashnet Sync] Enriching pools with metadata...`)
+    // Metadata enrichment: Only run every 15 minutes (metadata changes rarely)
+    // This reduces API calls while keeping trading data fresh every minute
+    const METADATA_SYNC_INTERVAL = 15 * 60 * 1000 // 15 minutes in milliseconds
+    const db = getPool()
     
-    // Enrich with metadata (this will also fetch and store metadata)
+    // Check last metadata sync time from database
+    let shouldSyncMetadata = false
     try {
-      await enrichPoolsWithMetadata(client, result.records)
-      console.log(`[Flashnet Sync] Metadata enrichment complete`)
+      const lastSyncResult = await db.query<{ last_metadata_sync: Date | null }>(
+        `SELECT last_metadata_sync FROM flashnet_sync_state LIMIT 1`
+      )
+      const lastSync = lastSyncResult.rows[0]?.last_metadata_sync
+      
+      if (!lastSync) {
+        shouldSyncMetadata = true
+      } else {
+        const timeSinceLastSync = Date.now() - new Date(lastSync).getTime()
+        shouldSyncMetadata = timeSinceLastSync >= METADATA_SYNC_INTERVAL
+      }
     } catch (error) {
-      console.warn('[Flashnet Sync] Metadata enrichment failed:', error)
-      // Continue even if metadata enrichment fails
+      // Table might not exist yet, create it and sync metadata
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS flashnet_sync_state (
+          id INTEGER PRIMARY KEY DEFAULT 1,
+          last_metadata_sync TIMESTAMPTZ,
+          CONSTRAINT single_row CHECK (id = 1)
+        )
+      `)
+      shouldSyncMetadata = true
+    }
+    
+    if (shouldSyncMetadata) {
+      console.log(`[Flashnet Sync] Enriching pools with metadata (runs every 15 min)...`)
+      try {
+        await enrichPoolsWithMetadata(client, result.records)
+        await db.query(`
+          INSERT INTO flashnet_sync_state (id, last_metadata_sync)
+          VALUES (1, NOW())
+          ON CONFLICT (id) DO UPDATE SET last_metadata_sync = NOW()
+        `)
+        console.log(`[Flashnet Sync] Metadata enrichment complete`)
+      } catch (error) {
+        console.warn('[Flashnet Sync] Metadata enrichment failed:', error)
+        // Continue even if metadata enrichment fails
+      }
+    } else {
+      console.log(`[Flashnet Sync] Skipping metadata sync (only updates every 15 min, trading data updated every 1 min)`)
     }
 
     const duration = Date.now() - startTime

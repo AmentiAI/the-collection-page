@@ -23,6 +23,7 @@ interface FlashnetPool {
   price_change_percent_24h: number | null
   lp_fee_bps: number | null
   host_fee_bps: number | null
+  created_at: string | null
   asset_a_metadata: {
     icon_url: string | null
     ticker: string | null
@@ -45,7 +46,7 @@ interface FlashnetPool {
   } | null
 }
 
-type SortColumn = 'pair' | 'token' | 'price' | 'mc' | 'liquidity' | 'supply' | 'holders' | 'volume' | 'change' | 'lpFee' | 'hostFee'
+type SortColumn = 'pair' | 'token' | 'price' | 'mc' | 'liquidity' | 'supply' | 'holders' | 'volume' | 'change' | 'lpFee' | 'hostFee' | 'created'
 type SortDirection = 'asc' | 'desc' | null
 
 export default function SparkPage() {
@@ -58,18 +59,27 @@ export default function SparkPage() {
   const [metadataFetchPending, setMetadataFetchPending] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const [hideLowCap, setHideLowCap] = useState(true) // Pre-selected: hide market caps below $4000
   const limit = 20
 
   useEffect(() => {
     fetchPools()
     fetchBtcPrice()
-    // Refresh every 60 seconds
+    // Refresh every 30 seconds when page is visible (for trading data freshness)
+    // Only poll when tab is active to save resources
     const interval = setInterval(() => {
-      fetchPools()
-      fetchBtcPrice()
-    }, 60000)
+      if (document.visibilityState === 'visible') {
+        fetchPools()
+        fetchBtcPrice()
+      }
+    }, 30000) // 30 seconds - balances freshness with API costs
     return () => clearInterval(interval)
-  }, [page, sortColumn, sortDirection])
+  }, [page, sortColumn, sortDirection, hideLowCap])
+
+  // Reset to page 0 when sorting or filter changes
+  useEffect(() => {
+    setPage(0)
+  }, [sortColumn, sortDirection, hideLowCap])
 
   const fetchBtcPrice = async () => {
     try {
@@ -142,15 +152,16 @@ export default function SparkPage() {
   const fetchPools = async () => {
     try {
       setLoading(true)
-      // When sorting, fetch ALL pools to sort across complete dataset
-      // Otherwise, use pagination
-      const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee']
+      // When sorting client-side (market cap, price, etc), fetch ALL pools to sort across complete dataset
+      // For server-side sorting, let the server handle it with pagination
+      const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee', 'created']
       const isServerSortable = sortColumn && serverSortableColumns.includes(sortColumn)
       const isSorting = sortColumn && sortDirection
       
-      // If sorting, fetch all pools (up to 200 limit). Otherwise use pagination
-      const fetchLimit = isSorting ? 200 : limit
-      const fetchOffset = isSorting ? 0 : (page * limit)
+      // If client-side sorting, fetch all pools (up to 200 limit). Otherwise use pagination
+      // Server-side sorting can use pagination since server handles the sort
+      const fetchLimit = (isSorting && !isServerSortable) ? 200 : limit
+      const fetchOffset = (isSorting && !isServerSortable) ? 0 : (page * limit)
       
       // Build query params - include sort params for server-side sorting of basic fields
       const params = new URLSearchParams({
@@ -172,6 +183,9 @@ export default function SparkPage() {
         } else if (sortColumn === 'hostFee') {
           params.set('sortBy', 'host_fee')
           params.set('sortDirection', sortDirection)
+        } else if (sortColumn === 'created') {
+          params.set('sortBy', 'created_at')
+          params.set('sortDirection', sortDirection)
         }
       }
       
@@ -180,8 +194,12 @@ export default function SparkPage() {
       
       const data = await response.json()
       if (data.success) {
-        // Debug: log all pools to see what data we're getting
-        console.log('[Spark] Fetched pools:', data.pools?.length || 0)
+        // Debug: log API response
+        console.log('[Spark] API Response:', {
+          poolsCount: data.pools?.length || 0,
+          total: data.total,
+          count: data.count,
+        })
         data.pools?.forEach((pool: FlashnetPool, idx: number) => {
           const poolName = getPoolName(pool)
           if (poolName.includes('SOON') || idx < 3) {
@@ -214,7 +232,15 @@ export default function SparkPage() {
           return true
         })
         setPools(filteredPools)
-        setTotal(filteredPools.length)
+        // Use API total from database (data.total) - this is the total count from DB
+        // When sorting, we fetch all pools so filteredPools.length is accurate
+        // When paginating, we use data.total from API (database count)
+        if (data.total !== undefined && data.total !== null) {
+          setTotal(data.total)
+        } else {
+          // Fallback: if API doesn't return total, use filtered count
+          setTotal(filteredPools.length)
+        }
         
         // Fetch missing metadata for tokens without max_supply (batch request with debounce)
         const tokensToFetch = new Set<string>()
@@ -268,6 +294,29 @@ export default function SparkPage() {
     if (isNaN(num) || !isFinite(num)) return 'N/A'
     const sign = num >= 0 ? '+' : ''
     return `${sign}${num.toFixed(2)}%`
+  }
+
+  // Calculate minutes since creation
+  const getMinutesSinceCreation = (createdAt: string | null): number | null => {
+    if (!createdAt) return null
+    const created = new Date(createdAt)
+    if (isNaN(created.getTime())) return null
+    const now = new Date()
+    const diffMs = now.getTime() - created.getTime()
+    return Math.floor(diffMs / (1000 * 60)) // Convert to minutes
+  }
+
+  // Format minutes since creation for display
+  const formatMinutesAgo = (minutes: number | null): string => {
+    if (minutes === null) return 'N/A'
+    if (minutes < 1) return '<1m'
+    if (minutes < 60) return `${minutes}m`
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    if (hours < 24) return `${hours}h ${mins}m`
+    const days = Math.floor(hours / 24)
+    const hrs = hours % 24
+    return `${days}d ${hrs}h`
   }
 
   const getTokenSymbol = (pool: FlashnetPool, side: 'a' | 'b') => {
@@ -661,10 +710,19 @@ export default function SparkPage() {
     return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />
   }
 
-  // For server-sortable columns (volume, change, lpFee, hostFee), pools are already sorted
+  // Filter pools by market cap if hideLowCap is enabled
+  const MIN_MARKET_CAP = 4000
+  const filteredByCap = hideLowCap 
+    ? pools.filter((pool) => {
+        const marketCap = getMarketCap(pool, 'a')
+        return marketCap !== null && marketCap >= MIN_MARKET_CAP
+      })
+    : pools
+
+  // For server-sortable columns (volume, change, lpFee, hostFee, created), pools are already sorted
   // For client-sortable columns (pair, token, price, mc, liquidity, supply, holders), sort locally
-  const sortedPools = [...pools]
-  const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee']
+  const sortedPools = [...filteredByCap]
+  const serverSortableColumns: SortColumn[] = ['volume', 'change', 'lpFee', 'hostFee', 'created']
   const needsClientSort = sortColumn && sortDirection && !serverSortableColumns.includes(sortColumn)
   
   if (needsClientSort) {
@@ -737,6 +795,13 @@ export default function SparkPage() {
           aValue = a.host_fee_bps ?? 0
           bValue = b.host_fee_bps ?? 0
           break
+        case 'created':
+          // Sort by creation date (newest first by default)
+          const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0
+          const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0
+          aValue = aCreated
+          bValue = bCreated
+          break
       }
 
       if (aValue === null || aValue === undefined) return 1
@@ -754,11 +819,14 @@ export default function SparkPage() {
     })
   }
 
-  // Calculate total pages based on whether we're sorting (all pools) or paginating
+  // Calculate total pages - always paginate the sorted/filtered results
   const isSorting = sortColumn && sortDirection
-  const totalPages = isSorting 
-    ? Math.ceil(pools.length / limit) // When sorting, we have all pools in state
-    : Math.ceil(total / limit) // When paginating, use total from API
+  // Use filtered/sorted pool count for pagination
+  const displayablePools = sortedPools.length
+  const totalPages = Math.ceil(displayablePools / limit)
+  
+  // Paginate the sorted/filtered pools
+  const paginatedPools = sortedPools.slice(page * limit, (page + 1) * limit)
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -786,7 +854,7 @@ export default function SparkPage() {
           {loading && (
             <p className="text-gray-500 text-sm mb-6">
               Loading tokens...
-            </p>
+          </p>
           )}
           
           {/* Bitcoin Price Display */}
@@ -803,6 +871,7 @@ export default function SparkPage() {
         {loading && pools.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-12 w-12 animate-spin text-yellow-500" />
+            <span className="ml-4 text-gray-400">Loading pools from database...</span>
           </div>
         ) : pools.length === 0 ? (
           <div className="text-center py-20">
@@ -810,19 +879,25 @@ export default function SparkPage() {
           </div>
         ) : (
           <>
+            {/* Filter Controls */}
+            <div className="mb-4 flex items-center justify-end gap-4">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={hideLowCap}
+                  onChange={(e) => setHideLowCap(e.target.checked)}
+                  className="w-4 h-4 text-yellow-500 bg-black border-yellow-500/50 rounded focus:ring-yellow-500 focus:ring-2 cursor-pointer"
+                />
+                <span className="text-gray-300 text-sm font-medium group-hover:text-yellow-400 transition-colors">
+                  Hide low cap (&lt; $4,000)
+                </span>
+              </label>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b-2 border-yellow-500/50">
-                    <th 
-                      className="text-left py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
-                      onClick={() => handleSort('pair')}
-                    >
-                      <div className="flex items-center">
-                        Pair
-                        {getSortIcon('pair')}
-                      </div>
-                    </th>
                     <th 
                       className="text-left py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
                       onClick={() => handleSort('token')}
@@ -913,10 +988,19 @@ export default function SparkPage() {
                         {getSortIcon('hostFee')}
                       </div>
                     </th>
+                    <th 
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      onClick={() => handleSort('created')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Created
+                        {getSortIcon('created')}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPools.map((pool) => {
+                  {paginatedPools.map((pool) => {
                     const poolName = getPoolName(pool)
                     const iconA = getTokenIcon(pool, 'a')
                     const iconB = getTokenIcon(pool, 'b')
@@ -1026,35 +1110,6 @@ export default function SparkPage() {
                         key={pool.lp_public_key}
                         className="border-b border-yellow-500/20 hover:bg-black/40 transition-colors"
                       >
-                        {/* Pair */}
-                        <td className="py-1.5 px-3">
-                          <div className="flex items-center gap-2">
-                            {iconA && (
-                              <div className="relative w-5 h-5 rounded-full overflow-hidden border border-yellow-500/50 flex-shrink-0">
-                                <Image
-                                  src={iconA}
-                                  alt={getTokenSymbol(pool, 'a') || 'Token A'}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
-                              </div>
-                            )}
-                            {iconB && (
-                              <div className="relative w-5 h-5 rounded-full overflow-hidden border border-yellow-500/50 -ml-2 flex-shrink-0">
-                                <Image
-                                  src={iconB}
-                                  alt={getTokenSymbol(pool, 'b') || 'Token B'}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
-                              </div>
-                            )}
-                            <span className="font-bold text-yellow-400 text-sm">{poolName}</span>
-                          </div>
-                        </td>
-
                         {/* Token Name */}
                         <td className="py-1.5 px-3">
                           {(() => {
@@ -1181,6 +1236,16 @@ export default function SparkPage() {
                             {pool.host_fee_bps !== null ? `${pool.host_fee_bps} bps` : 'N/A'}
                           </span>
                         </td>
+
+                        {/* Created */}
+                        <td className="py-1.5 px-3 text-right">
+                          <span className="text-gray-400 text-xs" title={pool.created_at ? new Date(pool.created_at).toLocaleString() : 'Unknown'}>
+                            {(() => {
+                              const minutes = getMinutesSinceCreation(pool.created_at)
+                              return minutes !== null ? formatMinutesAgo(minutes) : 'N/A'
+                            })()}
+                          </span>
+                        </td>
                       </tr>
                     )
                   })}
@@ -1188,38 +1253,41 @@ export default function SparkPage() {
               </table>
             </div>
 
-            {/* Pagination */}
-            {!isSorting && totalPages > 1 && (
+            {/* Pagination - Always show, works with both sorted and unsorted data */}
+            {displayablePools > 0 && (
               <div className="flex items-center justify-center gap-4 mt-8">
-                <button
-                  onClick={() => setPage(Math.max(0, page - 1))}
-                  disabled={page === 0 || loading}
-                  className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
+                {totalPages > 1 && (
+                  <button
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    disabled={page === 0 || loading}
+                    className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                )}
                 <span className="text-gray-400 text-sm">
-                  Page <span className="text-yellow-500 font-semibold">{page + 1}</span> of <span className="text-yellow-500 font-semibold">{totalPages}</span>
-                  {total > 0 && (
-                    <span className="ml-2 text-gray-500">
-                      ({total} {total === 1 ? 'token' : 'tokens'} total)
-                    </span>
+                  {totalPages > 1 ? (
+                    <>
+                      Page <span className="text-yellow-500 font-semibold">{page + 1}</span> of <span className="text-yellow-500 font-semibold">{totalPages}</span>
+                      <span className="ml-2 text-gray-500">
+                        ({displayablePools} {displayablePools === 1 ? 'token' : 'tokens'} {isSorting ? 'sorted' : 'total'})
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-yellow-500 font-semibold">{displayablePools}</span> {displayablePools === 1 ? 'token' : 'tokens'} {isSorting ? 'sorted' : 'total'}
+                    </>
                   )}
                 </span>
-                <button
-                  onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                  disabled={page >= totalPages - 1 || loading}
-                  className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-            {isSorting && pools.length > limit && (
-              <div className="flex items-center justify-center mt-4">
-                <span className="text-gray-400 text-sm">
-                  Showing <span className="text-yellow-500 font-semibold">{Math.min(limit, pools.length)}</span> of <span className="text-yellow-500 font-semibold">{pools.length}</span> tokens (sorted)
-                </span>
+                {totalPages > 1 && (
+                  <button
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                    disabled={page >= totalPages - 1 || loading}
+                    className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                )}
               </div>
             )}
           </>

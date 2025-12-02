@@ -406,7 +406,7 @@ export async function listFlashnetPools({
 }: {
   limit?: number
   offset?: number
-  sortBy?: 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee'
+  sortBy?: 'tvl' | 'volume' | 'price_change' | 'lp_fee' | 'host_fee' | 'created_at'
   sortDirection?: 'asc' | 'desc'
 } = {}): Promise<FlashnetPoolRecord[]> {
   const db = getPool()
@@ -430,6 +430,9 @@ export async function listFlashnetPools({
         break
       case 'host_fee':
         orderBy = `COALESCE(host_fee_bps, 0) ${direction}`
+        break
+      case 'created_at':
+        orderBy = `COALESCE(created_at, '1970-01-01'::timestamptz) ${direction}`
         break
     }
   }
@@ -852,7 +855,7 @@ export async function fetchFlashnetTokenMetadata(
   } catch (error) {
     console.warn('[Flashnet] token metadata fetch failed:', error instanceof Error ? error.message : error)
     return []
-  }
+    }
   // Don't close the client - let the connection manager handle it
   // Closing it causes "Channel has been shut down" errors
 }
