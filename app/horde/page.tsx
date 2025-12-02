@@ -73,36 +73,38 @@ export default function HordePage() {
             {monsters.map((monster) => (
               <div
                 key={monster.id}
-                className="relative bg-black/60 border-2 border-red-500/50 rounded-lg overflow-hidden hover:border-red-500 transition-all hover:shadow-[0_0_20px_rgba(220,38,38,0.5)] group"
+                className="relative bg-black/60 border-2 border-red-500/50 rounded-lg overflow-visible hover:border-red-500 transition-all hover:shadow-[0_0_20px_rgba(220,38,38,0.5)] group"
               >
-                {monster.imageUrl ? (
-                  <div className="relative w-full aspect-square bg-black">
-                    <Image
-                      src={monster.imageUrl}
-                      alt={monster.name || monster.prompt}
-                      fill
-                      className="object-cover"
-                      unoptimized={monster.imageUrl.startsWith('data:')}
-                    />
-                    {/* Full body image on hover */}
-                    {monster.fullBodyImageUrl && (
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
-                        <div className="absolute right-0 top-0 w-64 h-96 bg-black/95 border-2 border-red-500/80 rounded-lg p-2 shadow-2xl transform translate-x-4">
-                          <Image
-                            src={monster.fullBodyImageUrl}
-                            alt={`${monster.name || 'Monster'} - Full Body`}
-                            width={256}
-                            height={384}
-                            className="w-full h-full object-contain"
-                            unoptimized
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full aspect-square bg-gray-900 flex items-center justify-center">
-                    <Skull className="h-16 w-16 text-gray-600" />
+                <div className="overflow-hidden rounded-t-lg">
+                  {monster.imageUrl ? (
+                    <div className="relative w-full aspect-square bg-black">
+                      <Image
+                        src={monster.imageUrl}
+                        alt={monster.name || monster.prompt}
+                        fill
+                        className="object-cover"
+                        unoptimized={monster.imageUrl.startsWith('data:')}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-square bg-gray-900 flex items-center justify-center">
+                      <Skull className="h-16 w-16 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+                {/* Full body image on hover - positioned outside the card */}
+                {monster.fullBodyImageUrl && (
+                  <div className="absolute left-full top-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 w-64 h-96">
+                    <div className="bg-black/95 border-2 border-red-500/80 rounded-lg p-2 shadow-2xl w-full h-full">
+                      <Image
+                        src={monster.fullBodyImageUrl}
+                        alt={`${monster.name || 'Monster'} - Full Body`}
+                        width={256}
+                        height={384}
+                        className="w-full h-full object-contain"
+                        unoptimized
+                      />
+                    </div>
                   </div>
                 )}
                 

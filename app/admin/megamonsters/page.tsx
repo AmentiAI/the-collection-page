@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save, Sparkles, Plus, Zap } from 'lucide-react'
+import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save, Sparkles, Plus, Zap, Upload } from 'lucide-react'
 
 type MegaMonster = {
   id: string
@@ -43,6 +43,8 @@ export default function MegaMonstersAdminPage() {
   const [generating, setGenerating] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const [generatingFullBody, setGeneratingFullBody] = useState<string | null>(null)
+  const [uploadingFullBody, setUploadingFullBody] = useState<string | null>(null)
+  const [fileInputs, setFileInputs] = useState<Map<string, HTMLInputElement | null>>(new Map())
   const [regenerateComparison, setRegenerateComparison] = useState<{
     recordId: string
     originalImageUrl: string
@@ -255,6 +257,48 @@ export default function MegaMonstersAdminPage() {
       setGeneratingFullBody(null)
     }
   }, [generatingFullBody, currentPage, loadMonsters])
+
+  const handleUploadFullBody = useCallback(async (record: MegaMonster, file: File) => {
+    if (uploadingFullBody) return
+
+    setUploadingFullBody(record.id)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(
+        `/api/admin/megamonsters/${record.id}/upload-fullbody`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to upload full body image')
+      }
+
+      // Reload to show the new full body image
+      await loadMonsters(currentPage)
+      alert('Full body image uploaded successfully!')
+    } catch (error) {
+      console.error('Failed to upload full body:', error)
+      alert(error instanceof Error ? error.message : 'Failed to upload full body image')
+    } finally {
+      setUploadingFullBody(null)
+    }
+  }, [uploadingFullBody, currentPage, loadMonsters])
+
+  const handleFileInputChange = useCallback((record: MegaMonster, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      handleUploadFullBody(record, file)
+    }
+    // Reset input
+    event.target.value = ''
+  }, [handleUploadFullBody])
 
   const handleRegenerate = useCallback(async (record: MegaMonster) => {
     if (regenerating || !record.prompt) {
@@ -663,18 +707,37 @@ export default function MegaMonstersAdminPage() {
                                     <Sparkles className="h-4 w-4" />
                                   )}
                                 </Button>
-                                <Button
-                                  onClick={() => handleGenerateFullBody(monster)}
-                                  disabled={generatingFullBody === monster.id || !monster.prompt}
-                                  className="text-orange-400 hover:text-orange-300 text-sm px-3 py-1.5 bg-transparent hover:bg-orange-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title={!monster.prompt ? 'No generation prompt available' : 'Generate full body image'}
-                                >
-                                  {generatingFullBody === monster.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <span className="text-xs">Full Body</span>
-                                  )}
-                                </Button>
+                                <div className="relative">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    id={`fullbody-upload-${monster.id}`}
+                                    onChange={(e) => handleFileInputChange(monster, e)}
+                                    ref={(el) => {
+                                      const map = new Map(fileInputs)
+                                      map.set(monster.id, el)
+                                      setFileInputs(map)
+                                    }}
+                                  />
+                                  <Button
+                                    onClick={() => {
+                                      const input = fileInputs.get(monster.id)
+                                      if (input) {
+                                        input.click()
+                                      }
+                                    }}
+                                    disabled={uploadingFullBody === monster.id}
+                                    className="text-orange-400 hover:text-orange-300 text-sm px-3 py-1.5 bg-transparent hover:bg-orange-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Upload full body image"
+                                  >
+                                    {uploadingFullBody === monster.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
                               </>
                             )}
                             <Button
