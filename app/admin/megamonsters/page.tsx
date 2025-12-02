@@ -445,6 +445,7 @@ export default function MegaMonstersAdminPage() {
                       commit_txid: '',
                       broadcast_txid: '',
                       prompt: '',
+                      name: '',
                     })
                   }}
                   className="bg-transparent border border-cyan-500/30 text-cyan-300 px-6 py-2 rounded-lg hover:bg-cyan-900/30"
