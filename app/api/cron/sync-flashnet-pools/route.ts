@@ -21,38 +21,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: st
   ])
 }
 
-// Verify cron secret for security
-function verifyCronSecret(request: NextRequest): boolean {
-  // Check if this is a Vercel cron job (Vercel sends x-vercel-cron header)
-  const vercelCron = request.headers.get('x-vercel-cron')
-  if (vercelCron === '1') {
-    return true // Allow Vercel cron jobs
-  }
-  
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  
-  // If no secret is set, allow in development
-  if (!cronSecret) {
-    return process.env.NODE_ENV === 'development'
-  }
-  
-  // If secret is set, require matching authorization header
-  if (authHeader && authHeader === `Bearer ${cronSecret}`) {
-    return true
-  }
-  
-  return false
-}
-
 export async function GET(request: NextRequest) {
-  // Verify cron secret
-  if (!verifyCronSecret(request)) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
 
   const startTime = Date.now()
   const MAX_EXECUTION_TIME = 4 * 60 * 1000 // 4 minutes max (Vercel has 5 min limit for serverless)
