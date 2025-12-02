@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
         console.log(`[Flashnet Sync] Fetching pools at offset ${offset}...`)
         const sdkResponse = await withTimeout(
           client.listPools({
-            limit: PAGE_SIZE,
-            offset,
-            sort: 'TVL_DESC',
+          limit: PAGE_SIZE,
+          offset,
+          sort: 'TVL_DESC',
           }),
           20000, // 20 second timeout per SDK call
           `SDK listPools call at offset ${offset}`
@@ -152,10 +152,10 @@ export async function GET(request: NextRequest) {
     const result = await upsertFlashnetPools(normalizedPools)
     console.log(`[Flashnet Sync] Step 5: Upsert complete - inserted: ${result.inserted}, updated: ${result.updated}`)
 
-    // Metadata enrichment: Only run every 5 minutes for existing pools (metadata changes rarely)
-    // But always enrich newly inserted pools immediately
-    const METADATA_SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes in milliseconds
-    const BTC_PRICE_SYNC_INTERVAL = 2 * 60 * 1000 // 2 minutes in milliseconds (faster updates for market caps)
+    // Metadata enrichment: Only run every 15 minutes (metadata changes rarely)
+    // This reduces API calls while keeping trading data fresh every minute
+    const METADATA_SYNC_INTERVAL = 15 * 60 * 1000 // 15 minutes in milliseconds
+    const BTC_PRICE_SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes in milliseconds
     
     console.log('[Flashnet Sync] Step 6: Setting up sync state table...')
     const db = getPool()
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
         console.warn('[Flashnet Sync] Failed to fetch BTC price:', error)
       }
     } else {
-      console.log('[Flashnet Sync] Skipping BTC price update (price is less than 2 minutes old)')
+      console.log('[Flashnet Sync] Skipping BTC price update (price is less than 5 minutes old)')
     }
     
     // Check last metadata sync time from database
@@ -257,34 +257,93 @@ export async function GET(request: NextRequest) {
       shouldSyncMetadata = true
     }
     
-    console.log('[Flashnet Sync] Step 7: Enriching metadata...')
+    console.log('[Flashnet Sync] Step 7: Checking metadata sync...')
     
-    // Always enrich all pools that were just synced
-    // The enrichPoolsWithMetadata function is smart - it only fetches metadata for tokens that don't have it yet
-    // This means it's safe to call it every time, and it will efficiently handle new vs existing tokens
-    if (result.records.length > 0) {
-      const syncType = shouldSyncMetadata 
-        ? 'full sync (every 5 min)' 
-        : result.inserted > 0 
-          ? `new pools detected (${result.inserted} newly inserted, enriching all ${result.records.length} pools)` 
-          : 'incremental sync (checking for missing metadata)'
-      console.log(`[Flashnet Sync] Enriching ${result.records.length} pools with metadata (${syncType})...`)
+    // Always check for pools with missing token names and retry metadata for them
+    console.log('[Flashnet Sync] Checking for pools with missing token names...')
+    let poolsNeedingMetadata: FlashnetPoolRecord[] = []
+    try {
+      // Find pools where asset_a_address doesn't have metadata with a name/ticker
+      const missingMetadataResult = await db.query<{
+        lp_public_key: string
+        asset_a_address: string
+        asset_b_address: string
+        network: string | null
+        host_name: string | null
+        host_namespace: string | null
+        curve_type: string | null
+        asset_a_name: string | null
+        asset_b_name: string | null
+        asset_a_symbol: string | null
+        asset_b_symbol: string | null
+        asset_a_decimals: number | null
+        asset_b_decimals: number | null
+        asset_a_reserve: number | null
+        asset_b_reserve: number | null
+        tvl_asset_b: number | null
+        volume_24h_asset_b: number | null
+        price_change_percent_24h: number | null
+        current_price_a_in_b: number | null
+        lp_fee_bps: number | null
+        host_fee_bps: number | null
+        created_at: string | null
+        updated_at: string | null
+      }>(
+        `
+          SELECT DISTINCT p.lp_public_key, p.asset_a_address, p.asset_b_address,
+                 p.network, p.host_name, p.host_namespace, p.curve_type,
+                 p.asset_a_name, p.asset_b_name, p.asset_a_symbol, p.asset_b_symbol,
+                 p.asset_a_decimals, p.asset_b_decimals, p.asset_a_reserve, p.asset_b_reserve,
+                 p.tvl_asset_b, p.volume_24h_asset_b, p.price_change_percent_24h,
+                 p.current_price_a_in_b, p.lp_fee_bps, p.host_fee_bps,
+                 p.created_at, p.updated_at
+          FROM flashnet_pools p
+          LEFT JOIN flashnet_token_metadata tm ON (
+            LOWER(tm.token_identifier) = LOWER(p.asset_a_address) 
+            OR LOWER(tm.token_address) = LOWER(p.asset_a_address)
+          )
+          WHERE p.asset_a_address IS NOT NULL
+            AND p.asset_a_address != '020202020202020202020202020202020202020202020202020202020202020202'
+            AND (tm.name IS NULL OR tm.name = '' OR tm.ticker IS NULL OR tm.ticker = '')
+          LIMIT 50
+        `
+      )
+      poolsNeedingMetadata = missingMetadataResult.rows as FlashnetPoolRecord[]
+      if (poolsNeedingMetadata.length > 0) {
+        console.log(`[Flashnet Sync] Found ${poolsNeedingMetadata.length} pools with missing/null token names, will retry metadata fetch`)
+      }
+    } catch (error) {
+      console.warn('[Flashnet Sync] Error checking for pools with missing metadata:', error)
+    }
+    
+    if (shouldSyncMetadata) {
+      console.log(`[Flashnet Sync] Enriching pools with metadata (runs every 15 min)...`)
       try {
         await enrichPoolsWithMetadata(client, result.records)
-        if (shouldSyncMetadata) {
-          await db.query(`
-            INSERT INTO flashnet_sync_state (id, last_metadata_sync)
-            VALUES (1, NOW())
-            ON CONFLICT (id) DO UPDATE SET last_metadata_sync = NOW()
-          `)
-        }
+        await db.query(`
+          INSERT INTO flashnet_sync_state (id, last_metadata_sync)
+          VALUES (1, NOW())
+          ON CONFLICT (id) DO UPDATE SET last_metadata_sync = NOW()
+        `)
         console.log(`[Flashnet Sync] Metadata enrichment complete`)
       } catch (error) {
         console.warn('[Flashnet Sync] Metadata enrichment failed:', error)
         // Continue even if metadata enrichment fails
       }
     } else {
-      console.log(`[Flashnet Sync] No pools to enrich`)
+      console.log(`[Flashnet Sync] Skipping full metadata sync (only updates every 15 min, trading data updated every 1 min)`)
+    }
+    
+    // Always retry metadata for pools with missing names (even if full sync was skipped)
+    if (poolsNeedingMetadata.length > 0) {
+      console.log(`[Flashnet Sync] Retrying metadata fetch for ${poolsNeedingMetadata.length} pools with missing names...`)
+      try {
+        await enrichPoolsWithMetadata(client, poolsNeedingMetadata)
+        console.log(`[Flashnet Sync] Metadata retry complete for pools with missing names`)
+      } catch (error) {
+        console.warn('[Flashnet Sync] Metadata retry failed for pools with missing names:', error)
+        // Continue even if retry fails
+      }
     }
 
     const duration = Date.now() - startTime

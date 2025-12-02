@@ -13,30 +13,20 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    // Handle both { tokens: [...] } and direct array [...]
-    const tokens = Array.isArray(body.tokens) 
-      ? body.tokens 
-      : Array.isArray(body)
-      ? body
-      : []
+    const tokens = Array.isArray(body.tokens) ? body.tokens : []
 
     if (!tokens.length) {
-      console.warn('[Flashnet Token Metadata] No tokens provided in request body:', body)
       return NextResponse.json(
         { success: false, error: 'tokens array is required' },
         { status: 400 }
       )
     }
 
-    console.log(`[Flashnet Token Metadata] Processing ${tokens.length} tokens`)
-
     // Limit batch size to prevent overload
     const limitedTokens = tokens.slice(0, 50)
     
     // First check database for all tokens
     const existing = await listFlashnetTokenMetadata(limitedTokens)
-    console.log(`[Flashnet Token Metadata] Found ${existing.length} existing metadata records in database`)
-    
     const existingMap = new Map(existing.map(m => [m.token_identifier.toLowerCase(), m]))
     const existingByAddress = new Map(existing.filter(m => m.token_address).map(m => [m.token_address!.toLowerCase(), m]))
     
@@ -48,34 +38,27 @@ export async function POST(request: NextRequest) {
       const lowerToken = token.toLowerCase()
       const existingMeta = existingMap.get(lowerToken) || existingByAddress.get(lowerToken)
       
-      if (existingMeta) {
-        // Always return existing metadata, even if max_supply is missing
+      if (existingMeta?.max_supply) {
         results[token] = existingMeta
-        // Only fetch if max_supply is missing
-        if (!existingMeta.max_supply) {
-          tokensToFetch.push(token)
-        }
       } else {
-        // Token not in database, needs fetching
         tokensToFetch.push(token)
+        // Return existing metadata even without max_supply
+        if (existingMeta) {
+          results[token] = existingMeta
+        }
       }
     }
-    
-    console.log(`[Flashnet Token Metadata] ${tokensToFetch.length} tokens need fetching, ${Object.keys(results).length} found in database`)
 
     // Fetch missing tokens in batches
     if (tokensToFetch.length > 0) {
       try {
-        console.log(`[Flashnet Token Metadata] Fetching ${tokensToFetch.length} tokens from SDK...`)
         const client = await getFlashnetClient()
         // Fetch in chunks to avoid overwhelming the connection
         const chunks = chunkArray(tokensToFetch, 10)
         
         for (const chunk of chunks) {
           try {
-            console.log(`[Flashnet Token Metadata] Fetching chunk of ${chunk.length} tokens...`)
             const fetched = await fetchFlashnetTokenMetadata(client, chunk)
-            console.log(`[Flashnet Token Metadata] Fetched ${fetched.length} metadata records from SDK`)
             
             // Store in database
             if (fetched.length > 0) {
@@ -89,15 +72,6 @@ export async function POST(request: NextRequest) {
                 )
                 if (key) {
                   results[key] = meta
-                } else {
-                  // Try to match by any identifier
-                  const matchedKey = limitedTokens.find((t: string) => 
-                    t.toLowerCase() === meta.token_identifier.toLowerCase() ||
-                    (meta.token_address && t.toLowerCase() === meta.token_address.toLowerCase())
-                  )
-                  if (matchedKey) {
-                    results[matchedKey] = meta
-                  }
                 }
               }
             }
@@ -107,15 +81,13 @@ export async function POST(request: NextRequest) {
               await new Promise(resolve => setTimeout(resolve, 100))
             }
           } catch (error) {
-            console.error('[Flashnet Token Metadata] Batch fetch failed for chunk:', error instanceof Error ? error.message : error, error instanceof Error ? error.stack : '')
+            console.warn('[Flashnet] Batch fetch failed for chunk:', error instanceof Error ? error.message : error)
           }
         }
       } catch (error) {
-        console.error('[Flashnet Token Metadata] Failed to fetch metadata batch:', error instanceof Error ? error.message : error, error instanceof Error ? error.stack : '')
+        console.warn('[Flashnet] Failed to fetch metadata batch:', error instanceof Error ? error.message : error)
       }
     }
-
-    console.log(`[Flashnet Token Metadata] Returning ${Object.keys(results).length} metadata records`)
 
     return NextResponse.json({
       success: true,
