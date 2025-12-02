@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
     console.log('[Flashnet Sync] Step 2: Client obtained')
 
     const PAGE_SIZE = 50 // SDK page size
-    const MAX_POOLS = 500 // Fetch top 500 pools by TVL (increased from 200 to catch more pools)
-    const PARALLEL_BATCH_SIZE = 10 // Fetch 10 pages in parallel at once (500 pools per batch - fetches all in one go!)
+    const MAX_POOLS = 600 // Fetch top 500 pools by TVL (increased from 200 to catch more pools)
+    const PARALLEL_BATCH_SIZE = 6 // Fetch 10 pages in parallel at once (500 pools per batch - fetches all in one go!)
     const TOTAL_BATCHES = Math.ceil(MAX_POOLS / (PAGE_SIZE * PARALLEL_BATCH_SIZE)) // How many parallel batches we need
 
     console.log(`[Flashnet Sync] Step 3: Fetching pools from SDK (up to ${MAX_POOLS} pools, ${PARALLEL_BATCH_SIZE} pages in parallel)...`)
