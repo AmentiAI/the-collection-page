@@ -949,7 +949,169 @@ export default function SparkPage() {
               </label>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {paginatedPools.map((pool) => {
+                const poolName = getPoolName(pool)
+                const iconA = getTokenIcon(pool, 'a')
+                const iconB = getTokenIcon(pool, 'b')
+                const priceChange = pool.price_change_percent_24h
+                const isPositive = priceChange !== null && priceChange >= 0
+                
+                const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+                const isAssetABitcoin = pool.asset_a_address === BTC_PUBKEY || pool.asset_a_address?.toLowerCase() === BTC_PUBKEY.toLowerCase()
+                const assetAMetadataIsBitcoin = pool.asset_a_metadata?.ticker?.toLowerCase() === 'btc' || 
+                                                pool.asset_a_metadata?.name?.toLowerCase() === 'bitcoin' ||
+                                                (pool.asset_a_metadata?.token_identifier?.toLowerCase() ?? '') === BTC_PUBKEY.toLowerCase() ||
+                                                (pool.asset_a_metadata?.token_address?.toLowerCase() ?? '') === BTC_PUBKEY.toLowerCase()
+                const useMetadata = pool.asset_a_metadata && (isAssetABitcoin === assetAMetadataIsBitcoin)
+                const cachedMetadata = pool.asset_a_address 
+                  ? (metadataCache.get(pool.asset_a_address) || metadataCache.get(pool.asset_a_address.toLowerCase()))
+                  : null
+                const maxSupply = useMetadata && pool.asset_a_metadata?.max_supply 
+                  ? pool.asset_a_metadata.max_supply 
+                  : cachedMetadata?.max_supply || null
+                const decimalsA = useMetadata && pool.asset_a_metadata 
+                  ? (pool.asset_a_metadata.decimals ?? pool.asset_a_decimals ?? 8) 
+                  : cachedMetadata?.decimals ?? (pool.asset_a_decimals ?? 8)
+                const decimalsB = pool.asset_b_metadata?.decimals ?? pool.asset_b_decimals ?? 8
+                const tokenASupply = maxSupply
+                  ? maxSupply
+                  : isAssetABitcoin
+                    ? null
+                    : (1_000_000_000 * Math.pow(10, decimalsA)).toString()
+                const tokenPrice = getTokenPrice(pool, 'a')
+                const tokenMarketCap = getMarketCap(pool, 'a')
+                const tokenLiquidity = getLiquidity(pool, 'a')
+                let tokenName = getTokenName(pool, 'a')
+                if (!isAssetABitcoin && assetAMetadataIsBitcoin) {
+                  tokenName = pool.asset_a_name || pool.asset_a_symbol || tokenName
+                }
+                const tokenHolders = useMetadata && pool.asset_a_metadata ? (pool.asset_a_metadata.holders ?? null) : null
+                const isFav = isFavorite(pool.lp_public_key)
+
+                return (
+                  <div
+                    key={pool.lp_public_key}
+                    onClick={() => toggleFavorite(pool.lp_public_key)}
+                    className={`border border-yellow-500/20 rounded-lg p-4 bg-black/40 hover:bg-black/60 transition-colors cursor-pointer ${
+                      isFav ? 'bg-yellow-500/10 border-yellow-500/40' : ''
+                    }`}
+                  >
+                    {/* Header: Token Name and Star */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Star
+                          className={`h-5 w-5 flex-shrink-0 transition-all ${
+                            isFav 
+                              ? 'fill-yellow-500 text-yellow-500' 
+                              : 'text-gray-500'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleFavorite(pool.lp_public_key)
+                          }}
+                        />
+                        {pool.lp_public_key ? (
+                          <a
+                            href={`https://luminex.io/spark/trade/${pool.lp_public_key}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-white font-semibold hover:text-yellow-400 hover:underline transition-colors truncate"
+                            title={`Trade ${tokenName} on Luminex Spark`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {tokenName || 'N/A'}
+                          </a>
+                        ) : (
+                          <span className="text-white font-semibold truncate">{tokenName || 'N/A'}</span>
+                        )}
+                      </div>
+                      {/* 24h Change */}
+                      <div className={`flex items-center gap-1 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                        {isPositive ? (
+                          <TrendingUp className="h-4 w-4" />
+                        ) : (
+                          <TrendingDown className="h-4 w-4" />
+                        )}
+                        <span className="font-bold text-sm">
+                          {formatPercent(priceChange)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-gray-400 text-xs mb-1">Price</div>
+                        <div className="text-white font-mono font-semibold">
+                          {tokenPrice !== null ? `$${formatNumber(tokenPrice)}` : 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs mb-1">Liquidity</div>
+                        <div className="text-white font-semibold">
+                          {tokenLiquidity !== null ? formatCurrency(tokenLiquidity * 2) : 'N/A'}
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-gray-400 text-xs mb-1">Market Cap</div>
+                        {tokenMarketCap !== null ? (() => {
+                          const minCap = 4000
+                          const maxCap = 100000
+                          const fillPercent = tokenMarketCap < minCap 
+                            ? 0 
+                            : tokenMarketCap >= maxCap 
+                              ? 100 
+                              : ((tokenMarketCap - minCap) / (maxCap - minCap)) * 100
+                          
+                          return (
+                            <div className="relative w-full h-8 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-gray-800 rounded-full border border-yellow-500/30"></div>
+                              <div 
+                                className="absolute inset-0 bg-yellow-500/40 rounded-full transition-all duration-300"
+                                style={{ width: `${fillPercent}%` }}
+                              ></div>
+                              <span className="relative z-10 text-yellow-400 font-bold text-sm px-2">
+                                {formatCurrency(tokenMarketCap)}
+                              </span>
+                            </div>
+                          )
+                        })() : (
+                          <span className="text-gray-500 text-sm">N/A</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs mb-1">24h Volume</div>
+                        <div className="text-white font-semibold text-xs">
+                          {(() => {
+                            if (pool.volume_24h_asset_b === null || pool.volume_24h_asset_b === undefined) {
+                              return 'N/A'
+                            }
+                            const volumeInBTC = pool.volume_24h_asset_b / Math.pow(10, decimalsB)
+                            const volumeInUSD = btcPrice ? volumeInBTC * btcPrice : volumeInBTC
+                            return formatCurrency(volumeInUSD)
+                          })()}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs mb-1">Supply</div>
+                        <div className="text-white font-mono text-xs">
+                          {tokenASupply ? (() => {
+                            const rawSupply = parseFloat(tokenASupply)
+                            const adjustedSupply = rawSupply / Math.pow(10, decimalsA)
+                            return formatNumber(adjustedSupply)
+                          })() : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b-2 border-yellow-500/50">
@@ -990,7 +1152,7 @@ export default function SparkPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none hidden lg:table-cell"
                       onClick={() => handleSort('supply')}
                     >
                       <div className="flex items-center justify-end">
@@ -999,7 +1161,7 @@ export default function SparkPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none hidden xl:table-cell"
                       onClick={() => handleSort('holders')}
                     >
                       <div className="flex items-center justify-end">
@@ -1026,7 +1188,7 @@ export default function SparkPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none hidden xl:table-cell"
                       onClick={() => handleSort('lpFee')}
                     >
                       <div className="flex items-center justify-end">
@@ -1035,7 +1197,7 @@ export default function SparkPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none hidden xl:table-cell"
                       onClick={() => handleSort('hostFee')}
                     >
                       <div className="flex items-center justify-end">
@@ -1044,7 +1206,7 @@ export default function SparkPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none"
+                      className="text-right py-2 px-3 text-yellow-400 font-bold text-sm cursor-pointer hover:bg-yellow-500/10 transition-colors select-none hidden xl:table-cell"
                       onClick={() => handleSort('created')}
                     >
                       <div className="flex items-center justify-end">
@@ -1208,7 +1370,7 @@ export default function SparkPage() {
                         </td>
 
                          {/* Supply */}
-                         <td className="py-1.5 px-3 text-right">
+                         <td className="py-1.5 px-3 text-right hidden lg:table-cell">
                            <span className="text-white font-mono text-xs">
                              {tokenASupply ? (() => {
                                // max_supply from SDK is in raw units (with decimals), so divide by 10^decimals
@@ -1225,7 +1387,7 @@ export default function SparkPage() {
                          </td>
 
                          {/* Holders */}
-                         <td className="py-1.5 px-3 text-right">
+                         <td className="py-1.5 px-3 text-right hidden xl:table-cell">
                            <span className="text-white font-mono text-xs">
                              {tokenHolders !== null ? formatNumber(tokenHolders) : 'N/A'}
                            </span>
@@ -1262,21 +1424,21 @@ export default function SparkPage() {
                         </td>
 
                         {/* LP Fee */}
-                        <td className="py-1.5 px-3 text-right">
+                        <td className="py-1.5 px-3 text-right hidden xl:table-cell">
                           <span className="text-gray-400 text-xs">
                             {pool.lp_fee_bps !== null ? `${pool.lp_fee_bps} bps` : 'N/A'}
                           </span>
                         </td>
 
                         {/* Host Fee */}
-                        <td className="py-1.5 px-3 text-right">
+                        <td className="py-1.5 px-3 text-right hidden xl:table-cell">
                           <span className="text-gray-400 text-xs">
                             {pool.host_fee_bps !== null ? `${pool.host_fee_bps} bps` : 'N/A'}
                           </span>
                         </td>
 
                         {/* Created */}
-                        <td className="py-1.5 px-3 text-right">
+                        <td className="py-1.5 px-3 text-right hidden xl:table-cell">
                           <span className="text-gray-400 text-xs" title={pool.created_at ? new Date(pool.created_at).toLocaleString() : 'Unknown'}>
                             {(() => {
                               const minutes = getMinutesSinceCreation(pool.created_at)
