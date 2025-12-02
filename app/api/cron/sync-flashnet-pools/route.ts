@@ -11,6 +11,16 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// Helper function to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`${errorMessage} (timeout after ${timeoutMs}ms)`)), timeoutMs)
+    }),
+  ])
+}
+
 // Verify cron secret for security
 function verifyCronSecret(request: NextRequest): boolean {
   // Check if this is a Vercel cron job (Vercel sends x-vercel-cron header)
@@ -44,26 +54,49 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const startTime = Date.now()
+  const MAX_EXECUTION_TIME = 4 * 60 * 1000 // 4 minutes max (Vercel has 5 min limit for serverless)
+
   try {
-    await ensureFlashnetTables()
-
     console.log('[Flashnet Sync] Starting pool sync from SDK...')
-    const startTime = Date.now()
+    console.log('[Flashnet Sync] Step 1: Ensuring tables exist...')
+    await ensureFlashnetTables()
+    console.log('[Flashnet Sync] Step 1: Tables ensured')
 
-    const client = await getFlashnetClient()
+    console.log('[Flashnet Sync] Step 2: Getting Flashnet client...')
+    const client = await withTimeout(
+      getFlashnetClient(),
+      30000, // 30 second timeout for client initialization
+      'Flashnet client initialization'
+    )
+    console.log('[Flashnet Sync] Step 2: Client obtained')
+
     const allPools: any[] = []
     let offset = 0
     const PAGE_SIZE = 50 // SDK page size
-    const MAX_POOLS = 1000 // Safety limit to prevent infinite loops
+    const MAX_POOLS = 200 // Only fetch top 200 pools by TVL (most active/relevant)
 
-    // Fetch all pools from SDK with pagination
+    console.log('[Flashnet Sync] Step 3: Fetching pools from SDK (limiting to top 200 by TVL)...')
+    // Fetch top pools from SDK with pagination
     while (allPools.length < MAX_POOLS) {
+      // Check if we're running out of time
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.warn(`[Flashnet Sync] Approaching timeout, stopping at ${allPools.length} pools`)
+        break
+      }
+
       try {
-        const sdkResponse = await client.listPools({
-          limit: PAGE_SIZE,
-          offset,
-          sort: 'TVL_DESC',
-        })
+        console.log(`[Flashnet Sync] Fetching pools at offset ${offset}...`)
+        const sdkResponse = await withTimeout(
+          client.listPools({
+            limit: PAGE_SIZE,
+            offset,
+            sort: 'TVL_DESC',
+          }),
+          20000, // 20 second timeout per SDK call
+          `SDK listPools call at offset ${offset}`
+        )
+        console.log(`[Flashnet Sync] SDK response received for offset ${offset}`)
 
         const pools = Array.isArray(sdkResponse?.pools) 
           ? sdkResponse.pools 
@@ -105,22 +138,26 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`[Flashnet Sync] Normalizing ${allPools.length} pools...`)
+    console.log(`[Flashnet Sync] Step 4: Normalizing ${allPools.length} pools...`)
     
     // Normalize all pools
     const normalizedPools = allPools
       .map((pool: any) => normalizePool(pool))
       .filter((pool): pool is FlashnetPoolRecord => pool !== null)
+    console.log(`[Flashnet Sync] Step 4: Normalized ${normalizedPools.length} pools`)
 
-    console.log(`[Flashnet Sync] Upserting ${normalizedPools.length} pools to database...`)
+    console.log(`[Flashnet Sync] Step 5: Upserting ${normalizedPools.length} pools to database...`)
     
     // Upsert to database (updates fast-changing fields: prices, volume, TVL, reserves)
     const result = await upsertFlashnetPools(normalizedPools)
+    console.log(`[Flashnet Sync] Step 5: Upsert complete - inserted: ${result.inserted}, updated: ${result.updated}`)
 
     // Metadata enrichment: Only run every 15 minutes (metadata changes rarely)
     // This reduces API calls while keeping trading data fresh every minute
     const METADATA_SYNC_INTERVAL = 15 * 60 * 1000 // 15 minutes in milliseconds
     const BTC_PRICE_SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes in milliseconds
+    
+    console.log('[Flashnet Sync] Step 6: Setting up sync state table...')
     const db = getPool()
     
     // Ensure sync_state table exists with btc_price column
@@ -146,6 +183,7 @@ export async function GET(request: NextRequest) {
       VALUES (1)
       ON CONFLICT (id) DO NOTHING
     `)
+    console.log('[Flashnet Sync] Step 6: Sync state table ready')
     
     // Check if BTC price needs updating (only if older than 5 minutes)
     let shouldUpdateBtcPrice = false
@@ -219,6 +257,7 @@ export async function GET(request: NextRequest) {
       shouldSyncMetadata = true
     }
     
+    console.log('[Flashnet Sync] Step 7: Checking metadata sync...')
     if (shouldSyncMetadata) {
       console.log(`[Flashnet Sync] Enriching pools with metadata (runs every 15 min)...`)
       try {
@@ -238,6 +277,7 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime
+    console.log(`[Flashnet Sync] Sync completed in ${duration}ms`)
 
     return NextResponse.json({
       success: true,
@@ -248,11 +288,14 @@ export async function GET(request: NextRequest) {
       durationMs: duration,
     })
   } catch (error) {
-    console.error('[Flashnet Sync] Sync error:', error)
+    const duration = Date.now() - startTime
+    console.error(`[Flashnet Sync] Sync error after ${duration}ms:`, error)
+    console.error('[Flashnet Sync] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: duration,
       },
       { status: 500 }
     )
