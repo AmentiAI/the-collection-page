@@ -208,42 +208,128 @@ function ProfileContent() {
                 <div className="text-center text-red-200/70">Loading badges...</div>
               ) : badges.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {badges.map((badge) => (
-                    <div
-                      key={badge.badge_type}
-                      className={`p-6 rounded-lg border-2 ${
-                        badge.badge_rarity === 'legendary'
-                          ? 'bg-gradient-to-br from-yellow-600/20 via-amber-700/30 to-yellow-600/20 border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.5)]'
-                          : 'bg-black/50 border-red-600/50'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className={`text-5xl mb-3 ${badge.badge_rarity === 'legendary' ? 'animate-pulse' : ''}`}>
-                          {badge.badge_rarity === 'legendary' ? '🌟' : '🏆'}
-                        </div>
-                        <h3 className={`font-bold text-lg mb-2 ${
-                          badge.badge_rarity === 'legendary'
-                            ? 'text-yellow-300'
-                            : 'text-red-400'
-                        }`}>
-                          {badge.badge_name}
-                        </h3>
-                        {badge.badge_description && (
-                          <p className="text-sm text-gray-300 mb-3">
-                            {badge.badge_description}
+                  {badges.map((badge) => {
+                    // Extract color from badge_type (e.g., "roulette_winner_red" -> "red")
+                    const getBadgeColor = (badgeType: string): 'red' | 'black' | 'green' | null => {
+                      if (badgeType.includes('green')) return 'green'
+                      if (badgeType.includes('red')) return 'red'
+                      if (badgeType.includes('black')) return 'black'
+                      return null
+                    }
+                    
+                    const badgeColor = getBadgeColor(badge.badge_type)
+                    const isLegendary = badge.badge_rarity === 'legendary'
+                    
+                    // Render chip-style badge to match roulette wheel display
+                    const renderBadgeChip = () => {
+                      if (isLegendary) {
+                        // Gold Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 border-4 border-yellow-200" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 8px rgba(255,255,255,0.3), 0 0 20px rgba(234, 179, 8, 0.6)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-yellow-200/70"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-yellow-100/50"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-yellow-900 drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 10px rgba(255, 200, 0, 0.8)' }}>G</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (badgeColor === 'red') {
+                        // Red Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-400 to-red-800 border-4 border-red-300" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4), inset 0 -2px 8px rgba(255,255,255,0.2)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-red-300/50"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-red-200/30"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>R</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (badgeColor === 'black') {
+                        // Black Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-600 to-black border-4 border-gray-400" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -2px 8px rgba(255,255,255,0.1)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-gray-400/50"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-gray-300/30"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>B</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      // Fallback for other badge types
+                      return <div className="text-5xl mb-3">🏆</div>
+                    }
+                    
+                    // Determine styling based on color/rarity
+                    const getBadgeStyling = () => {
+                      if (isLegendary) {
+                        return {
+                          container: 'bg-gradient-to-br from-yellow-600/20 via-amber-700/30 to-yellow-600/20 border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.5)]',
+                          title: 'text-yellow-300',
+                          icon: 'animate-pulse'
+                        }
+                      }
+                      if (badgeColor === 'red') {
+                        return {
+                          container: 'bg-gradient-to-br from-red-600/20 via-red-700/30 to-red-600/20 border-red-500/70 shadow-[0_0_20px_rgba(220,38,38,0.4)]',
+                          title: 'text-red-400',
+                          icon: ''
+                        }
+                      }
+                      if (badgeColor === 'black') {
+                        return {
+                          container: 'bg-gradient-to-br from-gray-700/20 via-black/40 to-gray-700/20 border-gray-500/70 shadow-[0_0_20px_rgba(0,0,0,0.6)]',
+                          title: 'text-gray-300',
+                          icon: ''
+                        }
+                      }
+                      return {
+                        container: 'bg-black/50 border-red-600/50',
+                        title: 'text-red-400',
+                        icon: ''
+                      }
+                    }
+                    
+                    const styling = getBadgeStyling()
+                    
+                    return (
+                      <div
+                        key={badge.badge_type}
+                        className={`p-6 rounded-lg border-2 ${styling.container}`}
+                      >
+                        <div className="text-center">
+                          {renderBadgeChip()}
+                          <h3 className={`font-bold text-lg mb-2 ${styling.title}`}>
+                            {badge.badge_name}
+                          </h3>
+                          {badge.badge_description && (
+                            <p className="text-sm text-gray-300 mb-3">
+                              {badge.badge_description}
+                            </p>
+                          )}
+                          {isLegendary && (
+                            <span className="inline-block px-3 py-1 bg-yellow-600/50 border border-yellow-400 rounded-full text-yellow-200 text-xs font-bold uppercase">
+                              LEGENDARY
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-500 mt-3">
+                            Earned: {new Date(badge.earned_at).toLocaleDateString()}
                           </p>
-                        )}
-                        {badge.badge_rarity === 'legendary' && (
-                          <span className="inline-block px-3 py-1 bg-yellow-600/50 border border-yellow-400 rounded-full text-yellow-200 text-xs font-bold uppercase">
-                            LEGENDARY
-                          </span>
-                        )}
-                        <p className="text-xs text-gray-500 mt-3">
-                          Earned: {new Date(badge.earned_at).toLocaleDateString()}
-                        </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center text-red-200/70 py-8">

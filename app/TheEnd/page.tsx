@@ -74,26 +74,33 @@ export default function TheEndPage() {
       status: 'TERMINATED',
       threatLevel: 'EXTREME / WORLD-ENDING',
       redactedTexts: [
+        { text: 'First contact with The Damned happened at', redacted: '[REDACTED]', reveal: 'a place called The Abyss' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'People were burning things there—', redacted: '[REDACTED]', reveal: 'sacred objects' },
+        { text: '—and The Damned started', redacted: '[REDACTED]', reveal: 'waking up' },
+        { text: '.', redacted: '', reveal: '' },
         { text: 'The Damned have strange powers including', redacted: '[REDACTED]', reveal: 'time breaking' },
         { text: ',', redacted: '', reveal: '' },
         { text: 'changing reality', redacted: '[REDACTED]', reveal: 'mind swapping' },
-        { text: ', and getting stronger through', redacted: '[REDACTED]', reveal: 'blood sacrifice' },
+        { text: ', and', redacted: '[REDACTED]', reveal: 'calling monsters from the void' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'Witnesses saw', redacted: '[REDACTED]', reveal: 'The Damned come out of shadows' },
-        { text: 'and', redacted: '[REDACTED]', reveal: 'the dead walking with them' },
-        { text: 'in areas where The Damned did their rituals.', redacted: '', reveal: '' },
-        { text: 'All attempts to spy on The Damned ended with', redacted: '[REDACTED]', reveal: 'everyone dying' },
+        { text: 'and', redacted: '[REDACTED]', reveal: 'giant creatures following them' },
+        { text: '—we call these', redacted: '[REDACTED]', reveal: 'The Horde' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'The Horde attacks', redacted: '[REDACTED]', reveal: 'every hour' },
+        { text: 'and gets stronger each time', redacted: '[REDACTED]', reveal: 'The Damned complete a ritual' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'Our teams report', redacted: '[REDACTED]', reveal: 'being watched by The Damned from their own reflections' },
         { text: 'and', redacted: '[REDACTED]', reveal: 'hearing The Damned speak in languages that do not exist' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'We think The Damned want to', redacted: '[REDACTED]', reveal: 'tear open the wall between worlds' },
-        { text: 'and', redacted: '[REDACTED]', reveal: 'summon something older than everything' },
+        { text: 'and', redacted: '[REDACTED]', reveal: 'let The Horde through completely' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'THE DAMNED ARE NOT HUMAN.', redacted: '', reveal: '' },
-        { text: 'THEY ARE THE END.', redacted: '', reveal: '' },
+        { text: 'THE DAMNED ARE THE END.', redacted: '', reveal: '' },
       ],
-      additionalNotes: 'First time we saw The Damned: ████████. Everyone who saw The Damned ████████ within 72 hours. The place ████████ is locked down forever.'
+      additionalNotes: 'First time we saw The Damned: ████████. Everyone who saw The Damned ████████ within 72 hours. The place ████████ is locked down forever. The Abyss is now under ████████ lockdown.'
     },
     {
       id: 'DAMNED-002',
@@ -101,11 +108,11 @@ export default function TheEndPage() {
       status: 'ACTIVE',
       threatLevel: 'CRITICAL / IMMINENT',
       redactedTexts: [
-        { text: 'The Damned ritual needs', redacted: '[REDACTED]', reveal: 'thirteen' },
-        { text: 'sacrifices at', redacted: '[REDACTED]', reveal: 'thirteen' },
+        { text: 'The Damned ritual needs', redacted: '[REDACTED]', reveal: 'ten' },
+        { text: 'sacrifices at', redacted: '[REDACTED]', reveal: 'ten' },
         { text: 'special spots around', redacted: '[REDACTED]', reveal: 'the world' },
         { text: '.', redacted: '', reveal: '' },
-        { text: 'How many The Damned have done:', redacted: '[REDACTED]', reveal: 'twelve of thirteen' },
+        { text: 'How many The Damned have done:', redacted: '[REDACTED]', reveal: 'nine of ten' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'Last spot is at', redacted: '[REDACTED]', reveal: 'we do not know where' },
         { text: '.', redacted: '', reveal: '' },
@@ -113,15 +120,23 @@ export default function TheEndPage() {
         { text: 'in those areas. People saw', redacted: '[REDACTED]', reveal: 'multiple versions of themselves' },
         { text: 'and', redacted: '[REDACTED]', reveal: 'time moving backwards' },
         { text: '.', redacted: '', reveal: '' },
+        { text: 'After each ritual,', redacted: '[REDACTED]', reveal: 'more of The Horde appears' },
+        { text: 'and', redacted: '[REDACTED]', reveal: 'The Gates of The Damned open wider' },
+        { text: '.', redacted: '', reveal: '' },
         { text: 'The Damned last ritual will', redacted: '[REDACTED]', reveal: 'break down the wall between worlds' },
-        { text: 'and', redacted: '[REDACTED]', reveal: 'let The Damned bring things from before time' },
+        { text: 'and', redacted: '[REDACTED]', reveal: 'let all of The Horde through at once' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'People are helping The Damned by', redacted: '[REDACTED]', reveal: 'burning things in The Abyss' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'Each burn makes', redacted: '[REDACTED]', reveal: 'The Damned stronger' },
+        { text: 'and', redacted: '[REDACTED]', reveal: 'brings The Horde closer' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'How long until The Damned finish:', redacted: '[REDACTED]', reveal: 'we do not know' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'THE DAMNED ARE NOT HUMAN.', redacted: '', reveal: '' },
         { text: 'THE DAMNED ARE THE END.', redacted: '', reveal: '' },
       ],
-      additionalNotes: 'Ritual spots marked with symbol 𝔇 by The Damned. All spots show ████████ poison. People watching The Damned report ████████.'
+      additionalNotes: 'Ritual spots marked with symbol 𝔇 by The Damned. All spots show ████████ poison. People watching The Damned report ████████. The Horde grows larger after each ritual.'
     },
     {
       id: 'DAMNED-003',
@@ -140,6 +155,12 @@ export default function TheEndPage() {
         { text: 'Every time we try to', redacted: '[REDACTED]', reveal: 'stop The Damned' },
         { text: 'The Damned', redacted: '[REDACTED]', reveal: 'see it coming and stop us' },
         { text: '.', redacted: '', reveal: '' },
+        { text: 'The Horde is not', redacted: '[REDACTED]', reveal: 'separate from The Damned' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'The Horde is', redacted: '[REDACTED]', reveal: 'part of The Damned' },
+        { text: '—', redacted: '', reveal: '' },
+        { text: 'their army', redacted: '[REDACTED]', reveal: 'their vanguard' },
+        { text: '.', redacted: '', reveal: '' },
         { text: 'The Damned are not', redacted: '[REDACTED]', reveal: 'from another world' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'The Damned are', redacted: '[REDACTED]', reveal: 'from before worlds existed' },
@@ -148,13 +169,20 @@ export default function TheEndPage() {
         { text: '.', redacted: '', reveal: '' },
         { text: 'It is', redacted: '[REDACTED]', reveal: 'waking The Damned up' },
         { text: '.', redacted: '', reveal: '' },
+        { text: 'The Abyss is not', redacted: '[REDACTED]', reveal: 'a place' },
+        { text: '.', redacted: '', reveal: '' },
+        { text: 'The Abyss is', redacted: '[REDACTED]', reveal: 'a gateway' },
+        { text: '—', redacted: '', reveal: '' },
+        { text: 'a door The Damned are', redacted: '[REDACTED]', reveal: 'forcing open' },
+        { text: '.', redacted: '', reveal: '' },
         { text: 'If you get this,', redacted: '[REDACTED]', reveal: 'burn all records of The Damned' },
         { text: '.', redacted: '', reveal: '' },
         { text: 'THE DAMNED ARE ALREADY HERE.', redacted: '', reveal: '' },
+        { text: 'THE HORDE IS COMING.', redacted: '', reveal: '' },
         { text: 'THE END IS', redacted: '', reveal: '' },
         { text: 'THE DAMNED.', redacted: '', reveal: '' },
       ],
-      additionalNotes: 'Message received: ████████. From: ████████. Every time we try to reach ████████ The Damned stop it. Status: ████████.'
+      additionalNotes: 'Message received: ████████. From: ████████. Every time we try to reach ████████ The Damned stop it. Status: ████████. The Gates are ████████. The Horde count: ████████.'
     }
   ]
 
@@ -167,7 +195,7 @@ export default function TheEndPage() {
       location: 'Alley', 
       description: 'UNIDENTIFIED ENTITY',
       image: '/New folder (13)/1ab9dc00-6ebf-4151-9732-2aa947f6ebf3.png',
-      lore: 'Taken by Agent ████████ right before they vanished. One of The Damned looks right at the camera even though it was 200 meters away. Everyone there felt like The Damned were watching them from inside their own heads.'
+      lore: 'Taken by Agent ████████ right before they vanished near The Abyss. One of The Damned looks right at the camera even though it was 200 meters away. Behind The Damned, you can see shapes moving—we think these are The Horde. Everyone there felt like The Damned were watching them from inside their own heads.'
     },
     { 
       id: 2, 
@@ -175,7 +203,7 @@ export default function TheEndPage() {
       location: 'Forest', 
       description: 'RITUAL SITE',
       image: '/New folder (14)/845517ec-55b5-41de-ba98-424f34605837.png',
-      lore: 'Found in ████████ National Forest. One of The Damned ritual sites. The ground was 400°F hot but there was no fire. Trees within 50 meters were turned to stone, then to ash by The Damned. The symbols match old writings from before humans existed.'
+      lore: 'Found in ████████ National Forest. One of The Damned ritual sites—the ninth of ten. The ground was 400°F hot but there was no fire. Trees within 50 meters were turned to stone, then to ash by The Damned. After this ritual, The Horde started appearing more often. The symbols match old writings from before humans existed.'
     },
     { 
       id: 3, 
@@ -183,7 +211,7 @@ export default function TheEndPage() {
       location: 'Lake', 
       description: 'WITNESSED PHENOMENON',
       image: '/New folder (15)/22cac01d-a7bd-4b33-b2d8-a9abe414c8f9.png',
-      lore: 'Taken during Operation ████████. One of The Damned looks like it is standing on the water. Many people say The Damned was not there when the photo was taken, it only showed up in the picture. The lake tested positive for ████████ poison left by The Damned.'
+      lore: 'Taken during Operation ████████ near where people were burning things in The Abyss. One of The Damned looks like it is standing on the water. Many people say The Damned was not there when the photo was taken, it only showed up in the picture. The lake tested positive for ████████ poison left by The Damned. We think The Damned were watching the burns happen.'
     },
     { 
       id: 4, 
@@ -191,7 +219,7 @@ export default function TheEndPage() {
       location: 'Mud', 
       description: 'ARTIFACT RECOVERED',
       image: '/New folder (16)/67e37dc9-d15a-49c7-aa68-4240e433822c.png',
-      lore: 'Found at ████████ site where The Damned were seen. Made of something we do not know—not like anything we have seen. The Damned mask looks like it breathes when you look at it. Everyone who touched The Damned artifact reported ████████ within 48 hours. Now locked away in ████████ facility.'
+      lore: 'Found at ████████ site where The Damned were seen, close to The Gates. Made of something we do not know—not like anything we have seen. The Damned mask looks like it breathes when you look at it. Everyone who touched The Damned artifact reported ████████ within 48 hours. Now locked away in ████████ facility. We think it might be connected to The Horde somehow.'
     },
   ]
 

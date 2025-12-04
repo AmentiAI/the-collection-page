@@ -284,7 +284,7 @@ export default function RouletteWheel({ onSpinComplete }: RouletteWheelProps) {
                   </>
                 )}
                 
-                {/* Badge Circle */}
+                {/* Badge Chip */}
                 <div 
                   className={`absolute inset-0 rounded-full flex items-center justify-center ${
                     badgeInfo.badgeRarity === 'legendary'
@@ -295,17 +295,55 @@ export default function RouletteWheel({ onSpinComplete }: RouletteWheelProps) {
                   }`}
                   style={{
                     boxShadow: badgeInfo.badgeRarity === 'legendary'
-                      ? '0 0 60px rgba(234, 179, 8, 1), inset 0 0 40px rgba(251, 191, 36, 0.6), 0 0 120px rgba(234, 179, 8, 0.8)'
+                      ? '0 0 60px rgba(234, 179, 8, 1), inset 0 0 40px rgba(251, 191, 36, 0.6), 0 0 120px rgba(234, 179, 8, 0.8), inset 0 2px 4px rgba(0,0,0,0.3)'
                       : badgeInfo.color === 'red'
-                      ? '0 0 50px rgba(220, 38, 38, 0.9), inset 0 0 30px rgba(239, 68, 68, 0.4)'
-                      : '0 0 40px rgba(0, 0, 0, 0.9)',
-                    animation: badgeInfo.badgeRarity === 'legendary' ? 'badgeGlow 2s ease-in-out infinite' : 'none'
+                      ? '0 0 50px rgba(220, 38, 38, 0.9), inset 0 0 30px rgba(239, 68, 68, 0.4), inset 0 2px 4px rgba(0,0,0,0.3)'
+                      : '0 0 40px rgba(0, 0, 0, 0.9), inset 0 2px 4px rgba(255,255,255,0.1)',
+                    animation: badgeInfo.badgeRarity === 'legendary' ? 'badgeGlow 2s ease-in-out infinite' : 'none',
+                    transform: 'perspective(200px) rotateX(15deg)',
                   }}
                 >
-                  {/* Badge Symbol */}
-                  <div className="text-8xl drop-shadow-2xl">
-                    {badgeInfo.badgeRarity === 'legendary' ? '🌟' : badgeInfo.color === 'red' ? '🔴' : '⚫'}
-                  </div>
+                  {/* Chip Design - Red Chip */}
+                  {badgeInfo.color === 'red' && (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-400 to-red-800" style={{
+                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4), inset 0 -2px 8px rgba(255,255,255,0.2)'
+                      }}></div>
+                      <div className="absolute inset-[20%] rounded-full border-4 border-red-300/50"></div>
+                      <div className="absolute inset-[35%] rounded-full border-2 border-red-200/30"></div>
+                      <div className="relative z-10 text-6xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                        R
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Chip Design - Black Chip */}
+                  {badgeInfo.color === 'black' && (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-600 to-black" style={{
+                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -2px 8px rgba(255,255,255,0.1)'
+                      }}></div>
+                      <div className="absolute inset-[20%] rounded-full border-4 border-gray-400/50"></div>
+                      <div className="absolute inset-[35%] rounded-full border-2 border-gray-300/30"></div>
+                      <div className="relative z-10 text-6xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                        B
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Chip Design - Gold Chip */}
+                  {badgeInfo.badgeRarity === 'legendary' && (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600" style={{
+                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 8px rgba(255,255,255,0.3), 0 0 40px rgba(234, 179, 8, 0.8)'
+                      }}></div>
+                      <div className="absolute inset-[20%] rounded-full border-4 border-yellow-200/70"></div>
+                      <div className="absolute inset-[35%] rounded-full border-2 border-yellow-100/50"></div>
+                      <div className="relative z-10 text-6xl font-black text-yellow-900 drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(255, 200, 0, 0.8)' }}>
+                        G
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Sparkle effects for legendary */}
@@ -494,6 +532,61 @@ export default function RouletteWheel({ onSpinComplete }: RouletteWheelProps) {
         </div>
       </div>
 
+      {/* Possible Badges Display */}
+      <div className="mb-8">
+        <p className="text-red-600/70 text-sm font-mono mb-4 text-center uppercase tracking-wider">
+          Possible Badges
+        </p>
+        <div className="flex gap-6 justify-center items-center flex-wrap">
+          {/* Red Chip Badge */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-24 h-24 mb-2">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-400 to-red-800 border-4 border-red-300" style={{
+                boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4), inset 0 -2px 8px rgba(255,255,255,0.2), 0 0 15px rgba(220,38,38,0.5)'
+              }}></div>
+              <div className="absolute inset-[20%] rounded-full border-2 border-red-300/50"></div>
+              <div className="absolute inset-[35%] rounded-full border border-red-200/30"></div>
+              <div className="relative z-10 w-full h-full flex items-center justify-center">
+                <span className="text-4xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>R</span>
+              </div>
+            </div>
+            <p className="text-red-400 text-xs font-mono uppercase">Red Win</p>
+          </div>
+
+          {/* Black Chip Badge */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-24 h-24 mb-2">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-600 to-black border-4 border-gray-400" style={{
+                boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -2px 8px rgba(255,255,255,0.1), 0 0 15px rgba(0,0,0,0.6)'
+              }}></div>
+              <div className="absolute inset-[20%] rounded-full border-2 border-gray-400/50"></div>
+              <div className="absolute inset-[35%] rounded-full border border-gray-300/30"></div>
+              <div className="relative z-10 w-full h-full flex items-center justify-center">
+                <span className="text-4xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>B</span>
+              </div>
+            </div>
+            <p className="text-gray-300 text-xs font-mono uppercase">Black Win</p>
+          </div>
+
+          {/* Gold Chip Badge (Legendary) */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-24 h-24 mb-2">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 border-4 border-yellow-200" style={{
+                boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 8px rgba(255,255,255,0.3), 0 0 25px rgba(234, 179, 8, 0.8)',
+                animation: 'badgeGlow 2s ease-in-out infinite'
+              }}></div>
+              <div className="absolute inset-[20%] rounded-full border-2 border-yellow-200/70"></div>
+              <div className="absolute inset-[35%] rounded-full border border-yellow-100/50"></div>
+              <div className="relative z-10 w-full h-full flex items-center justify-center">
+                <span className="text-4xl font-black text-yellow-900 drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 10px rgba(255, 200, 0, 0.8)' }}>G</span>
+              </div>
+            </div>
+            <p className="text-yellow-300 text-xs font-mono uppercase">Green Win (Legendary)</p>
+            <p className="text-yellow-400/70 text-[10px] font-mono mt-1">4% Chance</p>
+          </div>
+        </div>
+      </div>
+
       {/* Color Selection */}
       {!hasSpun && (
         <div className="mb-6">
@@ -552,12 +645,16 @@ export default function RouletteWheel({ onSpinComplete }: RouletteWheelProps) {
       )}
 
       {hasSpun && (
-        <p className="text-red-600/50 text-sm font-mono mt-4 text-center">
+        <p className="text-red-500 text-lg font-mono mt-4 text-center font-bold" style={{
+          textShadow: '0 0 10px rgba(220, 38, 38, 0.8), 0 0 20px rgba(220, 38, 38, 0.5)'
+        }}>
           You have already used your one spin.
         </p>
       )}
 
-      <p className="text-red-600/40 text-xs font-mono mt-6 text-center max-w-md">
+      <p className="text-red-400 text-base font-mono mt-6 text-center max-w-md font-semibold" style={{
+        textShadow: '0 0 8px rgba(220, 38, 38, 0.6), 0 0 15px rgba(220, 38, 38, 0.4)'
+      }}>
         Each user gets one spin. Guess the correct color to earn a badge on your profile!
       </p>
     </div>
