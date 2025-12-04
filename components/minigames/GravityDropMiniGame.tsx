@@ -119,28 +119,6 @@ const GravityDropMiniGame = ({ onComplete, isCompleted = false }: GravityDropMin
     setFeedback('Shard descending...')
   }
 
-  const stepShard = useCallback(() => {
-    setActiveShard((current) => {
-      if (!current) {
-        return current
-      }
-      const { dx, dy } = gravityVectors[gravity]
-      const nextX = current.x + dx
-      const nextY = current.y + dy
-      const boardSnapshot = boardRef.current
-
-      const outOfBounds = nextX < 0 || nextX >= BOARD_COLS || nextY >= BOARD_ROWS || nextY < 0
-      const collision = !outOfBounds && boardSnapshot[nextY][nextX] !== 'empty'
-
-      if (outOfBounds || collision) {
-        lockShard(current)
-        return null
-      }
-
-      return { ...current, x: nextX, y: nextY }
-    }, [lockShard, gravity])
-  }, [lockShard, gravity])
-
   const lockShard = useCallback(
     (shard: ActiveShard) => {
       setBoard((prev) => {
@@ -170,6 +148,28 @@ const GravityDropMiniGame = ({ onComplete, isCompleted = false }: GravityDropMin
     },
     [onComplete],
   )
+
+  const stepShard = useCallback(() => {
+    setActiveShard((current) => {
+      if (!current) {
+        return current
+      }
+      const { dx, dy } = gravityVectors[gravity]
+      const nextX = current.x + dx
+      const nextY = current.y + dy
+      const boardSnapshot = boardRef.current
+
+      const outOfBounds = nextX < 0 || nextX >= BOARD_COLS || nextY >= BOARD_ROWS || nextY < 0
+      const collision = !outOfBounds && boardSnapshot[nextY][nextX] !== 'empty'
+
+      if (outOfBounds || collision) {
+        lockShard(current)
+        return null
+      }
+
+      return { ...current, x: nextX, y: nextY }
+    })
+  }, [lockShard, gravity])
 
   useEffect(() => {
     if (activeShard && !completionRef.current) {

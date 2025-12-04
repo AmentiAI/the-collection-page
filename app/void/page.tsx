@@ -1044,6 +1044,18 @@ function StormMemoryMinigame({
     }
   }
 
+  const revealSequence = useCallback(
+    (newSequence?: string[]) => {
+      if (isCompleted) return
+      setAttempts((prev) => (newSequence ? 0 : prev))
+      if (newSequence) {
+        setSequence(newSequence)
+      }
+      setStatus("showing")
+    },
+    [isCompleted],
+  )
+
   useEffect(() => {
     if (isCompleted) {
       clearTimers()
@@ -1095,18 +1107,6 @@ function StormMemoryMinigame({
       clearTimers()
     }
   }, [])
-
-  const revealSequence = useCallback(
-    (newSequence?: string[]) => {
-      if (isCompleted) return
-      setAttempts((prev) => (newSequence ? 0 : prev))
-      if (newSequence) {
-        setSequence(newSequence)
-      }
-      setStatus("showing")
-    },
-    [isCompleted],
-  )
 
   const resetSequence = useCallback(() => {
     if (isCompleted) return

@@ -1041,33 +1041,33 @@ export default function TheEndPage() {
                         
                         <div className="space-y-6 text-white font-mono text-lg leading-relaxed">
                           <div className="border-l-4 border-red-600 pl-4">
-                            <p className="text-red-400 mb-2">"They are not trying to open a door. They are trying to destroy the door itself."</p>
+                            <p className="text-red-400 mb-2">&ldquo;They are not trying to open a door. They are trying to destroy the door itself.&rdquo;</p>
                             <p className="text-gray-400 text-sm">— Dr. ████████, Last message before they vanished</p>
                           </div>
                           
                           <div className="border-l-4 border-red-600 pl-4">
-                            <p className="text-red-400 mb-2">"This symbol shows up every time: 𝔇 (THE DAMNED). Found carved into ████████, ████████, and ████████. Older than all known people by ████████ years."</p>
+                            <p className="text-red-400 mb-2">&ldquo;This symbol shows up every time: 𝔇 (THE DAMNED). Found carved into ████████, ████████, and ████████. Older than all known people by ████████ years.&rdquo;</p>
                             <p className="text-gray-400 text-sm">— Report ████████</p>
                           </div>
                           
                           <div className="border-l-4 border-red-600 pl-4">
-                            <p className="text-red-400 mb-2">"If they finish the ritual, reality breaks. Not in a story way. For real. Time stops. Space falls apart. Everything that ever was and ever will be becomes ████████."</p>
+                            <p className="text-red-400 mb-2">&ldquo;If they finish the ritual, reality breaks. Not in a story way. For real. Time stops. Space falls apart. Everything that ever was and ever will be becomes ████████.&rdquo;</p>
                             <p className="text-gray-400 text-sm">— Secret Meeting ████████</p>
                           </div>
                           
                           <div className="border-l-4 border-red-600 pl-4">
-                            <p className="text-red-400 mb-2">"The ritual needs ████████ sacrifices, each at a ████████ spot. They have done ████████ of ████████. We have ████████ days."</p>
+                            <p className="text-red-400 mb-2">&ldquo;The ritual needs ████████ sacrifices, each at a ████████ spot. They have done ████████ of ████████. We have ████████ days.&rdquo;</p>
                             <p className="text-gray-400 text-sm">— Report ████████</p>
                           </div>
                           
                           <div className="border-l-4 border-red-600 pl-4">
-                            <p className="text-red-400 mb-2">"They call themselves The Damned, but they are not damned. They are ████████. They already won. We just have not figured it out yet."</p>
-                            <p className="text-gray-400 text-sm">— Last words, Agent ████████'s journal</p>
+                            <p className="text-red-400 mb-2">&ldquo;They call themselves The Damned, but they are not damned. They are ████████. They already won. We just have not figured it out yet.&rdquo;</p>
+                            <p className="text-gray-400 text-sm">— Last words, Agent ████████&apos;s journal</p>
                           </div>
                         </div>
                         
                         <div className="mt-6 text-center">
-                          <p className="text-red-600/50 text-sm">Hover over "red" in the journal to see these secrets</p>
+                          <p className="text-red-600/50 text-sm">Hover over &ldquo;red&rdquo; in the journal to see these secrets</p>
                         </div>
                       </div>
                     </div>
@@ -1277,24 +1277,24 @@ export default function TheEndPage() {
             {/* Notes */}
             <div className="mt-12 space-y-6 text-red-600 font-mono text-base relative z-10">
               <p className="border-l-4 border-red-600 pl-6 py-2 bg-red-950/20 hover:bg-red-950/40 transition-colors">
-                <span className="text-red-400">"</span>They are not trying to open a door. They are trying to destroy the door itself.<span className="text-red-400">"</span>
+                <span className="text-red-400">&ldquo;</span>They are not trying to open a door. They are trying to destroy the door itself.<span className="text-red-400">&rdquo;</span>
                 <span className="text-xs text-red-600/60 block mt-1">— Dr. ████████, Last message before they vanished</span>
               </p>
               <p className="border-l-4 border-red-600 pl-6 py-2 bg-red-950/20 hover:bg-red-950/40 transition-colors">
-                <span className="text-red-400">"</span>This symbol shows up every time: <span className="text-2xl text-glow">𝔇</span> (THE DAMNED). Found carved into ████████, ████████, and ████████. Older than all known people by ████████ years.<span className="text-red-400">"</span>
+                <span className="text-red-400">&ldquo;</span>This symbol shows up every time: <span className="text-2xl text-glow">𝔇</span> (THE DAMNED). Found carved into ████████, ████████, and ████████. Older than all known people by ████████ years.<span className="text-red-400">&rdquo;</span>
                 <span className="text-xs text-red-600/60 block mt-1">— Report ████████</span>
               </p>
               <p className="border-l-4 border-red-600 pl-6 py-2 bg-red-950/20 hover:bg-red-950/40 transition-colors shake">
-                <span className="text-red-400">"</span>If they finish the ritual, reality breaks. Not in a story way. For real. Time stops. Space falls apart. Everything that ever was and ever will be becomes ████████.<span className="text-red-400">"</span>
+                <span className="text-red-400">&ldquo;</span>If they finish the ritual, reality breaks. Not in a story way. For real. Time stops. Space falls apart. Everything that ever was and ever will be becomes ████████.<span className="text-red-400">&rdquo;</span>
                 <span className="text-xs text-red-600/60 block mt-1">— Secret Meeting ████████</span>
               </p>
               <p className="border-l-4 border-red-600 pl-6 py-2 bg-red-950/20 hover:bg-red-950/40 transition-colors">
-                <span className="text-red-400">"</span>The ritual needs ████████ sacrifices, each at a ████████ spot. They have done ████████ of ████████. We have ████████ days.<span className="text-red-400">"</span>
+                <span className="text-red-400">&ldquo;</span>The ritual needs ████████ sacrifices, each at a ████████ spot. They have done ████████ of ████████. We have ████████ days.<span className="text-red-400">&rdquo;</span>
                 <span className="text-xs text-red-600/60 block mt-1">— Report ████████</span>
               </p>
               <p className="border-l-4 border-red-600 pl-6 py-2 bg-red-950/20 hover:bg-red-950/40 transition-colors">
-                <span className="text-red-400">"</span>They call themselves The Damned, but they are not damned. They are ████████. They already won. We just have not figured it out yet.<span className="text-red-400">"</span>
-                <span className="text-xs text-red-600/60 block mt-1">— Last words, Agent ████████'s journal</span>
+                <span className="text-red-400">&ldquo;</span>They call themselves The Damned, but they are not damned. They are ████████. They already won. We just have not figured it out yet.<span className="text-red-400">&rdquo;</span>
+                <span className="text-xs text-red-600/60 block mt-1">— Last words, Agent ████████&apos;s journal</span>
               </p>
             </div>
 
@@ -1305,7 +1305,7 @@ export default function TheEndPage() {
                 PROJECTED RESULT OF COMPLETION:
               </p>
               <p className="text-4xl font-black uppercase text-red-600 relative z-10 glitch text-glow" style={{ animationDuration: '1s' }}>
-                "THE END OF EVERYTHING"
+                &ldquo;THE END OF EVERYTHING&rdquo;
               </p>
             </div>
           </div>
