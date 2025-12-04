@@ -5,3 +5,4 @@ ADD COLUMN IF NOT EXISTS life_force INTEGER DEFAULT 100 CHECK (life_force >= 0 A
 -- Create index on life_force for filtering/sorting
 CREATE INDEX IF NOT EXISTS idx_battle_ordinals_life_force ON battle_ordinals(life_force);
 
+

@@ -62,3 +62,4 @@ console.log('   2. Open the battlefield page');
 console.log('   3. Check browser console for tile requests');
 console.log('   4. Check server console for API logs');
 
+
