@@ -11,6 +11,7 @@ import Filters from '@/components/Filters'
 import Gallery from '@/components/Gallery'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
+import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer'
 import { Ordinal, Trait } from '@/types'
 
 const LaserEyesWrapper = dynamicImport(
@@ -25,11 +26,12 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [shake, setShake] = useState(false)
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal | null>(null)
-  const [showSplash, setShowSplash] = useState(true)
+  const [showSplash, setShowSplash] = useState(false)
   const [userInteracted, setUserInteracted] = useState(false)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   
 
   const handleEnter = () => {
@@ -133,9 +135,16 @@ export default function Home() {
               onHolderVerified={handleHolderVerified}
               onVerifyingStart={handleVerifyingStart}
               onConnectedChange={setConnected}
-              showMusicControls={true}
+              showMusicControls={!isVideoPlaying}
             />
-                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
+            {/* YouTube Video Player with Custom Controls */}
+            <div className="w-full relative z-10">
+              <YouTubeVideoPlayer 
+                videoId="wWkwbofYung" 
+                onPlayingChange={setIsVideoPlaying}
+              />
+            </div>
+            <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">                                                               
                 <aside className="order-2 lg:order-1">
                   <Filters

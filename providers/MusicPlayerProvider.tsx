@@ -110,10 +110,12 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
       }
       
       // Set volume based on current state (using refs to get latest values)
-      const targetVolume = isMusicMuted ? 0 : musicVolume / 100
+      const muted = isMusicMutedRef.current
+      const vol = musicVolumeRef.current
+      const targetVolume = muted ? 0 : vol / 100
       currentAudio.volume = targetVolume
       
-      if (currentAudio.paused && !isMusicMuted && targetVolume > 0) {
+      if (currentAudio.paused && !muted && targetVolume > 0) {
         // If audio isn't ready yet, wait for it
         if (currentAudio.readyState >= 2) {
           currentAudio.play().catch((error) => {
@@ -123,10 +125,10 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
           // Wait for audio to be ready, then play
           const playWhenReady = () => {
             const audio = audioRef.current
-            const muted = isMusicMuted
-            const vol = musicVolume / 100
-            if (audio && audio.paused && !muted && vol > 0) {
-              audio.volume = vol
+            const currentMuted = isMusicMutedRef.current
+            const currentVol = musicVolumeRef.current
+            if (audio && audio.paused && !currentMuted && currentVol > 0) {
+              audio.volume = currentVol / 100
               audio.play().catch((error) => {
                 console.log('Play attempt blocked:', error)
               })
