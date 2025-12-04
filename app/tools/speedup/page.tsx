@@ -12,7 +12,6 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { InscriptionService } from '@/services/inscription-service'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
-import BackgroundMusic from '@/components/BackgroundMusic'
 import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 type SpeedupStrategy = 'rbf' | 'cpfp' | 'hybrid'
@@ -122,14 +121,6 @@ function SpeedupPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <LaserEyesWrapper>
@@ -144,7 +135,6 @@ function SpeedupPage() {
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
       />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense
         fallback={
           <div className="flex min-h-screen items-center justify-center bg-[#03040e]">

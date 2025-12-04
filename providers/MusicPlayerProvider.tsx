@@ -8,6 +8,7 @@ interface MusicPlayerContextType {
   setMusicVolume: (volume: number) => void
   isMusicMuted: boolean
   setIsMusicMuted: (muted: boolean) => void
+  toggleMute: () => void
   musicPlaying: boolean
   musicReady: boolean
   currentSongIndex: number
@@ -40,6 +41,18 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [musicReady, setMusicReady] = useState(false)
   const [currentSongIndex, setCurrentSongIndex] = useState(0)
+  
+  // Use refs to track latest values for event handlers
+  const musicVolumeRef = useRef(musicVolume)
+  const isMusicMutedRef = useRef(isMusicMuted)
+  
+  useEffect(() => {
+    musicVolumeRef.current = musicVolume
+  }, [musicVolume])
+  
+  useEffect(() => {
+    isMusicMutedRef.current = isMusicMuted
+  }, [isMusicMuted])
 
   // Check if we're on an admin page
   const isAdminPage = pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin')
@@ -57,6 +70,15 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
   useEffect(() => {
     const audio = new Audio()
     audioRef.current = audio
+    
+    // Set initial volume
+    audio.volume = musicVolume / 100
+    // Load first song immediately
+    if (playlist.length > 0) {
+      audio.src = playlist[currentSongIndex]
+      lastLoadedSongRef.current = playlist[currentSongIndex]
+      audio.load()
+    }
 
     const handlePlay = () => {
       setMusicPlaying(true)
@@ -74,37 +96,60 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
 
     const handleCanPlay = () => {
       setMusicReady(true)
-      if (!autoplayAttemptedRef.current) {
-        autoplayAttemptedRef.current = true
-        // Try to play, but don't worry if blocked (user can start via controls)
-        audio.play().catch(() => {
-          // Autoplay blocked; this is normal - user interaction will allow playback
-        })
-      }
     }
 
     const handleUserInteraction = () => {
-      // Once user has interacted, try to play if audio is ready
+      // Try to play if audio is ready and paused
       const currentAudio = audioRef.current
-      if (currentAudio && currentAudio.readyState >= 2 && currentAudio.paused) {
-        // Only play if volume is greater than 0 (not muted)
-        if (currentAudio.volume > 0) {
-          currentAudio.play().catch(() => {})
+      if (!currentAudio) return
+      
+      // Ensure we have a src loaded
+      if (!currentAudio.src && playlist.length > 0) {
+        currentAudio.src = playlist[currentSongIndex]
+        currentAudio.load()
+      }
+      
+      // Set volume based on current state (using refs to get latest values)
+      const targetVolume = isMusicMuted ? 0 : musicVolume / 100
+      currentAudio.volume = targetVolume
+      
+      if (currentAudio.paused && !isMusicMuted && targetVolume > 0) {
+        // If audio isn't ready yet, wait for it
+        if (currentAudio.readyState >= 2) {
+          currentAudio.play().catch((error) => {
+            console.log('Play attempt blocked:', error)
+          })
+        } else {
+          // Wait for audio to be ready, then play
+          const playWhenReady = () => {
+            const audio = audioRef.current
+            const muted = isMusicMuted
+            const vol = musicVolume / 100
+            if (audio && audio.paused && !muted && vol > 0) {
+              audio.volume = vol
+              audio.play().catch((error) => {
+                console.log('Play attempt blocked:', error)
+              })
+            }
+          }
+          currentAudio.addEventListener('canplay', playWhenReady, { once: true })
+          currentAudio.addEventListener('loadeddata', playWhenReady, { once: true })
         }
       }
     }
 
-    // Listen for any user interaction to enable playback
-    document.addEventListener('click', handleUserInteraction, { once: true })
-    document.addEventListener('touchstart', handleUserInteraction, { once: true })
+    // Listen for user interactions to enable playback (not just once - allow retries)
+    document.addEventListener('click', handleUserInteraction)
+    document.addEventListener('touchstart', handleUserInteraction)
 
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
-    audio.addEventListener('canplay', handleCanPlay, { once: true })
+    audio.addEventListener('canplay', handleCanPlay)
 
     return () => {
       audio.removeEventListener('play', handlePlay)
       audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('canplay', handleCanPlay)
       document.removeEventListener('click', handleUserInteraction)
       document.removeEventListener('touchstart', handleUserInteraction)
       audio.pause()
@@ -118,25 +163,28 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
 
     const newSrc = playlist[currentSongIndex]
 
-    // Only change src if it's actually different from what we last loaded
-    if (lastLoadedSongRef.current !== newSrc) {
+    // Always set the src (this will load the first song on mount)
+    if (lastLoadedSongRef.current !== newSrc || !lastLoadedSongRef.current) {
       lastLoadedSongRef.current = newSrc
       audio.src = newSrc
+      audio.volume = isMusicMuted ? 0 : musicVolume / 100
       audio.load()
 
       // Auto-play if we should continue the playlist (user started it and it hasn't been manually paused)
       if (shouldContinuePlaylistRef.current && !isMusicMuted && audio.volume > 0) {
         const playOnLoad = () => {
           const currentAudio = audioRef.current
-          if (currentAudio && currentAudio.paused && shouldContinuePlaylistRef.current) {
-            currentAudio.play().catch(() => {})
+          if (currentAudio && currentAudio.paused && shouldContinuePlaylistRef.current && !isMusicMuted) {
+            currentAudio.play().catch((error) => {
+              console.log('Auto-play blocked:', error)
+            })
           }
         }
         audio.addEventListener('loadeddata', playOnLoad, { once: true })
         audio.addEventListener('canplay', playOnLoad, { once: true })
       }
     }
-  }, [currentSongIndex, playlist, isMusicMuted])
+  }, [currentSongIndex, playlist, isMusicMuted, musicVolume])
 
   // Set up ended handler to move to next song
   useEffect(() => {
@@ -157,11 +205,17 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
     }
   }, [currentSongIndex, playlist])
 
-  // Handle volume changes
+  // Handle volume changes - update immediately when mute state changes
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    audio.volume = isMusicMuted ? 0 : musicVolume / 100
+    
+    // Immediately set volume to 0 when muted, restore volume when unmuted
+    if (isMusicMuted) {
+      audio.volume = 0
+    } else {
+      audio.volume = musicVolume / 100
+    }
 
     // If unmuted and audio is paused, try to play (user may have interacted)
     if (!isMusicMuted && audio.paused && musicReady) {
@@ -192,11 +246,28 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
     }
   }, [isAdminPage, isMusicMuted, musicReady])
 
+  // Direct toggle mute function that immediately updates audio
+  const toggleMute = () => {
+    const audio = audioRef.current
+    const newMutedState = !isMusicMuted
+    setIsMusicMuted(newMutedState)
+    
+    // Immediately update audio volume without waiting for useEffect
+    if (audio) {
+      if (newMutedState) {
+        audio.volume = 0
+      } else {
+        audio.volume = musicVolume / 100
+      }
+    }
+  }
+
   const value = {
     musicVolume,
     setMusicVolume,
     isMusicMuted,
     setIsMusicMuted,
+    toggleMute,
     musicPlaying,
     musicReady,
     currentSongIndex,

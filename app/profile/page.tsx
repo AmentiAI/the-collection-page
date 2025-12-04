@@ -85,6 +85,14 @@ type AbyssStats = {
   }>
 }
 
+type Badge = {
+  badge_type: string
+  badge_name: string
+  badge_description: string | null
+  badge_rarity: string | null
+  earned_at: string
+}
+
 const INITIAL_PROFILE: ProfileDetails = {
   username: null,
   avatarUrl: null,
@@ -133,6 +141,8 @@ function ProfileContent() {
     summonsJoinedActiveCount,
     portalSummary,
     abyssStats,
+    badges,
+    badgesLoading,
     refreshProfile,
     triggerDiscordAuth,
     triggerTwitterAuth,
@@ -189,6 +199,146 @@ function ProfileContent() {
             summonsJoinedActiveCount={summonsJoinedActiveCount}
             portalSummary={portalSummary}
           />
+          
+          {/* Badges Section */}
+          {connected && (
+            <div className="w-full mt-6">
+              <h2 className="text-2xl font-black uppercase tracking-wider text-red-300 mb-4 text-center">BADGES</h2>
+              {badgesLoading ? (
+                <div className="text-center text-red-200/70">Loading badges...</div>
+              ) : badges.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {badges.map((badge) => {
+                    // Extract color from badge_type (e.g., "roulette_winner_red" -> "red")
+                    const getBadgeColor = (badgeType: string): 'red' | 'black' | 'green' | null => {
+                      if (badgeType.includes('green')) return 'green'
+                      if (badgeType.includes('red')) return 'red'
+                      if (badgeType.includes('black')) return 'black'
+                      return null
+                    }
+                    
+                    const badgeColor = getBadgeColor(badge.badge_type)
+                    const isLegendary = badge.badge_rarity === 'legendary'
+                    
+                    // Render chip-style badge to match roulette wheel display
+                    const renderBadgeChip = () => {
+                      if (isLegendary) {
+                        // Gold Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 border-4 border-yellow-200" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 8px rgba(255,255,255,0.3), 0 0 20px rgba(234, 179, 8, 0.6)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-yellow-200/70"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-yellow-100/50"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-yellow-900 drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 10px rgba(255, 200, 0, 0.8)' }}>G</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (badgeColor === 'red') {
+                        // Red Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-400 to-red-800 border-4 border-red-300" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4), inset 0 -2px 8px rgba(255,255,255,0.2)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-red-300/50"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-red-200/30"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>R</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (badgeColor === 'black') {
+                        // Black Chip
+                        return (
+                          <div className="relative w-20 h-20 mx-auto mb-3">
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-600 to-black border-4 border-gray-400" style={{
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -2px 8px rgba(255,255,255,0.1)'
+                            }}></div>
+                            <div className="absolute inset-[20%] rounded-full border-2 border-gray-400/50"></div>
+                            <div className="absolute inset-[35%] rounded-full border border-gray-300/30"></div>
+                            <div className="relative z-10 w-full h-full flex items-center justify-center">
+                              <span className="text-3xl font-black text-white drop-shadow-lg" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>B</span>
+                            </div>
+                          </div>
+                        )
+                      }
+                      // Fallback for other badge types
+                      return <div className="text-5xl mb-3">🏆</div>
+                    }
+                    
+                    // Determine styling based on color/rarity
+                    const getBadgeStyling = () => {
+                      if (isLegendary) {
+                        return {
+                          container: 'bg-gradient-to-br from-yellow-600/20 via-amber-700/30 to-yellow-600/20 border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.5)]',
+                          title: 'text-yellow-300',
+                          icon: 'animate-pulse'
+                        }
+                      }
+                      if (badgeColor === 'red') {
+                        return {
+                          container: 'bg-gradient-to-br from-red-600/20 via-red-700/30 to-red-600/20 border-red-500/70 shadow-[0_0_20px_rgba(220,38,38,0.4)]',
+                          title: 'text-red-400',
+                          icon: ''
+                        }
+                      }
+                      if (badgeColor === 'black') {
+                        return {
+                          container: 'bg-gradient-to-br from-gray-700/20 via-black/40 to-gray-700/20 border-gray-500/70 shadow-[0_0_20px_rgba(0,0,0,0.6)]',
+                          title: 'text-gray-300',
+                          icon: ''
+                        }
+                      }
+                      return {
+                        container: 'bg-black/50 border-red-600/50',
+                        title: 'text-red-400',
+                        icon: ''
+                      }
+                    }
+                    
+                    const styling = getBadgeStyling()
+                    
+                    return (
+                      <div
+                        key={badge.badge_type}
+                        className={`p-6 rounded-lg border-2 ${styling.container}`}
+                      >
+                        <div className="text-center">
+                          {renderBadgeChip()}
+                          <h3 className={`font-bold text-lg mb-2 ${styling.title}`}>
+                            {badge.badge_name}
+                          </h3>
+                          {badge.badge_description && (
+                            <p className="text-sm text-gray-300 mb-3">
+                              {badge.badge_description}
+                            </p>
+                          )}
+                          {isLegendary && (
+                            <span className="inline-block px-3 py-1 bg-yellow-600/50 border border-yellow-400 rounded-full text-yellow-200 text-xs font-bold uppercase">
+                              LEGENDARY
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-500 mt-3">
+                            Earned: {new Date(badge.earned_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-red-200/70 py-8">
+                  No badges yet. Win at the roulette wheel to earn badges!
+                </div>
+              )}
+            </div>
+          )}
+          
           {!connected && (
             <p className="text-xs uppercase tracking-[0.35em] text-red-200/70">
               Connect your wallet via the header to update your profile.
@@ -729,6 +879,8 @@ function useProfileState() {
   const [summonsJoinedActiveCount, setSummonsJoinedActiveCount] = useState<number>(0)
   const [portalSummary, setPortalSummary] = useState<{ isPortalSummoner: boolean; completedCreated: number; completedJoined: number } | null>(null)
   const [abyssStats, setAbyssStats] = useState<AbyssStats | null>(null)
+  const [badges, setBadges] = useState<Badge[]>([])
+  const [badgesLoading, setBadgesLoading] = useState(false)
   const isInitializing = useRef(false)
 
   const fetchProfileWithData = useCallback(
@@ -871,6 +1023,26 @@ function useProfileState() {
     [],
   )
 
+  const fetchBadges = useCallback(
+    async (wallet: string) => {
+      setBadgesLoading(true)
+      try {
+        const response = await fetch(`/api/roulette/badges?walletAddress=${encodeURIComponent(wallet)}`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch badges')
+        }
+        const data = await response.json()
+        setBadges(data.badges || [])
+      } catch (error) {
+        console.error('Error fetching badges:', error)
+        setBadges([])
+      } finally {
+        setBadgesLoading(false)
+      }
+    },
+    [],
+  )
+
 
   const initializeProfile = useCallback(
     async (wallet: string) => {
@@ -887,6 +1059,7 @@ function useProfileState() {
       await Promise.all([
         fetchProfileWithData(wallet, paymentAddress || undefined), // Consolidated endpoint: profile + socials + holder + abyss + summons + portal
         fetchInventory(wallet), // Still need Magic Eden external API
+        fetchBadges(wallet), // Fetch badges
       ])
 
       isInitializing.current = false
@@ -894,6 +1067,7 @@ function useProfileState() {
     [
       fetchProfileWithData,
       fetchInventory,
+      fetchBadges,
     ],
   )
 
@@ -913,8 +1087,16 @@ function useProfileState() {
       setSummonsJoinedActiveCount(0)
       setPortalSummary(null)
       setAbyssStats(null)
+      setBadges([])
     }
   }, [connected, address, initializeProfile])
+  
+  // Fetch badges when address changes
+  useEffect(() => {
+    if (connected && address) {
+      fetchBadges(address)
+    }
+  }, [connected, address, fetchBadges])
 
   useEffect(() => {
     if (!address) return
@@ -926,10 +1108,11 @@ function useProfileState() {
       void Promise.all([
         fetchProfileWithData(address, paymentAddress || undefined), // Consolidated endpoint includes everything
         fetchInventory(address), // Magic Eden
+        fetchBadges(address), // Badges
       ])
       window.history.replaceState({}, '', '/profile')
     }
-  }, [address, paymentAddress, fetchProfileWithData, fetchInventory])
+  }, [address, paymentAddress, fetchProfileWithData, fetchInventory, fetchBadges])
 
   const triggerDiscordAuth = useCallback(() => {
     if (!connected || !address) {
@@ -964,6 +1147,8 @@ function useProfileState() {
       summonsJoinedActiveCount,
       portalSummary,
       abyssStats,
+      badges,
+      badgesLoading,
       refreshProfile: () => {
         if (address) {
           console.log('[Profile] Manual refresh requested')
@@ -972,6 +1157,7 @@ function useProfileState() {
           void Promise.all([
             fetchProfileWithData(address, paymentAddress || undefined), // Consolidated endpoint
             fetchInventory(address), // Magic Eden
+            fetchBadges(address), // Badges
           ])
         }
       },
@@ -994,8 +1180,11 @@ function useProfileState() {
       summonsJoinedActiveCount,
       portalSummary,
       abyssStats,
+      badges,
+      badgesLoading,
       fetchProfileWithData,
       fetchInventory,
+      fetchBadges,
       triggerDiscordAuth,
       triggerTwitterAuth,
     ],

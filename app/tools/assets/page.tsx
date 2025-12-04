@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { BadgeCheck, Copy, FileImage, FileText, Flame, Grid3X3, Layers3, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 
-import BackgroundMusic from '@/components/BackgroundMusic'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,14 +180,6 @@ export default function AssetsToolsPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <LaserEyesWrapper>
@@ -203,7 +194,6 @@ export default function AssetsToolsPage() {
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
       />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <AssetsPageContent isHolder={isHolder} />
     </LaserEyesWrapper>
   )

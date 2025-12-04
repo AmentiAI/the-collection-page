@@ -458,3 +458,43 @@ html {
 .toast-exit {
   animation: slideOutRight 0.3s ease-out;
 }
+
+/* Badge popup animations */
+@keyframes badgeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes badgeScaleIn {
+  from { transform: scale(0.3) rotate(-180deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes badgeSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes badgeGlow {
+  0%, 100% { 
+    box-shadow: 0 0 50px rgba(234, 179, 8, 0.8), 0 0 100px rgba(251, 191, 36, 0.6), 0 0 150px rgba(234, 179, 8, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 80px rgba(234, 179, 8, 1), 0 0 150px rgba(251, 191, 36, 0.9), 0 0 200px rgba(234, 179, 8, 0.6);
+  }
+}
+
+@keyframes badgePing {
+  0% { transform: scale(1); opacity: 1; }
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes badgeSparkle {
+  0%, 100% { opacity: 0; transform: scale(0) translateY(0); }
+  50% { opacity: 1; transform: scale(1.5) translateY(-10px); }
+}
+
+@keyframes badgeFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+}

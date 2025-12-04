@@ -30,7 +30,7 @@ export default function Header({
   onConnectedChange,
   showMusicControls = true,
 }: HeaderProps) {
-  const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted } = useMusicPlayer()
+  const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted, toggleMute } = useMusicPlayer()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -241,11 +241,16 @@ export default function Header({
               </div>
             )}
             {showMusicControls && (
-              <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50">
+              <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
                 <button
-                  onClick={() => setIsMusicMuted(!isMusicMuted)}
-                  className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsMusicMuted(!isMusicMuted)
+                  }}
+                  className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors cursor-pointer relative z-10"
                   aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
+                  type="button"
                 >
                   {isMusicMuted ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -303,11 +308,20 @@ export default function Header({
         )}
         {/* Music Volume Control */}
         {showMusicControls && (
-          <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50">
+          <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
             <button
-              onClick={() => setIsMusicMuted(!isMusicMuted)}
-              className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (toggleMute) {
+                  toggleMute()
+                } else {
+                  setIsMusicMuted(!isMusicMuted)
+                }
+              }}
+              className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors cursor-pointer relative z-10"
               aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
+              type="button"
             >
               {isMusicMuted ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -325,15 +339,18 @@ export default function Header({
               min="0"
               max="100"
               value={musicVolume}
-                onChange={(e) => {
-                  const newVolume = Number(e.target.value)
-                  setMusicVolume(newVolume)
-                  // If dragging slider up from 0, unmute automatically
-                  if (newVolume > 0 && isMusicMuted) {
-                    setIsMusicMuted(false)
-                  }
-                }}
-              className="w-20 accent-red-600"
+              onChange={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const newVolume = Number(e.target.value)
+                setMusicVolume(newVolume)
+                // If dragging slider up from 0, unmute automatically
+                if (newVolume > 0 && isMusicMuted) {
+                  setIsMusicMuted(false)
+                }
+              }}
+              className="w-20 accent-red-600 cursor-pointer"
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
             />
             <span className="text-xs text-[#ff6b6b] font-mono w-8">
               {isMusicMuted ? 'MUTED' : `${musicVolume}%`}

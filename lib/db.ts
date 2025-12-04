@@ -120,6 +120,8 @@ export async function initDatabase() {
     await pool.query(`DROP TABLE IF EXISTS karma_points CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS ordinal_sales CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS user_badges CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS roulette_spins CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS discord_users CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS twitter_users CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS flashnet_pools CASCADE`)
@@ -698,6 +700,50 @@ export async function initDatabase() {
   )
 
   console.log('✅ Seeded initial Duality cycle in alignment phase')
+
+  // Create roulette_spins table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS roulette_spins (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      wallet_address TEXT NOT NULL,
+      guessed_color TEXT NOT NULL CHECK (guessed_color IN ('red', 'black', 'green')),
+      result_color TEXT NOT NULL CHECK (result_color IN ('red', 'black', 'green')),
+      won BOOLEAN NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(profile_id)
+    )
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_roulette_spins_profile_id ON roulette_spins(profile_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_roulette_spins_wallet_address ON roulette_spins(wallet_address)
+  `)
+
+  // Create user_badges table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_badges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      badge_type TEXT NOT NULL,
+      badge_name TEXT NOT NULL,
+      badge_description TEXT,
+      badge_rarity TEXT,
+      earned_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(profile_id, badge_type)
+    )
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_badges_profile_id ON user_badges(profile_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_badges_badge_type ON user_badges(badge_type)
+  `)
 
   console.log('✅ Database tables initialized successfully')
 } catch (error) {
