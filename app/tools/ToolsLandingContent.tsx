@@ -4,9 +4,14 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Zap, Waves, Undo2, Package, Coins, Send } from 'lucide-react'
 import Header from '@/components/Header'
-import BackgroundMusic from '@/components/BackgroundMusic'
 
 const liveTools = [
+  {
+    name: 'Assets Terminal',
+    description: 'Catalog inscriptions, runes, and cardinal UTXOs, then stage them for multi-input PSBT builds.',
+    href: '/tools/assets',
+    icon: Package
+  },
   {
     name: 'Transaction Speedup',
     description: 'Accelerate stuck reveals or wallet transactions by crafting a CPFP boost.',
@@ -18,6 +23,12 @@ const liveTools = [
     description: 'RBF an opt-in send back to your payment wallet when miners ignore it.',
     href: '/tools/cancel',
     icon: Undo2
+  },
+  {
+    name: 'Sat Recovery',
+    description: 'Recover excess satoshis from inscription UTXOs. Split oversized UTXOs: 330 sats back to taproot (preserve inscription) and remainder to payment wallet.',
+    href: '/tools/sat-recovery',
+    icon: Coins
   }
 ]
 
@@ -26,11 +37,6 @@ const upcomingTools = [
     name: 'Inscriptions Management',
     description: 'Streamline batch inscription housekeeping with queue-based actions.',
     icon: Package
-  },
-  {
-    name: 'Recover Padding Sats',
-    description: 'Pull back the extra sats sitting in oversized inscription UTXOs.',
-    icon: Coins
   },
   {
     name: 'Transfer Inscriptions',
@@ -43,14 +49,6 @@ export default function ToolsLandingContent() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black">
@@ -64,12 +62,7 @@ export default function ToolsLandingContent() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <div className="px-4 py-12 md:px-8">
         <div className="mx-auto flex max-w-5xl flex-col gap-10">
           <header className="space-y-4 text-center">
@@ -79,9 +72,7 @@ export default function ToolsLandingContent() {
             <h1 className="text-4xl font-black uppercase tracking-[0.55em] text-blue-200 md:text-5xl">
               Pools of the Damned
             </h1>
-            <p className="mx-auto max-w-2xl text-sm text-zinc-400 md:text-base">
-              Choose a live pool to accelerate your transaction, or watch for the next ritual to unlock.
-            </p>
+          
             {connected && isHolder && (
               <p className="text-xs uppercase tracking-[0.4em] text-emerald-300">Access granted — The Damned recognize you.</p>
             )}

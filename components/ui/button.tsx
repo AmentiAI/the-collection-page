@@ -2,12 +2,18 @@
 
 import { ButtonHTMLAttributes, forwardRef } from 'react'
 
+type ButtonVariant = 'default' | 'outline'
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant
+}
+
 function mergeClasses(base: string, extra?: string) {
   return extra ? `${base} ${extra}`.trim() : base
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(function Button(
-  { className, type = 'button', ...props },
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, type = 'button', variant: _variant = 'default', ...props },
   ref
 ) {
   return (

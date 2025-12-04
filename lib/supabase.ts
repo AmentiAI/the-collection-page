@@ -39,7 +39,7 @@ if (connectionString) {
         user: decodeURIComponent(user),
         password: decodeURIComponent(password), // Decode password in case it has special chars
       }
-      console.log('✅ Database config parsed successfully')
+   
     } else {
       console.error('Failed to parse database connection string. Format should be: postgresql://user:password@host:port/database')
     }

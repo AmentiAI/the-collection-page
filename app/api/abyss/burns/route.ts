@@ -1,0 +1,847 @@
+import { NextRequest, NextResponse } from 'next/server'
+import type { Pool } from 'pg'
+
+import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
+
+const ABYSS_CAP = 500
+const CAP_REDUCTION_START_UTC = Date.parse('2025-11-11T02:00:00Z')
+const BURN_COOLDOWN_MS = 15 * 60 * 1_000
+
+export const dynamic = 'force-dynamic'
+
+async function ensureAbyssBurnsTable(pool: Pool) {
+  // Skip if already initialized in this process to avoid slow DDL operations
+  if (isTableInitialized('abyss_burns')) {
+    return
+  }
+
+  // DDL operations commented out for performance - tables must exist in production
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_burns (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     inscription_id TEXT UNIQUE NOT NULL,
+  //     tx_id TEXT UNIQUE NOT NULL,
+  //     ordinal_wallet TEXT NOT NULL,
+  //     payment_wallet TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'pending',
+  //     source TEXT NOT NULL DEFAULT 'abyss',
+  //     summon_id UUID,
+  //     ascension_powder INTEGER NOT NULL DEFAULT 0,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW(),
+  //     confirmed_at TIMESTAMPTZ,
+  //     last_checked_at TIMESTAMPTZ
+  //   )
+  // `)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'abyss'`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS summon_id UUID`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+  // await pool.query(`ALTER TABLE abyss_burns ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_status ON abyss_burns(status)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_tx_id ON abyss_burns(tx_id)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_source ON abyss_burns(source)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_ordinal_wallet ON abyss_burns((LOWER(ordinal_wallet)))`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_payment_wallet ON abyss_burns((LOWER(payment_wallet)))`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_burns_graveyard ON abyss_burns((LOWER(ordinal_wallet)), created_at DESC) WHERE hidden = FALSE`)
+
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_summons (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     creator_wallet TEXT NOT NULL,
+  //     creator_inscription_id TEXT NOT NULL,
+  //     status TEXT NOT NULL DEFAULT 'open',
+  //     required_participants INTEGER NOT NULL DEFAULT 4,
+  //     locked_at TIMESTAMPTZ,
+  //     completed_at TIMESTAMPTZ,
+  //     expires_at TIMESTAMPTZ,
+  //     bonus_granted BOOLEAN DEFAULT FALSE,
+  //     created_at TIMESTAMPTZ DEFAULT NOW(),
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_status ON abyss_summons(status)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summons_creator ON abyss_summons((LOWER(creator_wallet)))`)
+
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_summon_participants (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     summon_id UUID NOT NULL REFERENCES abyss_summons(id) ON DELETE CASCADE,
+  //     wallet TEXT NOT NULL,
+  //     inscription_id TEXT NOT NULL,
+  //     role TEXT NOT NULL DEFAULT 'participant',
+  //     joined_at TIMESTAMPTZ DEFAULT NOW(),
+  //     UNIQUE(summon_id, wallet),
+  //     UNIQUE(summon_id, inscription_id)
+  //   )
+  // `)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_summon ON abyss_summon_participants(summon_id)`)
+  // await pool.query(`CREATE INDEX IF NOT EXISTS idx_abyss_summon_participants_wallet ON abyss_summon_participants((LOWER(wallet)))`)
+
+  // await pool.query(`
+  //   CREATE TABLE IF NOT EXISTS abyss_bonus_allowances (
+  //     wallet TEXT PRIMARY KEY,
+  //     available INTEGER NOT NULL DEFAULT 0,
+  //     updated_at TIMESTAMPTZ DEFAULT NOW()
+  //   )
+  // `)
+  
+  // Mark as initialized to skip these slow DDL operations on subsequent requests
+  markTableInitialized('abyss_burns')
+}
+
+function summarizeRow(row?: { total?: unknown; confirmed?: unknown }) {
+  return {
+    total: Number(row?.total ?? 0),
+    confirmed: Number(row?.confirmed ?? 0),
+  }
+}
+
+function hasDynamicCapBeenReached(summary: { total: number; confirmed: number }) {
+  if (summary.confirmed >= ABYSS_CAP) {
+    return true
+  }
+
+  if (Number.isNaN(CAP_REDUCTION_START_UTC)) {
+    return false
+  }
+
+  const now = Date.now()
+  if (now < CAP_REDUCTION_START_UTC) {
+    return false
+  }
+
+  const minutesSinceReduction = Math.max(0, Math.floor((now - CAP_REDUCTION_START_UTC) / 60_000))
+  const reducedCap = Math.max(ABYSS_CAP - minutesSinceReduction, 0)
+
+  return summary.total >= reducedCap
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const pool = getPool()
+    await ensureAbyssBurnsTable(pool)
+
+    const { searchParams } = request.nextUrl
+    const cacheControl = request.headers.get('cache-control')
+
+    // Return all stats in one call for profile page optimization
+    if (searchParams.get('includeStats') === 'true') {
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        // DDL operations commented out for performance - tables must exist in production
+        // await pool.query(`
+        //   CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+        //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+        //     wallet_address TEXT NOT NULL,
+        //     image_url TEXT NOT NULL,
+        //     image_blob_url TEXT,
+        //     source_inscription_id TEXT NOT NULL,
+        //     generation_prompt TEXT,
+        //     created_at TIMESTAMPTZ DEFAULT NOW()
+        //   )
+        // `)
+        // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        // await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
+      
+      // Get ascension total (successful second ascensions)
+      const mintQueueRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
+        `,
+      )
+      const ascensionTotal = Number(mintQueueRes.rows[0]?.count ?? 0)
+      
+      // Get demons revived (first ascensions)
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demonsRevived = Number(demonsRes.rows[0]?.count ?? 0)
+      
+      // Get leaderboard for executioner check
+      const leaderboardResult = await pool.query(
+        `
+          SELECT
+            ordinal_wallet,
+            MIN(payment_wallet) AS primary_payment_wallet,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed
+          FROM abyss_burns
+          GROUP BY ordinal_wallet
+          ORDER BY confirmed DESC, total DESC
+          LIMIT ${ABYSS_CAP}
+        `,
+      )
+      const leaderboard = leaderboardResult.rows.map((row) => ({
+        ordinalWallet: row.ordinal_wallet ?? '',
+        paymentWallet: row.primary_payment_wallet ?? '',
+        total: Number(row.total ?? 0),
+        confirmed: Number(row.confirmed ?? 0),
+      }))
+      
+      return NextResponse.json(
+        {
+          success: true,
+          ascensionTotal,
+          demonsRevived,
+          leaderboard,
+        },
+        {
+          headers: {
+            'Cache-Control': 'public, max-age=3, s-maxage=3, stale-while-revalidate=1',
+          },
+        },
+      )
+    }
+
+    // Return total ascended/revived (successful ascensions only)
+    if (searchParams.get('ascensionTotal') === 'true') {
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+      // DDL operations commented out for performance - tables must exist in production
+      // await pool.query(`
+      //   CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+      //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+      //     wallet_address TEXT NOT NULL,
+      //     image_url TEXT NOT NULL,
+      //     image_blob_url TEXT,
+      //     source_inscription_id TEXT NOT NULL,
+      //     generation_prompt TEXT,
+      //     created_at TIMESTAMPTZ DEFAULT NOW()
+      //   )
+      // `)
+      // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      // await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
+      
+      // Count successful ascensions:
+      // Only count entries in ascended_images_mint_queue where source_inscription_id starts with "ascended_"
+      // These are successful second ascensions saved for mint
+      // Note: We don't count entries thrown back to abyss or first ascensions in mint queue
+      // because those can be re-ascended, which would cause double counting
+      
+      const mintQueueRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
+        `,
+      )
+      const totalCount = Number(mintQueueRes.rows[0]?.count ?? 0)
+      return NextResponse.json({ success: true, ascensionTotal: totalCount })
+    }
+
+    // Return total demons revived (first ascensions only - source_inscription_id doesn't start with "ascended_")
+    if (searchParams.get('demonsRevived') === 'true') {
+      // Ensure ascended_images_mint_queue table exists (only run DDL once per process)
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+      // DDL operations commented out for performance - tables must exist in production
+      // await pool.query(`
+      //   CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+      //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+      //     wallet_address TEXT NOT NULL,
+      //     image_url TEXT NOT NULL,
+      //     image_blob_url TEXT,
+      //     source_inscription_id TEXT NOT NULL,
+      //     generation_prompt TEXT,
+      //     created_at TIMESTAMPTZ DEFAULT NOW()
+      //   )
+      // `)
+      // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+      // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+      // await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
+      
+      // Count demons revived:
+      // Count entries in ascended_images_mint_queue where source_inscription_id does NOT start with "ascended_"
+      // These are first ascensions (revived demons) saved for mint
+      
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demonsCount = Number(demonsRes.rows[0]?.count ?? 0)
+      return NextResponse.json({ success: true, demonsRevived: demonsCount })
+    }
+
+    // Return angels vs demons ratio for Gates of the Damned
+    if (searchParams.get('gatesRatio') === 'true') {
+      // Ensure ascended_images_mint_queue table exists
+      if (!isTableInitialized('ascended_images_mint_queue')) {
+        // DDL operations commented out for performance - tables must exist in production
+        // await pool.query(`
+        //   CREATE TABLE IF NOT EXISTS ascended_images_mint_queue (
+        //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        //     limbo_id UUID REFERENCES ascended_images_limbo(id) ON DELETE CASCADE,
+        //     wallet_address TEXT NOT NULL,
+        //     image_url TEXT NOT NULL,
+        //     image_blob_url TEXT,
+        //     source_inscription_id TEXT NOT NULL,
+        //     generation_prompt TEXT,
+        //     created_at TIMESTAMPTZ DEFAULT NOW()
+        //   )
+        // `)
+        // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS image_blob_url TEXT`)
+        // await pool.query(`ALTER TABLE ascended_images_mint_queue ADD COLUMN IF NOT EXISTS generation_prompt TEXT`)
+        // await pool.query(`CREATE INDEX IF NOT EXISTS idx_ascended_mint_wallet ON ascended_images_mint_queue((LOWER(wallet_address)))`)
+        markTableInitialized('ascended_images_mint_queue')
+      }
+      
+      // Count demons (first ascensions - NOT starting with "ascended_")
+      const demonsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) NOT LIKE 'ascended_%'
+        `,
+      )
+      const demons = Number(demonsRes.rows[0]?.count ?? 0)
+      
+      // Count angels (second ascensions - starting with "ascended_")
+      const angelsRes = await pool.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ascended_images_mint_queue
+          WHERE LOWER(source_inscription_id) LIKE 'ascended_%'
+        `,
+      )
+      const angels = Number(angelsRes.rows[0]?.count ?? 0)
+      
+      const total = demons + angels
+      const angelPercentage = total > 0 ? Math.round((angels / total) * 100) : 0
+      const gatesOpen = angelPercentage >= 51
+      
+      return NextResponse.json({ 
+        success: true, 
+        demons, 
+        angels, 
+        total,
+        angelPercentage,
+        gatesOpen 
+      }, {
+        headers: {
+          'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=2',
+        },
+      })
+    }
+
+    if (searchParams.get('ids') === 'inscriptions') {
+      const result = await pool.query(`SELECT inscription_id FROM abyss_burns`)
+      const ids = result.rows
+        .map((row) => (typeof row?.inscription_id === 'string' ? row.inscription_id.trim() : null))
+        .filter((value: string | null): value is string => Boolean(value))
+      return NextResponse.json({ success: true, inscriptions: ids })
+    }
+
+    if (cacheControl?.toLowerCase().includes('no-cache') || cacheControl?.toLowerCase().includes('no-store')) {
+      // Explicitly bypass any internal caching by referencing request headers
+    }
+
+    const ordinalWallet = searchParams.get('ordinalWallet')?.trim() ?? ''
+    const paymentWallet = searchParams.get('paymentWallet')?.trim() ?? ''
+    const includePending =
+      searchParams.get('includePending') === 'true' ||
+      searchParams.get('pending') === 'true' ||
+      searchParams.get('pendingOnly') === 'true'
+    const includeCooldown =
+      searchParams.get('includeCooldown') === 'true' ||
+      searchParams.get('cooldown') === 'true'
+    const includeGraveyard = searchParams.get('includeGraveyard') === 'true'
+    const graveyardLimitRaw = Number.parseInt(searchParams.get('graveyardLimit') ?? '', 10)
+    const defaultGraveyardLimit = Math.min(120, ABYSS_CAP)
+    const graveyardLimit = Number.isFinite(graveyardLimitRaw)
+      ? Math.min(Math.max(graveyardLimitRaw, 1), ABYSS_CAP)
+      : defaultGraveyardLimit
+
+    let pending: Array<{
+      inscriptionId: string
+      txId: string
+      ordinalWallet: string
+      paymentWallet: string
+      status: string
+      createdAt: unknown
+      updatedAt: unknown
+      confirmedAt: unknown
+    }> = []
+
+    if ((includePending || includeCooldown) && !ordinalWallet && !paymentWallet) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ordinalWallet or paymentWallet query parameter is required when includePending or includeCooldown is true.',
+        },
+        { status: 400 },
+      )
+    }
+
+    if (includePending) {
+      if (!ordinalWallet && !paymentWallet) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'ordinalWallet or paymentWallet query parameter is required when includePending is true.',
+          },
+          { status: 400 },
+        )
+      }
+
+      const filters: string[] = []
+      const values: unknown[] = []
+      let paramIndex = 1
+
+      if (ordinalWallet) {
+        filters.push(`LOWER(ordinal_wallet) = LOWER($${paramIndex})`)
+        values.push(ordinalWallet)
+        paramIndex += 1
+      }
+
+      if (paymentWallet) {
+        filters.push(`LOWER(payment_wallet) = LOWER($${paramIndex})`)
+        values.push(paymentWallet)
+        paramIndex += 1
+      }
+
+      const filterSql = filters.length > 0 ? `AND (${filters.join(' OR ')})` : ''
+
+      const pendingResult = await pool.query(
+        `
+          SELECT inscription_id,
+                 tx_id,
+                 ordinal_wallet,
+                 payment_wallet,
+                 status,
+                 created_at,
+                 updated_at,
+                 confirmed_at
+          FROM abyss_burns
+          WHERE status = 'pending'
+          ${filterSql}
+          ORDER BY updated_at DESC
+        `,
+        values,
+      )
+
+      pending = pendingResult.rows.map((row) => ({
+        inscriptionId: row.inscription_id,
+        txId: row.tx_id,
+        ordinalWallet: row.ordinal_wallet,
+        paymentWallet: row.payment_wallet,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        confirmedAt: row.confirmed_at,
+      }))
+    }
+
+    let leaderboard: Array<{
+      ordinalWallet: string
+      paymentWallet: string
+      total: number
+      confirmed: number
+    }> = []
+    const includeLeaderboard = searchParams.get('includeLeaderboard') === 'true'
+
+    let cooldown: {
+      active: boolean
+      remainingMs: number
+      nextEligibleAt: string | null
+      lastEventAt: string | null
+      source: 'ordinal' | 'payment' | 'either' | null
+    } | null = null
+
+    if (includeCooldown && (ordinalWallet || paymentWallet)) {
+      let ordinalLast: Date | null = null
+      let paymentLast: Date | null = null
+
+      if (ordinalWallet) {
+        const ordinalResult = await pool.query(
+          `SELECT MAX(updated_at) AS last_event FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1)`,
+          [ordinalWallet],
+        )
+        const rawOrdinal = ordinalResult.rows[0]?.last_event
+        if (rawOrdinal) {
+          const candidate = new Date(rawOrdinal)
+          ordinalLast = Number.isNaN(candidate.getTime()) ? null : candidate
+        }
+      }
+
+      if (paymentWallet) {
+        const paymentResult = await pool.query(
+          `SELECT MAX(updated_at) AS last_event FROM abyss_burns WHERE LOWER(payment_wallet) = LOWER($1)`,
+          [paymentWallet],
+        )
+        const rawPayment = paymentResult.rows[0]?.last_event
+        if (rawPayment) {
+          const candidate = new Date(rawPayment)
+          paymentLast = Number.isNaN(candidate.getTime()) ? null : candidate
+        }
+      }
+
+      let source: 'ordinal' | 'payment' | 'either' | null = null
+      let lastEventAt: Date | null = null
+
+      if (ordinalLast && paymentLast) {
+        if (ordinalLast.getTime() === paymentLast.getTime()) {
+          lastEventAt = ordinalLast
+          source = 'either'
+        } else if (ordinalLast > paymentLast) {
+          lastEventAt = ordinalLast
+          source = 'ordinal'
+        } else {
+          lastEventAt = paymentLast
+          source = 'payment'
+        }
+      } else if (ordinalLast) {
+        lastEventAt = ordinalLast
+        source = 'ordinal'
+      } else if (paymentLast) {
+        lastEventAt = paymentLast
+        source = 'payment'
+      }
+
+      if (lastEventAt) {
+        const nextEligibleAt = new Date(lastEventAt.getTime() + BURN_COOLDOWN_MS)
+        const remainingMs = Math.max(0, nextEligibleAt.getTime() - Date.now())
+        cooldown = {
+          active: remainingMs > 0,
+          remainingMs,
+          nextEligibleAt: nextEligibleAt.toISOString(),
+          lastEventAt: lastEventAt.toISOString(),
+          source,
+        }
+      }
+    }
+
+    if (includeLeaderboard) {
+      const leaderboardResult = await pool.query(
+        `
+          SELECT
+            ordinal_wallet,
+            MIN(payment_wallet) AS primary_payment_wallet,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed
+          FROM abyss_burns
+          GROUP BY ordinal_wallet
+          ORDER BY confirmed DESC, total DESC
+          LIMIT ${ABYSS_CAP}
+        `,
+      )
+      leaderboard = leaderboardResult.rows.map((row) => ({
+        ordinalWallet: row.ordinal_wallet ?? '',
+        paymentWallet: row.primary_payment_wallet ?? '',
+        total: Number(row.total ?? 0),
+        confirmed: Number(row.confirmed ?? 0),
+      }))
+    }
+
+    const summaryResult = await pool.query(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
+    )
+    const summary = summarizeRow(summaryResult.rows[0])
+
+    const responseBody: Record<string, unknown> = { success: true, summary, cap: ABYSS_CAP }
+    if (includePending) {
+      responseBody.pending = pending
+    }
+    if (includeCooldown) {
+      responseBody.cooldown = cooldown
+    }
+    if (includeLeaderboard) {
+      responseBody.leaderboard = leaderboard
+    }
+    if (includeGraveyard) {
+      let graveyardRows: Array<Record<string, unknown>> = []
+      let profile: { username: string | null; avatar_url: string | null; ascension_powder: number; has_grave_robbed?: boolean } | null = null
+      if (ordinalWallet) {
+        const result = await pool.query(
+          `
+            SELECT inscription_id,
+                   tx_id,
+                   status,
+                   source,
+                   ascension_powder,
+                   image_blob_url,
+                   created_at,
+                   confirmed_at,
+                   updated_at
+            FROM abyss_burns
+            WHERE LOWER(ordinal_wallet) = LOWER($1)
+              AND hidden = FALSE
+              AND status = 'confirmed'
+            ORDER BY created_at DESC
+            LIMIT ${graveyardLimit}
+          `,
+          [ordinalWallet],
+        )
+        graveyardRows = result.rows
+
+        const profileRes = await pool.query(
+          `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
+          [ordinalWallet],
+        )
+        
+        // Check if user has successfully grave robbed (they are the robber, not the victim)
+        const graveRobRes = await pool.query(
+          `SELECT 
+            EXISTS(SELECT 1 FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as has_grave_robbed,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1)) as total_attempts,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as successful_robs`,
+          [ordinalWallet]
+        )
+        const hasGraveRobbed = graveRobRes.rows[0]?.has_grave_robbed ?? false
+     
+        if (profileRes.rows.length > 0) {
+          profile = {
+            username: profileRes.rows[0]?.username ?? null,
+            avatar_url: profileRes.rows[0]?.avatar_url ?? null,
+            ascension_powder:
+              typeof profileRes.rows[0]?.ascension_powder === 'number'
+                ? Number(profileRes.rows[0]?.ascension_powder)
+                : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+            has_grave_robbed: hasGraveRobbed,
+          }
+        } else if (hasGraveRobbed) {
+          // User has grave robbed but no profile yet - create minimal profile
+          profile = {
+            username: null,
+            avatar_url: null,
+            ascension_powder: 0,
+            has_grave_robbed: true,
+          }
+        }
+      } else if (paymentWallet) {
+        const result = await pool.query(
+          `
+            SELECT inscription_id,
+                   tx_id,
+                   status,
+                   source,
+                   ascension_powder,
+                   image_blob_url,
+                   created_at,
+                   confirmed_at,
+                   updated_at
+            FROM abyss_burns
+            WHERE LOWER(payment_wallet) = LOWER($1)
+              AND hidden = FALSE
+            ORDER BY created_at DESC
+            LIMIT ${graveyardLimit}
+          `,
+          [paymentWallet],
+        )
+        graveyardRows = result.rows
+
+        const profileRes = await pool.query(
+          `SELECT username, avatar_url, ascension_powder FROM profiles WHERE LOWER(wallet_address) = LOWER($1) LIMIT 1`,
+          [paymentWallet],
+        )
+        
+        // Check if user has successfully grave robbed (they are the robber, not the victim)
+        const graveRobRes = await pool.query(
+          `SELECT 
+            EXISTS(SELECT 1 FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as has_grave_robbed,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1)) as total_attempts,
+            (SELECT COUNT(*) FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true) as successful_robs`,
+          [paymentWallet]
+        )
+        const hasGraveRobbed = graveRobRes.rows[0]?.has_grave_robbed ?? false
+        console.log('[Graveyard API] Grave rob check for robber wallet:', paymentWallet)
+        console.log('[Graveyard API] Query result:', graveRobRes.rows[0])
+        console.log('[Graveyard API] has_grave_robbed:', hasGraveRobbed)
+        
+        if (profileRes.rows.length > 0) {
+          profile = {
+            username: profileRes.rows[0]?.username ?? null,
+            avatar_url: profileRes.rows[0]?.avatar_url ?? null,
+            ascension_powder:
+              typeof profileRes.rows[0]?.ascension_powder === 'number'
+                ? Number(profileRes.rows[0]?.ascension_powder)
+                : Number.parseInt(profileRes.rows[0]?.ascension_powder ?? '0', 10) || 0,
+            has_grave_robbed: hasGraveRobbed,
+          }
+        } else if (hasGraveRobbed) {
+          // User has grave robbed but no profile yet - create minimal profile
+          profile = {
+            username: null,
+            avatar_url: null,
+            ascension_powder: 0,
+            has_grave_robbed: true,
+          }
+        }
+      }
+
+      responseBody.graveyard = graveyardRows.map((row) => ({
+        inscriptionId: (row?.inscription_id ?? '').toString(),
+        txId: (row?.tx_id ?? '').toString(),
+        status: (row?.status ?? 'pending').toString(),
+        source: (row?.source ?? 'abyss').toString(),
+        imageBlobUrl: (row?.image_blob_url ?? null) as string | null,
+        ascensionPowder:
+          typeof row?.ascension_powder === 'number'
+            ? Number(row.ascension_powder)
+            : Number.parseInt((row?.ascension_powder ?? '').toString(), 10) || 0,
+        createdAt: row?.created_at ?? null,
+        confirmedAt: row?.confirmed_at ?? null,
+        updatedAt: row?.updated_at ?? null,
+      }))
+      responseBody.profile = profile
+    }
+    const allowanceSourceWallet = ordinalWallet || paymentWallet
+    if (allowanceSourceWallet) {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [allowanceSourceWallet],
+      )
+      responseBody.bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    }
+
+    return NextResponse.json(responseBody)
+  } catch (error) {
+    console.error('[abyss/burns][GET]', error)
+    return NextResponse.json({ success: false, error: 'Failed to fetch abyss burns summary.' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json().catch(() => ({}))
+    const inscriptionId = (body?.inscriptionId ?? '').toString().trim()
+    const txId = (body?.txId ?? '').toString().trim()
+    const ordinalWallet = (body?.ordinalWallet ?? '').toString().trim()
+    const paymentWallet = (body?.paymentWallet ?? '').toString().trim()
+    const summonIdRaw = body?.summonId
+    const summonId =
+      typeof summonIdRaw === 'string' && summonIdRaw ? summonIdRaw.trim() : summonIdRaw ?? null
+
+    if (!inscriptionId || !txId || !ordinalWallet || !paymentWallet) {
+      return NextResponse.json(
+        { success: false, error: 'inscriptionId, txId, ordinalWallet, and paymentWallet are required.' },
+        { status: 400 },
+      )
+    }
+
+    const pool = getPool()
+    await ensureAbyssBurnsTable(pool)
+
+    const preSummaryResult = await pool.query(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
+    )
+    const preSummary = summarizeRow(preSummaryResult.rows[0])
+    let burnSource = 'abyss'
+    let allowanceApplied = false
+
+    const capReached = hasDynamicCapBeenReached(preSummary)
+
+    if (capReached) {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [ordinalWallet],
+      )
+      const available = Number(allowanceRes.rows[0]?.available ?? 0)
+      if (available > 0) {
+        burnSource = 'summon_bonus'
+        allowanceApplied = true
+      } else {
+      return NextResponse.json(
+        { success: false, error: 'Abyss burn cap reached.', summary: preSummary, cap: ABYSS_CAP },
+        { status: 403 },
+      )
+      }
+    }
+
+    try {
+    await pool.query(
+      `
+        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+        ON CONFLICT (inscription_id) DO UPDATE
+          SET tx_id = EXCLUDED.tx_id,
+              ordinal_wallet = EXCLUDED.ordinal_wallet,
+              payment_wallet = EXCLUDED.payment_wallet,
+              status = 'pending',
+              source = EXCLUDED.source,
+              summon_id = EXCLUDED.summon_id,
+              updated_at = NOW(),
+              confirmed_at = NULL,
+              last_checked_at = NULL
+      `,
+      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+    )
+    } catch (err: any) {
+      // Unique violation can happen on tx_id when the same tx is retried with a different inscription_id string casing
+      if (err && err.code === '23505') {
+        await pool.query(
+          `
+            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+            ON CONFLICT (tx_id) DO UPDATE
+              SET inscription_id = EXCLUDED.inscription_id,
+                  ordinal_wallet = EXCLUDED.ordinal_wallet,
+                  payment_wallet = EXCLUDED.payment_wallet,
+                  status = 'pending',
+                  source = EXCLUDED.source,
+                  summon_id = EXCLUDED.summon_id,
+                  updated_at = NOW(),
+                  confirmed_at = NULL,
+                  last_checked_at = NULL
+          `,
+          [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+        )
+      } else {
+        throw err
+      }
+    }
+
+    if (allowanceApplied) {
+      await pool.query(
+        `
+          UPDATE abyss_bonus_allowances
+          SET available = GREATEST(available - 1, 0),
+              updated_at = NOW()
+          WHERE LOWER(wallet) = LOWER($1)
+        `,
+        [ordinalWallet],
+    )
+    }
+
+    const summaryResult = await pool.query(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
+    )
+    const summary = summarizeRow(summaryResult.rows[0])
+
+    let bonusAllowance: number | undefined
+    if (allowanceApplied || ordinalWallet) {
+      const allowanceRes = await pool.query(
+        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+        [ordinalWallet],
+      )
+      bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+    }
+
+    return NextResponse.json({ success: true, summary, cap: ABYSS_CAP, bonusAllowance, source: burnSource })
+  } catch (error) {
+    console.error('[abyss/burns][POST]', error)
+    return NextResponse.json({ success: false, error: 'Failed to record abyss burn.' }, { status: 500 })
+  }
+}
+
+

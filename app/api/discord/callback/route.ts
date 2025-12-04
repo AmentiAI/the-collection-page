@@ -171,10 +171,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Redirect back to dashboard with success
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?discord_auth=success&discord_id=${discordUser.id}`)
+    // Redirect back to profile with success state
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?discord_auth=success&discord_id=${discordUser.id}`,
+    )
   } catch (error) {
     console.error('Discord callback error:', error)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?discord_auth=error`)
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?discord_auth=error`,
+    )
   }
 }

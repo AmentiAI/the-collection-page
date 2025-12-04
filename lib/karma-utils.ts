@@ -45,7 +45,7 @@ export async function calculateOrdinalKarmaForWallet(walletAddress: string, pool
     
     const profileId = profileResult.rows[0].id
     const profileUpdatedAt = profileResult.rows[0].updated_at
-    const chosenSide = profileResult.rows[0].chosen_side || 'good' // Default to good if not set
+    const chosenSide = profileResult.rows[0].chosen_side // Don't default - require explicit choice
 
     // Get previous ordinal counts from profiles
     const previousCount = profileResult.rows[0].last_ordinal_count || 0
@@ -83,6 +83,18 @@ export async function calculateOrdinalKarmaForWallet(walletAddress: string, pool
       [walletAddress]
     )
     const newUpdatedAt = updatedProfileResult.rows[0]?.updated_at
+    
+    // Skip karma awarding if user hasn't chosen a side yet
+    if (!chosenSide) {
+      return {
+        success: true,
+        ordinalCount,
+        karmaPoints: expectedKarma,
+        karmaDifference: 0,
+        ordinalCountChanged,
+        message: `Ordinal count updated to ${ordinalCount}. Choose a side (Good/Evil) to start earning karma.`
+      }
+    }
     
     // Detect if user bought new ordinals (count increased) - +20 karma per purchase
     // Only award if count actually increased from previous count

@@ -27,7 +27,7 @@ const OYO_WALLET = {
     throw new Error('OYO wallet not found. Please install the OYO wallet extension.')
   }
 }
-
+ 
 const WALLET_OPTIONS = [
   { id: 'unisat', name: 'Unisat', icon: '🔗', wallet: UNISAT, type: 'lasereyes' },
   { id: 'xverse', name: 'Xverse', icon: '⚡', wallet: XVERSE, type: 'lasereyes' },
@@ -47,8 +47,6 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const [isVerifying, setIsVerifying] = useState(false)
   const [isHolder, setIsHolder] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [verificationCode, setVerificationCode] = useState<string | null>(null)
-  const [showCodeModal, setShowCodeModal] = useState(false)
 
   const handleConnect = async (wallet: any, walletType: string = 'lasereyes') => {
     try {
@@ -76,26 +74,10 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
     onHolderVerified?.(false)
   }
 
-  // Check if user is a holder when wallet connects and create profile
+  // Check if user is a holder when wallet connects (profile auto-created by API if needed)
   useEffect(() => {
-    console.log('🔄 useEffect triggered - connected:', connected, 'address:', address)
+   
     if (connected && address) {
-      console.log('✅ Wallet connected, creating profile and starting holder check...')
-      
-      // Auto-create profile
-      fetch('/api/profile/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          paymentAddress: address // Initially same as wallet address
-        })
-      }).then(res => res.json()).then(data => {
-        console.log('✅ Profile created/updated:', data)
-      }).catch(err => {
-        console.error('Failed to create profile:', err)
-      })
-      
       checkHolderStatus()
     } else {
       console.log('❌ Wallet not connected or no address')
@@ -111,40 +93,33 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       return
     }
 
-    console.log('🚀 Starting holder check for address:', address)
+    
     setIsVerifying(true)
     onVerifyingStart?.()
     try {
       // Check if the connected address has any ordinals from "The Damned" collection (the-damned)
-      console.log('🔍 Calling checkForOrdinals for the-damned collection...')
       const hasOrdinals = await checkForOrdinals(address)
-      console.log('✅ checkForOrdinals returned:', hasOrdinals)
-      setIsHolder(hasOrdinals)
-      onHolderVerified?.(hasOrdinals, address)
       
-      // If holder, get verification code
-      if (hasOrdinals) {
-        console.log('🎫 Holder detected! Getting verification code...')
-        try {
-          const response = await fetch('/api/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address })
-          })
-          const data = await response.json()
-          console.log('📝 Verification API response:', data)
-          if (data.verified && data.code) {
-            console.log('✅ Verification code generated:', data.code)
-            setVerificationCode(data.code)
-            // Don't auto-show modal - user must click "Show Code" button
-          } else {
-            console.error('❌ Verification failed:', data.message || 'Unknown error')
-          }
-        } catch (error) {
-          console.error('❌ Error getting verification code:', error)
+      // Also check if wallet has abyss_burns records (they deserve access too)
+      let hasBurns = false
+      try {
+        const burnsResponse = await fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`)
+        if (burnsResponse.ok) {
+          const burnsData = await burnsResponse.json()
+          hasBurns = burnsData.success && burnsData.hasBurns
+          console.log('✅ Has abyss burns:', hasBurns)
         }
-      } else {
-        console.log('❌ Not a holder - no verification code will be generated')
+      } catch (error) {
+        console.error('Error checking abyss burns:', error)
+      }
+      
+      // User is considered a holder if they have ordinals OR have burned in the abyss
+      const isHolder = hasOrdinals || hasBurns
+      setIsHolder(isHolder)
+      onHolderVerified?.(isHolder, address)
+      
+      if (!isHolder) {
+        console.log('❌ Not a holder and no abyss burns - skipping verification code flow')
       }
     } catch (error) {
       console.error('Error checking holder status:', error)
@@ -160,11 +135,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       // Proxy through our API route to avoid CORS issues
       const apiUrl = `/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned`
       
-      console.log('🔍🔍🔍 CHECKING THE DAMNED COLLECTION 🔍🔍🔍')
-      console.log('📍 Wallet address:', walletAddress)
-      console.log('🏷️ Collection: the-damned')
-      console.log('🔗 Using proxy API route:', apiUrl)
-      
+ 
       // Call our proxy API route (handles CORS and API key server-side)
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -201,38 +172,16 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
       console.log('📡 Response status:', response.status, response.statusText)
       
       const data = await response.json()
-      console.log('📦 FULL Magic Eden API response:', JSON.stringify(data, null, 2))
-      console.log('📊 Response keys:', Object.keys(data))
+      
       
       // Check multiple possible response formats
-      let total = 0
-      if (typeof data.total === 'number') {
-        total = data.total
-        console.log('✓ Found data.total:', total)
-      } else if (Array.isArray(data.tokens)) {
-        total = data.tokens.length
-        console.log('✓ Found data.tokens array with length:', total)
-      } else if (Array.isArray(data)) {
-        total = data.length
-        console.log('✓ Response is array with length:', total)
-      } else if (typeof data.count === 'number') {
-        total = data.count
-        console.log('✓ Found data.count:', total)
-      } else {
-        // If no total/count, check if tokens array exists
-        if (Array.isArray(data.tokens) && data.tokens.length > 0) {
-          total = data.tokens.length
-          console.log('✓ Found tokens array with items:', total)
-        } else {
-          console.warn('⚠️ Could not find total in response structure')
-          console.log('📋 Full data structure:', JSON.stringify(data, null, 2))
-          // If we have any data, assume they might be a holder
-          total = Object.keys(data).length > 0 ? 1 : 0
-        }
-      }
-      
-      const hasOrdinals = total > 0
-      console.log('🎯 FINAL RESULT - Total ordinals:', total, '| Is holder:', hasOrdinals)
+      const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
+      // Must have at least one NFT with listed: false AND no listed ordinals at all
+      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
+      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
+      const hasOrdinals = hasUnlisted && !hasAnyListed
+      const total = tokens.length
+      console.log('🎯 FINAL RESULT - Total ordinals:', total, '| Has unlisted:', hasUnlisted, '| Has any listed:', hasAnyListed, '| Is holder:', hasOrdinals)
       
       return hasOrdinals
     } catch (error) {
@@ -282,15 +231,6 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
             </div>
           </div>
           
-          {/* Show verification code button if holder */}
-          {isHolder && verificationCode && !showCodeModal && (
-            <button
-              onClick={() => setShowCodeModal(true)}
-              className="px-3 py-1 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] text-xs font-bold transition-all"
-            >
-              Show Code
-            </button>
-          )}
           <button
             onClick={handleDisconnect}
             className="px-3 py-1 bg-[#333] text-[#ff6b6b] rounded hover:bg-[#8B0000] hover:text-white text-xs font-bold transition-all"
@@ -308,36 +248,7 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
         />
       )}
       
-      {/* Verification Code Modal */}
-      {showCodeModal && verificationCode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-          <div className="bg-[rgba(20,20,20,0.98)] border-2 border-[#ff0000] rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl text-[#ff0000] font-bold mb-2">✓ The Damned Holder</h3>
-                        <p className="text-[#ff6b6b] mb-4">
-              Copy this code and type <code className="bg-black px-2 py-1 rounded">/verify code:</code> then paste your code in Discord to join the holders chat:            
-            </p>
-            <div className="bg-black p-4 rounded mb-4">
-              <code className="text-lg text-white font-bold select-all">{verificationCode}</code>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(verificationCode)
-                }}
-                className="flex-1 px-4 py-2 bg-[#8B0000] text-white rounded hover:bg-[#ff0000] font-bold"
-              >
-                Copy Code
-              </button>
-              <button
-                onClick={() => setShowCodeModal(false)}
-                className="flex-1 px-4 py-2 bg-[#333] text-white rounded hover:bg-[#555] font-bold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Verification Code Modal removed */}
     </div>
   )
 }

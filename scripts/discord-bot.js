@@ -7,9 +7,10 @@ const {
   Routes,
   ApplicationCommandOptionType,
   EmbedBuilder,
-  AttachmentBuilder,
 } = require('discord.js');
 const fetch = require('node-fetch');
+const { FlashnetClient } = require('@flashnet/sdk');
+const { SparkWallet } = require('@buildonspark/spark-sdk');
 require('dotenv').config({ path: '.env.local' });
 
 const client = new Client({
@@ -21,7 +22,6 @@ const client = new Client({
   ],
 });
 
-const VERIFY_API_URL = process.env.NEXT_PUBLIC_VERIFY_API_URL || 'https://thedamned.xyz/api/verify';
 const HOLDERS_CHANNEL_ID = process.env.HOLDERS_CHANNEL_ID;
 const HOLDER_ROLE_ID = process.env.HOLDER_ROLE_ID;
 const BOT_STATUS_CHANNEL_ID = process.env.BOT_STATUS_CHANNEL_ID;
@@ -30,34 +30,38 @@ const DUALITY_TRIAL_CHANNEL_ID = process.env.DUALITY_TRIAL_CHANNEL_ID;
 const DUALITY_EVENTS_CHANNEL_ID = process.env.DUALITY_EVENTS_CHANNEL_ID;
 const DUALITY_PARTICIPANT_ROLE_ID = process.env.DUALITY_PARTICIPANT_ROLE_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
-const DUALITY_BASE_URL =
-  process.env.DUALITY_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const SITE_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.thedamned.xyz';
+const EXECUTIONER_ROLE_ID = process.env.EXECUTIONER_ROLE_ID || '1437820365991837859';
+const SUMMONER_ROLE_ID = process.env.SUMMONER_ROLE_ID || '1437895763308052601';
+const DEAD_DEMON_ROLE_ID = process.env.DEAD_DEMON_ROLE_ID || '1440686851542352003';
+const GRAVE_ROBBER_ROLE_ID = process.env.GRAVE_ROBBER_ROLE_ID || '1442345905578573987';
 
-const LUMINEX_API_URL = process.env.LUMINEX_API_URL || 'https://api.luminex.io/spark';
-const LUMINEX_CHART_API_URL = process.env.LUMINEX_CHART_API_URL || 'https://api.luminex.io';
-const parsedLuminexInterval = Number(process.env.LUMINEX_POLL_INTERVAL_MS || 5 * 60 * 1000);
-const LUMINEX_POLL_INTERVAL_MS = Number.isFinite(parsedLuminexInterval)
-  ? Math.max(60_000, parsedLuminexInterval)
+const FLASHNET_MNEMONIC = process.env.FLASHNET_MNEMONIC || process.env.SPARK_MNEMONIC;
+const FLASHNET_NETWORK = (process.env.FLASHNET_NETWORK || 'MAINNET').toUpperCase();
+const parsedFlashnetInterval = Number(process.env.FLASHNET_POLL_INTERVAL_MS || 5 * 60 * 1000);
+const FLASHNET_POLL_INTERVAL_MS = Number.isFinite(parsedFlashnetInterval)
+  ? Math.max(60_000, parsedFlashnetInterval)
   : 5 * 60 * 1000;
-const LUMINEX_ALLOWED_CHANNEL_ID =
-  process.env.LUMINEX_CHANNEL_ID ||
-  process.env.LUMINEX_ALLOWED_CHANNEL_ID ||
-  process.env.DISCORD_LUMINEX_CHANNEL_ID ||
+const FLASHNET_ALLOWED_CHANNEL_ID =
+  process.env.FLASHNET_CHANNEL_ID ||
+  process.env.FLASHNET_ALLOWED_CHANNEL_ID ||
+  process.env.DISCORD_FLASHNET_CHANNEL_ID ||
   null;
-const LUMINEX_COMMANDS_ENABLED = process.env.ENABLE_LUMINEX_COMMANDS !== 'false';
-const parsedLuminexPageSize = Number(process.env.LUMINEX_FETCH_PAGE_SIZE || 100);
-const LUMINEX_PAGE_SIZE = Number.isFinite(parsedLuminexPageSize) && parsedLuminexPageSize > 0
-  ? Math.min(Math.max(parsedLuminexPageSize, 25), 250)
+const FLASHNET_COMMANDS_ENABLED =
+  process.env.ENABLE_FLASHNET_COMMANDS !== 'false' && process.env.ENABLE_LUMINEX_COMMANDS !== 'false';
+const FLASHNET_PAGE_SIZE = Number.isFinite(Number(process.env.FLASHNET_PAGE_SIZE))
+  ? Math.max(1, Math.min(50, Number(process.env.FLASHNET_PAGE_SIZE)))
+  : 20;
+const FLASHNET_MAX_SYNC_POOLS = Number.isFinite(Number(process.env.FLASHNET_MAX_SYNC_POOLS))
+  ? Math.max(20, Math.min(200, Number(process.env.FLASHNET_MAX_SYNC_POOLS)))
   : 100;
-const QUICKCHART_ENDPOINT = process.env.QUICKCHART_ENDPOINT || 'https://quickchart.io/chart';
-const LUMINEX_USER_AGENT =
-  process.env.LUMINEX_USER_AGENT || 'TheDamnedBot/1.0 (+https://thedamned.xyz)';
-const LUMINEX_COMMAND_NAMES = new Set(['price', 'holders', 'swaps', 'chart', 'info', 'tokens']);
-const DEFAULT_TOKEN_LIST_LIMIT = Number.isFinite(Number(process.env.LUMINEX_TOKENS_LIMIT))
-  ? Math.max(1, Math.min(50, Number(process.env.LUMINEX_TOKENS_LIMIT)))
+const FLASHNET_COMMAND_NAMES = new Set(['price', 'info', 'tokens']);
+const DEFAULT_POOL_LIST_LIMIT = Number.isFinite(Number(process.env.FLASHNET_TOKENS_LIMIT))
+  ? Math.max(1, Math.min(50, Number(process.env.FLASHNET_TOKENS_LIMIT)))
   : 10;
-let luminexSyncInProgress = false;
-let luminexLastSync = 0;
+let flashnetClientPromise = null;
+let flashnetSyncInProgress = false;
+let flashnetLastSync = 0;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_EVENT_TYPES = ['Blessing', 'Temptation', 'Fate Roll'];
@@ -67,19 +71,6 @@ const PAIRING_COOLDOWN_MINUTES = Number(process.env.DUALITY_PAIRING_COOLDOWN_MIN
 
 // Slash command handler
 client.commands = new Collection();
-
-const verifyCommand = {
-  name: 'verify',
-  description: 'Verify your wallet or get instructions',
-  options: [
-    {
-      name: 'code',
-      type: ApplicationCommandOptionType.String,
-      description: 'Your verification code (leave empty for instructions)',
-      required: false,
-    },
-  ],
-};
 
 const checkHoldersCommand = {
   name: 'checkholders',
@@ -91,89 +82,27 @@ const checkinCommand = {
   description: 'Check in daily to receive +5 karma points (once every 24 hours)',
 };
 
+const dualityCommand = {
+  name: 'duality',
+  description: 'Check in to your active Duality pairing window',
+};
+
 const priceCommand = {
   name: 'price',
-  description: 'Get price information for a Luminex token',
+  description: 'Get price information for a Flashnet pool',
   options: [
     {
       name: 'token',
       type: ApplicationCommandOptionType.String,
       description: 'Token name, ticker, or symbol',
       required: true,
-    },
-  ],
-};
-
-const holdersCommand = {
-  name: 'holders',
-  description: 'View top holders for a Luminex token',
-  options: [
-    {
-      name: 'token',
-      type: ApplicationCommandOptionType.String,
-      description: 'Token name, ticker, or symbol',
-      required: true,
-    },
-    {
-      name: 'limit',
-      type: ApplicationCommandOptionType.Integer,
-      description: 'Number of holders to display (default 10, max 25)',
-      required: false,
-      min_value: 1,
-      max_value: 25,
-    },
-  ],
-};
-
-const swapsCommand = {
-  name: 'swaps',
-  description: 'View recent swap activity for a Luminex token',
-  options: [
-    {
-      name: 'token',
-      type: ApplicationCommandOptionType.String,
-      description: 'Token name, ticker, or symbol',
-      required: true,
-    },
-    {
-      name: 'limit',
-      type: ApplicationCommandOptionType.Integer,
-      description: 'Number of swaps to show (default 10, max 25)',
-      required: false,
-      min_value: 1,
-      max_value: 25,
-    },
-  ],
-};
-
-const chartCommand = {
-  name: 'chart',
-  description: 'Generate a price chart for a Luminex token',
-  options: [
-    {
-      name: 'token',
-      type: ApplicationCommandOptionType.String,
-      description: 'Token name, ticker, or symbol',
-      required: true,
-    },
-    {
-      name: 'timeframe',
-      type: ApplicationCommandOptionType.String,
-      description: 'Chart timeframe',
-      required: false,
-      choices: [
-        { name: '1 Hour (5m candles)', value: '1h' },
-        { name: '6 Hours (15m candles)', value: '6h' },
-        { name: '24 Hours (15m candles)', value: '24h' },
-        { name: '7 Days (1h candles)', value: '7d' },
-      ],
     },
   ],
 };
 
 const infoCommand = {
   name: 'info',
-  description: 'Show a comprehensive summary for a Luminex token',
+  description: 'Show a comprehensive summary for a Flashnet pool',
   options: [
     {
       name: 'token',
@@ -186,7 +115,7 @@ const infoCommand = {
 
 const tokensCommand = {
   name: 'tokens',
-  description: 'List top Luminex tokens from the shared database',
+  description: 'List top Flashnet pools from the shared database',
   options: [
     {
       name: 'limit',
@@ -206,11 +135,36 @@ const tokensCommand = {
   ],
 };
 
+const tipCommand = {
+  name: 'tip',
+  description: 'Tip ascension powder to another user',
+  options: [
+    {
+      name: 'user',
+      type: ApplicationCommandOptionType.User,
+      description: 'The user to tip',
+      required: true,
+    },
+    {
+      name: 'amount',
+      type: ApplicationCommandOptionType.Integer,
+      description: 'Amount of ascension powder to tip',
+      required: true,
+      min_value: 1,
+    },
+  ],
+};
+
+const powderCommand = {
+  name: 'powder',
+  description: 'Check your ascension powder balance',
+};
+
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 async function apiFetch(endpoint, options = {}) {
-  const url = `${DUALITY_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = `${SITE_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -235,26 +189,67 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
-    const commands = [verifyCommand, checkHoldersCommand, checkinCommand];
-    if (LUMINEX_COMMANDS_ENABLED) {
-      commands.push(
-        priceCommand,
-        holdersCommand,
-        swapsCommand,
-        chartCommand,
-        infoCommand,
-        tokensCommand
-      );
+    const commands = [checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand];
+    if (FLASHNET_COMMANDS_ENABLED) {
+      commands.push(priceCommand, infoCommand, tokensCommand);
     }
 
-    await rest.put(
+    console.log(`Registering ${commands.length} commands:`, commands.map(c => c.name).join(', '));
+
+    const registeredCommands = await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
       { body: commands }
     );
 
     console.log('Successfully registered application commands.');
+    console.log('Registered commands:', commands.map(c => `/${c.name}`).join(', '));
+
+    // Set permissions for public commands (powder, tip) to allow everyone
+    // Get the guild ID for permissions
+    const guildId = process.env.GUILD_ID;
+    if (guildId && Array.isArray(registeredCommands)) {
+      try {
+        // Find the @everyone role ID (it's the same as the guild ID)
+        const everyoneRoleId = guildId;
+
+        // Commands that should be available to everyone
+        const publicCommands = ['powder', 'tip', 'checkin', 'duality'];
+        
+        for (const cmd of registeredCommands) {
+          if (publicCommands.includes(cmd.name)) {
+            try {
+              // Set permissions to allow @everyone to use the command
+              await rest.put(
+                Routes.applicationCommandPermissions(process.env.CLIENT_ID, guildId, cmd.id),
+                {
+                  body: {
+                    permissions: [
+                      {
+                        id: everyoneRoleId,
+                        type: 1, // ROLE type
+                        permission: true, // Allow
+                      },
+                    ],
+                  },
+                }
+              );
+              console.log(`✅ Set permissions for /${cmd.name} to allow everyone`);
+            } catch (permError) {
+              console.warn(`⚠️  Could not set permissions for /${cmd.name}:`, permError.message);
+              console.warn('   Command will still work, but may have default Discord permissions.');
+            }
+          }
+        }
+      } catch (permError) {
+        console.warn('⚠️  Could not set command permissions:', permError.message);
+        console.warn('   Make sure your bot has "Manage Server" permission.');
+      }
+    }
   } catch (error) {
     console.error('Error registering commands:', error);
+    if (error.response) {
+      console.error('Discord API error response:', error.response.data);
+    }
   }
 }
 
@@ -657,27 +652,44 @@ async function managePairingSessions(status, client) {
     if (Number.isNaN(windowEnd) || windowEnd > now) continue;
 
     const cooldown = pair.cooldownMinutes || PAIRING_COOLDOWN_MINUTES;
+    const bothCheckedIn = Boolean(pair.goodCheckinAt && pair.evilCheckinAt);
+    const targetStatus = bothCheckedIn ? 'completed' : 'expired';
     const res = await apiFetch(`/api/duality/pairings/${pair.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'completed', cooldownMinutes: cooldown }),
+      body: JSON.stringify({ status: targetStatus, cooldownMinutes: cooldown }),
     });
 
     if (!res.ok) {
       console.error('[Duality] Failed to complete expired pairing:', res.status, res.data);
     } else {
-      console.log(`[Duality] Pairing ${pair.id} window expired. Released partners with ${cooldown}m cooldown.`);
+      console.log(
+        `[Duality] Pairing ${pair.id} window finished as ${targetStatus}. Released partners with ${cooldown}m cooldown.`,
+      );
       updated = true;
     }
   }
 
-  const readyGood = participants.filter((p) =>
-    p.alignment === 'good' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  const readyGood = participants.filter(
+    (p) =>
+      p.alignment === 'good' &&
+      p.readyForPairing &&
+      !p.currentPairId &&
+      (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
   );
-  const readyEvil = participants.filter((p) =>
-    p.alignment === 'evil' && p.readyForPairing && !p.currentPairId && (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
+  const readyEvil = participants.filter(
+    (p) =>
+      p.alignment === 'evil' &&
+      p.readyForPairing &&
+      !p.currentPairId &&
+      (!p.nextAvailableAt || new Date(p.nextAvailableAt).getTime() <= now)
   );
 
-  if (readyGood.length && readyEvil.length) {
+  const canPairOpposites = readyGood.length > 0 && readyEvil.length > 0;
+  const canPairSameGood = readyGood.length >= 2;
+  const canPairSameEvil = readyEvil.length >= 2;
+  const canAttemptPairing = canPairOpposites || canPairSameGood || canPairSameEvil;
+
+  if (canAttemptPairing) {
     const res = await apiFetch('/api/duality/pairings', {
       method: 'POST',
       body: JSON.stringify({ windowMinutes: PAIRING_WINDOW_MINUTES, cooldownMinutes: PAIRING_COOLDOWN_MINUTES }),
@@ -791,21 +803,33 @@ async function announcePairings(pairs, participants, client) {
     const evil = participantMap.get(pair.evilParticipantId);
     if (!good || !evil) continue;
 
+    const sameAlignment = Boolean(pair.sameAlignment);
+    const sameAlignmentLabel =
+      sameAlignment && pair.alignment
+        ? pair.alignment === 'evil'
+          ? 'Same-Side Pairing — Evil'
+          : 'Same-Side Pairing — Good'
+        : null;
+
     const windowEnd = pair.windowEnd ? new Date(pair.windowEnd) : null;
     const windowEndText = windowEnd ? `<t:${Math.floor(windowEnd.getTime() / 1000)}:R>` : `${PAIRING_WINDOW_MINUTES} minutes`;
     const cooldownText = `${pair.cooldownMinutes ?? PAIRING_COOLDOWN_MINUTES} minutes`;
 
     const embed = new EmbedBuilder()
-      .setTitle('🔗 New Duality Pairing Window')
-      .setDescription('Opposing holders have been paired for the next challenge slot.')
+      .setTitle(sameAlignmentLabel ? '🪞 Same-Side Duality Pairing' : '🔗 New Duality Pairing Window')
+      .setDescription(
+        sameAlignmentLabel
+          ? `${sameAlignmentLabel}\n\nTwo holders from the same alignment have been paired for this window.`
+          : 'Opposing holders have been paired for the next challenge slot.'
+      )
       .addFields(
         {
-          name: 'Good Holder',
+          name: sameAlignment ? 'Partner A' : 'Good Holder',
           value: formatParticipant(good),
           inline: true,
         },
         {
-          name: 'Evil Holder',
+          name: sameAlignment ? 'Partner B' : 'Evil Holder',
           value: formatParticipant(evil),
           inline: true,
         },
@@ -821,8 +845,22 @@ async function announcePairings(pairs, participants, client) {
         }
       )
       .addFields({ name: 'Shared Fate Meter', value: `${pair.fateMeter ?? 50}/100`, inline: false })
+      .addFields({
+        name: 'How to Complete',
+        value:
+          'Both holders must run `/duality` (or press the dashboard Duality Check-In button) before the window ends to earn your karma bonus.',
+        inline: false,
+      })
       .setColor(0x9b59b6)
       .setTimestamp(new Date());
+
+    if (sameAlignmentLabel) {
+      embed.addFields({
+        name: 'Alignment Context',
+        value: pair.alignment === 'evil' ? 'Both holders are aligned with Evil.' : 'Both holders are aligned with Good.',
+        inline: false,
+      });
+    }
 
     const mentions = [];
     if (good.discordUserId) mentions.push(`<@${good.discordUserId}>`);
@@ -838,7 +876,13 @@ async function announcePairings(pairs, participants, client) {
       console.error('[Duality] Failed to announce pairing:', error);
     }
 
-    const dmMessage = `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.`;
+    const checkInReminder =
+      '\nUse **/duality** (or the dashboard Duality Check-In button) before the window closes to lock in your reward.';
+    const dmMessage = sameAlignmentLabel
+      ? `🪞 **Same-Side Duality Pairing Active**\nYou have been paired with another ${
+          pair.alignment === 'evil' ? 'Evil' : 'Good'
+        } holder.\nYour window ends ${windowEndText}. Coordinate together, then you will enter a ${cooldownText} cooldown.${checkInReminder}`
+      : `🔗 **Duality Pairing Active**\nYour window ends ${windowEndText}. Coordinate with your partner and complete your objectives, then you will enter a ${cooldownText} cooldown.${checkInReminder}`;
     await dmUser(client, good.discordUserId, dmMessage);
     await dmUser(client, evil.discordUserId, dmMessage);
   }
@@ -921,727 +965,244 @@ function formatParticipant(participant) {
   return parts.join(' • ');
 }
 
-const LUMINEX_TIMEFRAMES = {
-  '1h': { label: '1 Hour', resolution: 5, hours: 1 },
-  '6h': { label: '6 Hours', resolution: 15, hours: 6 },
-  '24h': { label: '24 Hours', resolution: 15, hours: 24 },
-  '7d': { label: '7 Days', resolution: 60, hours: 24 * 7 },
-};
+// Flashnet helpers ---------------------------------------------------------
 
-const luminexDelay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function isLuminexCommand(commandName) {
-  return LUMINEX_COMMAND_NAMES.has(commandName);
+function isFlashnetCommand(commandName) {
+  return FLASHNET_COMMAND_NAMES.has(commandName);
 }
 
-function isAllowedLuminexChannel(channelId) {
-  if (!LUMINEX_ALLOWED_CHANNEL_ID) return true;
-  return channelId === LUMINEX_ALLOWED_CHANNEL_ID;
-}
-
-function getTimeframeConfig(value) {
-  return LUMINEX_TIMEFRAMES[value] || LUMINEX_TIMEFRAMES['24h'];
-}
-
-function formatLuminexPrice(priceStr) {
-  if (priceStr === null || priceStr === undefined) return 'N/A';
-  const price = Number(priceStr);
-  if (!Number.isFinite(price)) return 'N/A';
-  if (price === 0) return '$0';
-  if (price < 0.0001) {
-    return `$${price.toExponential(4)}`;
-  }
-  return `$${price.toLocaleString(undefined, {
-    maximumFractionDigits: 8,
-    minimumFractionDigits: price >= 1 ? 2 : 4,
-  })}`;
+function isAllowedFlashnetChannel(channelId) {
+  if (!FLASHNET_ALLOWED_CHANNEL_ID) return true;
+  return channelId === FLASHNET_ALLOWED_CHANNEL_ID;
 }
 
 function formatCurrency(value) {
   if (value === null || value === undefined) return 'N/A';
   const num = Number(value);
-  if (!Number.isFinite(num) || num === 0) return 'N/A';
-  if (Math.abs(num) >= 1_000_000_000) {
-    return `$${(num / 1_000_000_000).toFixed(2)}B`;
-  }
-  if (Math.abs(num) >= 1_000_000) {
-    return `$${(num / 1_000_000).toFixed(2)}M`;
-  }
-  if (Math.abs(num) >= 1_000) {
-    return `$${(num / 1_000).toFixed(2)}K`;
-  }
+  if (!Number.isFinite(num)) return 'N/A';
+  if (Math.abs(num) >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
+  if (Math.abs(num) >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(num) >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
   return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-function formatPercentChange(value) {
+function formatPercent(value) {
   if (value === null || value === undefined) return 'N/A';
-  const percent = Number(value);
-  if (!Number.isFinite(percent)) return 'N/A';
-  const emoji = percent >= 0 ? '🟢' : '🔴';
-  return `${emoji} ${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 'N/A';
+  const emoji = num >= 0 ? '🟢' : '🔴';
+  return `${emoji} ${num >= 0 ? '+' : ''}${num.toFixed(2)}%`;
 }
 
-function formatRelativeTime(date) {
-  if (!date) return 'N/A';
-  const ts = new Date(date).getTime();
-  if (Number.isNaN(ts)) return 'N/A';
-  return `<t:${Math.floor(ts / 1000)}:R>`;
+function formatNumber(value) {
+  if (value === null || value === undefined) return 'N/A';
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 'N/A';
+  return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function getTokenDisplayName(token) {
-  if (!token) return 'Unknown token';
-  return token.ticker || token.symbol || token.name || token.token_identifier || 'Unknown token';
+function getPoolDisplayName(pool) {
+  if (!pool) return 'Unknown pool';
+  const symbolA = getTokenSymbol(pool, 'a');
+  const symbolB = getTokenSymbol(pool, 'b');
+  if (symbolA && symbolB) {
+    return `${symbolA}/${symbolB}`;
+  }
+  const nameA = getTokenName(pool, 'a');
+  const nameB = getTokenName(pool, 'b');
+  if (nameA && nameB) {
+    return `${nameA}/${nameB}`;
+  }
+  return `${formatAddress(pool.asset_a_address)}/${formatAddress(pool.asset_b_address)}`;
 }
 
-function mapLuminexApiToken(token) {
-  if (!token) return null;
+function getTokenMetadataForSide(pool, side) {
+  return pool?.[`asset_${side}_metadata`] || null;
+}
 
-  let poolLpPubkey = token.pool_lp_pubkey;
-  let poolAddress = token.pool_address;
+function getTokenSymbol(pool, side) {
+  const metadata = getTokenMetadataForSide(pool, side);
+  if (metadata?.ticker) return metadata.ticker;
+  const symbol = pool?.[`asset_${side}_symbol`];
+  return symbol || null;
+}
 
-  if (!poolLpPubkey && token.pools) {
-    if (Array.isArray(token.pools) && token.pools.length > 0) {
-      poolLpPubkey = token.pools[0]?.lp_pubkey || token.pools[0]?.pubkey;
-      poolAddress = token.pools[0]?.address;
-    } else if (token.pools.lp_pubkey) {
-      poolLpPubkey = token.pools.lp_pubkey;
-      poolAddress = token.pools.address;
-    }
+function getTokenName(pool, side) {
+  const metadata = getTokenMetadataForSide(pool, side);
+  if (metadata?.name) return metadata.name;
+  const name = pool?.[`asset_${side}_name`];
+  return name || null;
+}
+
+function getTokenDecimals(pool, side) {
+  const metadata = getTokenMetadataForSide(pool, side);
+  const decimals =
+    metadata?.decimals ??
+    (pool?.[`asset_${side}_decimals`] !== undefined ? pool[`asset_${side}_decimals`] : null);
+  return decimals !== null && decimals !== undefined ? Number(decimals) : null;
+}
+
+function getTokenIcon(pool, side) {
+  const metadata = getTokenMetadataForSide(pool, side);
+  return metadata?.icon_url || null;
+}
+
+function formatAddress(address) {
+  if (!address) return 'Unknown';
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function formatTokenSummary(pool, side) {
+  const lines = [];
+  const symbol = getTokenSymbol(pool, side);
+  const name = getTokenName(pool, side);
+  if (symbol && name && symbol !== name) {
+    lines.push(`**${symbol}** — ${name}`);
+  } else if (symbol || name) {
+    lines.push(`**${symbol || name}**`);
+  }
+  const decimals = getTokenDecimals(pool, side);
+  if (decimals !== null) {
+    lines.push(`Decimals: ${decimals}`);
+  }
+  const metadata = getTokenMetadataForSide(pool, side);
+  if (metadata?.max_supply) {
+    lines.push(`Max Supply: ${formatNumber(metadata.max_supply)}`);
+  }
+  lines.push(`Address: ${formatAddress(pool?.[`asset_${side}_address`])}`);
+  return lines.join('\n');
+}
+
+async function getFlashnetClientInstance() {
+  if (flashnetClientPromise) return flashnetClientPromise;
+  if (!FLASHNET_MNEMONIC) {
+    throw new Error('FLASHNET_MNEMONIC (or SPARK_MNEMONIC) is not set');
   }
 
-  return {
-    pubkey: token.pubkey || token.token_identifier || token.token_address,
-    token_identifier: token.token_identifier || token.token_address,
-    token_address: token.token_address || token.token_identifier,
-    name: token.name,
-    ticker: token.ticker || token.symbol || token.name,
-    symbol: token.symbol || token.ticker || token.name,
-    decimals: token.decimals,
-    icon_url: token.icon_url,
-    holder_count: token.holder_count,
-    total_supply: token.total_supply,
-    max_supply: token.max_supply,
-    is_freezable: token.is_freezable,
-    pool_lp_pubkey: poolLpPubkey,
-    pool_address: poolAddress,
-    price_usd: token.price_usd || token.agg_price_usd,
-    agg_volume_24h_usd: token.agg_volume_24h_usd,
-    agg_liquidity_usd: token.agg_liquidity_usd,
-    agg_price_change_24h_pct: token.agg_price_change_24h_pct,
-  };
-}
-
-async function fetchJsonWithTimeout(url, { headers = {}, timeout = 15000, method = 'GET' } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'User-Agent': LUMINEX_USER_AGENT,
-        'Accept': 'application/json',
-        ...headers,
-      },
-      signal: controller.signal,
+  flashnetClientPromise = (async () => {
+    const { wallet } = await SparkWallet.initialize({
+      mnemonicOrSeed: FLASHNET_MNEMONIC,
+      options: { network: FLASHNET_NETWORK },
     });
+    const client = new FlashnetClient(wallet);
+    await client.initialize();
+    return client;
+  })();
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-    }
-
-    const text = await response.text();
-    if (!text) return null;
-    return JSON.parse(text);
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  return flashnetClientPromise;
 }
 
-async function fetchBuffer(url, options = {}) {
-  const controller = new AbortController();
-  const timeout = options.timeout || 20000;
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'User-Agent': LUMINEX_USER_AGENT,
-        'Accept': options.accept || 'image/png',
-        ...(options.headers || {}),
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+async function listFlashnetPoolsFromSdk(limit, offset) {
+  const client = await getFlashnetClientInstance();
+  return client.listPools({
+    limit,
+    offset,
+    sort: 'TVL_DESC',
+  });
 }
 
-async function fetchAllLuminexTokens() {
-  const collected = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const url = `${LUMINEX_API_URL}/tokens-with-pools?offset=${offset}&limit=${LUMINEX_PAGE_SIZE}&sort_by=agg_volume_24h_usd&order=desc`;
-
-    try {
-      const data = await fetchJsonWithTimeout(url, { timeout: 20000 });
-      const tokens = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
-
-      if (!tokens.length) {
-        hasMore = false;
-        break;
-      }
-
-      collected.push(...tokens);
-
-      if (tokens.length < LUMINEX_PAGE_SIZE) {
-        hasMore = false;
-      } else {
-        offset += LUMINEX_PAGE_SIZE;
-        await luminexDelay(300);
-      }
-    } catch (error) {
-      console.error('[Luminex] Token fetch error:', error.message);
-      if (/403/.test(error.message)) {
-        console.error('[Luminex] Received 403 from API. Will retry on next sync.');
-      }
-      hasMore = false;
-    }
-  }
-
-  return collected;
+async function syncFlashnetPools(force = false) {
+  // DISABLED: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools)
+  // This function no longer makes SDK calls or saves anything
+  return;
 }
 
-async function syncLuminexTokens(force = false) {
-  if (!LUMINEX_COMMANDS_ENABLED) return;
-  if (luminexSyncInProgress) return;
-
-  const now = Date.now();
-  if (!force && now - luminexLastSync < LUMINEX_POLL_INTERVAL_MS) {
-    return;
-  }
-
-  luminexSyncInProgress = true;
-
-  try {
-    console.log('[Luminex] Syncing tokens from Luminex API...');
-    const tokens = await fetchAllLuminexTokens();
-    if (!tokens.length) {
-      console.log('[Luminex] No tokens received from API.');
-      return;
-    }
-
-    const mapped = tokens
-      .map(mapLuminexApiToken)
-      .filter(token => token && token.pubkey && token.name && token.ticker);
-
-    if (!mapped.length) {
-      console.log('[Luminex] No tokens ready for upsert after normalization.');
-      return;
-    }
-
-    const res = await apiFetch('/api/luminex/tokens', {
-      method: 'POST',
-      body: JSON.stringify({ tokens: mapped }),
-    });
-
-    if (!res.ok) {
-      console.error('[Luminex] Failed to upsert tokens:', res.status, res.data);
-      return;
-    }
-
-    console.log(
-      `[Luminex] Upserted tokens — inserted: ${res.data?.inserted ?? 0}, updated: ${res.data?.updated ?? 0}`
-    );
-    luminexLastSync = Date.now();
-  } catch (error) {
-    console.error('[Luminex] Token sync error:', error);
-  } finally {
-    luminexSyncInProgress = false;
-  }
-}
-
-async function getStoredLuminexToken(searchTerm) {
+async function getStoredFlashnetPool(searchTerm) {
   const query = searchTerm?.trim();
   if (!query) return null;
 
-  const res = await apiFetch(`/api/luminex/tokens?search=${encodeURIComponent(query)}`);
+  const res = await apiFetch(`/api/flashnet/pools?search=${encodeURIComponent(query)}`);
   if (!res.ok) {
-    console.error('[Luminex] Token search failed:', res.status, res.data);
+    console.error('[Flashnet] Pool search failed:', res.status, res.data);
     return null;
   }
 
-  const tokens = Array.isArray(res.data?.tokens) ? res.data.tokens : [];
-  return tokens[0] || null;
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  if (!pools.length) {
+    console.warn('[Flashnet] Pool search returned no results', {
+      search: query,
+      total: res.data?.total,
+      count: res.data?.count,
+    });
+  } else {
+    console.log('[Flashnet] Pool search matched', {
+      search: query,
+      firstMatch: getPoolDisplayName(pools[0]),
+      total: pools.length,
+    });
+  }
+  return pools[0] || null;
 }
 
-async function listStoredLuminexTokens(limit = DEFAULT_TOKEN_LIST_LIMIT, offset = 0) {
+async function listStoredFlashnetPools(limit = DEFAULT_POOL_LIST_LIMIT, offset = 0) {
   const res = await apiFetch(
-    `/api/luminex/tokens?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+    `/api/flashnet/pools?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
   );
   if (!res.ok) {
-    console.error('[Luminex] Token list fetch failed:', res.status, res.data);
-    return { tokens: [], total: 0 };
+    console.error('[Flashnet] Pool list fetch failed:', res.status, res.data);
+    return { pools: [], total: 0 };
   }
 
-  const tokens = Array.isArray(res.data?.tokens) ? res.data.tokens : [];
-  const total = typeof res.data?.total === 'number' ? res.data.total : tokens.length;
-  return { tokens, total };
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  const total = typeof res.data?.total === 'number' ? res.data.total : pools.length;
+  return { pools, total };
 }
 
-async function fetchTokenDetailsFromLuminex(token) {
-  if (!token) return null;
-
-  const results = {
-    comments: null,
-    priceChanges: null,
-    swaps: null,
-    holders: null,
-  };
-
-  const poolLpPubkey = token.pool_lp_pubkey;
-  const tokenIdentifier = token.token_identifier;
-
-  if (poolLpPubkey) {
-    try {
-      const commentsRes = await fetchJsonWithTimeout(
-        `${LUMINEX_API_URL}/spark-comments?pool_lp_pubkey=${encodeURIComponent(poolLpPubkey)}&limit=20&offset=0`,
-        { timeout: 15000 }
-      );
-      results.comments = Array.isArray(commentsRes?.data) ? commentsRes.data : [];
-    } catch (error) {
-      console.warn('[Luminex] Comments fetch failed:', error.message);
-    }
-
-    try {
-      const swapsRes = await fetchJsonWithTimeout(
-        `${LUMINEX_API_URL}/spark/swaps?poolLpPubkey=${encodeURIComponent(poolLpPubkey)}&limit=10`,
-        { timeout: 15000 }
-      );
-      results.swaps = Array.isArray(swapsRes?.data) ? swapsRes.data : [];
-    } catch (error) {
-      console.warn('[Luminex] Swaps fetch failed:', error.message);
-    }
-  }
-
-  if (tokenIdentifier) {
-    try {
-      const priceChangesRes = await fetchJsonWithTimeout(
-        `${LUMINEX_API_URL}/pools/${encodeURIComponent(tokenIdentifier)}/price-changes`,
-        { timeout: 15000 }
-      );
-      results.priceChanges = priceChangesRes;
-    } catch (error) {
-      console.warn('[Luminex] Price change fetch failed:', error.message);
-    }
-
-    try {
-      const holdersRes = await fetchJsonWithTimeout(
-        `${LUMINEX_API_URL}/spark/holders?tokenIdentifier=${encodeURIComponent(tokenIdentifier)}&limit=100`,
-        { timeout: 15000 }
-      );
-      results.holders = Array.isArray(holdersRes?.data) ? holdersRes.data : [];
-    } catch (error) {
-      console.warn('[Luminex] Holders fetch failed:', error.message);
-    }
-  }
-
-  return results;
-}
-
-async function fetchLuminexChartData(tokenIdentifier, resolution, hours) {
-  if (!tokenIdentifier) throw new Error('Token identifier required for chart data');
-
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - hours * 3600;
-  const to = now;
-  const countback = Math.ceil((hours * 3600) / (resolution * 60));
-
-  const url = `${LUMINEX_CHART_API_URL}/tv/chart/history?symbol=${encodeURIComponent(
-    tokenIdentifier
-  )}&resolution=${encodeURIComponent(resolution)}&from=${encodeURIComponent(
-    from
-  )}&to=${encodeURIComponent(to)}&countback=${encodeURIComponent(countback)}`;
-
-  const data = await fetchJsonWithTimeout(url, { timeout: 20000 });
-  if (!data || data.s !== 'ok' || !Array.isArray(data.t) || data.t.length === 0) {
-    throw new Error(data?.s ? `Chart API returned status: ${data.s}` : 'No chart data');
-  }
-
-  return data;
-}
-
-function buildChartConfig(chartData, tokenName, timeframeLabel, currentPrice) {
-  const timestamps = chartData.t || [];
-  const closes = chartData.c || [];
-
-  const labels = timestamps.map(ts => {
-    const date = new Date(ts * 1000);
-    return date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
-  });
-
-  const firstPrice = closes[0];
-  const lastPrice = closes[closes.length - 1];
-  const isUp = Number(lastPrice) >= Number(firstPrice);
-  const chartColor = isUp ? '#00ff88' : '#ff4444';
-
-  return {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: `${tokenName} (${timeframeLabel})`,
-          data: closes,
-          borderColor: chartColor,
-          backgroundColor: `${chartColor}33`,
-          fill: true,
-          tension: 0.4,
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-        },
-      ],
-    },
-    options: {
-      plugins: {
-        legend: { display: false },
-        title: {
-          display: true,
-          text: `${tokenName} Price (${timeframeLabel})${currentPrice ? ` — ${formatLuminexPrice(currentPrice)}` : ''}`,
-          color: '#ffffff',
-          font: { size: 16, weight: 'bold' },
-        },
-        tooltip: {
-          callbacks: {
-            label: context => `Price: ${formatLuminexPrice(context.parsed.y)}`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: '#888888', maxTicksLimit: 10 },
-          grid: { color: '#333333' },
-        },
-        y: {
-          ticks: {
-            color: '#888888',
-            callback(value) {
-              const num = Number(value);
-              if (!Number.isFinite(num)) return value;
-              if (Math.abs(num) < 0.0001) return num.toExponential(2);
-              if (Math.abs(num) >= 1) return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
-              return num.toFixed(6);
-            },
-          },
-          grid: { color: '#333333' },
-        },
-      },
-      backgroundColor: '#1e1e1e',
-    },
-  };
-}
-
-async function generateChartAttachment(token, chartData, timeframe) {
-  const tokenName = getTokenDisplayName(token);
-  const config = buildChartConfig(chartData, tokenName, timeframe.label, token.price_usd);
-
-  const buffer = await fetchBuffer(QUICKCHART_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      width: 800,
-      height: 400,
-      backgroundColor: '#1e1e1e',
-      format: 'png',
-      devicePixelRatio: 2,
-      chart: config,
-    }),
-  });
-
-  const fileName = `${tokenName.replace(/\s+/g, '_')}_${timeframe.label.replace(/\s+/g, '')}_chart.png`;
-
-  return new AttachmentBuilder(buffer, {
-    name: fileName,
-    description: `Price chart for ${tokenName} (${timeframe.label})`,
-  });
-}
-
-function createPriceEmbed(token, detailsData = null) {
+function buildPoolEmbed(pool) {
   const embed = new EmbedBuilder()
-    .setTitle(`${getTokenDisplayName(token)} Price Info`)
-    .setColor(0x00ae86)
+    .setTitle(`${getPoolDisplayName(pool)} — Flashnet`)
+    .setColor(0x0080ff)
     .setTimestamp(new Date());
 
-  if (token.icon_url) {
-    embed.setThumbnail(token.icon_url);
+  const icon = getTokenIcon(pool, 'a') || getTokenIcon(pool, 'b');
+  if (icon) {
+    embed.setThumbnail(icon);
   }
 
-  const fields = [
-    { name: 'Price (USD)', value: formatLuminexPrice(token.price_usd), inline: true },
-    { name: '24h Volume', value: formatCurrency(token.agg_volume_24h_usd), inline: true },
-    { name: 'Liquidity', value: formatCurrency(token.agg_liquidity_usd), inline: true },
-  ];
+  embed.addFields(
+    { name: 'TVL (Asset B)', value: formatCurrency(pool.tvl_asset_b), inline: true },
+    { name: '24h Volume', value: formatCurrency(pool.volume_24h_asset_b), inline: true },
+    { name: 'Price A in B', value: formatNumber(pool.current_price_a_in_b), inline: true },
+  );
 
-  if (detailsData?.priceChanges) {
-    const pc = detailsData.priceChanges;
-    const timeframeKeys = ['5m', '15m', '1h', '6h', '24h'];
+  embed.addFields(
+    { name: '24h Change', value: formatPercent(pool.price_change_percent_24h), inline: true },
+    { name: 'LP Fee (bps)', value: pool.lp_fee_bps !== null ? String(pool.lp_fee_bps) : 'N/A', inline: true },
+    { name: 'Host Fee (bps)', value: pool.host_fee_bps !== null ? String(pool.host_fee_bps) : 'N/A', inline: true },
+  );
 
-    const changeFields = timeframeKeys
-      .map(key => {
-        const value = pc[key]?.changePercent;
-        if (value === null || value === undefined) return null;
-        return {
-          name: key.toUpperCase(),
-          value: formatPercentChange(Number(value)),
-          inline: true,
-        };
-      })
-      .filter(Boolean);
+  embed.addFields(
+    { name: 'Asset A', value: formatTokenSummary(pool, 'a'), inline: true },
+    { name: 'Asset B', value: formatTokenSummary(pool, 'b'), inline: true },
+  );
 
-    if (changeFields.length) {
-      fields.push({ name: '\u200b', value: '\u200b', inline: false });
-      fields.push({ name: '📊 Price Changes', value: '\u200b', inline: false });
-      fields.push(...changeFields);
-    }
-
-    if (pc.lastTradeTimestamp) {
-      fields.push({
-        name: 'Last Trade',
-        value: formatRelativeTime(pc.lastTradeTimestamp),
-        inline: false,
-      });
-    }
-  } else if (token.agg_price_change_24h_pct !== null && token.agg_price_change_24h_pct !== undefined) {
-    const change = Number(token.agg_price_change_24h_pct) * 100;
-    fields.push({
-      name: '24h Change',
-      value: formatPercentChange(change),
-      inline: true,
-    });
-  }
-
-  if (token.holder_count) {
-    fields.push({ name: 'Holders', value: Number(token.holder_count).toLocaleString(), inline: true });
-  }
-
-  if (token.total_supply) {
-    fields.push({ name: 'Total Supply', value: String(token.total_supply), inline: true });
-  }
-
-  embed.addFields(fields);
-
-  if (token.pool_lp_pubkey) {
-    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
-  }
-
-  if (detailsData?.comments && detailsData.comments.length > 0) {
-    const topComment = detailsData.comments[0];
-    embed.addFields({
-      name: '💬 Latest Comment',
-      value: `**${topComment.user_profile?.username || 'Anonymous'}**: ${
-        topComment.content.length > 200 ? `${topComment.content.substring(0, 200)}…` : topComment.content
-      }`,
-      inline: false,
-    });
-  }
-
-  if (detailsData?.swaps && detailsData.swaps.length > 0) {
-    const recentSwaps = detailsData.swaps.slice(0, 5);
-    const summary = recentSwaps.reduce(
-      (acc, swap) => {
-        if (swap.swap_type === 'buy') acc.buy += 1;
-        else acc.sell += 1;
-        return acc;
-      },
-      { buy: 0, sell: 0 }
-    );
-
-    const lines = recentSwaps.map(swap => {
-      const isBuy = swap.swap_type === 'buy';
-      const emoji = isBuy ? '🟢' : '🔴';
-      const swapTime = new Date(swap.swap_timestamp);
-      return `${emoji} ${isBuy ? 'BUY' : 'SELL'} ${formatLuminexPrice(
-        swap.exec_price_a_in_b
-      )} — ${formatRelativeTime(swapTime)}`;
-    });
-
-    embed.addFields({
-      name: '📈 Recent Activity',
-      value: `**${summary.buy} buys | ${summary.sell} sells** in last ${recentSwaps.length} swaps\n${lines.join('\n')}`,
-      inline: false,
-    });
-  }
+  embed.setFooter({
+    text: `Pool ID: ${pool.lp_public_key}`,
+  });
 
   return embed;
 }
 
-function createHoldersEmbed(token, holders = [], limit = 10) {
-  if (!holders || holders.length === 0) {
-    return new EmbedBuilder()
-      .setTitle(`📊 Holders: ${getTokenDisplayName(token)}`)
-      .setDescription('No holder data available')
-      .setColor(0xffa500);
-  }
-
-  const nonPoolHolders = holders
-    .filter(holder => !holder.is_pool)
-    .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
-    .slice(0, limit);
-
-  const poolHolders = holders.filter(holder => holder.is_pool);
-
+function buildPoolListEmbed(pools, total, offset, limit) {
   const embed = new EmbedBuilder()
-    .setTitle(`📊 Top Holders: ${getTokenDisplayName(token)}`)
-    .setColor(0x00ff00);
-
-  if (token.icon_url) {
-    embed.setThumbnail(token.icon_url);
-  }
-
-  const totalSupply = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
-
-  if (nonPoolHolders.length > 0) {
-    const holderLines = nonPoolHolders.map((holder, index) => {
-      const balance = Number(holder.balance || 0);
-      const percentage = totalSupply > 0 ? ((balance / totalSupply) * 100).toFixed(2) : '0.00';
-      const address = holder.address || holder.pubkey || 'Unknown';
-      const shortAddress =
-        address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 6)}` : address;
-
-      return `${index + 1}. **${shortAddress}** — ${balance.toLocaleString(undefined, {
-        maximumFractionDigits: 2,
-      })} (${percentage}%)`;
-    });
-
-    embed.addFields({
-      name: `Top ${nonPoolHolders.length} Holders`,
-      value: holderLines.join('\n'),
-      inline: false,
-    });
-  }
-
-  if (poolHolders.length > 0) {
-    const poolBalance = poolHolders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
-    const poolPercentage = totalSupply > 0 ? ((poolBalance / totalSupply) * 100).toFixed(2) : '0.00';
-    embed.addFields({
-      name: '💰 Liquidity Pool',
-      value: `${poolBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} (${poolPercentage}%)`,
-      inline: true,
-    });
-  }
-
-  embed.addFields({
-    name: '📈 Statistics',
-    value: `**Total Holders:** ${holders.length.toLocaleString()}\n**Total Supply:** ${totalSupply.toLocaleString(
-      undefined,
-      { maximumFractionDigits: 2 }
-    )}`,
-    inline: true,
-  });
-
-  if (token.pool_lp_pubkey) {
-    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
-  }
-
-  return embed;
-}
-
-function createSwapsEmbed(token, swaps = [], limit = 10) {
-  if (!swaps || swaps.length === 0) {
-    return new EmbedBuilder()
-      .setTitle(`🔄 Swaps: ${getTokenDisplayName(token)}`)
-      .setDescription('No recent swap activity')
-      .setColor(0xffa500);
-  }
-
-  const displaySwaps = swaps.slice(0, limit);
-  const buyCount = swaps.filter(swap => swap.swap_type === 'buy').length;
-  const sellCount = swaps.filter(swap => swap.swap_type === 'sell').length;
-
-  const embed = new EmbedBuilder()
-    .setTitle(`🔄 Recent Swaps: ${getTokenDisplayName(token)}`)
-    .setDescription(`**${buyCount} buys | ${sellCount} sells** in last ${swaps.length} swaps`)
-    .setColor(0x00ff00);
-
-  if (token.icon_url) {
-    embed.setThumbnail(token.icon_url);
-  }
-
-  const swapLines = displaySwaps.map((swap, index) => {
-    const isBuy = swap.swap_type === 'buy';
-    const emoji = isBuy ? '🟢' : '🔴';
-    const swapTime = new Date(swap.swap_timestamp);
-    const assetAAmount = Number(swap.asset_a_amount || 0);
-    const assetBAmount = Number(swap.asset_b_amount || 0);
-
-    return `${index + 1}. ${emoji} **${isBuy ? 'BUY' : 'SELL'}**\n   Price: ${formatLuminexPrice(
-      swap.exec_price_a_in_b
-    )}\n   Amount: ${assetAAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} tokens for ${assetBAmount.toFixed(
-      8
-    )} BTC\n   ${formatRelativeTime(swapTime)}`;
-  });
-
-  embed.addFields({
-    name: `Last ${displaySwaps.length} Swaps`,
-    value: swapLines.join('\n\n'),
-    inline: false,
-  });
-
-  if (token.pool_lp_pubkey) {
-    embed.setFooter({ text: `Pool: ${token.pool_lp_pubkey.substring(0, 20)}...` });
-  }
-
-  return embed;
-}
-
-function buildTokenListEmbed(tokens, total, offset, limit) {
-  const embed = new EmbedBuilder()
-    .setTitle('📊 Top Tokens by Volume')
-    .setDescription(`Showing ${tokens.length} of ${total} tokens`)
-    .setColor(0x00ae86)
+    .setTitle('📊 Flashnet Pools')
+    .setDescription(`Showing ${pools.length} of ${total}`)
+    .setColor(0x0080ff)
     .setTimestamp(new Date());
 
-  const lines = tokens.map((token, index) => {
+  const lines = pools.map((pool, index) => {
     const rank = offset + index + 1;
-    const symbol = getTokenDisplayName(token);
-    const price = formatLuminexPrice(token.price_usd);
-    const volume = formatCurrency(token.agg_volume_24h_usd);
-
-    let changeStr = 'N/A';
-    if (token.agg_price_change_24h_pct !== null && token.agg_price_change_24h_pct !== undefined) {
-      const change = Number(token.agg_price_change_24h_pct) * 100;
-      changeStr = formatPercentChange(change);
-    }
-
-    return `${rank}. **${symbol}**\n   Price: ${price} | Volume: ${volume} | ${changeStr}`;
+    const label = getPoolDisplayName(pool);
+    const tvl = formatCurrency(pool.tvl_asset_b);
+    const volume = formatCurrency(pool.volume_24h_asset_b);
+    const symbolA = getTokenSymbol(pool, 'a');
+    const symbolB = getTokenSymbol(pool, 'b');
+    const pair = symbolA && symbolB ? `${symbolA}/${symbolB}` : label;
+    return `${rank}. **${pair}**\n   TVL: ${tvl} | 24h Vol: ${volume}`;
   });
 
   embed.addFields({
-    name: `Rank ${offset + 1}-${offset + tokens.length}`,
+    name: `Rank ${offset + 1}-${offset + pools.length}`,
     value: lines.join('\n\n'),
     inline: false,
   });
@@ -1653,18 +1214,18 @@ function buildTokenListEmbed(tokens, total, offset, limit) {
   return embed;
 }
 
-async function handleLuminexInteraction(interaction) {
-  if (!LUMINEX_COMMANDS_ENABLED) {
+async function handleFlashnetInteraction(interaction) {
+  if (!FLASHNET_COMMANDS_ENABLED) {
     await interaction.reply({
-      content: '❌ Luminex commands are currently disabled on this bot.',
+      content: '❌ Flashnet commands are currently disabled on this bot.',
       ephemeral: true,
     });
     return;
   }
 
-  if (!isAllowedLuminexChannel(interaction.channelId)) {
+  if (!isAllowedFlashnetChannel(interaction.channelId)) {
     await interaction.reply({
-      content: `❌ Luminex commands are restricted to <#${LUMINEX_ALLOWED_CHANNEL_ID}>.`,
+      content: `❌ Flashnet commands are restricted to <#${FLASHNET_ALLOWED_CHANNEL_ID}>.`,
       ephemeral: true,
     });
     return;
@@ -1674,186 +1235,541 @@ async function handleLuminexInteraction(interaction) {
 
   if (commandName === 'tokens') {
     await interaction.deferReply();
-
-    const limit = interaction.options.getInteger('limit') || DEFAULT_TOKEN_LIST_LIMIT;
+    const limit = interaction.options.getInteger('limit') || DEFAULT_POOL_LIST_LIMIT;
     const offset = interaction.options.getInteger('offset') || 0;
 
     try {
-      const { tokens, total } = await listStoredLuminexTokens(limit, offset);
+      const { pools, total } = await listStoredFlashnetPools(limit, offset);
 
-      if (!tokens.length) {
+      if (!pools.length) {
         await interaction.editReply({
           content:
             total === 0
-              ? '❌ No Luminex token data available yet. The bot will sync shortly.'
-              : `❌ No tokens found at offset ${offset}. Try a lower offset or run /tokens again in a few minutes.`,
+              ? '❌ No Flashnet pool data available yet. The bot will sync shortly.'
+              : `❌ No pools found at offset ${offset}. Try a lower offset or wait for the next sync.`,
         });
         return;
       }
 
-      const embed = buildTokenListEmbed(tokens, total, offset, limit);
+      const embed = buildPoolListEmbed(pools, total, offset, limit);
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error('[Luminex] /tokens error:', error);
+      console.error('[Flashnet] /tokens error:', error);
       await interaction.editReply({
-        content: `❌ Error fetching token list: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        content: `❌ Error fetching pool list: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
     return;
   }
 
-  const tokenQuery = interaction.options.getString('token', true);
+  const query = interaction.options.getString('token', true);
   await interaction.deferReply();
 
-  let token = await getStoredLuminexToken(tokenQuery);
+  let pool = await getStoredFlashnetPool(query);
 
-  if (!token) {
-    await syncLuminexTokens(true);
-    token = await getStoredLuminexToken(tokenQuery);
-  }
+  // Note: Pool sync is now handled by cron job every 5 minutes
+  // Fallback sync removed - if pool not found, it will be in next cron run
+  // If you need immediate sync for new pools, uncomment below:
+  // if (!pool) {
+  //   await syncFlashnetPools(true);
+  //   pool = await getStoredFlashnetPool(query);
+  // }
 
-  if (!token) {
+  if (!pool) {
     await interaction.editReply({
-      content: `❌ Token "${tokenQuery}" not found in the shared database. Try another name or wait for the next sync.`,
+      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync (cron runs every 5 minutes).`,
     });
     return;
   }
 
   try {
-    const details = await fetchTokenDetailsFromLuminex(token);
+    const embed = buildPoolEmbed(pool);
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('[Flashnet] Command error:', error);
+    await interaction.editReply({
+      content: `❌ Error handling /${commandName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    });
+  }
+}
 
-    if (commandName === 'price') {
-      const embed = createPriceEmbed(token, details);
-      const replyOptions = { embeds: [embed] };
+// Helper function to batch process role operations
+async function batchProcessRoleOperations(guild, discordIds, role, operation, operationName) {
+  if (!discordIds || discordIds.length === 0) {
+    return { success: 0, failed: 0 };
+  }
 
-      if (token.token_identifier) {
-        try {
-          const timeframe = getTimeframeConfig('24h');
-          const chartData = await fetchLuminexChartData(
-            token.token_identifier,
-            timeframe.resolution,
-            timeframe.hours
-          );
-          const attachment = await generateChartAttachment(token, chartData, timeframe);
-          embed.setImage(`attachment://${attachment.name}`);
-          replyOptions.files = [attachment];
-        } catch (chartError) {
-          console.warn('[Luminex] Price chart generation failed:', chartError.message);
+  const BATCH_SIZE = 10; // Process 10 members at a time to respect rate limits
+  let successCount = 0;
+  let failedCount = 0;
+
+  // Process in batches
+  for (let i = 0; i < discordIds.length; i += BATCH_SIZE) {
+    const batch = discordIds.slice(i, i + BATCH_SIZE);
+    
+    // Fetch all members in this batch in parallel
+    const memberPromises = batch.map(async (discordId) => {
+      try {
+        const member = await guild.members.fetch(discordId);
+        return { success: true, member, discordId };
+      } catch (error) {
+        // Skip "Unknown Member" errors (user left server) - this is expected
+        if (error.code === 10007) {
+          return { success: false, error: null, discordId }; // Silently skip
         }
+        return { success: false, error, discordId };
+      }
+    });
+
+    const memberResults = await Promise.allSettled(memberPromises);
+    
+    // Process role operations for successfully fetched members
+    const roleOperationPromises = memberResults.map(async (result) => {
+      if (result.status === 'rejected') {
+        failedCount++;
+        return;
       }
 
-      await interaction.editReply(replyOptions);
+      const { success, member, error, discordId } = result.value;
+      
+      if (!success || !member) {
+        // Silently skip users who left the server
+        return;
+      }
+
+      try {
+        const needsOperation = operation === 'add' 
+          ? !member.roles.cache.has(role.id)
+          : member.roles.cache.has(role.id);
+
+        if (needsOperation) {
+          if (operation === 'add') {
+            await member.roles.add(role);
+          } else {
+            await member.roles.remove(role);
+          }
+          successCount++;
+          console.log(`✅ ${operation === 'add' ? 'Added' : 'Removed'} ${operationName} role ${operation === 'add' ? 'to' : 'from'} ${member.user.tag} (${discordId})`);
+        }
+      } catch (error) {
+        // Skip "Unknown Member" errors (user left server) - this is expected
+        if (error.code === 10007) {
+          // Silently skip - user is no longer in the server
+          return;
+        }
+        console.error(`Error ${operation}ing ${operationName} role ${operation === 'add' ? 'to' : 'from'} ${discordId}:`, error);
+        failedCount++;
+      }
+    });
+
+    await Promise.allSettled(roleOperationPromises);
+    
+    // Small delay between batches to respect rate limits
+    if (i + BATCH_SIZE < discordIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return { success: successCount, failed: failedCount };
+}
+
+async function syncHolderAndSpecialRoles() {
+  try {
+    console.log('🔄 Running holder/special role sync...');
+    const guild =
+      client.guilds.cache.get(process.env.GUILD_ID) ||
+      (process.env.GUILD_ID ? await client.guilds.fetch(process.env.GUILD_ID) : null);
+    if (!guild) {
+      console.error('Guild not found');
       return;
     }
 
-    if (commandName === 'holders') {
-      const limit = interaction.options.getInteger('limit') || 10;
-      const embed = createHoldersEmbed(token, details?.holders || [], limit);
-      await interaction.editReply({ embeds: [embed] });
+    const holderRole = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
+    if (!holderRole) {
+      console.error('Holder role not found');
       return;
     }
 
-    if (commandName === 'swaps') {
-      const limit = interaction.options.getInteger('limit') || 10;
-      const embed = createSwapsEmbed(token, details?.swaps || [], limit);
-      await interaction.editReply({ embeds: [embed] });
-      return;
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz';
+
+    const [removeResponse, addResponse] = await Promise.all([
+      fetch(`${baseUrl}/api/discord/roles/list?action=remove`),
+      fetch(`${baseUrl}/api/discord/roles/list?action=add`),
+    ]);
+
+    if (!removeResponse.ok) {
+      console.error('Failed to fetch users to remove roles:', removeResponse.status);
     }
 
-    if (commandName === 'chart') {
-      if (!token.token_identifier) {
+    if (!addResponse.ok) {
+      console.error('Failed to fetch users to add roles:', addResponse.status);
+    }
+
+    const removeData = removeResponse.ok ? await removeResponse.json() : { discordIds: [] };
+    const addData = addResponse.ok ? await addResponse.json() : { discordIds: [] };
+
+    // Process removals and additions in parallel
+    const [removeResult, addResult] = await Promise.all([
+      batchProcessRoleOperations(guild, removeData.discordIds, holderRole, 'remove', 'holder'),
+      batchProcessRoleOperations(guild, addData.discordIds, holderRole, 'add', 'holder'),
+    ]);
+
+    console.log(`✅ Holder role sync complete: Removed ${removeResult.success} roles, Added ${addResult.success} roles`);
+
+    if (EXECUTIONER_ROLE_ID) {
+      const executionerRole = guild.roles.cache.get(EXECUTIONER_ROLE_ID);
+      if (!executionerRole) {
+        console.warn(`Executioner role with ID ${EXECUTIONER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [execAddResponse, execRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=executioner-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=executioner-remove`),
+          ]);
+
+          if (!execAddResponse.ok) {
+            console.error('Failed to fetch executioner add list:', execAddResponse.status);
+          }
+
+          if (!execRemoveResponse.ok) {
+            console.error('Failed to fetch executioner remove list:', execRemoveResponse.status);
+          }
+
+          const execAddData = execAddResponse.ok ? await execAddResponse.json() : { discordIds: [] };
+          const execRemoveData = execRemoveResponse.ok ? await execRemoveResponse.json() : { discordIds: [] };
+
+          const [execAddResult, execRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, execAddData.discordIds, executionerRole, 'add', 'executioner'),
+            batchProcessRoleOperations(guild, execRemoveData.discordIds, executionerRole, 'remove', 'executioner'),
+          ]);
+
+          console.log(`✅ Executioner sync complete: Added ${execAddResult.success} roles, Removed ${execRemoveResult.success} roles`);
+        } catch (error) {
+          console.error('Error syncing executioner roles:', error);
+        }
+      }
+    }
+
+    if (SUMMONER_ROLE_ID) {
+      const summonerRole = guild.roles.cache.get(SUMMONER_ROLE_ID);
+      if (!summonerRole) {
+        console.warn(`Summoner role with ID ${SUMMONER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [summonerAddResponse, summonerRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=summoner-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=summoner-remove`),
+          ]);
+
+          if (!summonerAddResponse.ok) {
+            console.error('Failed to fetch summoner add list:', summonerAddResponse.status);
+          }
+
+          if (!summonerRemoveResponse.ok) {
+            console.error('Failed to fetch summoner remove list:', summonerRemoveResponse.status);
+          }
+
+          const summonerAddData = summonerAddResponse.ok ? await summonerAddResponse.json() : { discordIds: [] };
+          const summonerRemoveData = summonerRemoveResponse.ok ? await summonerRemoveResponse.json() : { discordIds: [] };
+
+          const [summonerAddResult, summonerRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, summonerAddData.discordIds, summonerRole, 'add', 'summoner'),
+            batchProcessRoleOperations(guild, summonerRemoveData.discordIds, summonerRole, 'remove', 'summoner'),
+          ]);
+
+          console.log(`✅ Summoner sync complete: Added ${summonerAddResult.success} roles, Removed ${summonerRemoveResult.success} roles`);
+              } catch (error) {
+          console.error('Error syncing summoner roles:', error);
+              }
+            }
+          }
+
+    if (DEAD_DEMON_ROLE_ID) {
+      const deadDemonRole = guild.roles.cache.get(DEAD_DEMON_ROLE_ID);
+      if (!deadDemonRole) {
+        console.warn(`Dead Demon role with ID ${DEAD_DEMON_ROLE_ID} not found in guild.`);
+      } else {
+              try {
+          const [deadDemonAddResponse, deadDemonRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=dead-demon-remove`),
+          ]);
+
+          if (!deadDemonAddResponse.ok) {
+            console.error('Failed to fetch dead demon add list:', deadDemonAddResponse.status);
+          }
+
+          if (!deadDemonRemoveResponse.ok) {
+            console.error('Failed to fetch dead demon remove list:', deadDemonRemoveResponse.status);
+          }
+
+          const deadDemonAddData = deadDemonAddResponse.ok ? await deadDemonAddResponse.json() : { discordIds: [] };
+          const deadDemonRemoveData = deadDemonRemoveResponse.ok ? await deadDemonRemoveResponse.json() : { discordIds: [] };
+
+          const [deadDemonAddResult, deadDemonRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, deadDemonAddData.discordIds, deadDemonRole, 'add', 'dead demon'),
+            batchProcessRoleOperations(guild, deadDemonRemoveData.discordIds, deadDemonRole, 'remove', 'dead demon'),
+          ]);
+
+          console.log(`✅ Dead Demon sync complete: Added ${deadDemonAddResult.success} roles, Removed ${deadDemonRemoveResult.success} roles`);
+        } catch (error) {
+          console.error('Error syncing dead demon roles:', error);
+        }
+      }
+    }
+
+    if (GRAVE_ROBBER_ROLE_ID) {
+      const graveRobberRole = guild.roles.cache.get(GRAVE_ROBBER_ROLE_ID);
+      if (!graveRobberRole) {
+        console.warn(`Grave Robber role with ID ${GRAVE_ROBBER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [graveRobberAddResponse, graveRobberRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=grave-robber-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=grave-robber-remove`),
+          ]);
+
+          if (!graveRobberAddResponse.ok) {
+            console.error('Failed to fetch grave robber add list:', graveRobberAddResponse.status);
+          }
+
+          if (!graveRobberRemoveResponse.ok) {
+            console.error('Failed to fetch grave robber remove list:', graveRobberRemoveResponse.status);
+          }
+
+          const graveRobberAddData = graveRobberAddResponse.ok ? await graveRobberAddResponse.json() : { discordIds: [] };
+          const graveRobberRemoveData = graveRobberRemoveResponse.ok ? await graveRobberRemoveResponse.json() : { discordIds: [] };
+
+          const [graveRobberAddResult, graveRobberRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, graveRobberAddData.discordIds, graveRobberRole, 'add', 'grave robber'),
+            batchProcessRoleOperations(guild, graveRobberRemoveData.discordIds, graveRobberRole, 'remove', 'grave robber'),
+          ]);
+
+          console.log(`✅ Grave Robber sync complete: Added ${graveRobberAddResult.success} roles, Removed ${graveRobberRemoveResult.success} roles`);
+        } catch (error) {
+          console.error('Error syncing grave robber roles:', error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in holder/special role sync:', error);
+  }
+}
+
+async function getFlashnetClientInstance() {
+  if (flashnetClientPromise) return flashnetClientPromise;
+  if (!FLASHNET_MNEMONIC) {
+    throw new Error('FLASHNET_MNEMONIC (or SPARK_MNEMONIC) is not set');
+  }
+
+  flashnetClientPromise = (async () => {
+    const { wallet } = await SparkWallet.initialize({
+      mnemonicOrSeed: FLASHNET_MNEMONIC,
+      options: { network: FLASHNET_NETWORK },
+    });
+    const client = new FlashnetClient(wallet);
+    await client.initialize();
+    return client;
+  })();
+
+  return flashnetClientPromise;
+}
+
+async function listFlashnetPoolsFromSdk(limit, offset) {
+  const client = await getFlashnetClientInstance();
+  return client.listPools({
+    limit,
+    offset,
+    sort: 'TVL_DESC',
+  });
+}
+
+async function syncFlashnetPools(force = false) {
+  // DISABLED: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools)
+  // This function no longer makes SDK calls or saves anything
+  return;
+}
+
+async function getStoredFlashnetPool(searchTerm) {
+  const query = searchTerm?.trim();
+  if (!query) return null;
+
+  const res = await apiFetch(`/api/flashnet/pools?search=${encodeURIComponent(query)}`);
+  if (!res.ok) {
+    console.error('[Flashnet] Pool search failed:', res.status, res.data);
+    return null;
+  }
+
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  if (!pools.length) {
+    console.warn('[Flashnet] Pool search returned no results', {
+      search: query,
+      total: res.data?.total,
+      count: res.data?.count,
+    });
+  } else {
+    console.log('[Flashnet] Pool search matched', {
+      search: query,
+      firstMatch: getPoolDisplayName(pools[0]),
+      total: pools.length,
+    });
+  }
+  return pools[0] || null;
+}
+
+async function listStoredFlashnetPools(limit = DEFAULT_POOL_LIST_LIMIT, offset = 0) {
+  const res = await apiFetch(
+    `/api/flashnet/pools?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+  );
+  if (!res.ok) {
+    console.error('[Flashnet] Pool list fetch failed:', res.status, res.data);
+    return { pools: [], total: 0 };
+  }
+
+  const pools = Array.isArray(res.data?.pools) ? res.data.pools : [];
+  const total = typeof res.data?.total === 'number' ? res.data.total : pools.length;
+  return { pools, total };
+}
+
+function buildPoolEmbed(pool) {
+  const embed = new EmbedBuilder()
+    .setTitle(`${getPoolDisplayName(pool)} — Flashnet`)
+    .setColor(0x0080ff)
+    .setTimestamp(new Date());
+
+  const icon = getTokenIcon(pool, 'a') || getTokenIcon(pool, 'b');
+  if (icon) {
+    embed.setThumbnail(icon);
+  }
+
+  embed.addFields(
+    { name: 'TVL (Asset B)', value: formatCurrency(pool.tvl_asset_b), inline: true },
+    { name: '24h Volume', value: formatCurrency(pool.volume_24h_asset_b), inline: true },
+    { name: 'Price A in B', value: formatNumber(pool.current_price_a_in_b), inline: true },
+  );
+
+  embed.addFields(
+    { name: '24h Change', value: formatPercent(pool.price_change_percent_24h), inline: true },
+    { name: 'LP Fee (bps)', value: pool.lp_fee_bps !== null ? String(pool.lp_fee_bps) : 'N/A', inline: true },
+    { name: 'Host Fee (bps)', value: pool.host_fee_bps !== null ? String(pool.host_fee_bps) : 'N/A', inline: true },
+  );
+
+  embed.addFields(
+    { name: 'Asset A', value: formatTokenSummary(pool, 'a'), inline: true },
+    { name: 'Asset B', value: formatTokenSummary(pool, 'b'), inline: true },
+  );
+
+  embed.setFooter({
+    text: `Pool ID: ${pool.lp_public_key}`,
+  });
+
+  return embed;
+}
+
+function buildPoolListEmbed(pools, total, offset, limit) {
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Flashnet Pools')
+    .setDescription(`Showing ${pools.length} of ${total}`)
+    .setColor(0x0080ff)
+    .setTimestamp(new Date());
+
+  const lines = pools.map((pool, index) => {
+    const rank = offset + index + 1;
+    const label = getPoolDisplayName(pool);
+    const tvl = formatCurrency(pool.tvl_asset_b);
+    const volume = formatCurrency(pool.volume_24h_asset_b);
+    const symbolA = getTokenSymbol(pool, 'a');
+    const symbolB = getTokenSymbol(pool, 'b');
+    const pair = symbolA && symbolB ? `${symbolA}/${symbolB}` : label;
+    return `${rank}. **${pair}**\n   TVL: ${tvl} | 24h Vol: ${volume}`;
+  });
+
+  embed.addFields({
+    name: `Rank ${offset + 1}-${offset + pools.length}`,
+    value: lines.join('\n\n'),
+    inline: false,
+  });
+
+  embed.setFooter({
+    text: `Use /tokens limit:${limit} offset:${offset + limit} for next page`,
+  });
+
+  return embed;
+}
+
+async function handleFlashnetInteraction(interaction) {
+  if (!FLASHNET_COMMANDS_ENABLED) {
+    await interaction.reply({
+      content: '❌ Flashnet commands are currently disabled on this bot.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isAllowedFlashnetChannel(interaction.channelId)) {
+    await interaction.reply({
+      content: `❌ Flashnet commands are restricted to <#${FLASHNET_ALLOWED_CHANNEL_ID}>.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const commandName = interaction.commandName;
+
+  if (commandName === 'tokens') {
+    await interaction.deferReply();
+    const limit = interaction.options.getInteger('limit') || DEFAULT_POOL_LIST_LIMIT;
+    const offset = interaction.options.getInteger('offset') || 0;
+
+    try {
+      const { pools, total } = await listStoredFlashnetPools(limit, offset);
+
+      if (!pools.length) {
         await interaction.editReply({
-          content: `❌ Token identifier not available for "${tokenQuery}".`,
+          content:
+            total === 0
+              ? '❌ No Flashnet pool data available yet. The bot will sync shortly.'
+              : `❌ No pools found at offset ${offset}. Try a lower offset or wait for the next sync.`,
         });
         return;
       }
 
-      const timeframeValue = interaction.options.getString('timeframe') || '24h';
-      const timeframe = getTimeframeConfig(timeframeValue);
-
-      try {
-        const chartData = await fetchLuminexChartData(
-          token.token_identifier,
-          timeframe.resolution,
-          timeframe.hours
-        );
-        const attachment = await generateChartAttachment(token, chartData, timeframe);
-
-        const embed = new EmbedBuilder()
-          .setTitle(`📈 Price Chart: ${getTokenDisplayName(token)}`)
-          .setDescription(`Timeframe: ${timeframe.label}`)
-          .setColor(0x00ff00)
-          .setImage(`attachment://${attachment.name}`)
-          .setTimestamp(new Date());
-
-        if (token.icon_url) {
-          embed.setThumbnail(token.icon_url);
-        }
-
-        await interaction.editReply({
-          embeds: [embed],
-          files: [attachment],
-        });
-      } catch (chartError) {
-        console.error('[Luminex] /chart error:', chartError);
-        await interaction.editReply({
-          content: `❌ Error generating chart: ${chartError instanceof Error ? chartError.message : 'Unknown error'}`,
-        });
-      }
-      return;
+      const embed = buildPoolListEmbed(pools, total, offset, limit);
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('[Flashnet] /tokens error:', error);
+      await interaction.editReply({
+        content: `❌ Error fetching pool list: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
     }
+    return;
+  }
 
-    if (commandName === 'info') {
-      const embed = createPriceEmbed(token, details);
+  const query = interaction.options.getString('token', true);
+  await interaction.deferReply();
 
-      if (details?.holders && details.holders.length > 0) {
-        const topHolders = details.holders
-          .filter(holder => !holder.is_pool)
-          .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
-          .slice(0, 5);
+  let pool = await getStoredFlashnetPool(query);
 
-        if (topHolders.length > 0) {
-          const holderLines = topHolders.map((holder, index) => {
-            const balance = Number(holder.balance || 0);
-            const address = holder.address || holder.pubkey || 'Unknown';
-            const shortAddress =
-              address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 6)}` : address;
-            return `${index + 1}. ${shortAddress}: ${balance.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}`;
-          });
+  // Note: Pool sync is now handled by cron job every 5 minutes
+  // Fallback sync removed - if pool not found, it will be in next cron run
+  // If you need immediate sync for new pools, uncomment below:
+  // if (!pool) {
+  //   await syncFlashnetPools(true);
+  //   pool = await getStoredFlashnetPool(query);
+  // }
 
-          embed.addFields({
-            name: '🏆 Top 5 Holders',
-            value: holderLines.join('\n'),
-            inline: false,
-          });
-        }
-      }
+  if (!pool) {
+    await interaction.editReply({
+      content: `❌ Pool "${query}" not found in the Flashnet database. Try another identifier or wait for the next sync (cron runs every 5 minutes).`,
+    });
+    return;
+  }
 
-      const replyOptions = { embeds: [embed] };
-
-      if (token.token_identifier) {
-        try {
-          const timeframe = getTimeframeConfig('24h');
-          const chartData = await fetchLuminexChartData(
-            token.token_identifier,
-            timeframe.resolution,
-            timeframe.hours
-          );
-          const attachment = await generateChartAttachment(token, chartData, timeframe);
-          embed.setImage(`attachment://${attachment.name}`);
-          replyOptions.files = [attachment];
-        } catch (chartError) {
-          console.warn('[Luminex] Info chart generation failed:', chartError.message);
-        }
-      }
-
-      await interaction.editReply(replyOptions);
-      return;
-    }
+  try {
+    const embed = buildPoolEmbed(pool);
+    await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    console.error(`[Luminex] /${commandName} error:`, error);
+    console.error('[Flashnet] Command error:', error);
     await interaction.editReply({
       content: `❌ Error handling /${commandName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
     });
@@ -1865,11 +1781,11 @@ async function handleLuminexInteraction(interaction) {
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (isLuminexCommand(interaction.commandName)) {
+  if (isFlashnetCommand(interaction.commandName)) {
     try {
-      await handleLuminexInteraction(interaction);
+      await handleFlashnetInteraction(interaction);
     } catch (error) {
-      console.error('[Luminex] Interaction handler error:', error);
+      console.error('[Flashnet] Interaction handler error:', error);
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({
           content: `❌ Error handling command: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -1884,134 +1800,62 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
 
-  if (interaction.commandName === 'verify') {
-    const code = interaction.options.getString('code');
-
+  if (interaction.commandName === 'duality') {
     await interaction.deferReply({ ephemeral: true });
-
-    // If no code provided, show instructions
-    if (!code) {
-      const websiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz';
-      await interaction.editReply({
-        content: `📋 **How to Verify Your Wallet**\n\n` +
-          `1️⃣ Go to: ${websiteUrl}\n` +
-          `2️⃣ Connect your wallet\n` +
-          `3️⃣ Get your verification code\n` +
-          `4️⃣ Use: \`/verify code:\` and paste your code\n\n` +
-          `*Example: \`/verify code: ABC12345\``,
+    try {
+      const res = await apiFetch('/api/duality/pairings/checkin', {
+        method: 'POST',
+        body: JSON.stringify({ discordUserId: interaction.user.id }),
       });
-      return;
-    }
 
-        try {
-      // Call the verify API endpoint
-      console.log(`Attempting to verify code: ${code}`);
-      const response = await fetch(`${VERIFY_API_URL}?code=${encodeURIComponent(code)}`);
-      
-      if (!response.ok) {
-        console.error(`API returned error status: ${response.status} ${response.statusText}`);
-        const errorText = await response.text();
-        console.error(`Error response: ${errorText}`);
+      if (!res.ok) {
+        const errorMessage =
+          res.data?.error ||
+          res.data?.message ||
+          'Unable to record Duality check-in. Make sure you have an active pairing window.';
         await interaction.editReply({
-          content: `❌ **API Error**\n\nThe verification server returned an error (${response.status}). Please try again later.`,
+          content: `❌ **Duality Check-In Failed**\n\n${errorMessage}`,
         });
         return;
       }
 
-      const data = await response.json();
-      console.log(`API response:`, JSON.stringify(data));
+      const payload = res.data || {};
+      const pair = payload.pair;
+      let message = '';
 
-      if (data.valid && data.address) {
-        // User is verified - assign the holder role
-        const member = interaction.member;
-        const role = interaction.guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-
-                if (role) {
-          // Check if user already has the role
-          if (member.roles.cache.has(role.id)) {
-            await interaction.editReply({
-              content: `✅ **You're already verified!**\n\nYou already have the holder role.\nYour address: \`${data.address}\``,
-            });
-            console.log(`User ${interaction.user.tag} (${interaction.user.id}) already has the role`);
-            return;
-          }
-
-          // Check bot permissions
-          const botMember = interaction.guild.members.cache.get(client.user.id);
-          if (!botMember.permissions.has('ManageRoles')) {
-            console.error('Bot does not have ManageRoles permission');
-            await interaction.editReply({
-              content: '✅ Verification successful, but the bot does not have permission to assign roles. Please contact an administrator.',
-            });
-            return;
-          }
-
-          // Check role hierarchy (bot's highest role must be higher than the role to assign)
-          const botHighestRole = botMember.roles.highest;
-          if (botHighestRole.comparePositionTo(role) <= 0) {
-            console.error(`Bot's role (${botHighestRole.name}) is not higher than holder role (${role.name})`);
-            await interaction.editReply({
-              content: '✅ Verification successful, but the bot\'s role is not high enough in the role hierarchy. Please contact an administrator.',
-            });
-            return;
-          }
-
-          try {
-            await member.roles.add(role);
-            
-            // Link Discord user to wallet address in database
-            try {
-              const linkResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/link`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  discordUserId: interaction.user.id,
-                  walletAddress: data.address
-                })
-              });
-              
-              if (linkResponse.ok) {
-                console.log(`✅ Linked Discord user ${interaction.user.id} to wallet ${data.address}`);
-              } else {
-                console.error(`Failed to link Discord user: ${linkResponse.status}`);
-              }
-            } catch (linkError) {
-              console.error('Error linking Discord user:', linkError);
-            }
-            
-            await interaction.editReply({
-              content: `✅ **Verification successful!**\n\nYou've been verified as a holder of The Damned ordinals.\nYour address: \`${data.address}\`\n\nThe holder role has been assigned to you.`,
-            });
-            console.log(`✅ Verified user ${interaction.user.tag} (${interaction.user.id}) with address ${data.address}`);
-          } catch (error) {
-            console.error('Error assigning role:', error);
-            console.error('Error details:', error.message, error.code);
-            await interaction.editReply({
-              content: `✅ Verification successful, but there was an error assigning your role: ${error.message}\n\nPlease contact an administrator.`,
-            });
-          }
-        } else {
-          console.error(`Holder role with ID ${process.env.HOLDER_ROLE_ID} not found in guild`);
-          await interaction.editReply({
-            content: '✅ Verification successful, but the holder role was not found. Please contact an administrator.',
-          });
-        }
+      if (payload.alreadyCheckedIn) {
+        message = '✅ You already checked in for the current Duality window.';
+      } else if (payload.bothCheckedIn) {
+        message = `✅ Both check-ins recorded! Cooldown has begun.${
+          pair?.cooldownMinutes
+            ? ` Your cooldown lasts ${pair.cooldownMinutes} minutes.`
+            : ''
+        }`;
       } else {
-        // Verification failed
-        await interaction.editReply({
-          content: `❌ **Verification failed**\n\n${data.message || 'Invalid or expired verification code. Please generate a new code from the website.'}`,
-        });
+        const partnerStatus = pair?.goodCheckinAt && pair?.evilCheckinAt
+          ? ''
+          : '\n\nPing your partner to check in before the window closes!';
+        message = `✅ Check-in recorded.${partnerStatus}`;
       }
-    } catch (error) {
-      console.error('Error during verification:', error);
-      console.error('Error stack:', error.stack);
-      console.error('Error message:', error.message);
+
+      if (pair?.windowEnd) {
+        const windowEndTs = Math.floor(new Date(pair.windowEnd).getTime() / 1000);
+        message += `\nWindow closes <t:${windowEndTs}:R>.`;
+      }
+
       await interaction.editReply({
-        content: `❌ **Error occurred**\n\nAn error occurred during verification: ${error.message}\n\nPlease ensure the verification server is running and try again.`,
+        content: message,
+      });
+    } catch (error) {
+      console.error('[Duality] Discord check-in command error:', error);
+      await interaction.editReply({
+        content:
+          '❌ **Error**\n\nUnable to process your Duality check-in right now. Please try again in a moment.',
       });
     }
+    return;
   }
-  
+
   // Handle checkholders command
   if (interaction.commandName === 'checkholders') {
     // Check if user has admin permissions
@@ -2059,6 +1903,11 @@ client.on(Events.InteractionCreate, async interaction => {
             console.log(`Removed holder role from ${member.user.tag} (${user.discordUserId})`);
           }
         } catch (error) {
+          // Skip "Unknown Member" errors (user left server) - this is expected
+          if (error.code === 10007) {
+            // Silently skip - user is no longer in the server
+            continue;
+          }
           console.error(`Error removing role from ${user.discordUserId}:`, error);
           errorCount++;
         }
@@ -2121,98 +1970,217 @@ client.on(Events.InteractionCreate, async interaction => {
         content: `❌ **Error**\n\nAn error occurred during check-in: ${error.message}`,
       });
     }
+    return;
+  }
+
+  // Handle tip command
+  if (interaction.commandName === 'tip') {
+    await interaction.deferReply({ ephemeral: false }); // Public reply so recipient can see
+    
+    try {
+      const recipientUser = interaction.options.getUser('user', true);
+      const amount = interaction.options.getInteger('amount', true);
+
+      if (!recipientUser) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nPlease specify a valid user to tip.',
+        });
+        return;
+      }
+
+      if (amount <= 0) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nTip amount must be greater than 0.',
+        });
+        return;
+      }
+
+      if (recipientUser.id === interaction.user.id) {
+        await interaction.editReply({
+          content: '❌ **Error**\n\nYou cannot tip yourself.',
+        });
+        return;
+      }
+
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/tip`;
+      console.log(`[Tip] Processing tip from ${interaction.user.id} to ${recipientUser.id} for ${amount} powder`);
+      console.log(`[Tip] API URL: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderDiscordId: interaction.user.id,
+          recipientDiscordId: recipientUser.id,
+          amount: amount,
+        }),
+      });
+
+      console.log(`[Tip] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        let errorData;
+        let errorText = '';
+        try {
+          errorText = await response.text();
+          console.log(`[Tip] Error response body: ${errorText}`);
+          errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
+        } catch (parseError) {
+          console.error('[Tip] Failed to parse error response:', parseError);
+          console.error('[Tip] Raw error text:', errorText);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` };
+        }
+        
+        const errorMessage = errorData.error || `Failed to process tip: ${response.status}`;
+        console.error(`[Tip] Tip failed: ${errorMessage}`);
+        
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\n${errorMessage}`,
+        });
+        return;
+      }
+
+      let data;
+      try {
+        const responseText = await response.text();
+        console.log(`[Tip] Response body: ${responseText}`);
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('[Tip] Failed to parse success response:', parseError);
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\nReceived invalid response from server. Please try again.`,
+        });
+        return;
+      }
+
+      console.log(`[Tip] Response data:`, JSON.stringify(data));
+
+      if (data.success) {
+        const embed = new EmbedBuilder()
+          .setTitle('💎 Tip Successful!')
+          .setDescription(
+            `<@${interaction.user.id}> tipped **${amount} ascension powder** to <@${recipientUser.id}>!`
+          )
+          .addFields(
+            {
+              name: 'Sender Balance',
+              value: `${data.sender?.powderAfter?.toLocaleString() || '0'} powder`,
+              inline: true,
+            },
+            {
+              name: 'Recipient Balance',
+              value: `${data.recipient?.powderAfter?.toLocaleString() || '0'} powder`,
+              inline: true,
+            }
+          )
+          .setColor(0x2ecc71)
+          .setTimestamp(new Date());
+
+        await interaction.editReply({
+          content: `<@${recipientUser.id}>`,
+          embeds: [embed],
+        });
+        console.log(`[Tip] Tip successful: ${amount} powder transferred`);
+      } else {
+        const errorMessage = data.error || 'Unknown error occurred';
+        console.error(`[Tip] Tip failed (success=false): ${errorMessage}`);
+        await interaction.editReply({
+          content: `❌ **Tip Failed**\n\n${errorMessage}`,
+        });
+      }
+    } catch (error) {
+      console.error('[Tip] Error during tip:', error);
+      console.error('[Tip] Error stack:', error.stack);
+      console.error('[Tip] Error message:', error.message);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred while processing the tip: ${error.message || 'Unknown error'}\n\nPlease try again or contact support if the issue persists.`,
+      });
+    }
+    return;
+  }
+
+  // Handle powder command
+  if (interaction.commandName === 'powder') {
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/balance?discordUserId=${encodeURIComponent(interaction.user.id)}`;
+      console.log(`[Powder] Fetching balance for Discord user ${interaction.user.id} from ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[Powder] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          const text = await response.text();
+          console.log(`[Powder] Error response body: ${text}`);
+          errorData = text ? JSON.parse(text) : { error: 'Unknown error' };
+        } catch (parseError) {
+          console.error('[Powder] Failed to parse error response:', parseError);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        await interaction.editReply({
+          content: `❌ **Error**\n\n${errorData.error || `Failed to fetch balance: ${response.status}`}`,
+        });
+        return;
+      }
+
+      const data = await response.json();
+      console.log(`[Powder] Response data:`, JSON.stringify(data));
+
+      if (data.success) {
+        const embed = new EmbedBuilder()
+          .setTitle('💎 Ascension Powder Balance')
+          .setDescription(`You have **${data.balance.toLocaleString()}** ascension powder`)
+          .addFields(
+            {
+              name: 'Wallet',
+              value: `\`${data.wallet ? `${data.wallet.slice(0, 6)}...${data.wallet.slice(-4)}` : 'N/A'}\``,
+              inline: true,
+            },
+            {
+              name: 'Balance',
+              value: `${data.balance.toLocaleString()} powder`,
+              inline: true,
+            }
+          )
+          .setColor(0x9b59b6)
+          .setTimestamp(new Date());
+
+        await interaction.editReply({
+          embeds: [embed],
+        });
+      } else {
+        await interaction.editReply({
+          content: `❌ **Error**\n\n${data.error || 'Failed to fetch balance'}\n\n${data.balance !== undefined ? `Your balance: ${data.balance}` : ''}`,
+        });
+      }
+    } catch (error) {
+      console.error('[Powder] Error fetching balance:', error);
+      console.error('[Powder] Error stack:', error.stack);
+      await interaction.editReply({
+        content: `❌ **Error**\n\nAn error occurred while fetching your balance: ${error.message || 'Unknown error'}`,
+      });
+    }
+    return;
   }
 });
 
 // Periodic job to check holders and manage roles (runs every hour)
-if (LUMINEX_COMMANDS_ENABLED) {
-  setInterval(async () => {
-    try {
-      await syncLuminexTokens();
-    } catch (error) {
-      console.error('[Luminex] Scheduled token sync error:', error);
-    }
-  }, LUMINEX_POLL_INTERVAL_MS);
-}
+// Note: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools) every 5 minutes
+// Removed redundant periodic sync here
 
-setInterval(async () => {
-  try {
-    console.log('🔄 Running periodic holder role check...');
-      const guild = client.guilds.cache.get(process.env.GUILD_ID);
-      if (!guild) {
-        console.error('Guild not found');
-        return;
-      }
-      
-      const role = guild.roles.cache.get(process.env.HOLDER_ROLE_ID);
-      if (!role) {
-        console.error('Holder role not found');
-        return;
-      }
-      
-    // Get Discord IDs that should have role removed (0 ordinals)
-    const removeResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=remove`
-    );
-    
-    if (!removeResponse.ok) {
-      console.error('Failed to fetch users to remove roles:', removeResponse.status);
-      return;
-    }
-    
-    const removeData = await removeResponse.json();
-    let removedCount = 0;
-    
-    if (removeData.discordIds && removeData.discordIds.length > 0) {
-      // Remove roles from users who no longer have ordinals
-      for (const discordId of removeData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (member.roles.cache.has(role.id)) {
-            await member.roles.remove(role);
-            removedCount++;
-            console.log(`✅ Removed holder role from ${member.user.tag} (${discordId}) - no longer has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error removing role from ${discordId}:`, error);
-        }
-      }
-    }
-    
-    // Get Discord IDs that should have role added (> 0 ordinals)
-    const addResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL || 'https://thedamned.xyz'}/api/discord/roles/list?action=add`
-    );
-    
-    if (!addResponse.ok) {
-      console.error('Failed to fetch users to add roles:', addResponse.status);
-      return;
-    }
-    
-    const addData = await addResponse.json();
-    let addedCount = 0;
-    
-    if (addData.discordIds && addData.discordIds.length > 0) {
-      // Add roles to users who have ordinals but don't have the role
-      for (const discordId of addData.discordIds) {
-        try {
-          const member = await guild.members.fetch(discordId);
-          if (!member.roles.cache.has(role.id)) {
-            await member.roles.add(role);
-            addedCount++;
-            console.log(`✅ Added holder role to ${member.user.tag} (${discordId}) - has ordinals`);
-          }
-        } catch (error) {
-          console.error(`Error adding role to ${discordId}:`, error);
-        }
-      }
-    }
-    
-    console.log(`✅ Periodic check complete: Removed ${removedCount} roles, Added ${addedCount} roles`);
-  } catch (error) {
-    console.error('Error in periodic holder role check:', error);
-  }
-}, 3600000); // Run every hour (3600000 ms)
+setInterval(() => {
+  void syncHolderAndSpecialRoles();
+}, 3600000);
 
 // Periodic job to check for missed check-ins and apply -5 karma penalty (runs every 24 hours)
 setInterval(async () => {
@@ -2254,15 +2222,14 @@ setInterval(async () => {
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Discord bot is ready! Logged in as ${client.user.tag}`);
   console.log(`Bot ID: ${client.user.id}`);
-  console.log(`Verify API URL: ${VERIFY_API_URL}`);
   console.log(`Guild ID: ${process.env.GUILD_ID}`);
   console.log(`Client ID: ${process.env.CLIENT_ID}`);
   console.log(`Holder Role ID: ${process.env.HOLDER_ROLE_ID}`);
   await registerCommands();
-  if (LUMINEX_COMMANDS_ENABLED) {
-    await syncLuminexTokens(true);
-  }
+  // Note: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools) every 5 minutes
+  // Removed startup sync - cron will handle it
   await handleDualityWeeklyCycle(client);
+  await syncHolderAndSpecialRoles();
 });
 
 // Error handling

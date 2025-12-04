@@ -1,0 +1,406 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { ChevronDown, ChevronRight, User, Skull, Sparkles, Trophy } from 'lucide-react'
+
+import Header from '@/components/Header'
+
+type DocSection = {
+  id: string
+  title: string
+  icon: React.ReactNode
+  content: React.ReactNode
+}
+
+function AccordionSection({ section, isOpen, onToggle }: { section: DocSection; isOpen: boolean; onToggle: () => void }) {
+  return (
+    <div className="border-b border-red-600/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-4 py-4 text-left transition hover:bg-red-900/20"
+      >
+        <div className="flex items-center gap-3">
+          {section.icon}
+          <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-red-200">{section.title}</h2>
+        </div>
+        {isOpen ? (
+          <ChevronDown className="h-5 w-5 text-red-400" />
+        ) : (
+          <ChevronRight className="h-5 w-5 text-red-400" />
+        )}
+      </button>
+      {isOpen && <div className="px-4 pb-4 text-base text-red-200/80">{section.content}</div>}
+    </div>
+  )
+}
+
+export default function DocsPage() {
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['profile']))
+
+  const toggleSection = (id: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const sections: DocSection[] = [
+    {
+      id: 'profile',
+      title: 'Profile',
+      icon: <User className="h-5 w-5 text-red-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              Your profile tracks your karma, chosen side (Good or Evil), holder status, and social connections. Connect your wallet to view and manage your profile.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/profile" className="text-amber-400 underline hover:text-amber-300">→ Go to Profile Page</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Holder Status</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>You must have at least one unlisted Damned ordinal in your wallet to access certain features</li>
+              <li>Marketplace listings are detected automatically</li>
+              <li>If you have active listings, links to Graveyard, Summoning Circles, and Abyss are disabled</li>
+              <li>Remove all listings to regain full access</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Choosing a Side</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Choose Good or Evil on the Dashboard</li>
+              <li>Choosing a side <strong>wipes all existing karma records</strong> for your wallet</li>
+              <li>Once chosen, you can reset and switch sides anytime</li>
+              <li>Resetting clears all karma and task completions</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Karma System</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Earn karma by completing tasks aligned with your chosen side</li>
+              <li>Good karma: positive points for Good-aligned actions</li>
+              <li>Evil karma: negative points (displayed as positive for Evil-aligned)</li>
+              <li>Karma Standing = Good Karma - Bad Karma</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Social Connections</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Link Discord to sync your username and avatar</li>
+              <li>Link Twitter/X to bind your handle</li>
+              <li>Both are optional and can be disconnected anytime</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">How to Get Discord Role</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Auth Discord on the Profile page</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'graveyard',
+      title: 'Graveyard',
+      icon: <Skull className="h-5 w-5 text-amber-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              The Graveyard displays ordinals that have been sacrificed to the Abyss. Here you can spend ascension powder to revive and ascend them.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/graveyard" className="text-amber-400 underline hover:text-amber-300">→ Go to Graveyard</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ascension Powder</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Earned by participating in Summoning Circles</li>
+              <li>Also earned hourly in the AFK Circle (1 per ordinal)</li>
+              <li>Spend powder to add power to ordinals in the graveyard</li>
+              <li>Each spend adds 1 powder to an ordinal&apos;s ascension power</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">First Ascension</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>When an ordinal reaches 500 ascension powder, it can ascend</li>
+              <li>Creates a new ascended image in &quot;Limbo&quot; status</li>
+              <li>You must choose to keep the ascended version or burn it for a second ascension</li>
+              <li>If you burn it, the original ordinal becomes eligible for a second ascension</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Second Ascension (Angelic Transformation)</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>After burning your first ascension, your ascended demon returns to the graveyard</li>
+              <li>Channel powder to your ascended demon until it reaches 1000 total powder</li>
+              <li>Click &quot;Final Ascend&quot; to begin the transformation process</li>
+              <li><strong>You will be prompted to select a second graveyard ordinal to burn together with your ascended demon</strong></li>
+              <li>Both ordinals are sacrificed to create a powerful angelic version (90% standard, 10% holy light variant)</li>
+              <li>The new angelic ascension will appear in Limbo for you to keep or burn</li>
+              <li>This is the final ascension - there is no third level</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Grave Robbing</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li><strong>Cost:</strong> 150 ascension powder per attempt</li>
+              <li><strong>Success Rate:</strong> 10% chance to successfully rob</li>
+              <li><strong>Targets:</strong> Only ordinals that haven&apos;t been updated in 7+ days</li>
+              <li><strong>Powder Deduction:</strong> The 150 powder is spent regardless of success or failure</li>
+              <li><strong>Compensation:</strong> If rob succeeds, the previous owner receives +1000 ascension powder automatically</li>
+              <li><strong>Restrictions:</strong> Cannot rob already ascended ordinals (inscription_id starting with &quot;ascended_&quot;)</li>
+              <li><strong>Event Logging:</strong> All grave robbing attempts are tracked in the system</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Limbo & Mint Queue</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Limbo: Ascended images awaiting your choice (keep or burn)</li>
+              <li>Mint Queue: Ordinals waiting to be minted as ascended inscriptions</li>
+              <li>Manage both from the Graveyard interface</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'summoning',
+      title: 'Summoning Circles',
+      icon: <Sparkles className="h-5 w-5 text-cyan-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              Summoning Circles are collaborative rituals where participants pledge ordinals to earn ascension powder.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <strong className="text-red-300">Open Hours (EST):</strong>
+            </p>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>12:00 AM - 2:00 AM (Midnight to 2 AM)</li>
+              <li>11:00 AM - 6:00 PM (11 AM to 6 PM)</li>
+            </ul>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ Go to Summoning Circles</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Circle Types</h3>
+            
+            <div className="ml-4 space-y-3">
+              <div className="rounded border border-amber-500/40 bg-amber-900/20 p-3">
+                <h4 className="mb-2 text-base font-semibold text-amber-300">Ascension Circles (Powder Mode)</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
+                  <li>10 participants required</li>
+                  <li>10 minute duration</li>
+                  <li>Must mark &quot;Ready&quot; in the last 2 minutes</li>
+                  <li>9 of 10 must complete to succeed</li>
+                  <li><strong>Rewards:</strong> 8 powder (host) • 7 powder (participants)</li>
+                </ul>
+              </div>
+
+              <div className="rounded border border-red-500/40 bg-red-900/20 p-3">
+                <h4 className="mb-2 text-base font-semibold text-red-300">Portal Circles (Damned Pool) - PERMANENTLY CLOSED</h4>
+                <p className="ml-4 text-sm leading-relaxed text-red-200/80">
+                  Portal circles are no longer available. New circle creation has been disabled, but existing circles can still be completed.
+                </p>
+              </div>
+
+              <div className="rounded border border-purple-500/40 bg-purple-900/20 p-3">
+                <h4 className="mb-2 text-base font-semibold text-purple-300">Dead Demons Circles</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
+                  <li>Requires a dead graveyard unminted demon.</li>
+                  <li>10 participants required</li>
+                  <li>10 minute duration</li>
+                  <li>All 10 must complete in the last 1 minute</li>
+                  <li><strong>Rewards:</strong> 10 powder (host) • 8 powder (participants)</li>
+                </ul>
+              </div>
+
+              <div className="rounded border border-cyan-500/40 bg-cyan-900/20 p-3">
+                <h4 className="mb-2 text-base font-semibold text-cyan-300">AFK Circle</h4>
+                <ul className="ml-4 list-disc space-y-1 text-sm leading-relaxed">
+                  <li>Single permanent circle (max 120 participants)</li>
+                  <li>No time limit, no completion required</li>
+                  <li>Deposit ordinals to earn +2 powder per ordinal every hour</li>
+                  <li>Can add/remove ordinals anytime</li>
+                  <li>Ordinals in AFK circle cannot be used in other circles</li>
+                  <li>Automatically rewards every hour on the hour</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">How to Participate</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li><strong>Host:</strong> Select an ordinal and click &quot;Initiate Circle&quot;</li>
+              <li><strong>Join:</strong> Browse active circles and click &quot;Join&quot; with an available ordinal</li>
+              <li>Each ordinal can only be in one circle at a time</li>
+              <li>Maximum 6 active circles per user (hosting + participating)</li>
+              <li>Maximum 2 hosted circles per user</li>
+              <li>Maximum 10 active circles globally</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Completing Circles</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>When a circle reaches capacity, it locks and enters completion phase</li>
+              <li>Mark yourself &quot;Ready&quot; during the completion window</li>
+              <li>If enough participants complete, rewards are granted automatically</li>
+              <li>If too few complete, the circle expires with no rewards</li>
+              <li>Check countdown timers to know when to mark ready</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Restrictions</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Cannot join if you have active marketplace listings</li>
+              <li>Must be a holder (unlisted ordinals or past burns)</li>
+              <li><strong>Closed Hours:</strong> 2:00 AM - 11:00 AM EST and 6:00 PM - 12:00 AM EST</li>
+              <li>Ordinals in AFK circle cannot be used elsewhere</li>
+              <li>Portal circles (Damned Pool) are permanently closed - no new circles can be created</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'summoners-leaderboard',
+      title: 'Summoners Leaderboard',
+      icon: <Trophy className="h-5 w-5 text-red-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              The Summoners Leaderboard tracks participation in summoning circles. Rankings are based on burns, hosting, and participation statistics. The reason for this leaderboard has not been announced yet.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/abyss-summon" className="text-amber-400 underline hover:text-amber-300">→ View Summoners Leaderboard (on Summoning page)</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ranking System</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Tracks total burns and confirmed burns</li>
+              <li>Counts circles hosted and participated in</li>
+              <li>Score calculated from these statistics</li>
+              <li>Leaderboard updates every 30 seconds</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Available on the Abyss Summoning page</li>
+              <li>Only active for standard summoning circles (not powder, portal, or dead demons modes)</li>
+              <li>Shows username, avatar (if Discord linked), and wallet address</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'leaderboard',
+      title: 'Ascension Leaderboard',
+      icon: <Trophy className="h-5 w-5 text-amber-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              The Ascension Leaderboard ranks all players by total ascension powder (available + spent). Only holders can view the leaderboard.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/leaderboard" className="text-amber-400 underline hover:text-amber-300">→ View Ascension Leaderboard</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Ranking System</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li><strong>Available:</strong> Current ascension powder in your profile</li>
+              <li><strong>Spent:</strong> Total powder used on graveyard ordinals (cumulative)</li>
+              <li><strong>Total:</strong> Available + Spent (your ranking score)</li>
+              <li>Leaderboard updates every 30 seconds</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Access</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Must have at least one unlisted Damned ordinal, or no listing and at least 1 graveyard ordinal</li>
+              <li>Your rank is highlighted if you&apos;re on the leaderboard</li>
+              <li>Shows username, avatar (if Discord linked), and wallet address</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="relative min-h-screen w-full bg-black text-red-100">
+      <Header connected={false} showMusicControls={false} />
+
+      <main className="relative z-10 mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-16 md:px-8">
+        <div className="text-center">
+          <h1 className="text-4xl font-black uppercase tracking-[0.4em] text-red-200 md:text-5xl">Documentation</h1>
+          <p className="mt-4 text-sm uppercase tracking-[0.3em] text-red-300/70">
+            Guide to The Damned ecosystem
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-red-600/40 bg-black/70 shadow-[0_0_30px_rgba(220,38,38,0.35)] backdrop-blur">
+          {sections.map((section) => (
+            <AccordionSection
+              key={section.id}
+              section={section}
+              isOpen={openSections.has(section.id)}
+              onToggle={() => toggleSection(section.id)}
+            />
+          ))}
+        </div>
+
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-red-300/60">
+            Need more help? <Link href="https://discord.gg/vJ4yw9N55j" target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300">Join Discord</Link>
+          </p>
+        </div>
+      </main>
+    </div>
+  )
+}
+

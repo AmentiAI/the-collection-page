@@ -1,0 +1,122 @@
+.container {
+  width: 440px;
+  max-width: 90vw;
+  border-radius: 1rem;
+  padding: 1.4rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(3, 7, 18, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 20px 45px rgba(8, 47, 73, 0.45);
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.boardWrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.board {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 1rem;
+  padding: 0.75rem;
+}
+
+.grid {
+  display: grid;
+  gap: 4px;
+}
+
+.cell {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(30, 41, 59, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  transition: transform 120ms ease;
+}
+
+.cellWall {
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  box-shadow: inset 0 0 12px rgba(71, 85, 105, 0.3);
+}
+
+.cellFirefly {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.85), rgba(253, 224, 71, 0.75));
+  border: 1px solid rgba(253, 224, 71, 0.7);
+  box-shadow: 0 0 22px rgba(252, 211, 77, 0.6);
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.cellGoal {
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px dashed rgba(125, 211, 252, 0.7);
+}
+
+.playerMary {
+  background: linear-gradient(135deg, #f472b6, #db2777);
+  border: 1px solid rgba(244, 114, 182, 0.65);
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.45);
+  color: #fff1f2;
+  font-weight: 700;
+}
+
+.playerZoey {
+  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  border: 1px solid rgba(96, 165, 250, 0.65);
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+  color: #e0f2fe;
+  font-weight: 700;
+}
+
+.instructions {
+  font-size: 0.76rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+  min-height: 2rem;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.button {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.75rem;
+  color: #e2e8f0;
+  padding: 0.55rem 1rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  transition: transform 100ms ease, background 150ms ease;
+}
+
+.button:hover {
+  background: rgba(129, 140, 248, 0.35);
+  transform: translateY(-1px);
+}
+
+
+

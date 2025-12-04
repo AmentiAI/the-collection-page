@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Undo2, ShieldCheck, AlertCircle, ArrowRight, ArrowUpRight } from 'lucide-react'
-import BackgroundMusic from '@/components/BackgroundMusic'
 
 // Metadata defined in parent layout since this page is client-side only
 
@@ -52,7 +51,8 @@ const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(
 
 const TOOL_LINKS = [
   { name: 'Transaction Speedup', href: '/tools/speedup' },
-  { name: 'Cancel Transaction', href: '/tools/cancel' }
+  { name: 'Cancel Transaction', href: '/tools/cancel' },
+  { name: 'Sat Recovery', href: '/tools/sat-recovery' },
 ]
 
 const QUICK_RATE_PRESETS = [2, 3, 5, 10]
@@ -68,14 +68,6 @@ export default function CancelTransactionPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-slate-100">
@@ -89,12 +81,7 @@ export default function CancelTransactionPage() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-sky-400" /></div>}>
         <CancelTransactionContent initialHolder={isHolder} />
       </Suspense>
@@ -222,25 +209,33 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
     setHolderStatus('checking')
     setHolderMessage(null)
 
-    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
-      .then(async (res) => {
+    // Check both Magic Eden ordinals and abyss_burns records
+    Promise.all([
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`).then(async (res) => {
         if (!res.ok) {
           const text = await res.text()
           throw new Error(text || `Magic Eden check failed (${res.status})`)
         }
         return res.json()
-      })
-      .then((data) => {
+      }),
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`).then(async (res) => {
+        if (!res.ok) return { success: false, hasBurns: false }
+        return res.json()
+      }).catch(() => ({ success: false, hasBurns: false }))
+    ])
+      .then(([ordinalsData, burnsData]) => {
         if (cancelled) return
         let total = 0
-        if (typeof data.total === 'number') total = data.total
-        else if (Array.isArray(data.tokens)) total = data.tokens.length
-        else if (Array.isArray(data)) total = data.length
-        else if (typeof data.count === 'number') total = data.count
-        const isHolderWallet = total > 0
+        if (typeof ordinalsData.total === 'number') total = ordinalsData.total
+        else if (Array.isArray(ordinalsData.tokens)) total = ordinalsData.tokens.length
+        else if (Array.isArray(ordinalsData)) total = ordinalsData.length
+        else if (typeof ordinalsData.count === 'number') total = ordinalsData.count
+        const hasOrdinals = total > 0
+        const hasBurns = burnsData.success && burnsData.hasBurns
+        const isHolderWallet = hasOrdinals || hasBurns
         setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
         if (!isHolderWallet) {
-          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
+          setHolderMessage('Tools are restricted to The Damned holders or those who have burned ordinals in the abyss.')
         }
       })
       .catch((err) => {

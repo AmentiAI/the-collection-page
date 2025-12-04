@@ -30,3 +30,10 @@ export interface InscriptionResult {
   [key: string]: any
 }
 
+
+
+
+
+
+
+

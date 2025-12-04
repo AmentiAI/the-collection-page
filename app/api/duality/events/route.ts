@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { ensureDualitySchema } from '@/lib/duality'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pool = getPool()
+    await ensureDualitySchema(pool)
 
     const pairRes = await pool.query(
       `SELECT pr.*, cy.status AS cycle_status

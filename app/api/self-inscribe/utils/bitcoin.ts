@@ -2,6 +2,11 @@ import * as bitcoin from 'bitcoinjs-lib'
 
 export type AddressType = 'p2tr' | 'p2wpkh' | 'p2sh' | 'p2pkh' | 'unknown'
 
+export function getBitcoinNetwork() {
+  // Use mainnet by default, can be configured via env var if needed
+  return bitcoin.networks.bitcoin
+}
+
 export function getAddressType(address: string): AddressType {
   if (!address) {
     return 'unknown'
@@ -41,7 +46,10 @@ export function getAddressType(address: string): AddressType {
 
   return 'unknown'
 }
-
+export function generatePrivateKey(): string {
+  const privKeyBuff = crypto.getRandomValues(new Uint8Array(32))
+  return Buffer.from(privKeyBuff).toString('hex')
+}
 export function addInputSigningInfo(
   psbt: bitcoin.Psbt,
   inputIndex: number,

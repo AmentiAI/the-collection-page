@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useCallback } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
@@ -11,9 +11,8 @@ import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { InscriptionService } from '@/services/inscription-service'
 import { useToast } from '@/components/Toast'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 import Header from '@/components/Header'
-import BackgroundMusic from '@/components/BackgroundMusic'
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
 
 type SpeedupStrategy = 'rbf' | 'cpfp' | 'hybrid'
 
@@ -78,7 +77,8 @@ const STRATEGY_COPY: Record<SpeedupStrategy, { title: string; blurb: string; acc
 
 const TOOL_LINKS = [
   { name: 'Transaction Speedup', href: '/tools/speedup' },
-  { name: 'Cancel Transaction', href: '/tools/cancel' }
+  { name: 'Cancel Transaction', href: '/tools/cancel' },
+  { name: 'Sat Recovery', href: '/tools/sat-recovery' },
 ]
 
 const formatRate = (value: number | null | undefined, digits = 2) =>
@@ -121,14 +121,6 @@ function SpeedupPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [startMusic, setStartMusic] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStartMusic(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <LaserEyesWrapper>
@@ -142,12 +134,7 @@ function SpeedupPage() {
         }}
         onVerifyingStart={() => setIsVerifying(true)}
         onConnectedChange={setConnected}
-        musicVolume={musicVolume}
-        onMusicVolumeChange={setMusicVolume}
-        isMusicMuted={isMusicMuted}
-        onMusicMutedChange={setIsMusicMuted}
       />
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       <Suspense
         fallback={
           <div className="flex min-h-screen items-center justify-center bg-[#03040e]">
@@ -196,6 +183,8 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
     initialHolder ? 'holder' : 'unknown'
   )
   const [holderMessage, setHolderMessage] = useState<string | null>(null)
+  const [showCostConfirmation, setShowCostConfirmation] = useState(false)
+  const [pendingSpeedupCost, setPendingSpeedupCost] = useState<number>(0)
 
   const holderAllowed = holderStatus === 'holder'
 
@@ -342,18 +331,6 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
   )
 
   useEffect(() => {
-    const urlTxid = searchParams.get('txid')
-    if (urlTxid && urlTxid.length === 64) {
-      setTxid(urlTxid)
-      if (isConnected && currentAddress && !loading && !parsedTx) {
-        setTimeout(() => {
-          void fetchTransactionWithTxid(urlTxid)
-        }, 100)
-      }
-    }
-  }, [searchParams, isConnected, currentAddress, loading, parsedTx])
-
-  useEffect(() => {
     if (!parsedTx) {
       setAnalysis(null)
       setSelectedStrategy(null)
@@ -433,25 +410,33 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
     setHolderStatus('checking')
     setHolderMessage(null)
 
-    fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`)
-      .then(async (res) => {
+    // Check both Magic Eden ordinals and abyss_burns records
+    Promise.all([
+      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`).then(async (res) => {
         if (!res.ok) {
           const text = await res.text()
           throw new Error(text || `Magic Eden check failed (${res.status})`)
         }
         return res.json()
-      })
-      .then((data) => {
+      }),
+      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`).then(async (res) => {
+        if (!res.ok) return { success: false, hasBurns: false }
+        return res.json()
+      }).catch(() => ({ success: false, hasBurns: false }))
+    ])
+      .then(([ordinalsData, burnsData]) => {
         if (cancelled) return
         let total = 0
-        if (typeof data.total === 'number') total = data.total
-        else if (Array.isArray(data.tokens)) total = data.tokens.length
-        else if (Array.isArray(data)) total = data.length
-        else if (typeof data.count === 'number') total = data.count
-        const isHolderWallet = total > 0
+        if (typeof ordinalsData.total === 'number') total = ordinalsData.total
+        else if (Array.isArray(ordinalsData.tokens)) total = ordinalsData.tokens.length
+        else if (Array.isArray(ordinalsData)) total = ordinalsData.length
+        else if (typeof ordinalsData.count === 'number') total = ordinalsData.count
+        const hasOrdinals = total > 0
+        const hasBurns = burnsData.success && burnsData.hasBurns
+        const isHolderWallet = hasOrdinals || hasBurns
         setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
         if (!isHolderWallet) {
-          setHolderMessage('Tools are restricted to The Damned holders. Hold an ordinal at your connected address to continue.')
+          setHolderMessage('Tools are restricted to The Damned holders or those who have burned ordinals in the abyss.')
         }
       })
       .catch((err) => {
@@ -530,6 +515,153 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
     },
     [currentAddress, paymentAddress, toast, holderAllowed]
   )
+
+  useEffect(() => {
+    const urlTxid = searchParams.get('txid')
+    if (urlTxid && urlTxid.length === 64) {
+      setTxid(urlTxid)
+      if (isConnected && currentAddress && !loading && !parsedTx) {
+        setTimeout(() => {
+          void fetchTransactionWithTxid(urlTxid)
+        }, 100)
+      }
+    }
+  }, [searchParams, isConnected, currentAddress, loading, parsedTx, fetchTransactionWithTxid])
+
+  const renderStrategyCard = (strategy: SpeedupStrategy) => {
+    if (!analysis) return null
+    const detail = analysis.strategies[strategy]
+    const meta = STRATEGY_COPY[strategy]
+    const isSelected = selectedStrategy === strategy
+    const disabled = !detail.available
+
+    const baseClass = disabled
+      ? 'cursor-not-allowed opacity-40 border-slate-700/60 bg-slate-900/40'
+      : isSelected
+        ? 'border-sky-400/70 bg-sky-500/20 shadow-[0_22px_44px_-22px_rgba(56,189,248,0.65)]'
+        : meta.accent
+
+  return (
+      <button
+        key={strategy}
+        type="button"
+        onClick={() => {
+          if (!disabled) {
+            setSelectedStrategy(strategy)
+          }
+        }}
+        disabled={disabled}
+        className={`flex flex-col gap-3 rounded-2xl border p-4 text-left text-xs transition ${baseClass}`}
+      >
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-slate-100">{meta.title}</p>
+          {isSelected && <span className="text-[10px] uppercase tracking-[0.35em] text-sky-200">Active</span>}
+        </div>
+        <p className="text-slate-400">{meta.blurb}</p>
+
+        {detail.available ? (
+          <div className="space-y-1 text-slate-300">
+            {strategy === 'rbf' && <p>Bump: {formatSats(Math.max(analysis.requiredRbfFee, 0))} sats</p>}
+            {strategy === 'cpfp' && <p>Child fee: {formatSats(analysis.childFeeNeeded)} sats</p>}
+            {strategy === 'hybrid' && (
+              <p className="text-emerald-200">
+                {analysis.requiresHybrid ? 'Needs extra UTXO' : 'Will add a wallet UTXO if needed'}
+              </p>
+            )}
+          </div>
+        ) : detail.reasons.length > 0 ? (
+          <ul className="space-y-1 text-amber-200">
+            {detail.reasons.slice(0, 2).map((reason) => (
+              <li key={reason}>• {reason}</li>
+            ))}
+            {detail.reasons.length > 2 && <li>• More conditions apply</li>}
+          </ul>
+        ) : null}
+      </button>
+    )
+  }
+
+  const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(value))
+
+  const revalidateTransaction = useCallback(async (): Promise<RevalidateResult> => {
+    if (!parsedTx || !currentAddress) {
+      toast.error('Missing transaction context. Try analyzing again.')
+      return { ok: false }
+    }
+
+    try {
+      const response = await fetch('/api/speedup/parse-tx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txid: parsedTx.txid,
+          userAddress: currentAddress,
+          walletAddresses: [currentAddress, paymentAddress].filter(Boolean)
+        })
+      })
+      const data = await response.json()
+
+      if (!data.success) {
+        toast.error(data.error || 'Failed to refresh transaction.')
+        return { ok: false }
+      }
+
+      setParsedTx(data.transaction)
+      setEstimate(data.estimate)
+
+      if (data.transaction.status === 'confirmed') {
+        setAnalysis(null)
+        setSelectedStrategy(null)
+        toast.info('Parent transaction already confirmed. No speedup required.')
+        return { ok: false }
+      }
+
+      return { ok: true, transaction: data.transaction as ParsedTransaction, estimate: (data.estimate ?? null) as CpfpEstimate | null }
+    } catch (error) {
+      console.error('Revalidation error:', error)
+      toast.error('Unable to refresh transaction before broadcast.')
+      return { ok: false }
+    }
+  }, [parsedTx, currentAddress, paymentAddress, toast])
+
+  useEffect(() => {
+    if (!analysis || !parsedTx) return
+
+    const abortController = new AbortController()
+    const { signal } = abortController
+
+    const fetchWalletBalance = async () => {
+      try {
+        const response = await fetch('/api/speedup/fetch-balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: currentAddress,
+            paymentAddress: paymentAddress,
+            signal
+          })
+        })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch wallet balance: ${response.status}`)
+        }
+        const data = await response.json()
+        if (data.success) {
+          // This effect is not directly used in the current component's logic,
+          // but it's part of the original file's structure.
+          // If it were used, it would be here.
+        }
+      } catch (err) {
+        if (signal.aborted) return
+        console.error('Failed to fetch wallet balance:', err)
+      }
+    }
+
+    void fetchWalletBalance()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [analysis, parsedTx, currentAddress, paymentAddress])
 
   const fetchTransaction = async () => {
     await fetchTransactionWithTxid(txid)
@@ -798,108 +930,34 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
       return
     }
 
+    // Calculate the cost for this speedup
+    let speedupCostSats = 0
+    if (selectedStrategy === 'rbf' && analysis) {
+      speedupCostSats = analysis.requiredRbfFee
+    } else if (estimate) {
+      speedupCostSats = estimate.recommendedChildFee
+    }
+
+    // Threshold: 0.0001 BTC = 10,000 sats
+    const COST_WARNING_THRESHOLD = 10000
+
+    // If cost exceeds threshold and not already confirmed, show confirmation
+    if (speedupCostSats > COST_WARNING_THRESHOLD && !showCostConfirmation) {
+      setPendingSpeedupCost(speedupCostSats)
+      setShowCostConfirmation(true)
+      return
+    }
+
+    // Reset confirmation state
+    setShowCostConfirmation(false)
+    setPendingSpeedupCost(0)
+
     if (selectedStrategy === 'rbf') {
       await performRbf()
     } else {
       const mode = selectedStrategy === 'hybrid' ? 'hybrid' : 'simple'
       await performCpfp(mode)
     }
-  }
-
-  const formatSats = (value: number) => new Intl.NumberFormat().format(Math.round(value))
-
-  const revalidateTransaction = useCallback(async (): Promise<RevalidateResult> => {
-    if (!parsedTx || !currentAddress) {
-      toast.error('Missing transaction context. Try analyzing again.')
-      return { ok: false }
-    }
-
-    try {
-      const response = await fetch('/api/speedup/parse-tx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          txid: parsedTx.txid,
-          userAddress: currentAddress,
-          walletAddresses: [currentAddress, paymentAddress].filter(Boolean)
-        })
-      })
-      const data = await response.json()
-
-      if (!data.success) {
-        toast.error(data.error || 'Failed to refresh transaction.')
-        return { ok: false }
-      }
-
-      setParsedTx(data.transaction)
-      setEstimate(data.estimate)
-
-      if (data.transaction.status === 'confirmed') {
-        setAnalysis(null)
-        setSelectedStrategy(null)
-        toast.info('Parent transaction already confirmed. No speedup required.')
-        return { ok: false }
-      }
-
-      return { ok: true, transaction: data.transaction as ParsedTransaction, estimate: (data.estimate ?? null) as CpfpEstimate | null }
-    } catch (error) {
-      console.error('Revalidation error:', error)
-      toast.error('Unable to refresh transaction before broadcast.')
-      return { ok: false }
-    }
-  }, [parsedTx?.txid, currentAddress, paymentAddress, toast])
-
-  const renderStrategyCard = (strategy: SpeedupStrategy) => {
-    if (!analysis) return null
-    const detail = analysis.strategies[strategy]
-    const meta = STRATEGY_COPY[strategy]
-    const isSelected = selectedStrategy === strategy
-    const disabled = !detail.available
-
-    const baseClass = disabled
-      ? 'cursor-not-allowed opacity-40 border-slate-700/60 bg-slate-900/40'
-      : isSelected
-        ? 'border-sky-400/70 bg-sky-500/20 shadow-[0_22px_44px_-22px_rgba(56,189,248,0.65)]'
-        : meta.accent
-
-  return (
-      <button
-        key={strategy}
-        type="button"
-        onClick={() => {
-          if (!disabled) {
-            setSelectedStrategy(strategy)
-          }
-        }}
-        disabled={disabled}
-        className={`flex flex-col gap-3 rounded-2xl border p-4 text-left text-xs transition ${baseClass}`}
-      >
-        <div className="flex items-center justify-between">
-          <p className="font-semibold text-slate-100">{meta.title}</p>
-          {isSelected && <span className="text-[10px] uppercase tracking-[0.35em] text-sky-200">Active</span>}
-        </div>
-        <p className="text-slate-400">{meta.blurb}</p>
-
-        {detail.available ? (
-          <div className="space-y-1 text-slate-300">
-            {strategy === 'rbf' && <p>Bump: {formatSats(Math.max(analysis.requiredRbfFee, 0))} sats</p>}
-            {strategy === 'cpfp' && <p>Child fee: {formatSats(analysis.childFeeNeeded)} sats</p>}
-            {strategy === 'hybrid' && (
-              <p className="text-emerald-200">
-                {analysis.requiresHybrid ? 'Needs extra UTXO' : 'Will add a wallet UTXO if needed'}
-              </p>
-            )}
-          </div>
-        ) : detail.reasons.length > 0 ? (
-          <ul className="space-y-1 text-amber-200">
-            {detail.reasons.slice(0, 2).map((reason) => (
-              <li key={reason}>• {reason}</li>
-            ))}
-            {detail.reasons.length > 2 && <li>• More conditions apply</li>}
-          </ul>
-        ) : null}
-      </button>
-    )
   }
 
   return (
@@ -1220,6 +1278,57 @@ function SpeedupPageContent({ initialHolder }: SpeedupPageContentProps) {
                           <span>You&rsquo;ll receive back: {estimate.userReceives} sats</span>
                       </div>
                     </div>
+
+                    {showCostConfirmation && (
+                      <div className="rounded-2xl border border-amber-400/40 bg-amber-500/15 p-6 shadow-[0_20px_50px_-20px_rgba(251,191,36,0.5)]">
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 rounded-full bg-amber-400/20 p-3">
+                            <AlertCircle className="h-6 w-6 text-amber-300" />
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <h3 className="text-lg font-semibold text-amber-100">High Cost Warning</h3>
+                            <p className="text-sm text-amber-200">
+                              You are about to spend a large amount of BTC on this speedup transaction.
+                            </p>
+                            <div className="rounded-xl border border-amber-400/30 bg-black/30 p-4">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-amber-100">
+                                  {formatSats(pendingSpeedupCost)}
+                                </span>
+                                <span className="text-sm text-amber-200">sats</span>
+                                <span className="mx-2 text-amber-400">≈</span>
+                                <span className="text-xl font-semibold text-amber-100">
+                                  {(pendingSpeedupCost / 100000000).toFixed(8)}
+                                </span>
+                                <span className="text-sm text-amber-200">BTC</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-amber-300">
+                              Are you sure you want to proceed with this speedup?
+                            </p>
+                            <div className="flex gap-3 pt-2">
+                              <Button
+                                onClick={() => void executeSpeedup()}
+                                disabled={broadcasting}
+                                className="flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_30px_-12px_rgba(251,191,36,0.8)] transition hover:scale-[1.02] hover:shadow-[0_16px_36px_-16px_rgba(251,191,36,0.9)] disabled:from-slate-600 disabled:via-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
+                              >
+                                Yes, I Confirm
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setShowCostConfirmation(false)
+                                  setPendingSpeedupCost(0)
+                                }}
+                                disabled={broadcasting}
+                                className="flex-1 items-center justify-center rounded-xl border border-slate-600/50 bg-slate-900/60 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:bg-slate-800/60 disabled:opacity-50"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <Button
                       onClick={() => void executeSpeedup()}

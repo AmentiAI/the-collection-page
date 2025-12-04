@@ -18,16 +18,16 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Twitter OAuth error:', error)
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=error`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=error`)
     }
 
     if (!code) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=no_code`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=no_code`)
     }
 
     if (!TWITTER_CLIENT_ID || !TWITTER_CLIENT_SECRET) {
       console.error('Twitter OAuth not configured - missing CLIENT_ID or CLIENT_SECRET')
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=not_configured`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=not_configured`)
     }
 
     // Get code_verifier from cookie
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     if (!codeVerifier) {
       console.error('Missing code_verifier cookie')
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=missing_verifier`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=missing_verifier`)
     }
 
     // Ensure redirect URI is properly set
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         error: errorText,
         redirectUriUsed: redirectUri
       })
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=token_error&details=${encodeURIComponent(errorText.substring(0, 100))}`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=token_error&details=${encodeURIComponent(errorText.substring(0, 100))}`)
     }
 
     const tokenData = await tokenResponse.json()
@@ -99,14 +99,14 @@ export async function GET(request: NextRequest) {
         statusText: userResponse.statusText,
         error: errorText
       })
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=user_error`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=user_error`)
     }
 
     const twitterUser = await userResponse.json()
 
     if (!twitterUser.data || !twitterUser.data.id) {
       console.error('Invalid Twitter user data:', twitterUser)
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=invalid_user`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=invalid_user`)
     }
 
     // Link Twitter account to wallet address if provided
@@ -150,14 +150,14 @@ export async function GET(request: NextRequest) {
 
     // Clear the code_verifier cookie
     const response = NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=success&twitter_id=${twitterUser.data.id}&twitter_username=${twitterUser.data.username}`
+      `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=success&twitter_id=${twitterUser.data.id}&twitter_username=${twitterUser.data.username}`
     )
     response.cookies.delete('twitter_code_verifier')
 
     return response
   } catch (error) {
     console.error('Twitter callback error:', error)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?twitter_auth=error`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile?twitter_auth=error`)
   }
 }
 

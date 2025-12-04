@@ -25,29 +25,44 @@ export async function POST(request: NextRequest) {
     
     const pool = getPool()
     
+    // Use transaction to ensure atomicity
+    await pool.query('BEGIN')
+    
+    let profileId: number | null = null
+    
+    try {
     // Get profile
     const profileResult = await pool.query(`
       SELECT id
       FROM profiles
       WHERE wallet_address = $1
+        FOR UPDATE
     `, [walletAddress])
     
     if (profileResult.rows.length === 0) {
+        await pool.query('ROLLBACK')
       return NextResponse.json(
         { error: 'Profile not found' },
         { status: 404 }
       )
     }
     
-    const profileId = profileResult.rows[0].id
+      profileId = profileResult.rows[0].id
     
-    // Delete all karma points for this profile
+      // FIRST: Delete all karma points for this profile (wipes existing karma records)
+      // This ensures any karma that somehow exists without a chosen side gets cleaned up
     await pool.query(`
       DELETE FROM karma_points
       WHERE profile_id = $1
     `, [profileId])
     
-    // Reset karma totals and update chosen_side
+      // Also delete user task completions (they'll need to redo tasks)
+      await pool.query(`
+        DELETE FROM user_task_completions
+        WHERE profile_id = $1
+      `, [profileId])
+      
+      // THEN: Reset karma totals and update chosen_side
     await pool.query(`
       UPDATE profiles
       SET total_good_karma = 0,
@@ -57,23 +72,24 @@ export async function POST(request: NextRequest) {
       WHERE wallet_address = $2
     `, [chosenSide, walletAddress])
     
-    // Also delete user task completions (they'll need to redo tasks)
-    await pool.query(`
-      DELETE FROM user_task_completions
-      WHERE profile_id = $1
-    `, [profileId])
+      await pool.query('COMMIT')
+    } catch (error) {
+      await pool.query('ROLLBACK')
+      throw error
+    }
     
     console.log(`✅ Reset karma and set side to ${chosenSide} for ${walletAddress}`)
     
     // After reset, scan activities and recalculate karma
     // Do this synchronously to ensure it completes
+    if (profileId !== null) {
     try {
       // Import the scan functions from utility files
       const { scanActivitiesForWallet } = await import('@/lib/activity-utils')
       const { calculateOrdinalKarmaForWallet } = await import('@/lib/karma-utils')
       
       // 1. Scan activity history for purchases/creates
-      const scanResult = await scanActivitiesForWallet(walletAddress, chosenSide, profileId, pool)
+        const scanResult = await scanActivitiesForWallet(walletAddress, chosenSide, String(profileId), pool)
       console.log(`✅ Scanned activities:`, scanResult)
       
       // 2. Recalculate ordinal ownership karma (force recalculation since we just reset)
@@ -82,6 +98,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error('Error scanning activities/recalculating karma:', error)
       // Don't fail the reset if this fails - it can be done manually
+      }
     }
     
     return NextResponse.json({

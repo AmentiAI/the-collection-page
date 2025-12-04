@@ -9,6 +9,9 @@ declare module '@omnisat/lasereyes' {
   export function useLaserEyes(): {
     connected: boolean
     address: string | null
+    paymentAddress: string | null
+    paymentPublicKey: string | null
+    publicKey: string | null
     client: any
     connect: (provider: any) => Promise<void>
     disconnect: () => void

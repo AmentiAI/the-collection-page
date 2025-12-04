@@ -11,6 +11,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') || 'remove' // 'remove' or 'add'
     
+    // Log for debugging
+    if (action?.includes('dead-demon')) {
+      console.log('[discord/roles/list] Action received:', action)
+    }
+    
     const pool = getPool()
     
     if (action === 'remove') {
@@ -48,9 +53,158 @@ export async function GET(request: Request) {
         discordIds,
         count: discordIds.length
       })
+    } else if (action === 'executioner-add') {
+      // Get Discord IDs with confirmed abyss burns (should receive executioner role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address)
+        WHERE ab.status = 'confirmed'
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'executioner-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'executioner-remove') {
+      // Get Discord IDs without confirmed abyss burns (should have executioner role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address) AND ab.status = 'confirmed'
+        WHERE ab.id IS NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'executioner-remove',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'summoner-add') {
+      // Get Discord IDs that have participated in an abyss summon (should have summoner role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_summon_participants asp ON LOWER(asp.wallet) = LOWER(p.wallet_address)
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'summoner-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'summoner-remove') {
+      // Get Discord IDs that have never participated in an abyss summon (should have summoner role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_summon_participants asp ON LOWER(asp.wallet) = LOWER(p.wallet_address)
+        WHERE asp.id IS NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id)
+
+      return NextResponse.json({
+        success: true,
+        action: 'summoner-remove',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'dead-demon-add') {
+      // Get Discord IDs with ascended inscriptions (should receive dead demon role)
+      // Check if wallet has at least one inscription_id starting with 'ascended_' in abyss_burns
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address)
+        WHERE ab.inscription_id LIKE 'ascended_%'
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'dead-demon-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'dead-demon-remove') {
+      // Get Discord IDs without ascended inscriptions (should have dead demon role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN abyss_burns ab ON LOWER(ab.ordinal_wallet) = LOWER(p.wallet_address) AND ab.inscription_id LIKE 'ascended_%'
+        WHERE ab.id IS NULL
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'dead-demon-remove',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'grave-robber-add') {
+      // Get Discord IDs with successful grave robberies (should receive grave robber role)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN grave_robbing_events gre ON LOWER(gre.robber_wallet) = LOWER(p.wallet_address)
+        WHERE gre.success = TRUE
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'grave-robber-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'grave-robber-remove') {
+      // Get Discord IDs without successful grave robberies (should have grave robber role removed)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN grave_robbing_events gre ON LOWER(gre.robber_wallet) = LOWER(p.wallet_address) AND gre.success = TRUE
+        WHERE gre.id IS NULL
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'grave-robber-remove',
+        discordIds,
+        count: discordIds.length,
+      })
     } else {
+      console.error('[discord/roles/list] Invalid action received:', action)
       return NextResponse.json(
-        { error: 'Invalid action. Use "remove" or "add"' },
+        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove, grave-robber-add, grave-robber-remove` },
         { status: 400 }
       )
     }

@@ -1,0 +1,74 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getPool } from '@/lib/db'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = request.nextUrl
+    const walletAddress = searchParams.get('walletAddress')?.trim()
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        { success: false, error: 'Wallet address is required' },
+        { status: 400 },
+      )
+    }
+
+    const pool = getPool()
+
+    // Check if wallet has any abyss_burns records
+    const burnsResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1)`,
+      [walletAddress],
+    )
+
+    const burnCount = burnsResult.rows[0]?.count ?? 0
+    const hasBurns = burnCount > 0
+
+    // Also check if wallet has successfully robbed graves (previous_owner with success = true)
+    const graveRobbingResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM grave_robbing_events WHERE LOWER(robber_wallet) = LOWER($1) AND success = true`,
+      [walletAddress],
+    )
+
+    const graveRobbingCount = graveRobbingResult.rows[0]?.count ?? 0
+    const hasGraveRobbed = graveRobbingCount > 0
+
+    // Check if wallet is a Dead Demon holder (has ascended inscriptions)
+    const deadDemonResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1) AND inscription_id LIKE 'ascended_%'`,
+      [walletAddress],
+    )
+
+    const deadDemonCount = deadDemonResult.rows[0]?.count ?? 0
+    const isDeadDemonHolder = deadDemonCount > 0
+
+    // Allow access if they have burns OR have successfully grave robbed OR are Dead Demon holders
+    const hasAccess = hasBurns || hasGraveRobbed || isDeadDemonHolder
+
+    return NextResponse.json(
+      {
+        success: true,
+        hasBurns: hasAccess,
+        burnCount,
+        graveRobbingCount,
+        hasGraveRobbed,
+        deadDemonCount,
+        is_dead_demon_holder: isDeadDemonHolder,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=10',
+        },
+      },
+    )
+  } catch (error) {
+    console.error('[holders/check-access][GET]', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to check access status' },
+      { status: 500 },
+    )
+  }
+}
+

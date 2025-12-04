@@ -1,0 +1,151 @@
+.container {
+  --cell-size: 28px;
+  background: linear-gradient(150deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.85));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px rgba(8, 47, 73, 0.45);
+  color: #e2e8f0;
+  display: flex;
+  gap: 1.75rem;
+  padding: 1.75rem;
+  outline: none;
+}
+
+.container:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);
+}
+
+.boardWrapper {
+  position: relative;
+}
+
+.board {
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(10, var(--cell-size));
+  padding: 6px;
+}
+
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(30, 41, 59, 0.6);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(241, 245, 249, 0.08);
+  transition: background 120ms ease, box-shadow 180ms ease;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 180px;
+}
+
+.panel {
+  background: rgba(2, 6, 23, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.panelHeading {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.statValue {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.nextPreview {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(4, 20px);
+  margin-top: 0.5rem;
+  padding: 10px;
+}
+
+.previewCell {
+  width: 20px;
+  height: 20px;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 4px;
+}
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.controlButton {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0.75rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  padding: 0.65rem 0.75rem;
+  text-transform: uppercase;
+  transition: transform 100ms ease, background 150ms ease;
+}
+
+.controlButton:hover {
+  background: rgba(99, 102, 241, 0.25);
+  transform: translateY(-1px);
+}
+
+.restartButton {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 0.75rem;
+  color: #fecaca;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  padding: 0.75rem 1rem;
+  text-transform: uppercase;
+  transition: background 150ms ease, transform 120ms ease;
+}
+
+.restartButton:hover {
+  background: rgba(239, 68, 68, 0.45);
+  transform: translateY(-1px);
+}
+
+.feedback {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  min-height: 1.5rem;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.overlay {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 0.75rem;
+  color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  inset: 6px;
+  justify-content: center;
+  letter-spacing: 0.35em;
+  position: absolute;
+  text-transform: uppercase;
+}

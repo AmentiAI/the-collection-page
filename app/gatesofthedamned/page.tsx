@@ -1,17 +1,28 @@
 'use client'
 
+import Link from 'next/link'
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
+
+interface GatesRatioData {
+  demons: number
+  angels: number
+  total: number
+  angelPercentage: number
+  gatesOpen: boolean
+}
 
 export default function GatesOfTheDamnedPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const [showExit, setShowExit] = useState(false)
-  const [showHotline, setShowHotline] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const animationFrameRef = useRef<number | null>(null)
   const [showEntryModal, setShowEntryModal] = useState(true)
   const [volume, setVolume] = useState(30)
   const [isMuted, setIsMuted] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+  const [ratioData, setRatioData] = useState<GatesRatioData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const audioSrc = '/gates-audio.mp3'
 
   const handleEnter = () => {
@@ -27,7 +38,7 @@ export default function GatesOfTheDamnedPage() {
         if (audioRef.current.readyState === 0) {
           audioRef.current.load()
         }
-        
+
         // Wait for audio to be ready
         const playAudio = () => {
           audioRef.current?.play().then(() => {
@@ -57,6 +68,25 @@ export default function GatesOfTheDamnedPage() {
           audioRef.current.addEventListener('canplay', playAudio, { once: true })
         }
       }
+
+      if (videoRef.current) {
+        const playVideoWithSound = () => {
+          if (!videoRef.current) return
+          videoRef.current.muted = isMuted
+          if (!isMuted) {
+            videoRef.current.volume = volume / 100
+          }
+          videoRef.current!.play().catch((err) => {
+            console.error('Video playback failed:', err)
+          })
+        }
+
+        if (videoRef.current.readyState >= 2) {
+          playVideoWithSound()
+        } else {
+          videoRef.current.addEventListener('canplay', playVideoWithSound, { once: true })
+        }
+      }
     }, 100)
   }
 
@@ -76,37 +106,47 @@ export default function GatesOfTheDamnedPage() {
     }
   }, [])
 
+  // Fetch angels vs demons ratio
+  useEffect(() => {
+    const fetchRatio = async () => {
+      try {
+        const response = await fetch('/api/abyss/burns?gatesRatio=true')
+        const data = await response.json()
+        if (data.success) {
+          setRatioData({
+            demons: data.demons,
+            angels: data.angels,
+            total: data.total,
+            angelPercentage: data.angelPercentage,
+            gatesOpen: true, // Always show gates as open
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch gates ratio:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchRatio()
+    
+    // Poll every 10 seconds to update the ratio
+    const intervalId = window.setInterval(fetchRatio, 10000)
+    return () => window.clearInterval(intervalId)
+  }, [])
+
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volume / 100
     }
-  }, [volume, isMuted])
 
-  useEffect(() => {
-    const targetDate = new Date('2025-11-10T20:00:00Z').getTime()
-
-    const updateCountdown = () => {
-      const now = new Date().getTime()
-      const distance = targetDate - now
-
-      if (distance < 0) {
-        setTimeRemaining({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-        return
+    if (videoRef.current) {
+      videoRef.current.muted = showEntryModal || isMuted
+      if (!showEntryModal && !isMuted) {
+        videoRef.current.volume = volume / 100
       }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((distance % (1000 * 60)) / 1000)
-
-      setTimeRemaining({ days, hours, minutes, seconds })
     }
-
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-
-    return () => clearInterval(interval)
-  }, [])
+  }, [volume, isMuted, showEntryModal])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -191,12 +231,15 @@ export default function GatesOfTheDamnedPage() {
         }
       }
 
-      requestAnimationFrame(animate)
+      animationFrameRef.current = requestAnimationFrame(animate)
     }
 
-    animate()
+    animationFrameRef.current = requestAnimationFrame(animate)
 
     return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
       window.removeEventListener('resize', resizeCanvas)
     }
   }, [])
@@ -233,17 +276,39 @@ export default function GatesOfTheDamnedPage() {
       <div className="absolute top-4 right-4 z-30 flex flex-col items-center gap-2 bg-black/80 backdrop-blur-sm border-2 border-red-600/50 rounded-lg p-4">
         <button
           onClick={() => {
-            if (audioRef.current) {
-              if (audioRef.current.paused) {
-                audioRef.current.play().then(() => {
+            const audio = audioRef.current
+            const video = videoRef.current
+
+            if (!audio) return
+
+            if (audio.paused) {
+              if (!isMuted) {
+                audio.volume = volume / 100
+              }
+              audio
+                .play()
+                .then(() => {
                   setIsPlaying(true)
-                }).catch((error) => {
+                  if (video && !isMuted) {
+                    video.muted = false
+                    video.volume = volume / 100
+                    if (video.paused) {
+                      video.play().catch((err) => {
+                        console.error('Video play failed:', err)
+                      })
+                    }
+                  }
+                })
+                .catch((error) => {
                   console.error('Audio play failed:', error)
                 })
-              } else {
-                audioRef.current.pause()
-                setIsPlaying(false)
+            } else {
+              audio.pause()
+              if (video) {
+                video.muted = true
+                video.volume = 0
               }
+              setIsPlaying(false)
             }
           }}
           className="text-red-600 hover:text-red-500 transition-colors"
@@ -312,18 +377,25 @@ export default function GatesOfTheDamnedPage() {
                 onClick={handleEnter}
                 className="w-full px-6 py-3 text-xl font-mono tracking-wider bg-red-600 hover:bg-red-700 border-2 border-red-600/50 text-white rounded transition-colors"
               >
-                ENTER THE ABYSS
+                ENTER
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Background Image */}
-      <div
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/gates-background.png')" }}
-      />
+      {/* Background Video */}
+      <div className="fixed inset-0 z-0 overflow-hidden">
+        <video
+          ref={videoRef}
+          className="absolute left-1/2 top-1/2 h-full w-auto min-h-full min-w-full -translate-x-1/2 -translate-y-1/2 object-cover"
+          src="/1120.mp4"
+          autoPlay
+          loop
+          muted={showEntryModal}
+          playsInline
+        />
+      </div>
 
       {/* Particle Canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 z-10 pointer-events-none" />
@@ -336,7 +408,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '0s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-            <img src="/damned-character-1.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-1.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -346,7 +418,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <img src="/damned-character-2.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-2.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -356,10 +428,12 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '5s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-            <img
+            <Image
               src="/damned-character-3.png"
               alt=""
-              className="absolute top-0 left-0 w-full h-full object-contain"
+              fill
+              sizes="(max-width: 768px) 128px, 160px"
+              className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
           </div>
@@ -371,7 +445,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '7.5s', left: '100%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <img src="/damned-character-4.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-4.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -381,10 +455,12 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '10s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-fast">
-            <img
+            <Image
               src="/damned-character-6.png"
               alt=""
-              className="absolute top-0 left-0 w-full h-full object-contain"
+              fill
+              sizes="(max-width: 768px) 128px, 160px"
+              className="object-contain"
               style={{ transform: 'scaleX(-1)' }}
             />
           </div>
@@ -396,7 +472,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12.5s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slow">
-            <img src="/damned-character-7.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-7.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -406,7 +482,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '2s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run-slower">
-            <img src="/damned-character-8.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-8.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
 
@@ -416,7 +492,7 @@ export default function GatesOfTheDamnedPage() {
           style={{ animationDelay: '12s', left: '-20%' }}
         >
           <div className="relative w-full h-full overflow-hidden animate-tilt-run">
-            <img src="/damned-character-9.png" alt="" className="absolute top-0 left-0 w-full h-full object-contain" />
+            <Image src="/damned-character-9.png" alt="" fill sizes="(max-width: 768px) 128px, 160px" className="object-contain" />
           </div>
         </div>
       </div>
@@ -426,50 +502,39 @@ export default function GatesOfTheDamnedPage() {
       <div className="relative z-20 flex min-h-screen flex-col items-center justify-center p-4">
         <div className="max-w-4xl w-full space-y-8 text-center">
           <div className="space-y-8">
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+         
+
+            <div className="bg-black/80 backdrop-blur-sm border-2 border-red-600/50 rounded-lg p-8 md:p-12 space-y-8">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
               <span className="bg-gradient-to-r from-red-600 via-orange-600 to-red-600 bg-clip-text text-transparent">
                 GATES OF THE DAMNED
               </span>
             </h1>
-
-            <div className="bg-black/80 backdrop-blur-sm border-2 border-red-600/50 rounded-lg p-8 md:p-12">
-              <p className="text-lg md:text-xl text-gray-400 font-mono tracking-wider mb-8">
-                THE RECKONING APPROACHES
-              </p>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                <div className="space-y-2">
-                  <div className="text-5xl md:text-6xl font-bold text-red-600 font-mono">
-                    {String(timeRemaining.days).padStart(2, '0')}
+              <div className="space-y-6">
+                {ratioData?.gatesOpen && (
+                  <div className="space-y-6 mt-8">
+                    <div className="text-center space-y-4">
+                      <p className="text-2xl md:text-3xl font-bold font-mono tracking-[0.4em] uppercase text-emerald-500 animate-pulse">
+                        GATES ARE CLOSED! WAIT NO... THE GATES ARE OPEN!!!!
+                      </p>
+                      <div className="space-y-3 text-sm md:text-base font-mono text-emerald-300/90 leading-relaxed">
+                        <p className="text-emerald-400 font-semibold">
+                          The Angels have entered the fray — mint now.
+                        </p>
+                        <p className="text-emerald-300/80 italic">
+                          On Dec 10, a token with no name tears through the void.
+                        </p>
+                        <p className="text-emerald-300/80 italic">
+                          The Nov 29 gathering begins the unraveling.
+                        </p>
+                        <p className="text-emerald-400 font-semibold pt-2 border-t border-emerald-500/30">
+                          The faithful will feast. The late will kneel.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm md:text-base text-gray-400 font-mono tracking-wider">DAYS</div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-5xl md:text-6xl font-bold text-red-600 font-mono">
-                    {String(timeRemaining.hours).padStart(2, '0')}
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400 font-mono tracking-wider">HOURS</div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-5xl md:text-6xl font-bold text-red-600 font-mono">
-                    {String(timeRemaining.minutes).padStart(2, '0')}
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400 font-mono tracking-wider">MINUTES</div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-5xl md:text-6xl font-bold text-red-600 font-mono">
-                    {String(timeRemaining.seconds).padStart(2, '0')}
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400 font-mono tracking-wider">SECONDS</div>
-                </div>
+                )}
               </div>
-
-              <p className="text-sm md:text-base text-gray-500/70 font-mono mt-8">
-                NOVEMBER 6, 2025 • 8:00 PM UTC
-              </p>
             </div>
           </div>
         </div>

@@ -4,6 +4,9 @@ import { dbConfig } from './supabase'
 // Create a connection pool
 let pool: Pool | null = null
 
+// Track which tables have been initialized to avoid redundant DDL operations
+const initializedTables = new Set<string>()
+
 export function getPool(): Pool {
   if (!pool) {
     if (!dbConfig) {
@@ -23,15 +26,81 @@ export function getPool(): Pool {
       ssl: {
         rejectUnauthorized: false // Neon requires SSL, but we don't need certificate validation
       },
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // 10 seconds
+      max: 10, // Increased due to high concurrent traffic
+      min: 0, // Don't maintain idle connections
+      idleTimeoutMillis: 10000, // Release idle connections faster (10 seconds)
+      connectionTimeoutMillis: 10000, // 10 seconds timeout for acquiring connection
       query_timeout: 30000, // 30 seconds for queries
       statement_timeout: 30000, // 30 seconds for statements
+    })
+    
+    // Log pool errors only
+    pool.on('error', (err) => {
+      console.error('[DB Pool] Unexpected error on idle client:', err)
     })
   }
   
   return pool
+}
+
+// Get pool statistics for monitoring
+export function getPoolStats() {
+  if (!pool) {
+    return {
+      total: 0,
+      idle: 0,
+      waiting: 0
+    }
+  }
+  
+  return {
+    total: pool.totalCount,
+    idle: pool.idleCount,
+    waiting: pool.waitingCount
+  }
+}
+
+// Helper to safely execute queries with better error handling
+export async function executeQuery<T = any>(
+  queryText: string,
+  values?: any[]
+): Promise<T> {
+  const pool = getPool()
+  try {
+    const result = await pool.query(queryText, values)
+    return result as T
+  } catch (error: any) {
+    // Log connection pool stats on error
+    const stats = getPoolStats()
+    console.error('[DB Query Error]', {
+      error: error?.message || 'Unknown error',
+      code: error?.code,
+      poolStats: stats,
+      query: queryText.substring(0, 100) // Log first 100 chars of query
+    })
+    
+    // If it's a connection error, log more details
+    if (error?.code === '53300' || error?.message?.includes('connection')) {
+      console.error('[DB] Connection pool exhausted! Stats:', stats)
+    }
+    
+    throw error
+  }
+}
+
+// Mark a table as initialized to avoid redundant DDL operations
+export function markTableInitialized(tableName: string) {
+  initializedTables.add(tableName)
+}
+
+// Check if a table has been initialized in this process
+export function isTableInitialized(tableName: string): boolean {
+  return initializedTables.has(tableName)
+}
+
+// Clear the initialization cache (useful for testing)
+export function clearInitializationCache() {
+  initializedTables.clear()
 }
 
 // Initialize database tables
@@ -51,9 +120,12 @@ export async function initDatabase() {
     await pool.query(`DROP TABLE IF EXISTS karma_points CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS ordinal_sales CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS verification_codes CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS user_badges CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS roulette_spins CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS discord_users CASCADE`)
     await pool.query(`DROP TABLE IF EXISTS twitter_users CASCADE`)
-    await pool.query(`DROP TABLE IF EXISTS luminex_tokens CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS flashnet_pools CASCADE`)
+    await pool.query(`DROP TABLE IF EXISTS flashnet_token_metadata CASCADE`)
     
     // Drop main tables
     await pool.query(`DROP TABLE IF EXISTS duality_cycles CASCADE`)
@@ -160,44 +232,67 @@ export async function initDatabase() {
 
     // Create Luminex tokens table
     await pool.query(`
-      CREATE TABLE luminex_tokens (
+      CREATE TABLE flashnet_pools (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        pubkey TEXT UNIQUE NOT NULL,
-        token_identifier TEXT,
-        token_address TEXT,
-        name TEXT NOT NULL,
-        ticker TEXT NOT NULL,
-        symbol TEXT,
-        decimals INTEGER,
-        icon_url TEXT,
-        holder_count INTEGER,
-        total_supply TEXT,
-        max_supply TEXT,
-        is_freezable BOOLEAN DEFAULT false,
-        pool_lp_pubkey TEXT,
-        pool_address TEXT,
-        price_usd NUMERIC,
-        agg_volume_24h_usd NUMERIC,
-        agg_liquidity_usd NUMERIC,
-        agg_price_change_24h_pct NUMERIC,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        lp_public_key TEXT UNIQUE NOT NULL,
+        network TEXT,
+        host_name TEXT,
+        host_namespace TEXT,
+        curve_type TEXT,
+        asset_a_address TEXT NOT NULL,
+        asset_b_address TEXT NOT NULL,
+        asset_a_name TEXT,
+        asset_b_name TEXT,
+        asset_a_symbol TEXT,
+        asset_b_symbol TEXT,
+        asset_a_decimals INTEGER,
+        asset_b_decimals INTEGER,
+        asset_a_reserve NUMERIC,
+        asset_b_reserve NUMERIC,
+        tvl_asset_b NUMERIC,
+        volume_24h_asset_b NUMERIC,
+        price_change_percent_24h NUMERIC,
+        current_price_a_in_b NUMERIC,
+        lp_fee_bps INTEGER,
+        host_fee_bps INTEGER,
+        created_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ,
+        last_synced_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_ticker ON luminex_tokens((LOWER(ticker)))
+      CREATE INDEX idx_flashnet_pools_lp ON flashnet_pools(lp_public_key)
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_symbol ON luminex_tokens((LOWER(symbol)))
+      CREATE INDEX idx_flashnet_pools_asset_a ON flashnet_pools((LOWER(asset_a_address)))
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_name ON luminex_tokens((LOWER(name)))
+      CREATE INDEX idx_flashnet_pools_asset_b ON flashnet_pools((LOWER(asset_b_address)))
     `)
 
     await pool.query(`
-      CREATE INDEX idx_luminex_tokens_pool_lp ON luminex_tokens(pool_lp_pubkey)
+      CREATE INDEX idx_flashnet_pools_host ON flashnet_pools((LOWER(host_name)))
+    `)
+
+    await pool.query(`
+      CREATE TABLE flashnet_token_metadata (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token_identifier TEXT UNIQUE NOT NULL,
+        token_address TEXT,
+        name TEXT,
+        ticker TEXT,
+        decimals INTEGER,
+        max_supply NUMERIC,
+        icon_url TEXT,
+        last_synced_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    await pool.query(`
+      CREATE INDEX idx_flashnet_token_metadata_identifier ON flashnet_token_metadata(token_identifier)
     `)
 
     // Create ordinal_sales table to track sales and karma deductions
@@ -605,6 +700,50 @@ export async function initDatabase() {
   )
 
   console.log('✅ Seeded initial Duality cycle in alignment phase')
+
+  // Create roulette_spins table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS roulette_spins (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      wallet_address TEXT NOT NULL,
+      guessed_color TEXT NOT NULL CHECK (guessed_color IN ('red', 'black', 'green')),
+      result_color TEXT NOT NULL CHECK (result_color IN ('red', 'black', 'green')),
+      won BOOLEAN NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(profile_id)
+    )
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_roulette_spins_profile_id ON roulette_spins(profile_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_roulette_spins_wallet_address ON roulette_spins(wallet_address)
+  `)
+
+  // Create user_badges table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_badges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      badge_type TEXT NOT NULL,
+      badge_name TEXT NOT NULL,
+      badge_description TEXT,
+      badge_rarity TEXT,
+      earned_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(profile_id, badge_type)
+    )
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_badges_profile_id ON user_badges(profile_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_badges_badge_type ON user_badges(badge_type)
+  `)
 
   console.log('✅ Database tables initialized successfully')
 } catch (error) {

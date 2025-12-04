@@ -2,25 +2,20 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamicImport from 'next/dynamic'
+import Image from 'next/image'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
 import Filters from '@/components/Filters'
 import Gallery from '@/components/Gallery'
-import BackgroundMusic from '@/components/BackgroundMusic'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
-import TraitRarityTracker from '@/components/TraitRarityTracker'
 import { Ordinal, Trait } from '@/types'
 
-// Only load LaserEyes provider after page is mounted
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
-  { 
-    ssr: false,
-    loading: () => null
-  }
+  { ssr: false, loading: () => null },
 )
 
 export default function Home() {
@@ -31,13 +26,11 @@ export default function Home() {
   const [shake, setShake] = useState(false)
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal | null>(null)
   const [showSplash, setShowSplash] = useState(true)
-  const [startMusic, setStartMusic] = useState(false) // Will start after 2 seconds
   const [userInteracted, setUserInteracted] = useState(false)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
-  const [isMusicMuted, setIsMusicMuted] = useState(false)
+  
 
   const handleEnter = () => {
     setUserInteracted(true)
@@ -53,14 +46,6 @@ export default function Home() {
     setIsVerifying(true)
   }
 
-  useEffect(() => {
-    // Start music after 2 seconds
-    const musicTimer = setTimeout(() => {
-      setStartMusic(true)
-    }, 2000)
-
-    return () => clearTimeout(musicTimer)
-  }, [])
 
   useEffect(() => {
     const shakeInterval = setInterval(() => {
@@ -135,7 +120,6 @@ export default function Home() {
 
   return (
     <LaserEyesWrapper>
-      <BackgroundMusic shouldPlay={startMusic} volume={musicVolume} isMuted={isMusicMuted} />
       {showSplash ? (
         <SplashScreen onEnter={handleEnter} />
       ) : (
@@ -149,13 +133,10 @@ export default function Home() {
               onHolderVerified={handleHolderVerified}
               onVerifyingStart={handleVerifyingStart}
               onConnectedChange={setConnected}
-              musicVolume={musicVolume}
-              onMusicVolumeChange={setMusicVolume}
-              isMusicMuted={isMusicMuted}
-              onMusicMutedChange={setIsMusicMuted}
+              showMusicControls={true}
             />
-                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">                                                                               
-              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-4 sm:gap-6 lg:gap-8">                                                               
+                        <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
+              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">                                                               
                 <aside className="order-2 lg:order-1">
                   <Filters
                     ordinals={ordinals}
@@ -171,9 +152,6 @@ export default function Home() {
                     onOrdinalClick={setSelectedOrdinal}
                   />
                 </main>
-                <aside className="order-3 lg:order-3">
-                  <TraitRarityTracker collectionSymbol="the-damned" />
-                </aside>
               </div>
             </div>
           </main>
