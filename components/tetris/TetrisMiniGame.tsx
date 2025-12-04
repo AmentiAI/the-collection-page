@@ -6,7 +6,9 @@ import styles from './TetrisMiniGame.module.css'
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
+  Board,
   GameState,
+  PieceType,
   createInitialState,
   getGravityInterval,
   getPieceColor,
@@ -17,7 +19,7 @@ import {
   tick,
 } from './tetrisLogic'
 
-const withActivePieceOverlay = (state: GameState): (string | null)[][] => {
+const withActivePieceOverlay = (state: GameState): Board => {
   const overlay = state.board.map((row) => [...row])
   const piece = state.activePiece
   if (!piece) {
@@ -160,8 +162,8 @@ const TetrisMiniGame = ({ targetLines = 10, onComplete }: TetrisMiniGameProps) =
           {boardWithActive.flatMap((row, rowIndex) =>
             row.map((cell, colIndex) => {
               const key = rowIndex * BOARD_WIDTH + colIndex
-              const background = cell ? getPieceColor(cell) : 'rgba(15, 23, 42, 0.9)'
-              const boxShadow = cell ? `0 6px 12px ${getPieceColor(cell)}40` : 'inset 0 1px 0 rgba(148, 163, 184, 0.08)'
+              const background = cell ? getPieceColor(cell as PieceType) : 'rgba(15, 23, 42, 0.9)'
+              const boxShadow = cell ? `0 6px 12px ${getPieceColor(cell as PieceType)}40` : 'inset 0 1px 0 rgba(148, 163, 184, 0.08)'
               return (
                 <div
                   key={key}
@@ -201,7 +203,7 @@ const TetrisMiniGame = ({ targetLines = 10, onComplete }: TetrisMiniGameProps) =
                 <div
                   key={`${rowIndex}-${colIndex}`}
                   className={styles.previewCell}
-                  style={{ backgroundColor: cell ? getPieceColor(cell) : 'rgba(15, 23, 42, 0.85)' }}
+                  style={{ backgroundColor: cell ? getPieceColor(cell as PieceType) : 'rgba(15, 23, 42, 0.85)' }}
                 />
               )),
             )}

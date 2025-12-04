@@ -221,7 +221,6 @@ const VoidBreakoutMiniGame = ({ onComplete, isCompleted = false }: VoidBreakoutM
               newBall.y + newBall.radius >= block.y &&
               newBall.y - newBall.radius <= block.y + BLOCK_HEIGHT
             ) {
-              hitBlock = true
               setScore((prev) => prev + 10)
               
               const ballCenterX = newBall.x
