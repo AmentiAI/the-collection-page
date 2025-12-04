@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
-import sharp from 'sharp'
 import fs from 'fs'
 import path from 'path'
 
@@ -14,6 +13,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ z: string; x: string; y: string }> }
 ) {
+  // Dynamically import sharp to avoid build-time errors
+  const sharp = (await import('sharp')).default
+  
   let client
   try {
     const { z: zStr, x: xStr, y: yStr } = await params

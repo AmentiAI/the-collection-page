@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sharp from 'sharp'
 import { put } from '@vercel/blob'
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 import type { Pool } from 'pg'
@@ -117,6 +116,9 @@ export async function POST(request: NextRequest) {
     }
     
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    
+    // Dynamically import sharp to avoid build-time errors
+    const sharp = (await import('sharp')).default
     
     // Resize and compress to WebP
     const webpBuffer = await sharp(imageBuffer)

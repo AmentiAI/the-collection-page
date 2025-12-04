@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "bot": "node scripts/discord-bot.js"
+    "bot": "node scripts/discord-bot.js",
+    "postinstall": "npm install --include=optional sharp || true"
   },
   "dependencies": {
     "@buildonspark/spark-sdk": "^0.3.9",
@@ -30,7 +31,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
-    "sharp": "^0.34.5",
+    "sharp": "0.32.6",
     "three": "^0.157.0"
   },
   "devDependencies": {
