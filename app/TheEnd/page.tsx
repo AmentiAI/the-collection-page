@@ -22,11 +22,6 @@ export default function TheEndPage() {
   const [showSecretQuotes, setShowSecretQuotes] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const jumpScareAudioRef = useRef<HTMLAudioElement>(null)
-  const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted } = useMusicPlayer()
-  
-  const handleToggleMute = () => {
-    setIsMusicMuted(!isMusicMuted)
-  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -232,50 +227,6 @@ export default function TheEndPage() {
 
   return (
     <div className="relative min-h-screen bg-black text-red-600 overflow-x-hidden">
-      {/* Music Controls - Always Visible */}
-      <div className="fixed top-4 right-4 z-[10000] flex items-center gap-2 bg-black/80 backdrop-blur-sm rounded-lg px-3 py-2 border-2 border-[#8B0000]/50 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            handleToggleMute()
-          }}
-          className="text-[#ff0000] hover:text-[#ff6b6b] transition-colors cursor-pointer relative z-10"
-          aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
-          type="button"
-        >
-          {isMusicMuted ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-            </svg>
-          ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-            </svg>
-          )}
-        </button>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={musicVolume}
-          onChange={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            const newVolume = Number(e.target.value)
-            setMusicVolume(newVolume)
-            if (newVolume > 0 && isMusicMuted) {
-              setIsMusicMuted(false)
-            }
-          }}
-          className="w-24 accent-red-600 cursor-pointer"
-          style={{ pointerEvents: 'auto', zIndex: 10 }}
-        />
-        <span className="text-xs text-[#ff6b6b] font-mono w-12 text-center">
-          {isMusicMuted ? 'MUTED' : `${musicVolume}%`}
-        </span>
-      </div>
       
       {/* Cool animated background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -735,17 +686,20 @@ export default function TheEndPage() {
         </section>
       )}
 
-      {showHeader && <Header
-        isHolder={isHolder}
-        isVerifying={isVerifying}
-        connected={connected}
-        onHolderVerified={(holder) => {
-          setIsHolder(holder)
-          setIsVerifying(false)
-        }}
-        onVerifyingStart={() => setIsVerifying(true)}
-        onConnectedChange={setConnected}
-      />}
+      {showHeader && (
+        <Header
+          isHolder={isHolder}
+          isVerifying={isVerifying}
+          connected={connected}
+          onHolderVerified={(holder) => {
+            setIsHolder(holder)
+            setIsVerifying(false)
+          }}
+          onVerifyingStart={() => setIsVerifying(true)}
+          onConnectedChange={setConnected}
+          showMusicControls={true}
+        />
+      )}
 
       {/* Section 2 — Government Files */}
       <section id="government-files" className="min-h-screen py-20 px-4 md:px-8 relative z-10 flex items-center justify-center" style={{

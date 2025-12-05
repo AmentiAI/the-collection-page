@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Save, X, Plus } from 'lucide-react'
 import { useToast } from '@/components/Toast'
+import Header from '@/components/Header'
 
 const MAP_WIDTH = 4096
 const MAP_HEIGHT = 2728
@@ -507,9 +508,13 @@ export default function LandmarkEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-black uppercase mb-8 text-red-500">Landmark Editor</h1>
+    <div className="min-h-screen bg-black text-white">
+      <Header 
+        showMusicControls={true}
+      />
+      <div className="p-8">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-4xl font-black uppercase mb-8 text-red-500">Landmark Editor</h1>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Landmarks Sprite Sheet */}
@@ -749,6 +754,7 @@ export default function LandmarkEditorPage() {
               </div>
             ))}
           </div>
+        </div>
         </div>
       </div>
     </div>
