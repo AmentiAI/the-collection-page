@@ -66,9 +66,9 @@ export async function PATCH(
       values.push(url || null)
     }
     if (spriteSource !== undefined) {
-      if (spriteSource !== 'landmarks.png' && spriteSource !== 'landmarks2.png') {
+      if (spriteSource !== 'landmarks.png' && spriteSource !== 'landmarks2.png' && spriteSource !== 'marker3.png') {
         return NextResponse.json(
-          { error: 'spriteSource must be landmarks.png or landmarks2.png' },
+          { error: 'spriteSource must be landmarks.png, landmarks2.png, or marker3.png' },
           { status: 400 }
         )
       }

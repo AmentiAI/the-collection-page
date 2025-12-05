@@ -127,10 +127,17 @@ export default function LandmarkEditorPage() {
     }
     if (!canvas || !ctx || !img) return
 
+    // Set canvas to actual image dimensions for drawing
     canvas.width = img.width
     canvas.height = img.height
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(img, 0, 0)
+    
+    // Scale canvas display to fit container (max 600px height)
+    const maxDisplayHeight = 600
+    const scale = Math.min(1, maxDisplayHeight / img.height)
+    canvas.style.width = `${img.width * scale}px`
+    canvas.style.height = `${img.height * scale}px`
 
     // Draw sprite selection
     if (spriteSelection) {
@@ -252,8 +259,11 @@ export default function LandmarkEditorPage() {
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // Convert display coordinates to actual canvas coordinates
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
 
     setIsSelectingSprite(true)
     setSpriteStart({ x, y })
@@ -266,8 +276,11 @@ export default function LandmarkEditorPage() {
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // Convert display coordinates to actual canvas coordinates
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
 
     setSpriteSelection({
       x: Math.min(spriteStart.x, x),

@@ -67,9 +67,9 @@ export async function POST(request: NextRequest) {
     client = await getPool().connect()
 
     const spriteSourceValue = spriteSource || 'landmarks.png'
-    if (spriteSourceValue !== 'landmarks.png' && spriteSourceValue !== 'landmarks2.png') {
+    if (spriteSourceValue !== 'landmarks.png' && spriteSourceValue !== 'landmarks2.png' && spriteSourceValue !== 'marker3.png') {
       return NextResponse.json(
-        { error: 'spriteSource must be landmarks.png or landmarks2.png' },
+        { error: 'spriteSource must be landmarks.png, landmarks2.png, or marker3.png' },
         { status: 400 }
       )
     }
