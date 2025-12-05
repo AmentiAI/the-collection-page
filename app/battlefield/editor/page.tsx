@@ -42,8 +42,9 @@ export default function LandmarkEditorPage() {
   const [landmarkPreviews, setLandmarkPreviews] = useState<Record<string, string>>({})
   const [mouseCoords, setMouseCoords] = useState<{ x: number; y: number } | null>(null)
   const [clickedCoords, setClickedCoords] = useState<{ x: number; y: number } | null>(null)
-  const [selectedSpriteSource, setSelectedSpriteSource] = useState<'landmarks.png' | 'landmarks2.png'>('landmarks.png')
+  const [selectedSpriteSource, setSelectedSpriteSource] = useState<'landmarks.png' | 'landmarks2.png' | 'marker3.png'>('landmarks.png')
   const landmarks2ImageRef = useRef<HTMLImageElement | null>(null)
+  const marker3ImageRef = useRef<HTMLImageElement | null>(null)
 
   // Load images
   useEffect(() => {
@@ -64,6 +65,12 @@ export default function LandmarkEditorPage() {
     landmarks2Img.src = '/landmarks2.png'
     landmarks2Img.onload = () => {
       landmarks2ImageRef.current = landmarks2Img
+    }
+
+    const marker3Img = new Image()
+    marker3Img.src = '/marker3.png'
+    marker3Img.onload = () => {
+      marker3ImageRef.current = marker3Img
     }
   }, []) // Load images once on mount
 
@@ -110,9 +117,14 @@ export default function LandmarkEditorPage() {
   const drawLandmarksSprite = useCallback(() => {
     const canvas = landmarksCanvasRef.current
     const ctx = canvas?.getContext('2d')
-    const img = selectedSpriteSource === 'landmarks.png' 
-      ? landmarksImageRef.current 
-      : landmarks2ImageRef.current
+    let img: HTMLImageElement | null = null
+    if (selectedSpriteSource === 'landmarks.png') {
+      img = landmarksImageRef.current
+    } else if (selectedSpriteSource === 'landmarks2.png') {
+      img = landmarks2ImageRef.current
+    } else if (selectedSpriteSource === 'marker3.png') {
+      img = marker3ImageRef.current
+    }
     if (!canvas || !ctx || !img) return
 
     canvas.width = img.width
@@ -273,9 +285,14 @@ export default function LandmarkEditorPage() {
   const generateLandmarkPreview = useCallback((landmark: Landmark): Promise<string> => {
     return new Promise((resolve) => {
       const spriteSource = landmark.spriteSource || 'landmarks.png'
-      const img = spriteSource === 'landmarks.png' 
-        ? landmarksImageRef.current 
-        : landmarks2ImageRef.current
+      let img: HTMLImageElement | null = null
+      if (spriteSource === 'landmarks.png') {
+        img = landmarksImageRef.current
+      } else if (spriteSource === 'landmarks2.png') {
+        img = landmarks2ImageRef.current
+      } else if (spriteSource === 'marker3.png') {
+        img = marker3ImageRef.current
+      }
       if (!img) {
         resolve('')
         return
@@ -488,7 +505,10 @@ export default function LandmarkEditorPage() {
               <h2 className="text-2xl font-bold">1. Select Sprite</h2>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedSpriteSource('landmarks.png')}
+                  onClick={() => {
+                    setSelectedSpriteSource('landmarks.png')
+                    setSpriteSelection(null) // Clear selection when switching
+                  }}
                   className={`px-4 py-2 rounded border-2 ${
                     selectedSpriteSource === 'landmarks.png'
                       ? 'bg-red-600 border-red-400 text-white'
@@ -509,6 +529,19 @@ export default function LandmarkEditorPage() {
                   }`}
                 >
                   landmarks2.png
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedSpriteSource('marker3.png')
+                    setSpriteSelection(null) // Clear selection when switching
+                  }}
+                  className={`px-4 py-2 rounded border-2 ${
+                    selectedSpriteSource === 'marker3.png'
+                      ? 'bg-red-600 border-red-400 text-white'
+                      : 'bg-black border-gray-600 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  marker3.png
                 </button>
               </div>
             </div>
