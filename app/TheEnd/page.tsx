@@ -20,6 +20,7 @@ export default function TheEndPage() {
   const [currentFileIndex, setCurrentFileIndex] = useState<number | null>(null)
   const [hoveredFileIndex, setHoveredFileIndex] = useState<number | null>(null)
   const [showSecretQuotes, setShowSecretQuotes] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const jumpScareAudioRef = useRef<HTMLAudioElement>(null)
 
@@ -29,6 +30,17 @@ export default function TheEndPage() {
     }, 1000)
 
     return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   const revealWord = (word: string) => {
@@ -559,6 +571,71 @@ export default function TheEndPage() {
           opacity: 0.3;
           pointer-events: none;
         }
+        /* Mobile responsive styles for classified files */
+        .classified-file {
+          width: 250px;
+          height: 320px;
+        }
+        @media (min-width: 768px) {
+          .classified-file {
+            width: 550px;
+            height: 700px;
+          }
+        }
+        .classified-stamp-inner {
+          border: 3px solid #660000;
+          padding: 8px 20px;
+        }
+        @media (min-width: 768px) {
+          .classified-stamp-inner {
+            border: 5px solid #660000;
+            padding: 16px 40px;
+          }
+        }
+        .classified-stamp-text {
+          font-size: 1rem;
+          letter-spacing: 0.1em;
+        }
+        @media (min-width: 768px) {
+          .classified-stamp-text {
+            font-size: 1.875rem;
+            letter-spacing: 0.2em;
+          }
+        }
+        .the-damned-text-inner {
+          font-size: 0.875rem;
+          letter-spacing: 0.1em;
+        }
+        @media (min-width: 768px) {
+          .the-damned-text-inner {
+            font-size: 1.5rem;
+            letter-spacing: 0.15em;
+          }
+        }
+        .file-id-text {
+          font-size: 0.875rem;
+        }
+        @media (min-width: 768px) {
+          .file-id-text {
+            font-size: 1.5rem;
+          }
+        }
+        .file-title-text {
+          font-size: 0.625rem;
+        }
+        @media (min-width: 768px) {
+          .file-title-text {
+            font-size: 1rem;
+          }
+        }
+        .file-paper-content {
+          border: 6px solid #3e2723;
+        }
+        @media (min-width: 768px) {
+          .file-paper-content {
+            border: 12px solid #3e2723;
+          }
+        }
       `}</style>
 
       <div className="scanline"></div>
@@ -722,17 +799,24 @@ export default function TheEndPage() {
           )}
           {/* Stacked File Pages - Fanned Out Like Image - MUCH BIGGER */}
           {currentFileIndex === null ? (
-              <div className="relative flex justify-center items-center" style={{ minHeight: '700px', paddingTop: '0px' }}>
+              <div className="relative flex justify-center items-center md:min-h-[700px] min-h-[400px] px-4" style={{ paddingTop: '0px' }}>
                 {classifiedFiles.map((file, idx) => {
                   // Fan them out from left to right
                   const zIndex = 20 - idx
-                  const offsetX = idx * 140 // More spacing for bigger papers
-                  const offsetY = idx * 25 // More vertical offset
-                  const rotation = idx === 0 ? -10 : idx === 1 ? -5 : 0 // Fan rotation
+                  // Mobile: smaller spacing, Desktop: larger spacing
+                  const offsetX = isMobile 
+                    ? idx * 40  // Mobile: 40px spacing
+                    : idx * 140 // Desktop: 140px spacing
+                  const offsetY = isMobile
+                    ? idx * 10  // Mobile: 10px vertical offset
+                    : idx * 25  // Desktop: 25px vertical offset
+                  const rotation = isMobile
+                    ? (idx === 0 ? -5 : idx === 1 ? -2 : 0) // Mobile: smaller rotation
+                    : (idx === 0 ? -10 : idx === 1 ? -5 : 0) // Desktop: larger rotation
                   
                   const isHovered = hoveredFileIndex === idx
                   const hoverScale = isHovered ? 1.12 : 1
-                  const hoverLift = isHovered ? -25 : 0
+                  const hoverLift = isHovered ? (isMobile ? -15 : -25) : 0
                   const hoverRotation = isHovered ? rotation + 2 : rotation
                   
                   return (
@@ -744,14 +828,12 @@ export default function TheEndPage() {
                       }}
                       onMouseEnter={() => setHoveredFileIndex(idx)}
                       onMouseLeave={() => setHoveredFileIndex(null)}
-                      className={`absolute cursor-pointer file-paper-hover ${isHovered ? 'is-hovered' : ''}`}
+                      className={`absolute cursor-pointer file-paper-hover ${isHovered ? 'is-hovered' : ''} classified-file`}
                       style={{
                         zIndex: isHovered ? 50 : zIndex,
                         left: `${offsetX}px`,
                         top: `${offsetY}px`,
-                        transform: `rotate(${hoverRotation}deg) translateX(${idx * 20}px) translateY(${hoverLift}px) scale(${hoverScale})`,
-                        width: '550px',
-                        height: '700px',
+                        transform: `rotate(${hoverRotation}deg) translateX(${isMobile ? idx * 5 : idx * 20}px) translateY(${hoverLift}px) scale(${hoverScale})`,
                         transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                       }}
                     >
@@ -760,7 +842,6 @@ export default function TheEndPage() {
                         className="relative w-full h-full file-paper-content"
                         style={{
                           background: '#faf5e6',
-                          border: '12px solid #3e2723',
                           borderRadius: '6px',
                           boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4), inset 0 0 120px rgba(139, 69, 19, 0.1)',
                           transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -776,18 +857,15 @@ export default function TheEndPage() {
 
                         {/* CLASSIFIED Stamp - Centered */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                          <div className="classified-stamp" style={{
+                          <div className="classified-stamp classified-stamp-inner" style={{
                             background: '#8B0000',
-                            border: '5px solid #660000',
-                            padding: '16px 40px',
                             boxShadow: '0 4px 15px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1)',
                             position: 'relative',
                             marginBottom: '12px',
                             transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                           }}>
-                            <p className="font-mono font-black text-3xl uppercase tracking-widest" style={{ 
+                            <p className="font-mono font-black uppercase tracking-widest classified-stamp-text" style={{ 
                               color: '#ffffff',
-                              letterSpacing: '0.2em',
                               textShadow: '2px 2px 4px rgba(0, 0, 0, 0.6)',
                             }}>
                               CLASSIFIED
@@ -798,9 +876,8 @@ export default function TheEndPage() {
                             }}></div>
                           </div>
                           {/* The Damned text under CLASSIFIED */}
-                          <p className="font-mono font-black text-2xl uppercase tracking-widest mt-3 the-damned-text" style={{ 
+                          <p className="font-mono font-black uppercase tracking-widest mt-3 the-damned-text the-damned-text-inner" style={{ 
                             color: '#dc2626',
-                            letterSpacing: '0.15em',
                             textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
                             transition: 'all 0.4s ease',
                           }}>
@@ -810,10 +887,10 @@ export default function TheEndPage() {
 
                         {/* File ID */}
                         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 text-center">
-                          <p className="font-mono font-bold text-2xl uppercase tracking-wider" style={{ color: '#1a1a1a' }}>
+                          <p className="font-mono font-bold uppercase tracking-wider file-id-text" style={{ color: '#1a1a1a' }}>
                             {file.id}
                           </p>
-                          <p className="font-mono text-base mt-2" style={{ color: '#666' }}>
+                          <p className="font-mono mt-2 file-title-text" style={{ color: '#666' }}>
                             {file.title}
                           </p>
                         </div>
