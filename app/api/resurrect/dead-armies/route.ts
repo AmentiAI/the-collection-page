@@ -32,9 +32,28 @@ export async function GET(request: NextRequest) {
       [walletAddress]
     )
 
+    // Calculate resurrection status for all armies (regardless of Magic Eden fetch)
+    const now = new Date()
+    
     // Fetch image URLs and traits from Magic Eden
     const deadArmies = await Promise.all(
       result.rows.map(async (row) => {
+        // Calculate resurrection status first (always needed)
+        const resurrectionTime = row.resurrection_time ? new Date(row.resurrection_time) : null
+        const canResurrect = resurrectionTime !== null && now >= resurrectionTime
+
+        let timeRemaining: string | null = null
+        if (resurrectionTime && !canResurrect) {
+          const msRemaining = resurrectionTime.getTime() - now.getTime()
+          const hours = Math.floor(msRemaining / (1000 * 60 * 60))
+          const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60))
+          timeRemaining = `${hours}h ${minutes}m`
+        }
+
+        // Try to fetch image and trait from Magic Eden
+        let imageUrl = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(row.inscription_id)}`
+        let trait: 'Angelic' | 'Demonic' = 'Demonic'
+
         try {
           const magicEdenResponse = await fetch(
             `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/magic-eden?ownerAddress=${encodeURIComponent(walletAddress)}&collectionSymbol=the-damned&fetchAll=true`,
@@ -62,47 +81,29 @@ export async function GET(request: NextRequest) {
                   (attr.value === 'Angelic' || attr.value === 'Demonic')
               )
 
-              const imageUrl =
+              if (ascendedTrait?.value) {
+                trait = ascendedTrait.value as 'Angelic' | 'Demonic'
+              }
+
+              imageUrl =
                 token.contentURI ||
                 token.imageURI ||
-                `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(row.inscription_id)}`
-
-              const resurrectionTime = row.resurrection_time ? new Date(row.resurrection_time) : null
-              const now = new Date()
-              const canResurrect = resurrectionTime !== null && now >= resurrectionTime
-
-              let timeRemaining: string | null = null
-              if (resurrectionTime && !canResurrect) {
-                const msRemaining = resurrectionTime.getTime() - now.getTime()
-                const hours = Math.floor(msRemaining / (1000 * 60 * 60))
-                const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60))
-                timeRemaining = `${hours}h ${minutes}m`
-              }
-
-              return {
-                inscriptionId: row.inscription_id,
-                imageUrl,
-                trait: (ascendedTrait?.value as 'Angelic' | 'Demonic') || 'Demonic',
-                deathTime: row.death_time,
-                resurrectionTime: row.resurrection_time,
-                canResurrect,
-                timeRemaining,
-              }
+                imageUrl
             }
           }
         } catch (error) {
           console.error(`Error fetching token ${row.inscription_id}:`, error)
+          // Continue with fallback values
         }
 
-        // Fallback
         return {
           inscriptionId: row.inscription_id,
-          imageUrl: `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(row.inscription_id)}`,
-          trait: 'Demonic' as const,
+          imageUrl,
+          trait,
           deathTime: row.death_time,
           resurrectionTime: row.resurrection_time,
-          canResurrect: false,
-          timeRemaining: null,
+          canResurrect,
+          timeRemaining,
         }
       })
     )
