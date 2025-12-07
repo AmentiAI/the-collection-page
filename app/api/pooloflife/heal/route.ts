@@ -18,26 +18,32 @@ export async function POST(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Check if user has healed in the last 24 hours
+    // Check if user has healed in the last 6 hours (database-level check to prevent timing manipulation)
     const lastHealResult = await client.query(
-      `SELECT last_heal_time 
+      `SELECT last_heal_time,
+              EXTRACT(EPOCH FROM (NOW() - last_heal_time)) / 3600 as hours_since_heal
        FROM battle_ordinals 
        WHERE LOWER(wallet_address) = LOWER($1) 
          AND last_heal_time IS NOT NULL
+         AND last_heal_time > NOW() - INTERVAL '6 hours'
        ORDER BY last_heal_time DESC 
        LIMIT 1`,
       [walletAddress]
     )
 
     if (lastHealResult.rows.length > 0) {
-      const lastHealTime = new Date(lastHealResult.rows[0].last_heal_time)
-      const now = new Date()
-      const hoursSinceHeal = (now.getTime() - lastHealTime.getTime()) / (1000 * 60 * 60)
-
-      if (hoursSinceHeal < 24) {
-        const hoursRemaining = Math.ceil(24 - hoursSinceHeal)
+      const hoursSinceHeal = parseFloat(lastHealResult.rows[0].hours_since_heal)
+      const hoursRemaining = Math.ceil(6 - hoursSinceHeal)
+      const minutesRemaining = Math.ceil((6 - hoursSinceHeal) * 60)
+      
+      if (hoursRemaining > 0) {
         return NextResponse.json(
-          { error: `You can only use the Pool of Life once per day. Try again in ${hoursRemaining} hour(s).` },
+          { error: `You can only use the Pool of Life once every 6 hours. Try again in ${hoursRemaining} hour(s).` },
+          { status: 403 }
+        )
+      } else if (minutesRemaining > 0) {
+        return NextResponse.json(
+          { error: `You can only use the Pool of Life once every 6 hours. Try again in ${minutesRemaining} minute(s).` },
           { status: 403 }
         )
       }

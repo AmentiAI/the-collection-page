@@ -18,9 +18,10 @@ export async function GET(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Get last heal time
+    // Get last heal time and check if 6 hours have passed (database-level check)
     const result = await client.query(
-      `SELECT last_heal_time 
+      `SELECT last_heal_time,
+              EXTRACT(EPOCH FROM (NOW() - last_heal_time)) / 3600 as hours_since_heal
        FROM battle_ordinals 
        WHERE LOWER(wallet_address) = LOWER($1) 
          AND last_heal_time IS NOT NULL
@@ -33,10 +34,8 @@ export async function GET(request: NextRequest) {
     let canHealToday = true
 
     if (lastHealTime) {
-      const lastHeal = new Date(lastHealTime)
-      const now = new Date()
-      const hoursSinceHeal = (now.getTime() - lastHeal.getTime()) / (1000 * 60 * 60)
-      canHealToday = hoursSinceHeal >= 24
+      const hoursSinceHeal = parseFloat(result.rows[0].hours_since_heal || '0')
+      canHealToday = hoursSinceHeal >= 6
     }
 
     return NextResponse.json({
