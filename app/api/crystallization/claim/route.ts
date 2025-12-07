@@ -57,12 +57,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update crystallization record
+    // Update crystallization record - keep it active but reset timer and record claim
+    // Reset entered_at to NOW() so powder calculation starts fresh after claim
+    // Keep status as 'active' so ordinal stays in chamber
     await client.query(
       `UPDATE crystallization_records
        SET claimed_at = NOW(),
-           status = 'claimed',
-           ascension_powder_earned = $1,
+           entered_at = NOW(), -- Reset timer so they start earning from 0 again
+           ascension_powder_earned = $1, -- Record this claim amount
+           status = 'active', -- Keep active so it stays in chamber
            updated_at = NOW()
        WHERE id = $2`,
       [powderEarned, record.id]

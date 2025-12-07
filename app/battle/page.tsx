@@ -167,15 +167,44 @@ export default function BattlePage() {
       try {
         // Find the ordinal to get its trait
         const ordinal = ordinals.find((o) => o.inscriptionId === inscriptionId)
-        const trait = ordinal?.trait
+        let trait = ordinal?.trait
 
-        if (!trait) {
-          console.error(`[battle] No trait found for ordinal ${inscriptionId}`, { ordinal, ordinalsLength: ordinals.length })
-          toast.error('Error: Could not determine ordinal trait. Please refresh and try again.')
-          setUpdatingStatus(null)
-          return
+        // If trait is missing, try to fetch from Magic Eden API as fallback
+        if (!trait && address) {
+          try {
+            const magicEdenResponse = await fetch(
+              `/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned&fetchAll=true`,
+              { cache: 'no-store' }
+            )
+            if (magicEdenResponse.ok) {
+              const magicEdenData = await magicEdenResponse.json()
+              const tokens = Array.isArray(magicEdenData.tokens) ? magicEdenData.tokens : []
+              const token = tokens.find((t: any) => (t.id || t.inscriptionId) === inscriptionId)
+              
+              if (token) {
+                let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
+                if (token.meta?.attributes) attributes = token.meta.attributes
+                else if (token.metadata?.attributes) attributes = token.metadata.attributes
+                else if (token.attributes) attributes = token.attributes
+
+                const ascendedTrait = attributes.find(
+                  (attr) =>
+                    (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
+                    (attr.value === 'Angelic' || attr.value === 'Demonic')
+                )
+                
+                if (ascendedTrait?.value) {
+                  trait = ascendedTrait.value as 'Angelic' | 'Demonic'
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching trait from Magic Eden:', error)
+            // Continue anyway - API will try database fallback
+          }
         }
 
+        // Send request even if trait is missing - API has database fallback
         const response = await fetch('/api/battle/status', {
           method: 'PATCH',
           headers: {
@@ -185,7 +214,7 @@ export default function BattlePage() {
             walletAddress: address,
             inscriptionId,
             status: newStatus,
-            trait: trait, // Include trait when setting status
+            trait: trait || null, // Send trait if found, API will try database fallback
           }),
         })
 
@@ -357,19 +386,19 @@ export default function BattlePage() {
                   {rewardItems.map((item) => {
                     const selectedOrdinal = selectedOrdinalForItem[item.id] || null
                     return (
-                      <div
-                        key={item.id}
-                        className="border border-purple-500/50 rounded-lg p-4 bg-purple-900/20"
-                      >
+                    <div
+                      key={item.id}
+                      className="border border-purple-500/50 rounded-lg p-4 bg-purple-900/20"
+                    >
                         <div className="flex items-center justify-between mb-3">
                           <div>
                             <span className="font-bold text-purple-200 text-lg">
-                              +{item.rewardValue}{' '}
-                              {item.rewardType === 'block_chance' ? '% Block Chance' : ' Life Force Cap'}
-                            </span>
+                          +{item.rewardValue}{' '}
+                          {item.rewardType === 'block_chance' ? '% Block Chance' : ' Life Force Cap'}
+                        </span>
                             <p className="text-xs text-gray-400 mt-1">
-                              Earned: {new Date(item.earnedAt).toLocaleDateString()}
-                            </p>
+                        Earned: {new Date(item.earnedAt).toLocaleDateString()}
+                      </p>
                           </div>
                         </div>
                         <p className="text-sm text-purple-300 mb-4">Select an ordinal to apply this reward:</p>
@@ -388,8 +417,8 @@ export default function BattlePage() {
                                   if (!isApplying) {
                                     setSelectedOrdinalForItem(prev => ({ ...prev, [item.id]: ord.inscriptionId }))
                                     handleApplyReward(item.id, ord.inscriptionId)
-                                  }
-                                }}
+                          }
+                        }}
                                 disabled={isApplying}
                                 className={`relative rounded-lg overflow-hidden border-2 transition-all ${
                                   isSelected
@@ -450,9 +479,9 @@ export default function BattlePage() {
                                         Block: {10 + currentBlockChance}%
                                         {currentBlockChance > 0 && <span className="text-green-400"> (+{currentBlockChance}%)</span>}
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
+                        </div>
+                      )}
+                    </div>
                               </button>
                             )
                           })}
@@ -528,7 +557,7 @@ export default function BattlePage() {
                             <div className="flex items-center justify-center mb-1">
                               {ordinal.status === 'ready' ? (
                                 <div className="flex items-center gap-1">
-                                  <Sword className="h-3 w-3 text-cyan-400" />
+                                <Sword className="h-3 w-3 text-cyan-400" />
                                   <span className="text-[9px] text-cyan-400 font-semibold uppercase">Ready</span>
                                 </div>
                               ) : (
@@ -643,7 +672,7 @@ export default function BattlePage() {
                             <div className="flex items-center justify-center mb-1">
                               {ordinal.status === 'ready' ? (
                                 <div className="flex items-center gap-1">
-                                  <Sword className="h-3 w-3 text-red-400" />
+                                <Sword className="h-3 w-3 text-red-400" />
                                   <span className="text-[9px] text-red-400 font-semibold uppercase">Ready</span>
                                 </div>
                               ) : (

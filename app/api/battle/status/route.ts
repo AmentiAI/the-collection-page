@@ -43,9 +43,29 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Get trait from request body (required)
+    // Get trait from request body, or try to fetch from database
+    let validTrait: 'Angelic' | 'Demonic' | null = null
+    
     const { trait } = body
-    const validTrait = trait === 'Angelic' || trait === 'Demonic' ? trait : null
+    if (trait === 'Angelic' || trait === 'Demonic') {
+      validTrait = trait
+    } else {
+      // Try to get trait from database if not provided
+      const dbTraitResult = await client.query(
+        `SELECT trait FROM battle_ordinals
+         WHERE LOWER(wallet_address) = LOWER($1)
+           AND inscription_id = $2
+         LIMIT 1`,
+        [walletAddress, inscriptionId]
+      )
+      
+      if (dbTraitResult.rows.length > 0 && dbTraitResult.rows[0].trait) {
+        const dbTrait = dbTraitResult.rows[0].trait
+        if (dbTrait === 'Angelic' || dbTrait === 'Demonic') {
+          validTrait = dbTrait
+        }
+      }
+    }
 
     if (!validTrait) {
       return NextResponse.json(
@@ -55,16 +75,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Save status with trait
-    await client.query(
-      `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force, trait)
-       VALUES ($1, $2, $3, 100, $4)
-       ON CONFLICT (wallet_address, inscription_id)
-       DO UPDATE SET 
-         status = $3, 
-         trait = COALESCE(EXCLUDED.trait, battle_ordinals.trait),
-         updated_at = NOW()`,
-      [walletAddress, inscriptionId, status, validTrait]
-    )
+      await client.query(
+        `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force, trait)
+         VALUES ($1, $2, $3, 100, $4)
+         ON CONFLICT (wallet_address, inscription_id)
+         DO UPDATE SET 
+           status = $3, 
+           trait = COALESCE(EXCLUDED.trait, battle_ordinals.trait),
+           updated_at = NOW()`,
+        [walletAddress, inscriptionId, status, validTrait]
+      )
 
     return NextResponse.json({
       success: true,
