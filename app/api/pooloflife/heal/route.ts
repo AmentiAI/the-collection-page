@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Heal all armies for this wallet
+    // Heal all armies for this wallet (exclude dead armies - they must be resurrected first)
     const healResult = await client.query(
       `UPDATE battle_ordinals
        SET 
@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
          updated_at = NOW()
        WHERE LOWER(wallet_address) = LOWER($1)
          AND status = 'ready'
+         AND life_force > 0
          AND life_force < 100
+         AND is_dead = false
        RETURNING id`,
       [walletAddress]
     )

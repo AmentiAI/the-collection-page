@@ -61,14 +61,22 @@ export default function PoolOfLifePage() {
       const data = await response.json()
       // Filter out dead armies (lifeForce === 0) - they need to be resurrected, not healed
       const armiesData = (data.ordinals || [])
-        .filter((ord: any) => (ord.lifeForce || 100) > 0) // Hide dead armies
-        .map((ord: any) => ({
-          inscriptionId: ord.inscriptionId,
-          imageUrl: ord.imageUrl,
-          trait: ord.trait,
-          lifeForce: ord.lifeForce || 100,
-          canHeal: ord.lifeForce < 100,
-        }))
+        .filter((ord: any) => {
+          // Explicitly check: if lifeForce is 0, hide it. If null/undefined, default to 100 and show it.
+          const lifeForce = ord.lifeForce != null ? ord.lifeForce : 100
+          return lifeForce > 0
+        })
+        .map((ord: any) => {
+          // Preserve 0 if it's 0, otherwise default to 100 for null/undefined
+          const lifeForce = ord.lifeForce != null ? ord.lifeForce : 100
+          return {
+            inscriptionId: ord.inscriptionId,
+            imageUrl: ord.imageUrl,
+            trait: ord.trait,
+            lifeForce,
+            canHeal: lifeForce < 100,
+          }
+        })
 
       setArmies(armiesData)
 
