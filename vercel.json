@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/mega-monster-attack",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/sync-flashnet-pools",
