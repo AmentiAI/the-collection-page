@@ -15,19 +15,7 @@ export async function GET(request: NextRequest) {
   const isVercelCron = cronHeader === '1'
   const hasValidSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
   const isAuthorized = isVercelCron || hasValidSecret || !cronSecret
-  
-  if (!isAuthorized) {
-    console.log('[mega-monster-attack] Unauthorized request', {
-      hasCronHeader: !!cronHeader,
-      cronHeaderValue: cronHeader,
-      hasAuth: !!authHeader,
-      hasSecret: !!cronSecret
-    })
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
+ 
 
   console.log('[mega-monster-attack] Starting attack', {
     timestamp: new Date().toISOString(),
