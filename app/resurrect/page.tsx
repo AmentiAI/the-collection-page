@@ -126,25 +126,29 @@ export default function ResurrectPage() {
         throw new Error(data.error || 'Failed to resurrect army')
       }
 
-      const data = await response.json()
       toast.success('Army resurrected! They are now ready for battle.')
       
-      // Update resurrections count in profile
-      await fetch(`/api/profile/increment-resurrections`, {
+      // Optimistically remove the resurrected army from the list without full refetch
+      setDeadArmies((prev) => prev.filter((army) => army.inscriptionId !== inscriptionId))
+      
+      // Update resurrections count in profile (don't await to avoid blocking)
+      fetch(`/api/profile/increment-resurrections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: address }),
-      })
-
-      await fetchDeadArmies()
-      await fetchResurrectionHistory()
+      }).catch((err) => console.error('Error updating resurrections count:', err))
+      
+      // Refresh history in background (non-blocking)
+      fetchResurrectionHistory().catch((err) => console.error('Error fetching resurrection history:', err))
     } catch (error) {
       console.error('Error resurrecting army:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to resurrect army')
+      // On error, refetch to ensure state is correct
+      fetchDeadArmies()
     } finally {
       setResurrecting(null)
     }
-  }, [address, toast, fetchDeadArmies])
+  }, [address, toast, fetchResurrectionHistory, fetchDeadArmies])
 
   const handleStartResurrection = useCallback(async (inscriptionId: string) => {
     if (!address) {
