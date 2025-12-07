@@ -31,6 +31,7 @@ export default function ResurrectPage() {
   const [deadArmies, setDeadArmies] = useState<DeadArmy[]>([])
   const [loading, setLoading] = useState(false)
   const [resurrecting, setResurrecting] = useState<string | null>(null)
+  const [resurrectionHistory, setResurrectionHistory] = useState<Array<{ id: string; inscription_id: string; trait: string | null; resurrected_at: string }>>([])
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -69,16 +70,42 @@ export default function ResurrectPage() {
     }
   }, [address, toast])
 
+  const fetchResurrectionHistory = useCallback(async () => {
+    if (!address) {
+      setResurrectionHistory([])
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/resurrect/history?walletAddress=${encodeURIComponent(address)}`,
+        { cache: 'no-store' }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        setResurrectionHistory(data.history || [])
+      }
+    } catch (error) {
+      console.error('Error fetching resurrection history:', error)
+    }
+  }, [address])
+
   useEffect(() => {
     if (connected && address) {
       fetchDeadArmies()
+      fetchResurrectionHistory()
       // Refresh every minute to update countdown
-      const interval = setInterval(fetchDeadArmies, 60000)
+      const interval = setInterval(() => {
+        fetchDeadArmies()
+        fetchResurrectionHistory()
+      }, 60000)
       return () => clearInterval(interval)
     } else {
       setDeadArmies([])
+      setResurrectionHistory([])
     }
-  }, [connected, address, fetchDeadArmies])
+  }, [connected, address, fetchDeadArmies, fetchResurrectionHistory])
 
   const handleResurrect = useCallback(async (inscriptionId: string) => {
     if (!address) {
@@ -110,6 +137,7 @@ export default function ResurrectPage() {
       })
 
       await fetchDeadArmies()
+      await fetchResurrectionHistory()
     } catch (error) {
       console.error('Error resurrecting army:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to resurrect army')
@@ -268,6 +296,48 @@ export default function ResurrectPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Resurrection History */}
+          {connected && (
+            <div className="bg-black/60 border-2 border-red-500/50 rounded-lg p-6 mt-6">
+              <h2 className="text-2xl font-bold text-red-400 mb-4">Resurrection History</h2>
+              {resurrectionHistory.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No resurrection history yet</p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {resurrectionHistory.map((record) => (
+                    <div
+                      key={record.id}
+                      className="flex items-center justify-between p-3 bg-black/40 rounded border border-red-500/30"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Skull className={`h-5 w-5 ${record.trait === 'Angelic' ? 'text-cyan-400' : 'text-red-400'}`} />
+                        <div>
+                          <span className="text-white font-semibold">
+                            Resurrected {record.inscription_id.slice(0, 8)}...
+                          </span>
+                          {record.trait && (
+                            <span className={`ml-2 text-sm ${record.trait === 'Angelic' ? 'text-cyan-400' : 'text-red-400'}`}>
+                              ({record.trait})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-gray-400 text-sm">
+                        {new Date(record.resurrected_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

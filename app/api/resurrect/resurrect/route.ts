@@ -71,6 +71,13 @@ export async function POST(request: NextRequest) {
       [walletAddress, inscriptionId]
     )
 
+    // Record resurrection history
+    await client.query(
+      `INSERT INTO resurrection_history (wallet_address, inscription_id, trait, resurrected_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [walletAddress, inscriptionId, armyTrait]
+    )
+
     // Update leaderboard: increment resurrections for this side
     if (armyTrait) {
       await client.query(`

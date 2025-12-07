@@ -31,6 +31,7 @@ export default function PoolOfLifePage() {
   const [healing, setHealing] = useState(false)
   const [lastHealTime, setLastHealTime] = useState<Date | null>(null)
   const [canHealToday, setCanHealToday] = useState(true)
+  const [healHistory, setHealHistory] = useState<Array<{ id: string; healed_count: number; healed_at: string }>>([])
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -103,13 +104,36 @@ export default function PoolOfLifePage() {
     }
   }, [address, toast])
 
+  const fetchHealHistory = useCallback(async () => {
+    if (!address) {
+      setHealHistory([])
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/pooloflife/history?walletAddress=${encodeURIComponent(address)}`,
+        { cache: 'no-store' }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        setHealHistory(data.history || [])
+      }
+    } catch (error) {
+      console.error('Error fetching heal history:', error)
+    }
+  }, [address])
+
   useEffect(() => {
     if (connected && address) {
       fetchArmies()
+      fetchHealHistory()
     } else {
       setArmies([])
+      setHealHistory([])
     }
-  }, [connected, address, fetchArmies])
+  }, [connected, address, fetchArmies, fetchHealHistory])
 
   const handleHeal = useCallback(async () => {
     if (!address) {
@@ -147,6 +171,7 @@ export default function PoolOfLifePage() {
       setCanHealToday(false)
       setLastHealTime(new Date())
       await fetchArmies()
+      await fetchHealHistory()
     } catch (error) {
       console.error('Error healing armies:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to heal armies')
@@ -289,6 +314,41 @@ export default function PoolOfLifePage() {
                               style={{ width: `${army.lifeForce}%` }}
                             />
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Heal History */}
+              <div className="bg-black/60 border-2 border-cyan-500/50 rounded-lg p-6 mt-6">
+                <h2 className="text-2xl font-bold text-cyan-400 mb-4">Heal History</h2>
+                {healHistory.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">No heal history yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {healHistory.map((record) => (
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between p-3 bg-black/40 rounded border border-cyan-500/30"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Heart className="h-5 w-5 text-cyan-400" />
+                          <div>
+                            <span className="text-white font-semibold">
+                              Healed {record.healed_count} {record.healed_count === 1 ? 'army' : 'armies'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-gray-400 text-sm">
+                          {new Date(record.healed_at).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </div>
                       </div>
                     ))}

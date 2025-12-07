@@ -66,10 +66,21 @@ export async function POST(request: NextRequest) {
       [walletAddress]
     )
 
+    const healedCount = healResult.rows.length
+
+    // Record heal history
+    if (healedCount > 0) {
+      await client.query(
+        `INSERT INTO heal_history (wallet_address, healed_count, healed_at)
+         VALUES ($1, $2, NOW())`,
+        [walletAddress, healedCount]
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      healedCount: healResult.rows.length,
-      message: `Healed ${healResult.rows.length} armies to full health`,
+      healedCount,
+      message: `Healed ${healedCount} armies to full health`,
     })
   } catch (error) {
     console.error('Error healing armies:', error)
