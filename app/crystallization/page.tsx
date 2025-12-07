@@ -5,7 +5,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
-import { Loader2, Gem, Clock, TrendingUp, History } from 'lucide-react'
+import { Loader2, Gem, Clock, TrendingUp, History, X } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
 
 const LaserEyesWrapper = dynamicImport(
@@ -49,6 +49,7 @@ export default function CrystallizationPage() {
   const [loading, setLoading] = useState(false)
   const [entering, setEntering] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
+  const [exiting, setExiting] = useState<string | null>(null)
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -218,6 +219,40 @@ export default function CrystallizationPage() {
     }
   }, [address, toast, fetchCrystallizations, fetchHistory])
 
+  const handleExit = useCallback(async (inscriptionId: string) => {
+    if (!address) {
+      toast.error('Please connect your wallet')
+      return
+    }
+
+    setExiting(inscriptionId)
+    try {
+      const response = await fetch('/api/crystallization/exit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address, inscriptionId }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to exit crystallization')
+      }
+
+      toast.success('Ordinal exited crystallization')
+      // Optimistically remove from list
+      setCrystallizations((prev) => prev.filter((c) => c.inscriptionId !== inscriptionId))
+      await fetchOrdinals()
+      await fetchCrystallizations()
+    } catch (error) {
+      console.error('Error exiting crystallization:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to exit crystallization')
+      // Refresh on error to ensure state is correct
+      await fetchCrystallizations()
+    } finally {
+      setExiting(null)
+    }
+  }, [address, toast, fetchOrdinals, fetchCrystallizations])
+
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -312,23 +347,43 @@ export default function CrystallizationPage() {
                             </div>
                           )}
                         </div>
-                        <Button
-                          onClick={() => handleClaim(crystal.inscriptionId)}
-                          disabled={claiming === crystal.inscriptionId || crystal.powderEarned === 0}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {claiming === crystal.inscriptionId ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Claiming...
-                            </>
-                          ) : (
-                            <>
-                              <TrendingUp className="h-4 w-4 mr-2" />
-                              Claim {crystal.powderEarned} Powder
-                            </>
-                          )}
-                        </Button>
+                        <div className="space-y-2">
+                          <Button
+                            onClick={() => handleClaim(crystal.inscriptionId)}
+                            disabled={claiming === crystal.inscriptionId || crystal.powderEarned === 0}
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {claiming === crystal.inscriptionId ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Claiming...
+                              </>
+                            ) : (
+                              <>
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                Claim {crystal.powderEarned} Powder
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => handleExit(crystal.inscriptionId)}
+                            disabled={exiting === crystal.inscriptionId || claiming === crystal.inscriptionId}
+                            variant="outline"
+                            className="w-full border-red-500/50 text-red-400 hover:bg-red-950/50 py-2 text-sm font-bold disabled:opacity-50"
+                          >
+                            {exiting === crystal.inscriptionId ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Exiting...
+                              </>
+                            ) : (
+                              <>
+                                <X className="h-4 w-4 mr-2" />
+                                Exit Crystallization
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

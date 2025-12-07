@@ -25,6 +25,24 @@ export async function PATCH(request: NextRequest) {
 
     client = await getPool().connect()
 
+    // Check if trying to set status to 'ready' and ordinal is in crystallization
+    if (status === 'ready') {
+      const crystallizationCheck = await client.query(
+        `SELECT id FROM crystallization_records
+         WHERE LOWER(wallet_address) = LOWER($1)
+           AND inscription_id = $2
+           AND status = 'active'`,
+        [walletAddress, inscriptionId]
+      )
+
+      if (crystallizationCheck.rows.length > 0) {
+        return NextResponse.json(
+          { error: 'Cannot ready for battle while in crystallization. Please exit crystallization first.' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Get trait from request body (required)
     const { trait } = body
     const validTrait = trait === 'Angelic' || trait === 'Demonic' ? trait : null
