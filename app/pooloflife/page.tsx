@@ -59,13 +59,16 @@ export default function PoolOfLifePage() {
       }
 
       const data = await response.json()
-      const armiesData = (data.ordinals || []).map((ord: any) => ({
-        inscriptionId: ord.inscriptionId,
-        imageUrl: ord.imageUrl,
-        trait: ord.trait,
-        lifeForce: ord.lifeForce || 100,
-        canHeal: ord.lifeForce < 100,
-      }))
+      // Filter out dead armies (lifeForce === 0) - they need to be resurrected, not healed
+      const armiesData = (data.ordinals || [])
+        .filter((ord: any) => (ord.lifeForce || 100) > 0) // Hide dead armies
+        .map((ord: any) => ({
+          inscriptionId: ord.inscriptionId,
+          imageUrl: ord.imageUrl,
+          trait: ord.trait,
+          lifeForce: ord.lifeForce || 100,
+          canHeal: ord.lifeForce < 100,
+        }))
 
       setArmies(armiesData)
 
@@ -77,10 +80,10 @@ export default function PoolOfLifePage() {
           const lastHeal = new Date(healData.lastHealTime)
           setLastHealTime(lastHeal)
           
-          // Check if 24 hours have passed
+          // Check if 6 hours have passed
           const now = new Date()
           const hoursSinceHeal = (now.getTime() - lastHeal.getTime()) / (1000 * 60 * 60)
-          setCanHealToday(hoursSinceHeal >= 24)
+          setCanHealToday(hoursSinceHeal >= 6)
         }
       }
     } catch (error) {
@@ -111,7 +114,8 @@ export default function PoolOfLifePage() {
       return
     }
 
-    const armiesNeedingHeal = armies.filter(a => a.lifeForce < 100)
+    // Filter out dead armies (lifeForce === 0) - they can't be healed, only resurrected
+    const armiesNeedingHeal = armies.filter(a => a.lifeForce > 0 && a.lifeForce < 100)
     if (armiesNeedingHeal.length === 0) {
       toast.error('All your armies are at full health!')
       return
