@@ -107,7 +107,7 @@ export default function YouTubeVideoPlayer({ videoId, onPlayingChange }: YouTube
         }
       }
     }
-  }, [videoId, setIsMusicMuted])
+  }, [videoId, setIsMusicMuted, onPlayingChange])
 
   const handlePlayClick = () => {
     if (playerInstanceRef.current && isReady) {

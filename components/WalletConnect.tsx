@@ -37,8 +37,9 @@ const WALLET_OPTIONS = [
 ]
 
 export default function WalletConnect({ onHolderVerified, onVerifyingStart, onConnectedChange }: WalletConnectProps) {
-  const { connect, disconnect, connected, address, balance } = useLaserEyes()
+  const { connect, disconnect, connected, address, balance, client } = useLaserEyes()
   const toast = useToast()
+  const [isConnecting, setIsConnecting] = useState(false)
   
   // Notify parent when connection status changes
   useEffect(() => {
@@ -49,8 +50,15 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
   const [showDropdown, setShowDropdown] = useState(false)
 
   const handleConnect = async (wallet: any, walletType: string = 'lasereyes') => {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting) {
+      return
+    }
+
     try {
+      setIsConnecting(true)
       setShowDropdown(false)
+      
       if (walletType === 'custom') {
         // Handle custom wallet connections (Magic Eden, OYO)
         const address = await wallet.connect()
@@ -59,12 +67,31 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
         console.log('Custom wallet connected:', address)
         // You'll need to handle the custom wallet connection state here
       } else {
+        // Check if client is available before connecting
+        if (!client && typeof window !== 'undefined') {
+          // Wait a bit for client to initialize
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        
         // Use LaserEyes for standard wallets
+        if (!connect) {
+          throw new Error('Wallet connection not available. Please refresh the page.')
+        }
+        
         await connect(wallet)
       }
     } catch (error) {
       console.error('Failed to connect wallet:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to connect wallet')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet'
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('disposed') || errorMessage.includes('Client disposed')) {
+        toast.error('Connection was interrupted. Please refresh the page and try again.')
+      } else {
+        toast.error(errorMessage)
+      }
+    } finally {
+      setIsConnecting(false)
     }
   }
 
@@ -210,8 +237,13 @@ export default function WalletConnect({ onHolderVerified, onVerifyingStart, onCo
                 {WALLET_OPTIONS.map((wallet) => (
                   <button
                     key={wallet.id}
-                       onClick={() => handleConnect(wallet.wallet, wallet.type)}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[rgba(139,0,0,0.3)] rounded transition-all group"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleConnect(wallet.wallet, wallet.type)
+                    }}
+                    disabled={isConnecting}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[rgba(139,0,0,0.3)] rounded transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="text-lg">{wallet.icon}</span>
                     <span className="text-[#ff6b6b] group-hover:text-[#ff0000] font-medium">

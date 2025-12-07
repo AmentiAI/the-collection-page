@@ -187,27 +187,109 @@ export async function GET(request: NextRequest) {
     const inscriptionIds = battleOrdinals.map((o) => o.inscriptionId)
     let statusMap: Record<string, 'ready' | 'sanctuary'> = {}
     let lifeForceMap: Record<string, number> = {}
+    const traitMap: Record<string, 'Angelic' | 'Demonic'> = {}
 
     if (inscriptionIds.length > 0) {
-      const statusResult = await client.query(
-        `SELECT inscription_id, status, life_force 
+      // First, check for any battle_ordinals records with these inscription_ids that belong to different wallets
+      // This handles ownership transfers - update wallet_address to current owner
+      const ownershipCheck = await client.query(
+        `SELECT inscription_id, wallet_address, status, life_force
          FROM battle_ordinals 
-         WHERE wallet_address = $1 AND inscription_id = ANY($2)`,
+         WHERE inscription_id = ANY($1) AND LOWER(wallet_address) != LOWER($2)`,
+        [inscriptionIds, walletAddress]
+      )
+
+      // Update ownership for any ordinals that were transferred
+      if (ownershipCheck.rows.length > 0) {
+        const transferredIds = ownershipCheck.rows.map((row) => row.inscription_id)
+        await client.query(
+          `UPDATE battle_ordinals
+           SET wallet_address = $1, updated_at = NOW()
+           WHERE inscription_id = ANY($2) AND LOWER(wallet_address) != LOWER($1)`,
+          [walletAddress, transferredIds]
+        )
+        console.log(`[battle/ordinals] Updated ownership for ${transferredIds.length} transferred ordinals`)
+      }
+
+      // Now fetch battle statuses, life force, and trait for current wallet
+      const statusResult = await client.query(
+        `SELECT inscription_id, status, life_force, trait
+         FROM battle_ordinals 
+         WHERE LOWER(wallet_address) = LOWER($1) AND inscription_id = ANY($2)`,
         [walletAddress, inscriptionIds]
       )
 
       statusResult.rows.forEach((row) => {
         statusMap[row.inscription_id] = row.status
         lifeForceMap[row.inscription_id] = row.life_force ?? 100
+        if (row.trait) {
+          traitMap[row.inscription_id] = row.trait as 'Angelic' | 'Demonic'
+        }
+      })
+    }
+
+    // Get life force cap increases for inscriptions
+    const lifeForceCapMap: Record<string, number> = {}
+    if (inscriptionIds.length > 0) {
+      const capRes = await client.query(
+        `
+          SELECT inscription_id, SUM(reward_value)::int AS total
+          FROM dungeon_crawl_rewards
+          WHERE LOWER(wallet) = LOWER($1)
+            AND inscription_id = ANY($2)
+            AND reward_type = 'life_force_cap'
+            AND is_active = TRUE
+            AND (expires_at IS NULL OR expires_at > NOW())
+          GROUP BY inscription_id
+        `,
+        [walletAddress, inscriptionIds]
+      )
+      capRes.rows.forEach((row) => {
+        lifeForceCapMap[row.inscription_id] = Number(row.total ?? 0)
+      })
+    }
+
+    // Get block chance bonuses for inscriptions
+    const blockChanceMap: Record<string, number> = {}
+    if (inscriptionIds.length > 0) {
+      const blockRes = await client.query(
+        `
+          SELECT inscription_id, SUM(reward_value)::int AS total
+          FROM dungeon_crawl_rewards
+          WHERE LOWER(wallet) = LOWER($1)
+            AND inscription_id = ANY($2)
+            AND reward_type = 'block_chance'
+            AND is_active = TRUE
+            AND (expires_at IS NULL OR expires_at > NOW())
+          GROUP BY inscription_id
+        `,
+        [walletAddress, inscriptionIds]
+      )
+      blockRes.rows.forEach((row) => {
+        blockChanceMap[row.inscription_id] = Number(row.total ?? 0)
       })
     }
 
     // Add status and life force to each ordinal (null if not in DB - requires manual ready action)
-    const ordinalsWithStatus = battleOrdinals.map((ordinal) => ({
-      ...ordinal,
-      status: statusMap[ordinal.inscriptionId] || null,
-      lifeForce: lifeForceMap[ordinal.inscriptionId] ?? 100,
-    }))
+    // Use trait from database if available, otherwise use trait from Magic Eden metadata
+    const ordinalsWithStatus = battleOrdinals.map((ordinal) => {
+      const baseCap = 100
+      const capIncrease = lifeForceCapMap[ordinal.inscriptionId] ?? 0
+      const maxLifeForce = baseCap + capIncrease
+      const currentLifeForce = lifeForceMap[ordinal.inscriptionId] ?? baseCap
+      const blockChance = blockChanceMap[ordinal.inscriptionId] ?? 0
+      // Use trait from database if available, otherwise use trait from Magic Eden
+      const trait = traitMap[ordinal.inscriptionId] || ordinal.trait
+      return {
+        ...ordinal,
+        trait, // Override with database trait if available
+        status: statusMap[ordinal.inscriptionId] || null,
+        lifeForce: Math.min(currentLifeForce, maxLifeForce),
+        maxLifeForce,
+        blockChance,
+        lifeForceCapBonus: capIncrease,
+      }
+    })
 
     return NextResponse.json({
       success: true,

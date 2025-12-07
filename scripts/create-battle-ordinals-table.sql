@@ -33,3 +33,4 @@ CREATE TRIGGER battle_ordinals_updated_at
   EXECUTE FUNCTION update_battle_ordinals_updated_at();
 
 
+

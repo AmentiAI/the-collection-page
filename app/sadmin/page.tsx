@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -81,6 +81,13 @@ const adminLinks: AdminLink[] = [
     description: 'Generate and manage mega monster images with AI',
     icon: <Zap className="h-8 w-8" />,
     color: 'cyan',
+  },
+  {
+    href: '/admin/dungeon-crawls',
+    title: 'Dungeon Crawls',
+    description: 'Create and manage dungeon crawl configurations',
+    icon: <Sword className="h-8 w-8" />,
+    color: 'purple',
   },
 ]
 

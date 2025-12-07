@@ -14,7 +14,11 @@
     },
     {
       "path": "/api/cron/sync-flashnet-pools",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/3 * * * *"
+    },
+    {
+      "path": "/api/cron/dungeon-crawl-restart",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

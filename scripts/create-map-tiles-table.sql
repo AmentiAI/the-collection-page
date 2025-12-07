@@ -30,3 +30,4 @@ CREATE TRIGGER map_tiles_updated_at
   EXECUTE FUNCTION update_map_tiles_updated_at();
 
 
+

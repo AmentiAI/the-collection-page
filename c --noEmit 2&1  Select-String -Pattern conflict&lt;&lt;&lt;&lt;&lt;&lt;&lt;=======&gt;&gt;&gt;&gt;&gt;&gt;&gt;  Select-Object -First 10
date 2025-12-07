@@ -1,0 +1,56 @@
+warning: in the working copy of 'app/TheEnd/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/api/battle/ordinals/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/api/cron/mega-monster-attack/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/battle/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/sadmin/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/WalletConnect.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/YouTubeVideoPlayer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'vercel.json', LF will be replaced by CRLF the next time Git touches it
+MINT_COST_CALCULATIONS.md:263: new blank line at EOF.
+MINT_SAFEGUARDS_ADDED.md:231: new blank line at EOF.
+app/TheEnd/page.tsx:842: trailing whitespace.
+[32m+[m[32m                            <p className="font-mono font-black uppercase tracking-widest classified-stamp-text" style={{[m[41m [m
+app/TheEnd/page.tsx:856: trailing whitespace.
+[32m+[m[32m                          <p className="font-mono font-black uppercase tracking-widest mt-3 the-damned-text" style={{[m[41m [m
+app/TheEnd/page.tsx:869: trailing whitespace.
+[32m+[m[32m                          <p className="font-mono font-bold uppercase tracking-wider file-id-text" style={{[m[41m [m
+app/TheEnd/page.tsx:875: trailing whitespace.
+[32m+[m[32m                          <p className="font-mono mt-2 file-title-text" style={{[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:120: trailing whitespace.
+[32m+[m[32m          SELECT[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:121: trailing whitespace.
+[32m+[m[32m            bo.id,[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:122: trailing whitespace.
+[32m+[m[32m            bo.life_force,[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:127: trailing whitespace.
+[32m+[m[32m          LEFT JOIN dungeon_crawl_rewards dcr ON[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:132: trailing whitespace.
+[32m+[m[32m          WHERE bo.wallet_address = $1[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:133: trailing whitespace.
+[32m+[m[32m            AND bo.status = 'ready'[m[41m [m
+app/api/cron/mega-monster-attack/route.ts:134: trailing whitespace.
+[32m+[m[32m            AND bo.is_dead = false[m[41m [m
+app/api/graveyard/add-size-column/route.ts:30: new blank line at EOF.
+app/api/graveyard/ensure-all-columns/route.ts:48: new blank line at EOF.
+app/api/graveyard/init-mint-schema/route.ts:107: new blank line at EOF.
+app/api/map/tiles/[z]/[x]/[y]/delete/route.ts:52: new blank line at EOF.
+app/api/map/tiles/check/route.ts:47: new blank line at EOF.
+app/api/settings/public/route.ts:18: new blank line at EOF.
+components/WalletConnect.tsx:61: trailing whitespace.
+[32m+[m[41m      [m
+components/WalletConnect.tsx:75: trailing whitespace.
+[32m+[m[41m        [m
+components/WalletConnect.tsx:80: trailing whitespace.
+[32m+[m[41m        [m
+components/WalletConnect.tsx:86: trailing whitespace.
+[32m+[m[41m      [m
+scripts/add-life-force-to-battle-ordinals.sql:7: new blank line at EOF.
+scripts/create-battle-ordinals-table.sql:34: new blank line at EOF.
+scripts/create-map-tiles-table.sql:31: new blank line at EOF.
+scripts/run-add-life-force-migration.js:53: new blank line at EOF.
+scripts/run-battle-ordinals-migration.js:53: new blank line at EOF.
+scripts/run-landmarks-migration.js:51: new blank line at EOF.
+scripts/run-map-tiles-migration.js:51: new blank line at EOF.
+scripts/test-map-tiles.js:64: new blank line at EOF.
+services/utxo-exclusion-service.ts:120: new blank line at EOF.

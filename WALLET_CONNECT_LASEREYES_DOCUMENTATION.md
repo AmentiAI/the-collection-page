@@ -4,45 +4,41 @@ This document outlines the wallet connection system and LaserEyes integration us
 
 ## Overview
 
-The platform uses LaserEyes Core (`@omnisat/lasereyes-core`) as the primary wallet integration framework, providing a unified interface for connecting to various Bitcoin wallets and handling transaction signing.
+The platform uses LaserEyes (`@omnisat/lasereyes`) as the primary wallet integration framework, providing a unified interface for connecting to various Bitcoin wallets and handling transaction signing. The implementation uses `LaserEyesWrapper` component in `app/layout.tsx` which dynamically imports `LaserEyesProvider` from `@omnisat/lasereyes` and wraps a custom `WalletProvider` that adds verification logic.
 
 ## Architecture Components
 
 ### Core Libraries
-- `@omnisat/lasereyes-core`: Main wallet integration framework
-- `@omnisat/lasereyes`: React-specific LaserEyes components
-- `bitcoinjs-lib`: Bitcoin transaction handling
-- `@bitcoinerlab/secp256k1`: Cryptographic operations
+- `@omnisat/lasereyes`: React-specific LaserEyes components (primary package)
+- `@omnisat/lasereyes-core`: Core wallet integration framework (used internally)
+- `@omnisat/lasereyes-react`: Additional React utilities (available but not primary)
+- `bitcoinjs-lib`: Bitcoin transaction handling (when needed for PSBT operations)
+- `@bitcoinerlab/secp256k1`: Cryptographic operations (when needed for signing)
 
 ### Critical Import Patterns
 
-#### LaserEyes Core Imports (Framework Agnostic)
+#### Primary LaserEyes Imports (React Components)
 ```typescript
-// Core LaserEyes functionality
+// Main LaserEyes React hook and provider
+import { 
+  LaserEyesProvider,
+  useLaserEyes,
+  UNISAT,
+  XVERSE,
+  PHANTOM,
+  MAGIC_EDEN
+} from '@omnisat/lasereyes'
+```
+
+#### LaserEyes Core Imports (Advanced/Internal Use Only)
+```typescript
+// Core LaserEyes functionality (rarely needed directly)
 import { 
   LaserEyesClient, 
   createStores, 
   createConfig, 
   type ProviderType 
 } from '@omnisat/lasereyes-core'
-
-// Wallet providers
-import { 
-  UNISAT, 
-  XVERSE, 
-  OYL, 
-  MAGIC_EDEN, 
-  LEATHER 
-} from '@omnisat/lasereyes'
-```
-
-#### LaserEyes React Imports (React Components)
-```typescript
-// React-specific LaserEyes components
-import { 
-  LaserEyesProvider as LaserEyesProviderOriginal,
-  useLaserEyes 
-} from '@omnisat/lasereyes'
 ```
 
 #### Bitcoin.js Integration
@@ -203,8 +199,9 @@ const signedResult = await client.signPsbt(psbtBase64, false, false)
 ```json
 {
   "dependencies": {
-    "@omnisat/lasereyes-core": "^latest",
-    "@omnisat/lasereyes": "^latest",
+    "@omnisat/lasereyes": "^0.0.161",
+    "@omnisat/lasereyes-core": "^0.0.83",
+    "@omnisat/lasereyes-react": "^0.0.78",
     "bitcoinjs-lib": "^6.1.5",
     "ecpair": "^2.0.1",
     "@bitcoinerlab/secp256k1": "^1.1.3"
@@ -224,30 +221,27 @@ const signedResult = await client.signPsbt(psbtBase64, false, false)
 ```
 
 ### Key Files
-- `components/WalletConnect.tsx`: Main wallet connection UI component
-- `providers/LaserEyesProvider.tsx`: LaserEyes provider wrapper
-- `lib/wallet/compatibility.tsx`: Wallet compatibility layer
-- `lib/wallet/context.tsx`: Legacy wallet context (deprecated)
-- `laser-eyes-docs.md`: LaserEyes Core documentation
+- `components/WalletConnect.tsx`: Main wallet connection UI component (uses `useLaserEyes()` directly)
+- `components/LaserEyesWrapper.tsx`: **Primary provider wrapper** used in `app/layout.tsx` (dynamically imports LaserEyesProvider)
+- `lib/wallet/compatibility.tsx`: Wallet compatibility layer with `useWallet()` hook (adds verification logic)
+- `providers/LaserEyesProvider.tsx`: Alternative provider wrapper (not currently used in layout)
+- `lib/wallet/context.tsx`: Legacy wallet context (deprecated, not used)
 
 ## Supported Wallets
 
 LaserEyes Core supports the following Bitcoin wallets:
 
-### Primary Supported Wallets
-- **UniSat** - Popular Bitcoin wallet with Ordinals support
-- **Xverse** - Multi-chain wallet with Bitcoin focus
-- **Oyl** - Bitcoin wallet with advanced features
-- **Magic Eden** - NFT marketplace wallet
-- **Leather** - Bitcoin-native wallet
+### Currently Supported Wallets
+- **UniSat** - Popular Bitcoin wallet with Ordinals support (`UNISAT`)
+- **Xverse** - Multi-chain wallet with Bitcoin focus (`XVERSE`)
+- **Phantom** - Multi-chain wallet (`PHANTOM`)
+- **Magic Eden** - NFT marketplace wallet (`MAGIC_EDEN`)
+- **OYO** - Custom wallet integration (handled separately, not via LaserEyes)
 
-### Additional Supported Wallets
-- **OKX** - Multi-chain exchange wallet
-- **OP_NET** - Specialized Bitcoin wallet
-- **Orange** - Bitcoin wallet solution
-- **Phantom** - Multi-chain wallet
-- **Sparrow** - Desktop Bitcoin wallet
-- **Wizz** - Bitcoin wallet
+### Available but Not Currently Used
+- **Oyl** - Available in LaserEyes but not in WalletConnect component
+- **Leather** - Available in LaserEyes but not in WalletConnect component
+- **OKX** - Available in LaserEyes but not in WalletConnect component
 
 ## Network Support
 
@@ -263,57 +257,77 @@ LaserEyes supports multiple Bitcoin networks:
 
 ### Component Hierarchy
 ```
-App Root
-├── LaserEyesProvider (from @omnisat/lasereyes)
-│   └── WalletProvider (lib/wallet/compatibility.tsx)
-│       └── All Components
-│           ├── WalletConnect.tsx
-│           ├── WalletDisplay.tsx
-│           ├── InscribeInterface.tsx
-│           ├── SpecialMintPanel.tsx
-│           └── Other Components
+App Root (app/layout.tsx)
+├── ToastProvider
+│   └── LaserEyesWrapper (components/LaserEyesWrapper.tsx)
+│       ├── DynamicLaserEyesProvider (from @omnisat/lasereyes, dynamically imported)
+│       │   └── WalletProvider (lib/wallet/compatibility.tsx)
+│       │       └── All Components
+│       │           ├── WalletConnect.tsx (uses useLaserEyes() directly)
+│       │           ├── BattlePage (uses useLaserEyes() directly)
+│       │           ├── DungeonCrawlPage (uses useLaserEyes() directly)
+│       │           └── Other Components (may use useWallet() or useLaserEyes())
+│       └── MusicPlayerProvider
 ```
 
 ### useWallet Hook Locations
 
-#### 1. **Primary Hook Definition**
+#### 1. **useLaserEyes Hook** (Primary - Used Directly)
+**Package**: `@omnisat/lasereyes`
+```typescript
+import { useLaserEyes } from '@omnisat/lasereyes'
+
+// Returns: { connected, address, balance, client, connect, disconnect }
+const { connected, address, balance, client, connect, disconnect } = useLaserEyes()
+```
+**Used in**: `WalletConnect.tsx`, `battle/page.tsx`, `dungeon-crawl/page.tsx`, and many other pages
+
+#### 2. **useWallet Hook** (Secondary - Adds Verification)
 **File**: `lib/wallet/compatibility.tsx`
 ```typescript
-export function useWallet() {
-  const context = useContext(WalletContext)
-  if (context === undefined) {
-    throw new Error("useWallet must be used within a WalletProvider")
-  }
-  return context
-}
-```
+import { useWallet } from '@/lib/wallet/compatibility'
 
-#### 2. **Legacy Hook Definition** (Deprecated)
-**File**: `lib/wallet/context.tsx`
-```typescript
-export const useWallet = () => {
-  const context = useContext(WalletContext)
-  if (!context) {
-    throw new Error("useWallet must be used within a WalletProvider")
-  }
-  return context
-}
+// Returns: { isConnected, currentAddress, client, isVerified, isVerifying, verifyWallet, connect, disconnect }
+const { isConnected, currentAddress, client, isVerified, verifyWallet } = useWallet()
 ```
+**Used in**: Some tools pages that need verification logic
+
+#### 3. **Legacy Hook Definition** (Deprecated - Not Used)
+**File**: `lib/wallet/context.tsx`
+- This file exists but is not imported or used anywhere in the codebase
 
 ### Provider Setup Chain
 
-#### 1. **LaserEyesProvider** (`providers/LaserEyesProvider.tsx`)
+#### 1. **LaserEyesWrapper** (`components/LaserEyesWrapper.tsx`) - **ACTUALLY USED**
 ```typescript
-export function LaserEyesProvider({ children }: { children: React.ReactNode }) {
+'use client'
+
+import { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
+import { WalletProvider } from '@/lib/wallet/compatibility'
+
+const DynamicLaserEyesProvider = dynamic(
+  () => import('@omnisat/lasereyes').then((mod) => mod.LaserEyesProvider),
+  { ssr: false, loading: () => null }
+)
+
+export default function LaserEyesWrapper({ children }: { children: ReactNode }) {
   return (
-    <LaserEyesProviderOriginal config={{ network: "mainnet" }}>
+    <DynamicLaserEyesProvider config={{ network: 'mainnet' }}>
       <WalletProvider>{children}</WalletProvider>
-    </LaserEyesProviderOriginal>
+    </DynamicLaserEyesProvider>
   )
 }
 ```
+**Used in**: `app/layout.tsx` as the root provider
 
-#### 2. **WalletProvider** (`lib/wallet/compatibility.tsx`)
+#### 2. **LaserEyesProvider** (`providers/LaserEyesProvider.tsx`) - **NOT CURRENTLY USED**
+```typescript
+// This file exists but is NOT used in app/layout.tsx
+// LaserEyesWrapper is used instead
+```
+
+#### 3. **WalletProvider** (`lib/wallet/compatibility.tsx`)
 ```typescript
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { connected, address, client } = useLaserEyes()
@@ -341,106 +355,134 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
 ### useWallet Usage Examples
 
-#### 1. **WalletConnect Component**
+#### 1. **WalletConnect Component** - **ACTUAL IMPLEMENTATION**
 ```typescript
 // components/WalletConnect.tsx
-import { useWallet } from "@/lib/wallet/compatibility"
+import { useLaserEyes, UNISAT, XVERSE, PHANTOM, MAGIC_EDEN } from '@omnisat/lasereyes'
 
 export default function WalletConnect() {
-  const { isConnected, currentAddress, client, isVerified, isVerifying, connect } = useWallet()
+  const { connect, disconnect, connected, address, balance, client } = useLaserEyes()
   
   // Component logic...
+  // Uses useLaserEyes() directly, not useWallet()
 }
 ```
 
-#### 2. **InscribeInterface Component**
+#### 2. **Battle Page** - **ACTUAL IMPLEMENTATION**
 ```typescript
-// components/tools/inscribe-interface.tsx
-import { useWallet } from "@/lib/wallet/compatibility"
+// app/battle/page.tsx
+import { useLaserEyes } from '@omnisat/lasereyes'
 
-export default function InscribeInterface() {
-  const { isConnected, currentAddress, client } = useWallet()
+export default function BattlePage() {
+  const { connected, address } = useLaserEyes()
   
-  // Inscription logic...
+  // Battle logic...
+  // Uses useLaserEyes() directly
 }
 ```
 
-#### 3. **Mint Process Hook**
+#### 3. **Dungeon Crawl Page** - **ACTUAL IMPLEMENTATION**
 ```typescript
-// hooks/useMintProcess.ts
-import { useWallet } from "@/lib/wallet/compatibility"
+// app/dungeon-crawl/page.tsx
+import { useLaserEyes } from '@omnisat/lasereyes'
 
-export function useMintProcess() {
-  const { isConnected, currentAddress, client } = useWallet()
+export default function DungeonCrawlPage() {
+  const { connected, address } = useLaserEyes()
   
-  // Mint process logic...
+  // Dungeon crawl logic...
+  // Uses useLaserEyes() directly
+}
+```
+
+#### 4. **Tools Pages** - **ACTUAL IMPLEMENTATION**
+```typescript
+// app/tools/speedup/page.tsx
+import { useWallet } from '@/lib/wallet/compatibility'
+import { useLaserEyes } from '@omnisat/lasereyes'
+
+export default function SpeedupPage() {
+  const { isConnected, currentAddress, client } = useWallet() // Uses useWallet for verification
+  const { balance } = useLaserEyes() // Also uses useLaserEyes for balance
+  
+  // Tools logic...
 }
 ```
 
 ### Hook Interface
 
-#### **Current useWallet Interface** (compatibility.tsx)
+#### **useLaserEyes Interface** (from @omnisat/lasereyes) - **PRIMARY**
 ```typescript
-interface WalletContextType {
-  isConnected: boolean
-  currentAddress: string | null
-  client: any
-  isVerified: boolean
-  isVerifying: boolean
-  verifyWallet: () => Promise<boolean>
+// Returned by useLaserEyes() hook
+interface LaserEyesContext {
+  connected: boolean
+  address: string | null
+  balance: number | null
+  client: LaserEyesClient | null
   connect: (provider: any) => Promise<void>
   disconnect: () => void
 }
 ```
 
-#### **Legacy useWallet Interface** (context.tsx - deprecated)
+#### **useWallet Interface** (compatibility.tsx) - **SECONDARY**
 ```typescript
+// Returned by useWallet() hook - wraps useLaserEyes with verification
 interface WalletContextType {
-  profile: Profile | null
-  client: LaserEyesClient | null
-  isConnected: boolean
-  currentAddress: string | null
-  paymentAddress: string | null
-  taprootAddress: string | null
-  balance: number | null
-  loading: boolean
-  error: string | null
-  walletProvider: ProviderType | null
-  updateProfileAddresses: (profileId: string, addresses: { address: string; network: string }[]) => Promise<void>
-  connect: (provider: ProviderType) => Promise<void>
+  isConnected: boolean        // Alias for connected
+  currentAddress: string | null // Alias for address
+  client: any
+  isVerified: boolean          // Additional verification state
+  isVerifying: boolean        // Verification in progress
+  verifyWallet: () => Promise<boolean> // Message signing verification
+  connect: (provider: any) => Promise<void>
   disconnect: () => void
-  handleMint: (ordinalId: string) => Promise<string | null>
-  handlePurchase: (ordinalId: string, price: number) => Promise<string | null>
 }
 ```
 
+#### **Legacy useWallet Interface** (context.tsx - deprecated, NOT USED)
+- This interface exists in `lib/wallet/context.tsx` but the file is not imported anywhere
+- Do not use this - it's legacy code
+
 ### Migration Notes
 
-#### **Current Implementation** (Recommended)
-- **File**: `lib/wallet/compatibility.tsx`
-- **Uses**: `useLaserEyes()` hook from `@omnisat/lasereyes`
-- **Features**: Simplified interface, automatic verification, session management
-- **Import**: `import { useWallet } from "@/lib/wallet/compatibility"`
+#### **Primary Implementation** (Most Common)
+- **Package**: `@omnisat/lasereyes`
+- **Hook**: `useLaserEyes()`
+- **Features**: Direct access to LaserEyes functionality, connection state, balance
+- **Import**: `import { useLaserEyes } from "@omnisat/lasereyes"`
+- **Used in**: `WalletConnect.tsx`, `battle/page.tsx`, `dungeon-crawl/page.tsx`, most pages
 
-#### **Legacy Implementation** (Deprecated)
+#### **Secondary Implementation** (When Verification Needed)
+- **File**: `lib/wallet/compatibility.tsx`
+- **Hook**: `useWallet()`
+- **Uses**: Wraps `useLaserEyes()` with additional verification logic
+- **Features**: Message signing verification, session management, verification state
+- **Import**: `import { useWallet } from "@/lib/wallet/compatibility"`
+- **Used in**: Some tools pages that require wallet verification
+
+#### **Legacy Implementation** (Deprecated - NOT USED)
 - **File**: `lib/wallet/context.tsx`
-- **Uses**: Direct `LaserEyesClient` instantiation
-- **Features**: Full client management, profile integration, complex state
-- **Import**: `import { useWallet } from "@/lib/wallet/context"`
+- **Status**: File exists but is not imported anywhere in the codebase
+- **Do not use**: This is old code that should be removed
 
 ### Provider Placement in App Structure
 
-#### **Root Layout** (`app/layout.tsx`)
+#### **Root Layout** (`app/layout.tsx`) - **ACTUAL IMPLEMENTATION**
 ```typescript
-import { LaserEyesProvider } from "@/providers/LaserEyesProvider"
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+import { ToastProvider } from '@/components/Toast'
+import { MusicPlayerProvider } from '@/providers/MusicPlayerProvider'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <LaserEyesProvider>
-          {children}
-        </LaserEyesProvider>
+        <ToastProvider>
+          <LaserEyesWrapper>
+            <MusicPlayerProvider>
+              {children}
+            </MusicPlayerProvider>
+          </LaserEyesWrapper>
+        </ToastProvider>
       </body>
     </html>
   )
@@ -465,62 +507,81 @@ function MyComponent() {
 
 ## Wallet Connection Flow
 
-### 1. Provider Initialization
+### 1. Provider Initialization (ACTUAL)
 ```typescript
-// LaserEyesProvider.tsx
-export function LaserEyesProvider({ children }: { children: React.ReactNode }) {
+// components/LaserEyesWrapper.tsx
+'use client'
+
+import { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
+import { WalletProvider } from '@/lib/wallet/compatibility'
+
+const DynamicLaserEyesProvider = dynamic(
+  () => import('@omnisat/lasereyes').then((mod) => mod.LaserEyesProvider),
+  { ssr: false, loading: () => null }
+)
+
+export default function LaserEyesWrapper({ children }: { children: ReactNode }) {
   return (
-    <LaserEyesProviderOriginal config={{ network: "mainnet" }}>
+    <DynamicLaserEyesProvider config={{ network: 'mainnet' }}>
       <WalletProvider>{children}</WalletProvider>
-    </LaserEyesProviderOriginal>
+    </DynamicLaserEyesProvider>
   )
 }
 ```
 
-### 2. Wallet Context Setup
+### 2. Wallet Context Setup (ACTUAL)
 ```typescript
 // lib/wallet/compatibility.tsx
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const { connected, address, client } = useLaserEyes()
+  const laserEyes = useLaserEyes()
+  const { connected, address, client, connect: laserEyesConnect, disconnect: laserEyesDisconnect } = laserEyes
   
   const [isVerified, setIsVerified] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [userCancelled, setUserCancelled] = useState(false)
   
-  // Wallet verification and connection logic
+  // Wraps LaserEyes with verification logic
+  const connect = async (provider: any) => {
+    await laserEyesConnect(provider)
+  }
+  
+  const disconnect = () => {
+    laserEyesDisconnect()
+    setIsVerified(false)
+    setUserCancelled(false)
+  }
+  
+  // Verification logic using client.signMessage()
 }
 ```
 
-### 3. Connection Process
+### 3. Connection Process (ACTUAL)
 ```typescript
-const connect = async (provider: ProviderType) => {
-  if (!client) return
-  
+// In WalletConnect.tsx - uses useLaserEyes() directly
+const { connect, disconnect, connected, address, balance, client } = useLaserEyes()
+
+const handleConnect = async (wallet: any) => {
   try {
-    setIsLoading(true)
-    setError(null)
+    setIsConnecting(true)
     
-    await client.connect(provider)
-    const accounts = await client.requestAccounts()
-    
-    if (accounts && accounts.length > 0) {
-      setIsConnected(true)
-      setCurrentAddress(accounts[0])
-      setWalletProvider(provider)
-      
-      // Get additional addresses
-      const paymentAddr = await client.getPaymentAddress()
-      setPaymentAddress(paymentAddr)
-      
-      // Get balance
-      const balanceResult = await client.getBalance()
-      // Handle different balance return types
+    // Check if client is available
+    if (!client && typeof window !== 'undefined') {
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
-  } catch (err) {
-    console.error("Error connecting wallet:", err)
-    setError(err.message || "Failed to connect wallet")
+    
+    if (!connect) {
+      throw new Error('Wallet connection not available. Please refresh the page.')
+    }
+    
+    // Connect via LaserEyes
+    await connect(wallet)
+    // LaserEyes handles: requestAccounts, address, balance automatically
+  } catch (error) {
+    console.error('Failed to connect wallet:', error)
+    // Error handling...
   } finally {
-    setIsLoading(false)
+    setIsConnecting(false)
   }
 }
 ```
@@ -634,23 +695,35 @@ if (signedResult && (signedResult.txId || signedResult.signedPsbtHex || signedRe
 
 ## Wallet UI Component
 
-### WalletConnect Component Features
+### WalletConnect Component Features (ACTUAL)
 ```typescript
 // components/WalletConnect.tsx
+import { useLaserEyes, UNISAT, XVERSE, PHANTOM, MAGIC_EDEN } from '@omnisat/lasereyes'
+
 export default function WalletConnect() {
-  const { isConnected, currentAddress, client, isVerified, isVerifying, connect } = useWallet()
+  const { connect, disconnect, connected, address, balance, client } = useLaserEyes()
   
   // State management
-  const [isOpen, setIsOpen] = useState(false)
-  const [balance, setBalance] = useState<number | null>(null)
-  const [points, setPoints] = useState<number>(0)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isHolder, setIsHolder] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  
+  // Supported wallets
+  const WALLET_OPTIONS = [
+    { id: 'unisat', name: 'Unisat', icon: '🔗', wallet: UNISAT, type: 'lasereyes' },
+    { id: 'xverse', name: 'Xverse', icon: '⚡', wallet: XVERSE, type: 'lasereyes' },
+    { id: 'phantom', name: 'Phantom', icon: '👻', wallet: PHANTOM, type: 'lasereyes' },
+    { id: 'magiceden', name: 'Magic Eden', icon: '✨', wallet: MAGIC_EDEN, type: 'lasereyes' },
+    { id: 'oyo', name: 'OYO', icon: '🦉', wallet: OYO_WALLET, type: 'custom' },
+  ]
   
   // Wallet connection handlers
   const handleConnect = async (wallet: any) => {
     try {
       setIsConnecting(true)
       await connect(wallet)
-      setIsOpen(false)
+      setShowDropdown(false)
     } catch (err) {
       console.error("Failed to connect wallet:", err)
     } finally {
@@ -670,39 +743,21 @@ export default function WalletConnect() {
 
 ## Balance Management
 
-### Balance Fetching
+### Balance Fetching (ACTUAL)
 ```typescript
-const fetchBalance = useCallback(async () => {
-  if (!isConnected || !currentAddress || !client) {
-    setBalance(null)
-    return
-  }
+// useLaserEyes() provides balance directly - no manual fetching needed
+const { connected, address, balance, client } = useLaserEyes()
 
-  try {
-    setIsLoadingBalance(true)
-    const balanceResult = await client.getBalance()
-    
-    // Handle different balance result types
-    if (balanceResult) {
-      if (typeof balanceResult.toNumber === "function") {
-        setBalance(balanceResult.toNumber())
-      } else if (typeof balanceResult === "number") {
-        setBalance(balanceResult)
-      } else if (typeof balanceResult === "string") {
-        setBalance(Number.parseFloat(balanceResult))
-      } else {
-        setBalance(Number(balanceResult.toString()))
-      }
-    } else {
-      setBalance(0)
-    }
-  } catch (err) {
-    console.error("Error fetching balance:", err)
-    setBalance(null)
-  } finally {
-    setIsLoadingBalance(false)
-  }
-}, [isConnected, currentAddress, client])
+// Balance is automatically updated by LaserEyes
+// No need for manual fetchBalance() function
+// balance is already a number (in satoshis) or null
+
+// If you need to format it:
+const formatBalance = () => {
+  if (balance === null || balance === undefined) return "0.00000000"
+  // Convert satoshis to BTC (1 BTC = 100,000,000 satoshis)
+  return (Number(balance) / 100000000).toFixed(8)
+}
 ```
 
 ### Balance Formatting
@@ -805,27 +860,39 @@ This error occurs when the wallet provider isn't properly initialized or the wal
 
 #### **Issue 1: Wallet Extension Not Installed**
 ```typescript
-// Check if wallet is available before connecting
-const handleConnect = async (wallet: any) => {
+// In WalletConnect.tsx - actual implementation
+const handleConnect = async (wallet: any, walletType: string) => {
   try {
-    // Check if wallet extension is available
-    if (!window.unisat && wallet === UNISAT) {
-      throw new Error('UniSat wallet not installed. Please install the UniSat extension.')
-    }
-    if (!window.xverse && wallet === XVERSE) {
-      throw new Error('Xverse wallet not installed. Please install the Xverse extension.')
-    }
-    if (!window.okxwallet && wallet === OKX) {
-      throw new Error('OKX wallet not installed. Please install the OKX extension.')
-    }
-    
     setIsConnecting(true)
-    await connect(wallet)
-    setIsOpen(false)
-  } catch (err) {
-    console.error("Failed to connect wallet:", err)
-    // Show user-friendly error message
-    alert(err.message || "Failed to connect wallet")
+    setShowDropdown(false)
+    
+    if (walletType === 'custom') {
+      // Handle custom wallet connections (OYO)
+      const address = await wallet.connect()
+      console.log('Custom wallet connected:', address)
+    } else {
+      // Check if client is available before connecting
+      if (!client && typeof window !== 'undefined') {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
+      if (!connect) {
+        throw new Error('Wallet connection not available. Please refresh the page.')
+      }
+      
+      // Use LaserEyes for standard wallets
+      await connect(wallet)
+    }
+  } catch (error) {
+    console.error('Failed to connect wallet:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet'
+    
+    // Provide more helpful error messages
+    if (errorMessage.includes('disposed') || errorMessage.includes('Client disposed')) {
+      toast.error('Connection was interrupted. Please refresh the page and try again.')
+    } else {
+      toast.error(errorMessage)
+    }
   } finally {
     setIsConnecting(false)
   }
@@ -834,17 +901,30 @@ const handleConnect = async (wallet: any) => {
 
 #### **Issue 2: Provider Not Properly Initialized**
 ```typescript
-// Ensure LaserEyes provider is properly set up
-export function LaserEyesProvider({ children }: { children: React.ReactNode }) {
+// Ensure LaserEyesWrapper is properly set up in app/layout.tsx
+// components/LaserEyesWrapper.tsx
+export default function LaserEyesWrapper({ children }: { children: ReactNode }) {
   return (
-    <LaserEyesProviderOriginal 
-      config={{ 
-        network: "mainnet",
-        // Add any additional config if needed
-      }}
-    >
+    <DynamicLaserEyesProvider config={{ network: 'mainnet' }}>
       <WalletProvider>{children}</WalletProvider>
-    </LaserEyesProviderOriginal>
+    </DynamicLaserEyesProvider>
+  )
+}
+
+// app/layout.tsx
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <ToastProvider>
+          <LaserEyesWrapper>
+            {children}
+          </LaserEyesWrapper>
+        </ToastProvider>
+      </body>
+    </html>
   )
 }
 ```
@@ -853,13 +933,17 @@ export function LaserEyesProvider({ children }: { children: React.ReactNode }) {
 ❌ **Wrong** - Using wrong import:
 ```typescript
 // DON'T DO THIS
-import { useWallet } from "@/lib/wallet/context" // Legacy/Deprecated
+import { useWallet } from "@/lib/wallet/context" // Legacy/Deprecated - NOT USED
+import { useLaserEyes } from "@omnisat/lasereyes-core" // Wrong package
 ```
 
-✅ **Correct** - Use the right import:
+✅ **Correct** - Use the right imports:
 ```typescript
-// DO THIS
-import { useWallet } from "@/lib/wallet/compatibility" // Current
+// PRIMARY - Most common usage
+import { useLaserEyes } from "@omnisat/lasereyes" // Direct LaserEyes hook
+
+// SECONDARY - When verification needed
+import { useWallet } from "@/lib/wallet/compatibility" // Wraps useLaserEyes with verification
 ```
 
 #### **Issue 4: Missing Provider Wrapper**
@@ -869,22 +953,26 @@ import { useWallet } from "@/lib/wallet/compatibility" // Current
 function App() {
   return (
     <div>
-      <WalletConnect /> {/* This will fail */}
+      <WalletConnect /> {/* This will fail - no provider */}
     </div>
   )
 }
 ```
 
-✅ **Correct** - Wrap in LaserEyesProvider:
+✅ **Correct** - LaserEyesWrapper is in app/layout.tsx (already set up):
 ```typescript
-// DO THIS
-function App() {
+// app/layout.tsx - Already configured
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <LaserEyesProvider>
-      <div>
-        <WalletConnect /> {/* This will work */}
-      </div>
-    </LaserEyesProvider>
+    <html lang="en">
+      <body>
+        <LaserEyesWrapper>
+          {children} {/* All pages automatically have wallet access */}
+        </LaserEyesWrapper>
+      </body>
+    </html>
   )
 }
 ```
@@ -905,25 +993,21 @@ The error happens because:
 // DON'T DO THIS
 function App() {
   return (
-    <WalletProvider> {/* This will cause the error */}
+    <WalletProvider> {/* This will cause the error - needs LaserEyesProvider */}
       <WalletConnect />
     </WalletProvider>
   )
 }
 ```
 
-✅ **Correct** - Proper provider hierarchy:
+✅ **Correct** - Proper provider hierarchy (already in app/layout.tsx):
 ```typescript
-// DO THIS
-function App() {
-  return (
-    <LaserEyesProvider>
-      <WalletProvider> {/* This will work */}
-        <WalletConnect />
-      </WalletProvider>
-    </LaserEyesProvider>
-  )
-}
+// app/layout.tsx - Already configured correctly
+<LaserEyesWrapper> {/* Contains LaserEyesProvider */}
+  <WalletProvider> {/* This will work */}
+    {children} {/* All components have wallet access */}
+  </WalletProvider>
+</LaserEyesWrapper>
 ```
 
 #### **Solution 2: Add Defensive Programming**
@@ -952,30 +1036,33 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 }
 ```
 
-#### **Solution 3: Verify LaserEyesProvider Import**
+#### **Solution 3: Verify LaserEyesWrapper Setup**
 ```typescript
-// Ensure correct import
-import { LaserEyesProvider as LaserEyesProviderOriginal } from "@omnisat/lasereyes"
+// components/LaserEyesWrapper.tsx - Already configured correctly
+import dynamic from 'next/dynamic'
 
-// NOT this (wrong package):
-// import { LaserEyesProvider } from "@omnisat/lasereyes-core"
+const DynamicLaserEyesProvider = dynamic(
+  () => import('@omnisat/lasereyes').then((mod) => mod.LaserEyesProvider),
+  { ssr: false, loading: () => null }
+)
+
+// This dynamically imports LaserEyesProvider from @omnisat/lasereyes
+// NOT from @omnisat/lasereyes-core
 ```
 
 #### **Solution 4: Check Provider Configuration**
 ```typescript
-// providers/LaserEyesProvider.tsx
-export function LaserEyesProvider({ children }: { children: React.ReactNode }) {
+// components/LaserEyesWrapper.tsx - ACTUAL IMPLEMENTATION
+export default function LaserEyesWrapper({ children }: { children: ReactNode }) {
   return (
-    <LaserEyesProviderOriginal 
-      config={{ 
-        network: "mainnet",
-        // Add any required configuration
-      }}
-    >
+    <DynamicLaserEyesProvider config={{ network: 'mainnet' }}>
       <WalletProvider>{children}</WalletProvider>
-    </LaserEyesProviderOriginal>
+    </DynamicLaserEyesProvider>
   )
 }
+
+// Note: LaserEyesProvider is dynamically imported to avoid SSR issues
+// This is the correct pattern for Next.js
 ```
 
 #### **Solution 5: Add Error Boundaries**
@@ -1070,18 +1157,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 }
 ```
 
-#### **Solution 8: Verify Next.js Setup**
+#### **Solution 8: Verify Next.js Setup** (ACTUAL)
 ```typescript
-// app/layout.tsx or pages/_app.tsx
-import { LaserEyesProvider } from "@/providers/LaserEyesProvider"
+// app/layout.tsx - ACTUAL IMPLEMENTATION
+import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+import { ToastProvider } from '@/components/Toast'
+import { MusicPlayerProvider } from '@/providers/MusicPlayerProvider'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <LaserEyesProvider>
-          {children}
-        </LaserEyesProvider>
+        <ToastProvider>
+          <LaserEyesWrapper>
+            <MusicPlayerProvider>
+              {children}
+            </MusicPlayerProvider>
+          </LaserEyesWrapper>
+        </ToastProvider>
       </body>
     </html>
   )
@@ -1154,16 +1247,18 @@ function App() {
 
 This error is almost always caused by missing or incorrectly configured LaserEyesProvider wrapping the WalletProvider.
 
-This error occurs when `useWallet` is called outside of the provider hierarchy.
+### Error: `useWallet must be used within a WalletProvider`
 
-#### **Solution**: Check Provider Hierarchy
+This error occurs when `useWallet()` or `useLaserEyes()` is called outside of the provider hierarchy.
+
+#### **Solution**: Check Provider Hierarchy (ACTUAL)
 ```typescript
-// Ensure this hierarchy in your app
-<LaserEyesProvider>
+// Already configured in app/layout.tsx
+<LaserEyesWrapper> {/* Contains LaserEyesProvider */}
   <WalletProvider>
-    <YourComponent /> {/* useWallet works here */}
+    <YourComponent /> {/* useLaserEyes() or useWallet() works here */}
   </WalletProvider>
-</LaserEyesProvider>
+</LaserEyesWrapper>
 ```
 
 ### Error: `Failed to connect wallet: TypeError: Cannot read properties of undefined`

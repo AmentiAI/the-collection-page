@@ -25,31 +25,28 @@ export async function PATCH(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Get trait from request body (should be passed from frontend)
+    // Get trait from request body (required)
     const { trait } = body
     const validTrait = trait === 'Angelic' || trait === 'Demonic' ? trait : null
 
-    // Upsert battle status (set life_force to 100 if new record, store trait if provided)
-    if (validTrait) {
-      await client.query(
-        `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force, trait)
-         VALUES ($1, $2, $3, 100, $4)
-         ON CONFLICT (wallet_address, inscription_id)
-         DO UPDATE SET 
-           status = $3, 
-           trait = COALESCE(EXCLUDED.trait, battle_ordinals.trait),
-           updated_at = NOW()`,
-        [walletAddress, inscriptionId, status, validTrait]
-      )
-    } else {
-      await client.query(
-        `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force)
-         VALUES ($1, $2, $3, 100)
-         ON CONFLICT (wallet_address, inscription_id)
-         DO UPDATE SET status = $3, updated_at = NOW()`,
-        [walletAddress, inscriptionId, status]
+    if (!validTrait) {
+      return NextResponse.json(
+        { error: 'Sorry, trait not found. Please ensure the ordinal has an Angelic or Demonic trait.' },
+        { status: 400 }
       )
     }
+
+    // Save status with trait
+    await client.query(
+      `INSERT INTO battle_ordinals (wallet_address, inscription_id, status, life_force, trait)
+       VALUES ($1, $2, $3, 100, $4)
+       ON CONFLICT (wallet_address, inscription_id)
+       DO UPDATE SET 
+         status = $3, 
+         trait = COALESCE(EXCLUDED.trait, battle_ordinals.trait),
+         updated_at = NOW()`,
+      [walletAddress, inscriptionId, status, validTrait]
+    )
 
     return NextResponse.json({
       success: true,
