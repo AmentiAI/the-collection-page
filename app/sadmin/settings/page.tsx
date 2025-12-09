@@ -19,6 +19,10 @@ export default function GlobalSettingsPage() {
   const [globalStartTime, setGlobalStartTime] = useState('')
   const [description, setDescription] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  
+  // Date and time picker state
+  const [dateValue, setDateValue] = useState('')
+  const [timeValue, setTimeValue] = useState('')
 
   const handleHolderVerified = (holder: boolean) => {
     setIsHolder(holder)
@@ -44,6 +48,34 @@ export default function GlobalSettingsPage() {
         setGlobalStartTime(value)
         setDescription(data.setting.description || '')
         setLastUpdated(data.setting.updated_at)
+        
+        // Parse timestamp into date and time inputs
+        if (value && value.trim() !== '') {
+          try {
+            const date = new Date(value.trim())
+            if (!isNaN(date.getTime())) {
+              // Format date as YYYY-MM-DD (local date)
+              const year = date.getFullYear()
+              const month = String(date.getMonth() + 1).padStart(2, '0')
+              const day = String(date.getDate()).padStart(2, '0')
+              setDateValue(`${year}-${month}-${day}`)
+              
+              // Format time as HH:mm (local time)
+              const hours = String(date.getHours()).padStart(2, '0')
+              const minutes = String(date.getMinutes()).padStart(2, '0')
+              setTimeValue(`${hours}:${minutes}`)
+            } else {
+              setDateValue('')
+              setTimeValue('')
+            }
+          } catch {
+            setDateValue('')
+            setTimeValue('')
+          }
+        } else {
+          setDateValue('')
+          setTimeValue('')
+        }
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -58,15 +90,52 @@ export default function GlobalSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleDateTimeChange = (date: string, time: string) => {
+    setDateValue(date)
+    setTimeValue(time)
+    
+    // Combine date and time into ISO 8601 timestamp (UTC)
+    if (date && time) {
+      try {
+        // Create date from local date/time, then convert to UTC ISO string
+        const localDate = new Date(`${date}T${time}`)
+        if (!isNaN(localDate.getTime())) {
+          // Convert to UTC ISO string
+          const isoString = localDate.toISOString()
+          setGlobalStartTime(isoString)
+        } else {
+          setGlobalStartTime('')
+        }
+      } catch {
+        setGlobalStartTime('')
+      }
+    } else {
+      setGlobalStartTime('')
+    }
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
 
+      // If date/time inputs are filled, use them to create timestamp
+      let finalTimestamp = globalStartTime.trim()
+      if (dateValue && timeValue && (!finalTimestamp || finalTimestamp === '')) {
+        try {
+          const localDate = new Date(`${dateValue}T${timeValue}`)
+          if (!isNaN(localDate.getTime())) {
+            finalTimestamp = localDate.toISOString()
+          }
+        } catch {
+          // Fall through to validation
+        }
+      }
+
       // Validate timestamp if provided
-      if (globalStartTime.trim() !== '') {
-        const timestamp = new Date(globalStartTime.trim())
+      if (finalTimestamp !== '') {
+        const timestamp = new Date(finalTimestamp)
         if (isNaN(timestamp.getTime())) {
-          toast.error('Invalid timestamp format. Use ISO 8601 format (e.g., 2025-01-01T00:00:00Z)')
+          toast.error('Invalid date/time. Please check your inputs.')
           return
         }
       }
@@ -78,7 +147,7 @@ export default function GlobalSettingsPage() {
         },
         body: JSON.stringify({
           key: 'global_start_time',
-          value: globalStartTime.trim(),
+          value: finalTimestamp,
           description: description || 'Global start time for pages: /battlez, /battlefield, /leaderboard, /dungeon-crawl, /crystallizationz, /abyss-summon. ISO 8601 timestamp. Empty string means no restriction.'
         })
       })
@@ -101,12 +170,29 @@ export default function GlobalSettingsPage() {
 
   const handleClear = () => {
     setGlobalStartTime('')
+    setDateValue('')
+    setTimeValue('')
   }
 
-  // Calculate time until start
-  const timeUntilStart = globalStartTime.trim() ? (() => {
+  // Calculate time until start (use dateValue/timeValue if globalStartTime is empty but inputs are filled)
+  const effectiveTimestamp = (() => {
+    if (globalStartTime.trim()) return globalStartTime.trim()
+    if (dateValue && timeValue) {
+      try {
+        const localDate = new Date(`${dateValue}T${timeValue}`)
+        if (!isNaN(localDate.getTime())) {
+          return localDate.toISOString()
+        }
+      } catch {
+        // Fall through
+      }
+    }
+    return ''
+  })()
+
+  const timeUntilStart = effectiveTimestamp ? (() => {
     try {
-      const startTime = new Date(globalStartTime.trim())
+      const startTime = new Date(effectiveTimestamp)
       if (isNaN(startTime.getTime())) return null
       const now = new Date()
       const diff = startTime.getTime() - now.getTime()
@@ -188,7 +274,7 @@ export default function GlobalSettingsPage() {
                   </p>
                 </div>
 
-                {globalStartTime.trim() && (
+                {effectiveTimestamp && (
                   <div className="rounded-lg border border-blue-600/40 bg-blue-950/20 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       {timeUntilStart !== null && timeUntilStart > 0 ? (
@@ -209,7 +295,7 @@ export default function GlobalSettingsPage() {
                           Time until start: <span className="font-mono font-bold text-yellow-400">{formatTimeUntilStart(timeUntilStart)}</span>
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Start time: {new Date(globalStartTime.trim()).toLocaleString()}
+                          Start time: {new Date(effectiveTimestamp).toLocaleString()}
                         </p>
                       </div>
                     )}
