@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Skull, Clock, CheckCircle } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
@@ -180,8 +181,9 @@ export default function ResurrectPage() {
   }, [address, toast, fetchDeadArmies])
 
   return (
-    <LaserEyesWrapper>
-      <div className="min-h-screen bg-black text-white">
+    <GlobalStartTimeLock>
+      <LaserEyesWrapper>
+        <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
@@ -347,6 +349,7 @@ export default function ResurrectPage() {
         </div>
       </div>
     </LaserEyesWrapper>
+    </GlobalStartTimeLock>
   )
 }
 
