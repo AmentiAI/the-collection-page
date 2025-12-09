@@ -829,6 +829,7 @@ export default function BattlePage() {
         </main>
       </div>
     </LaserEyesWrapper>
+    </GlobalStartTimeGate>
   )
 }
 

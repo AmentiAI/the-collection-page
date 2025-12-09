@@ -223,14 +223,13 @@ const LevelCard = memo(({
   }
 
   return (
-    <GlobalStartTimeGate pageName="Dungeon Crawl">
-      <div
-        className={`border-2 rounded-lg p-4 backdrop-blur-sm transition-all ${
+    <div
+      className={`border-2 rounded-lg p-4 backdrop-blur-sm transition-all ${
           windowState.isOpen 
           ? 'level-card-active bg-gradient-to-br from-amber-950/40 to-red-950/40 shadow-lg shadow-amber-500/20' 
           : 'border-stone-600/60 bg-stone-900/50'
-      }`}
-    >
+        }`}
+      >
       <div className="flex items-center justify-between mb-3">
         <h3 className={`font-bold text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
           windowState.isOpen ? 'text-amber-300' : 'text-stone-400'
@@ -784,7 +783,8 @@ export default function DungeonCrawlPage() {
   }, [])
 
   return (
-    <div className="min-h-screen text-white relative">
+    <GlobalStartTimeGate pageName="Dungeon Crawl">
+      <div className="min-h-screen text-white relative">
       {/* Background Image */}
       <div 
         className="fixed inset-0 z-0"
