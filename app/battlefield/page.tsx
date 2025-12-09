@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
-import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 // Leaflet map with landmarks
 const LeafletTileMap = dynamic(() => import('./LeafletTileMap'), { ssr: false })
@@ -178,9 +177,8 @@ export default function BattlefieldPage() {
     : [...landmarks, demonLandmark, angelLandmark]
 
   return (
-    <GlobalStartTimeLock>
-      <>
-        <style dangerouslySetInnerHTML={{__html: `
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
         .map-container .leaflet-container {
           position: absolute !important;
           top: 0 !important;
@@ -300,7 +298,6 @@ export default function BattlefieldPage() {
           </div>
         </div>
       </div>
-      </>
-    </GlobalStartTimeLock>
+    </>
   )
 }

@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Heart, Clock, Shield } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
@@ -199,8 +200,9 @@ export default function PoolOfLifePage() {
   const armiesNeedingHeal = armies.filter(a => a.lifeForce < 100)
 
   return (
-    <LaserEyesWrapper>
-      <div className="min-h-screen bg-black text-white">
+    <GlobalStartTimeLock>
+      <LaserEyesWrapper>
+        <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
@@ -360,6 +362,7 @@ export default function PoolOfLifePage() {
         </div>
       </div>
     </LaserEyesWrapper>
+    </GlobalStartTimeLock>
   )
 }
 
