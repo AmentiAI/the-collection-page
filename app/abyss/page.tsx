@@ -300,19 +300,12 @@ function formatCountdown(ms: number): string {
 
 function AbyssContent() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const slashAudioRef = useRef<HTMLAudioElement>(null)
-  const [showEntryModal, setShowEntryModal] = useState(true)
-  const [volume, setVolume] = useState(25)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)
   const [fallenPile, setFallenPile] = useState<FallenCharacter[]>([])
   const [activeWalkers, setActiveWalkers] = useState<ActiveWalker[]>([])
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [burnConfirmOpen, setBurnConfirmOpen] = useState(false)
-  const audioSrc = '/music/abyss.mp3'
   const fallenPileRef = useRef(0)
 
   const searchParams = useSearchParams()
@@ -1066,64 +1059,6 @@ function AbyssContent() {
     return () => window.clearInterval(intervalId)
   }, [cooldownState])
 
-  const handleEnter = () => {
-    setShowEntryModal(false)
-    setTimeout(() => {
-      if (audioRef.current) {
-        if (audioRef.current.readyState === 0) {
-          audioRef.current.load()
-        }
-
-        const playAudio = () => {
-          audioRef.current
-            ?.play()
-            .then(() => setIsPlaying(true))
-            .catch((error) => {
-              console.error('Audio playback failed:', error)
-              setTimeout(() => {
-                audioRef.current
-                  ?.play()
-                  .then(() => setIsPlaying(true))
-                  .catch((err) => console.error('Retry audio playback failed:', err))
-              }, 400)
-            })
-        }
-
-        if (audioRef.current.readyState >= 2) {
-          playAudio()
-        } else {
-          audioRef.current.addEventListener('canplay', playAudio, { once: true })
-        }
-      }
-    }, 120)
-  }
-
-  useEffect(() => {
-    if (!audioRef.current) return
-    const audio = audioRef.current
-    const handlePlay = () => setIsPlaying(true)
-    const handlePause = () => setIsPlaying(false)
-
-    audio.addEventListener('play', handlePlay)
-    audio.addEventListener('pause', handlePause)
-
-    return () => {
-      audio.removeEventListener('play', handlePlay)
-      audio.removeEventListener('pause', handlePause)
-    }
-  }, [])
-
-  useEffect(() => {
-    const main = audioRef.current
-    const slash = slashAudioRef.current
-    const level = isMuted ? 0 : volume / 100
-    if (main) {
-      main.volume = level
-    }
-    if (slash) {
-      slash.volume = level
-    }
-  }, [volume, isMuted])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -1266,24 +1201,7 @@ function AbyssContent() {
   >()
 
   const playSlash = useCallback(() => {
-    const slash = slashAudioRef.current
-    if (slash) {
-      if (slash.readyState === 0) {
-        slash.load()
-      }
-      slash.currentTime = 0
-      const promise = slash.play()
-      if (promise && typeof promise.catch === 'function') {
-        promise.catch((error) => console.error('Slash audio play failed:', error))
-      }
-    }
-  }, [])
-
-  const handleVolumeAdjust = useCallback((delta: number) => {
-    setVolume((prev) => {
-      const next = Math.min(100, Math.max(0, prev + delta))
-      return next
-    })
+    // Slash sound removed - no longer needed
   }, [])
 
   const handleBurn = useCallback(async () => {
@@ -1625,13 +1543,11 @@ function AbyssContent() {
   )
 
   useEffect(() => {
-    if (showEntryModal) return
-
     spawnWalker()
     const SPAWN_INTERVAL_MS = 2400
     const intervalId = window.setInterval(spawnWalker, SPAWN_INTERVAL_MS)
     return () => window.clearInterval(intervalId)
-  }, [showEntryModal, spawnWalker])
+  }, [spawnWalker])
 
   const totalBurns = burnSummary?.total ?? 0
   const minutesSinceReductionStart = useMemo(() => 0, [])
@@ -1668,30 +1584,6 @@ function AbyssContent() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black">
-      <audio
-        ref={audioRef}
-        src={audioSrc}
-        loop
-        preload="auto"
-        onError={(e) => {
-          console.error('Audio load error:', e)
-          if (e.currentTarget.error) {
-            console.error('Error code:', e.currentTarget.error.code)
-            console.error('Error message:', e.currentTarget.error.message)
-          }
-        }}
-      />
-      <audio
-        ref={slashAudioRef}
-        preload="auto"
-        onError={(event) => {
-          const error = event.currentTarget.error
-          console.error('Slash audio failed to load', error)
-        }}
-      >
-        <source src="/music/slash.mp3" type="audio/mpeg" />
-      </audio>
-
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -1699,7 +1591,7 @@ function AbyssContent() {
         onHolderVerified={handleHolderVerified}
         onVerifyingStart={handleVerifyingStart}
         onConnectedChange={handleConnectedChange}
-        showMusicControls={false}
+        showMusicControls={true}
       />
 
       {/* Burn Counter + Warnings + Controls */}
@@ -1902,69 +1794,6 @@ function AbyssContent() {
           </Button>
         </div>
 
-        <div className="flex flex-col items-start gap-3 rounded-lg border border-red-600/50 bg-black/40 px-3 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                if (!audioRef.current) return
-                if (audioRef.current.paused) {
-                  audioRef.current
-                    .play()
-                    .then(() => setIsPlaying(true))
-                    .catch((error) => console.error('Audio play failed:', error))
-                } else {
-                  audioRef.current.pause()
-                  setIsPlaying(false)
-                }
-              }}
-              className="text-red-500 transition-colors hover:text-red-400"
-              aria-label="Play/Pause"
-            >
-              {!isPlaying ? (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              ) : (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              )}
-            </button>
-            <button
-              onClick={() => setIsMuted(!isMuted)}
-              className="text-red-500 transition-colors hover:text-red-400"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                </svg>
-              ) : (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                </svg>
-              )}
-            </button>
-       
-            <button
-              onClick={() => handleVolumeAdjust(-5)}
-              className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
-              disabled={isMuted}
-            >
-              −
-            </button>
-            <span className="min-w-[52px] text-center text-red-400">{isMuted ? 'MUTED' : `${volume}%`}</span>
-            <button
-              onClick={() => handleVolumeAdjust(5)}
-              className="rounded border border-red-600 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-600/20"
-              disabled={isMuted}
-            >
-              +
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Inscription Selector */}
@@ -2159,33 +1988,6 @@ function AbyssContent() {
       )}
 
 
-      {/* Entry Modal */}
-      {showEntryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
-          <div className="mx-4 w-full max-w-md rounded-lg border-2 border-red-600/50 bg-black/85 p-8">
-            <div className="space-y-4 text-center">
-              <h2 className="text-3xl font-bold font-mono">
-                <span className="bg-gradient-to-r from-red-600 via-orange-500 to-red-600 bg-clip-text text-transparent">
-                  DESCEND INTO THE ABYSS
-                </span>
-              </h2>
-              <div className="space-y-4 pt-1 font-mono text-gray-400">
-                <div className="text-lg">The cliff edge beckons the damned.</div>
-           
-                <div className="text-xs italic text-red-600/70">&quot;Gravity claims all souls in time.&quot;</div>
-              </div>
-            </div>
-            <div className="flex justify-center pt-4">
-              <button
-                onClick={handleEnter}
-                className="w-full rounded border-2 border-red-600/50 bg-red-600 px-6 py-3 text-xl font-mono tracking-wider text-white transition-colors hover:bg-red-700"
-              >
-                Redemption
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Background */}
       <div
