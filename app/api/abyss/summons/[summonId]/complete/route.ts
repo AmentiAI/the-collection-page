@@ -172,15 +172,32 @@ export async function POST(
           UPDATE abyss_summons
           SET status = 'completed',
               completed_at = NOW(),
-              bonus_granted = FALSE,
+              bonus_granted = TRUE,
               updated_at = NOW()
           WHERE id = $1
         `,
         [summonId],
       )
 
-      // Regular abyss circles DO NOT grant bonus burn credits
-      // Only powder/ascension circles grant rewards
+      // Grant +1 bonus burn credit to all participants (including creator)
+      const allWallets = [
+        summon.creator_wallet,
+        ...participants.map((p: any) => p.wallet),
+      ].filter((w, i, arr) => arr.indexOf(w) === i) // Remove duplicates
+
+      for (const participantWallet of allWallets) {
+        await client.query(
+          `
+            INSERT INTO abyss_bonus_allowances (wallet, available, updated_at)
+            VALUES ($1, 1, NOW())
+            ON CONFLICT (wallet)
+            DO UPDATE SET
+              available = abyss_bonus_allowances.available + 1,
+              updated_at = NOW()
+          `,
+          [participantWallet],
+        )
+      }
 
       await client.query('COMMIT')
 
@@ -209,9 +226,20 @@ export async function POST(
         [summonId],
       )
 
+      // Get bonus allowance for the creator to return in response
+      let bonusAllowance: number | undefined
+      if (wallet) {
+        const allowanceRes = await client.query(
+          `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+          [wallet],
+        )
+        bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+      }
+
       return NextResponse.json({
         success: true,
         summon: mapSummonRow(refreshed.rows[0]),
+        ...(typeof bonusAllowance === 'number' ? { bonusAllowance } : {}),
       })
     } catch (error) {
       if (client) {

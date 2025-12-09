@@ -897,8 +897,11 @@ export default function AbyssSummonPage() {
           }
           toast.success(payload?.message ?? `${powderTermCapitalized} channel complete.`)
         } else {
-          // Regular abyss circles do NOT grant any rewards
-          toast.success('Summoning circle completed.')
+          // Regular abyss circles grant bonus burn credits
+          if (typeof payload?.bonusAllowance === 'number') {
+            setBonusAllowance(Number(payload.bonusAllowance))
+          }
+          toast.success('Summoning circle completed. All participants received +1 bonus burn credit!')
         }
         if (ordinalAddress) {
           await refreshSummons(ordinalAddress, mode)

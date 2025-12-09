@@ -1620,16 +1620,8 @@ function AbyssContent() {
               DAMNED POOL COMPLETE! Burn window active until {new Date(burnWindowExpiresAt).toLocaleTimeString()}
             </div>
           )}
-          {abyssDisabled && !burnWindowActive && (
-            <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
-              {ABYSS_DISABLED_MESSAGE}
-            </div>
-          )}
-          {userCapReached && (
-            <div className="mt-3 rounded border border-green-500/40 bg-green-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-green-300">
-              Abyss satiated. Further burns disabled.
-            </div>
-          )}
+       
+        
           {globalCapReached && bonusBurnAvailable && (
             <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200">
               Summoning bonus active — {bonusAllowance} bonus burn

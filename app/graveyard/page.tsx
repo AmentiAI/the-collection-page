@@ -1774,9 +1774,9 @@ function GraveyardContent() {
           </section>
         )}
 
-        {/* Mint Queue Section */}
+        {/* Mint Queue Section - HIDDEN */}
         {mintQueueImages.length > 0 && (
-          <section className="flex flex-col gap-5">
+          <section className="hidden flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-emerald-300">
                 Waiting Release (Mint)
