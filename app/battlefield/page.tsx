@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
+import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
 
 // Leaflet map with landmarks
 const LeafletTileMap = dynamic(() => import('./LeafletTileMap'), { ssr: false })
@@ -177,8 +178,9 @@ export default function BattlefieldPage() {
     : [...landmarks, demonLandmark, angelLandmark]
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
+    <GlobalStartTimeGate pageName="Battlefield">
+      <>
+        <style dangerouslySetInnerHTML={{__html: `
         .map-container .leaflet-container {
           position: absolute !important;
           top: 0 !important;
@@ -298,6 +300,7 @@ export default function BattlefieldPage() {
           </div>
         </div>
       </div>
-    </>
+      </>
+    </GlobalStartTimeGate>
   )
 }

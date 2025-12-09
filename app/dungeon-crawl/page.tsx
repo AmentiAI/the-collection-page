@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Sword, Shield, Clock, Users, CheckCircle2, XCircle, Gift, Trophy, Skull, ScrollText, Swords, ChevronDown, ChevronUp } from 'lucide-react'
+import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface DungeonCrawl {
@@ -222,9 +223,10 @@ const LevelCard = memo(({
   }
 
   return (
-    <div
-      className={`border-2 rounded-lg p-4 backdrop-blur-sm transition-all ${
-        windowState.isOpen 
+    <GlobalStartTimeGate pageName="Dungeon Crawl">
+      <div
+        className={`border-2 rounded-lg p-4 backdrop-blur-sm transition-all ${
+          windowState.isOpen 
           ? 'level-card-active bg-gradient-to-br from-amber-950/40 to-red-950/40 shadow-lg shadow-amber-500/20' 
           : 'border-stone-600/60 bg-stone-900/50'
       }`}
@@ -1713,5 +1715,6 @@ export default function DungeonCrawlPage() {
         </main>
       </div>
     </div>
+    </GlobalStartTimeGate>
   )
 }

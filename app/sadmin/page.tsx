@@ -89,6 +89,13 @@ const adminLinks: AdminLink[] = [
     icon: <Sword className="h-8 w-8" />,
     color: 'purple',
   },
+  {
+    href: '/sadmin/settings',
+    title: 'Global Settings',
+    description: 'Configure global start time for all game pages',
+    icon: <Settings className="h-8 w-8" />,
+    color: 'red',
+  },
 ]
 
 const colorClasses: Record<string, { border: string; bg: string; text: string; hover: string }> = {

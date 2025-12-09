@@ -20,8 +20,28 @@ export function formatTimestamp(value: string | null | undefined) {
 }
 
 // UTC timezone handling - 1 hour every 6 hours starting at UTC 05:00 (EST midnight)
-export function isAbyssSummonClosed(): { isClosed: boolean; timeUntilOpen: number; timeUntilClose: number } {
+// Also checks global start time - if set, timer is disabled until global start time passes
+export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUntilOpen: number; timeUntilClose: number }> {
   const now = new Date()
+  
+  // Check global start time first
+  try {
+    const response = await fetch('/api/settings/global-start-time', { cache: 'no-store' })
+    const data = await response.json()
+    
+    if (data.success && data.globalStartTime) {
+      const globalStartTime = new Date(data.globalStartTime)
+      const timeRemaining = globalStartTime.getTime() - now.getTime()
+      
+      // If global start time hasn't passed, keep closed
+      if (timeRemaining > 0) {
+        return { isClosed: true, timeUntilOpen: timeRemaining, timeUntilClose: 0 }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking global start time:', error)
+    // Continue with normal timer logic on error
+  }
   
   // Use UTC time directly
   const utcHour = now.getUTCHours()
