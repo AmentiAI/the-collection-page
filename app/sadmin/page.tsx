@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword, Flame } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -95,6 +95,13 @@ const adminLinks: AdminLink[] = [
     description: 'Configure global start time for game pages',
     icon: <Settings className="h-8 w-8" />,
     color: 'green',
+  },
+  {
+    href: '/sadmin/burn-window',
+    title: 'Burn Window',
+    description: 'Manually create abyss burn windows for bonus credits',
+    icon: <Flame className="h-8 w-8" />,
+    color: 'red',
   },
 ]
 
