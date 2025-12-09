@@ -255,24 +255,53 @@ export default function GlobalSettingsPage() {
               </p>
 
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="start-time" className="text-gray-300 mb-2 block">
-                    Start Time (ISO 8601 format)
-                  </Label>
-                  <Input
-                    id="start-time"
-                    type="text"
-                    placeholder="2025-01-01T00:00:00Z or leave empty for no restriction"
-                    value={globalStartTime}
-                    onChange={(e) => setGlobalStartTime(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Format: YYYY-MM-DDTHH:mm:ssZ (UTC) or YYYY-MM-DDTHH:mm:ss (local time)
-                    <br />
-                    Leave empty to remove restriction
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start-date" className="text-gray-300 mb-2 block">
+                      Start Date
+                    </Label>
+                    <Input
+                      id="start-date"
+                      type="date"
+                      value={dateValue}
+                      onChange={(e) => handleDateTimeChange(e.target.value, timeValue)}
+                      className="bg-gray-800 border-gray-600 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="start-time" className="text-gray-300 mb-2 block">
+                      Start Time (Local Time)
+                    </Label>
+                    <Input
+                      id="start-time"
+                      type="time"
+                      value={timeValue}
+                      onChange={(e) => handleDateTimeChange(dateValue, e.target.value)}
+                      className="bg-gray-800 border-gray-600 text-white"
+                    />
+                  </div>
                 </div>
+                <div className="rounded-lg border border-blue-600/40 bg-blue-950/20 p-3">
+                  <p className="text-xs text-gray-400 mb-1">
+                    <strong className="text-blue-300">Current Setting:</strong>
+                  </p>
+                  {effectiveTimestamp ? (
+                    <p className="text-sm text-gray-300 font-mono">
+                      {new Date(effectiveTimestamp).toLocaleString()} (Local)
+                      <br />
+                      <span className="text-xs text-gray-500">
+                        {new Date(effectiveTimestamp).toISOString()} (UTC)
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No restriction set</p>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Select a date and time above. The system will automatically convert to UTC.
+                  <br />
+                  Leave both fields empty to remove restriction.
+                </p>
 
                 {effectiveTimestamp && (
                   <div className="rounded-lg border border-blue-600/40 bg-blue-950/20 p-4">
@@ -333,7 +362,7 @@ export default function GlobalSettingsPage() {
                   </Button>
                   <Button
                     onClick={handleClear}
-                    disabled={saving || !globalStartTime.trim()}
+                    disabled={saving || (!globalStartTime.trim() && !dateValue && !timeValue)}
                     variant="outline"
                     className="border-gray-600 text-gray-300 hover:bg-gray-800"
                   >
