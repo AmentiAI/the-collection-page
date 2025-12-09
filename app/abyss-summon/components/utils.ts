@@ -19,29 +19,61 @@ export function formatTimestamp(value: string | null | undefined) {
   return date.toLocaleString()
 }
 
-// UTC timezone handling - 1 hour every 6 hours starting at UTC 05:00 (EST midnight)
-// Also checks global start time - if set, timer is disabled until global start time passes
-export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUntilOpen: number; timeUntilClose: number }> {
-  const now = new Date()
-  
-  // Check global start time first
+// Check global start time restriction
+export async function checkGlobalStartTimeForAbyss(): Promise<{ isRestricted: boolean; timeUntilStart: number; startTime: Date | null }> {
   try {
-    const response = await fetch('/api/settings/global-start-time', { cache: 'no-store' })
+    const response = await fetch('/api/admin/global-settings?key=global_start_time', {
+      cache: 'no-store'
+    })
+
+    if (!response.ok) {
+      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+    }
+
     const data = await response.json()
-    
-    if (data.success && data.globalStartTime) {
-      const globalStartTime = new Date(data.globalStartTime)
-      const timeRemaining = globalStartTime.getTime() - now.getTime()
-      
-      // If global start time hasn't passed, keep closed
-      if (timeRemaining > 0) {
-        return { isClosed: true, timeUntilOpen: timeRemaining, timeUntilClose: 0 }
-      }
+    const settingValue = data.setting?.setting_value || ''
+
+    if (!settingValue || settingValue.trim() === '') {
+      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+    }
+
+    const startTime = new Date(settingValue.trim())
+    if (isNaN(startTime.getTime())) {
+      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+    }
+
+    const now = new Date()
+    const timeUntilStart = Math.max(0, startTime.getTime() - now.getTime())
+
+    return {
+      isRestricted: true,
+      timeUntilStart,
+      startTime
     }
   } catch (error) {
     console.error('Error checking global start time:', error)
-    // Continue with normal timer logic on error
+    return { isRestricted: false, timeUntilStart: 0, startTime: null }
   }
+}
+
+// UTC timezone handling - 1 hour every 6 hours starting at UTC 05:00 (EST midnight)
+// This function now respects global start time - if global start time is set and not passed, it overrides the 6-hour cycle
+export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUntilOpen: number; timeUntilClose: number; globalRestriction?: { isRestricted: boolean; timeUntilStart: number; startTime: Date | null } }> {
+  // First check global start time
+  const globalStatus = await checkGlobalStartTimeForAbyss()
+  
+  // If global start time is set and not passed, override the 6-hour timer
+  if (globalStatus.isRestricted && globalStatus.timeUntilStart > 0) {
+    return {
+      isClosed: true,
+      timeUntilOpen: globalStatus.timeUntilStart,
+      timeUntilClose: 0,
+      globalRestriction: globalStatus
+    }
+  }
+  
+  // If global start time has passed or is not set, use normal 6-hour cycle
+  const now = new Date()
   
   // Use UTC time directly
   const utcHour = now.getUTCHours()
@@ -80,7 +112,7 @@ export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUn
     }
     
     const timeUntilOpen = secondsUntilOpen * 1000
-    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0 }
+    return { isClosed: true, timeUntilOpen: Math.max(0, timeUntilOpen), timeUntilClose: 0, globalRestriction: undefined }
   } else {
     // Calculate time until next closing (closes 1 hour after opening)
     const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
@@ -96,7 +128,7 @@ export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUn
     
     const timeUntilClose = secondsUntilClose * 1000
     
-    return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose) }
+    return { isClosed: false, timeUntilOpen: 0, timeUntilClose: Math.max(0, timeUntilClose), globalRestriction: undefined }
   }
 }
 

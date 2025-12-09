@@ -312,11 +312,11 @@ export async function POST(
       })
 
       const insertRes = await client.query(
-        `
-          INSERT INTO dungeon_crawl_participants 
-          (instance_id, wallet, inscription_id, inscription_image, trait)
+          `
+            INSERT INTO dungeon_crawl_participants 
+            (instance_id, wallet, inscription_id, inscription_image, trait)
           VALUES ${insertValues}
-          ON CONFLICT (instance_id, inscription_id) DO NOTHING
+            ON CONFLICT (instance_id, inscription_id) DO NOTHING
           RETURNING inscription_id
         `,
         insertParams

@@ -92,9 +92,9 @@ const adminLinks: AdminLink[] = [
   {
     href: '/sadmin/settings',
     title: 'Global Settings',
-    description: 'Configure global start time for all game pages',
+    description: 'Configure global start time for game pages',
     icon: <Settings className="h-8 w-8" />,
-    color: 'red',
+    color: 'green',
   },
 ]
 

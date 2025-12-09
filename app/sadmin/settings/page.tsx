@@ -1,53 +1,49 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Save, Clock, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
-import Link from 'next/link'
+import Header from '@/components/Header'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Loader2, Save, Clock, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useLaserEyes } from '@omnisat/lasereyes'
 
-export default function SettingsPage() {
+export default function GlobalSettingsPage() {
+  const { connected, address } = useLaserEyes()
   const toast = useToast()
-  const [globalStartTime, setGlobalStartTime] = useState<string | null>(null)
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [timeInput, setTimeInput] = useState('')
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
+  const [globalStartTime, setGlobalStartTime] = useState('')
+  const [description, setDescription] = useState('')
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchSettings()
-  }, [])
+  const handleHolderVerified = (holder: boolean) => {
+    setIsHolder(holder)
+    setIsVerifying(false)
+  }
 
-  useEffect(() => {
-    if (globalStartTime) {
-      const interval = setInterval(() => {
-        const now = new Date()
-        const start = new Date(globalStartTime)
-        const remaining = start.getTime() - now.getTime()
-        setTimeRemaining(remaining > 0 ? remaining : 0)
-      }, 1000)
-
-      return () => clearInterval(interval)
-    } else {
-      setTimeRemaining(null)
-    }
-  }, [globalStartTime])
+  const handleVerifyingStart = () => {
+    setIsVerifying(true)
+  }
 
   const fetchSettings = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/sadmin/settings')
-      const data = await response.json()
+      const response = await fetch('/api/admin/global-settings?key=global_start_time')
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings')
+      }
 
-      if (data.success) {
-        setGlobalStartTime(data.globalStartTime)
-        if (data.globalStartTime) {
-          setTimeInput(new Date(data.globalStartTime).toISOString().slice(0, 16))
-        } else {
-          setTimeInput('')
-        }
-      } else {
-        toast.error('Failed to load settings')
+      const data = await response.json()
+      if (data.success && data.setting) {
+        const value = data.setting.setting_value || ''
+        setGlobalStartTime(value)
+        setDescription(data.setting.description || '')
+        setLastUpdated(data.setting.updated_at)
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -57,80 +53,99 @@ export default function SettingsPage() {
     }
   }
 
+  useEffect(() => {
+    fetchSettings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleSave = async () => {
     try {
       setSaving(true)
 
-      const valueToSave = timeInput.trim() ? timeInput : null
+      // Validate timestamp if provided
+      if (globalStartTime.trim() !== '') {
+        const timestamp = new Date(globalStartTime.trim())
+        if (isNaN(timestamp.getTime())) {
+          toast.error('Invalid timestamp format. Use ISO 8601 format (e.g., 2025-01-01T00:00:00Z)')
+          return
+        }
+      }
 
-      const response = await fetch('/api/sadmin/settings', {
+      const response = await fetch('/api/admin/global-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ globalStartTime: valueToSave })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: 'global_start_time',
+          value: globalStartTime.trim(),
+          description: description || 'Global start time for pages: /battlez, /battlefield, /leaderboard, /dungeon-crawl, /crystallizationz, /abyss-summon. ISO 8601 timestamp. Empty string means no restriction.'
+        })
       })
 
       const data = await response.json()
 
-      if (data.success) {
-        setGlobalStartTime(data.globalStartTime)
-        toast.success('Settings saved successfully')
-        await fetchSettings()
-      } else {
-        toast.error(data.error || 'Failed to save settings')
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save settings')
       }
+
+      toast.success('Settings saved successfully')
+      setLastUpdated(data.setting.updated_at)
     } catch (error) {
       console.error('Error saving settings:', error)
-      toast.error('Failed to save settings')
+      toast.error(error instanceof Error ? error.message : 'Failed to save settings')
     } finally {
       setSaving(false)
     }
   }
 
   const handleClear = () => {
-    setTimeInput('')
+    setGlobalStartTime('')
   }
 
-  const formatTimeRemaining = (ms: number) => {
-    if (ms <= 0) return '0s'
-    const seconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-    const days = Math.floor(hours / 24)
+  // Calculate time until start
+  const timeUntilStart = globalStartTime.trim() ? (() => {
+    try {
+      const startTime = new Date(globalStartTime.trim())
+      if (isNaN(startTime.getTime())) return null
+      const now = new Date()
+      const diff = startTime.getTime() - now.getTime()
+      return diff > 0 ? diff : 0
+    } catch {
+      return null
+    }
+  })() : null
 
-    if (days > 0) {
-      return `${days}d ${hours % 24}h ${minutes % 60}m ${seconds % 60}s`
-    }
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m ${seconds % 60}s`
-    }
-    if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`
-    }
-    return `${seconds}s`
+  const formatTimeUntilStart = (ms: number): string => {
+    if (ms <= 0) return 'Started'
+    const totalSeconds = Math.ceil(ms / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    return `${hours}h ${minutes}m ${seconds}s`
   }
-
-  const isAccessible = timeRemaining === null || timeRemaining <= 0
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-black text-white">
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={connected}
+        onHolderVerified={handleHolderVerified}
+        onVerifyingStart={handleVerifyingStart}
+        onConnectedChange={() => {}}
+        showMusicControls={true}
+      />
+
+      <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
-          <Link href="/sadmin" className="text-gray-400 hover:text-white mb-4 inline-block">
-            ← Back to Super Admin
-          </Link>
-          <div className="flex items-center gap-4 mb-4">
-            <Settings className="h-10 w-10 text-red-500" />
-            <h1 className="text-4xl font-bold text-red-500">Global Settings</h1>
-          </div>
-          <p className="text-gray-400">
-            Configure global start time for game pages. Pages will be inaccessible until this time passes.
-          </p>
+          <h1 className="text-4xl font-bold mb-2">Global Settings</h1>
+          <p className="text-gray-400">Configure global start time for game pages</p>
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-            <p className="mt-4 text-gray-400">Loading settings...</p>
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
         ) : (
           <div className="space-y-6">
@@ -138,75 +153,103 @@ export default function SettingsPage() {
             <div className="rounded-2xl border border-gray-700 bg-gray-900/50 p-6">
               <div className="flex items-center gap-3 mb-4">
                 <Clock className="h-6 w-6 text-blue-400" />
-                <h2 className="text-2xl font-bold text-white">Global Start Time</h2>
+                <h2 className="text-2xl font-bold">Global Start Time</h2>
               </div>
 
-              <p className="text-gray-400 mb-6">
-                Set a start time to restrict access to all game pages. Pages affected:
-                <span className="block mt-2 text-sm text-gray-500">
+              <p className="text-sm text-gray-400 mb-6">
+                Set a global start time that controls access to the following pages:
+                <br />
+                <span className="font-mono text-xs mt-2 block">
                   /battlez, /battlefield, /leaderboard, /dungeon-crawl, /crystallizationz, /abyss-summon
+                </span>
+                <br />
+                <span className="text-yellow-400 mt-2 block">
+                  Note: This will override the 6-hour timer on /abyss-summon until the start time passes.
                 </span>
               </p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Start Date & Time (UTC)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={timeInput}
-                    onChange={(e) => setTimeInput(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  <Label htmlFor="start-time" className="text-gray-300 mb-2 block">
+                    Start Time (ISO 8601 format)
+                  </Label>
+                  <Input
+                    id="start-time"
+                    type="text"
+                    placeholder="2025-01-01T00:00:00Z or leave empty for no restriction"
+                    value={globalStartTime}
+                    onChange={(e) => setGlobalStartTime(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white"
                   />
-                  <p className="mt-2 text-xs text-gray-500">
-                    Leave empty to allow access immediately (no restriction)
+                  <p className="text-xs text-gray-500 mt-1">
+                    Format: YYYY-MM-DDTHH:mm:ssZ (UTC) or YYYY-MM-DDTHH:mm:ss (local time)
+                    <br />
+                    Leave empty to remove restriction
                   </p>
                 </div>
 
-                {globalStartTime && (
-                  <div className="mt-4 p-4 rounded-lg border border-gray-700 bg-gray-800/50">
+                {globalStartTime.trim() && (
+                  <div className="rounded-lg border border-blue-600/40 bg-blue-950/20 p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      {isAccessible ? (
+                      {timeUntilStart !== null && timeUntilStart > 0 ? (
                         <>
-                          <CheckCircle2 className="h-5 w-5 text-green-400" />
-                          <span className="text-green-400 font-semibold">Pages are accessible</span>
+                          <AlertCircle className="h-5 w-5 text-yellow-400" />
+                          <span className="font-semibold text-yellow-400">Pages are locked</span>
                         </>
                       ) : (
                         <>
-                          <AlertCircle className="h-5 w-5 text-red-400" />
-                          <span className="text-red-400 font-semibold">Pages are locked</span>
+                          <CheckCircle2 className="h-5 w-5 text-green-400" />
+                          <span className="font-semibold text-green-400">Pages are accessible</span>
                         </>
                       )}
                     </div>
-                    <div className="text-sm text-gray-400 space-y-1">
-                      <p>
-                        <span className="text-gray-500">Current start time:</span>{' '}
-                        <span className="text-white">{new Date(globalStartTime).toLocaleString()}</span>
-                      </p>
-                      {!isAccessible && timeRemaining !== null && (
-                        <p>
-                          <span className="text-gray-500">Time remaining:</span>{' '}
-                          <span className="text-red-400 font-mono">{formatTimeRemaining(timeRemaining)}</span>
+                    {timeUntilStart !== null && timeUntilStart > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-300">
+                          Time until start: <span className="font-mono font-bold text-yellow-400">{formatTimeUntilStart(timeUntilStart)}</span>
                         </p>
-                      )}
-                    </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Start time: {new Date(globalStartTime.trim()).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {timeUntilStart !== null && timeUntilStart === 0 && (
+                      <p className="text-sm text-gray-300">
+                        Start time has passed. Pages are now accessible.
+                      </p>
+                    )}
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                {lastUpdated && (
+                  <p className="text-xs text-gray-500">
+                    Last updated: {new Date(lastUpdated).toLocaleString()}
+                  </p>
+                )}
+
+                <div className="flex gap-3 pt-4">
                   <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <Save className="h-4 w-4" />
-                    {saving ? 'Saving...' : 'Save Settings'}
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={handleClear}
-                    disabled={saving || !timeInput}
-                    className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg"
+                    disabled={saving || !globalStartTime.trim()}
+                    variant="outline"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-800"
                   >
                     Clear
                   </Button>
@@ -215,23 +258,23 @@ export default function SettingsPage() {
             </div>
 
             {/* Info Box */}
-            <div className="rounded-2xl border border-blue-600/40 bg-blue-950/20 p-6">
+            <div className="rounded-2xl border border-yellow-600/40 bg-yellow-950/20 p-6">
               <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-blue-400 mb-2">How It Works</h3>
+                <AlertCircle className="h-6 w-6 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-yellow-400 mb-2">How It Works</h3>
                   <ul className="text-sm text-gray-300 space-y-1 list-disc list-inside">
-                    <li>When a start time is set, all listed pages will show a "Coming Soon" message until the time passes</li>
-                    <li>The abyss-summon timer will be disabled until the start time passes</li>
-                    <li>Setting the start time to empty/null removes the restriction</li>
-                    <li>Time is stored in UTC and compared against server time</li>
+                    <li>When a start time is set, all listed pages will show a &quot;locked&quot; message until the start time passes</li>
+                    <li>The /abyss-summon page&apos;s 6-hour timer will be disabled until the global start time passes</li>
+                    <li>Once the start time passes, pages become accessible and /abyss-summon resumes its normal 6-hour cycle</li>
+                    <li>To remove the restriction, clear the start time field and save</li>
                   </ul>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

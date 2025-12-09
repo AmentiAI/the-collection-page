@@ -309,16 +309,16 @@ export default function AdminDungeonCrawlsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Header
-        isHolder={isHolder}
-        isVerifying={isVerifying}
-        connected={connected}
-        onHolderVerified={handleHolderVerified}
-        onVerifyingStart={handleVerifyingStart}
-        onConnectedChange={() => {}}
-        showMusicControls={true}
-      />
+      <div className="min-h-screen bg-black text-white">
+        <Header
+          isHolder={isHolder}
+          isVerifying={isVerifying}
+          connected={connected}
+          onHolderVerified={handleHolderVerified}
+          onVerifyingStart={handleVerifyingStart}
+          onConnectedChange={() => {}}
+          showMusicControls={true}
+        />
 
         <main className="container mx-auto px-4 py-8">
           <div className="mb-8 flex justify-between items-center">

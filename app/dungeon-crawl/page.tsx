@@ -7,7 +7,7 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Sword, Shield, Clock, Users, CheckCircle2, XCircle, Gift, Trophy, Skull, ScrollText, Swords, ChevronDown, ChevronUp } from 'lucide-react'
-import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface DungeonCrawl {
@@ -225,11 +225,11 @@ const LevelCard = memo(({
   return (
     <div
       className={`border-2 rounded-lg p-4 backdrop-blur-sm transition-all ${
-          windowState.isOpen 
+        windowState.isOpen 
           ? 'level-card-active bg-gradient-to-br from-amber-950/40 to-red-950/40 shadow-lg shadow-amber-500/20' 
           : 'border-stone-600/60 bg-stone-900/50'
-        }`}
-      >
+      }`}
+    >
       <div className="flex items-center justify-between mb-3">
         <h3 className={`font-bold text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
           windowState.isOpen ? 'text-amber-300' : 'text-stone-400'
@@ -433,8 +433,8 @@ export default function DungeonCrawlPage() {
       console.error('Error fetching crawls:', error)
       setCrawls((prev) => {
         if (prev.length === 0) {
-          toast.error('Failed to load dungeon crawls')
-        }
+        toast.error('Failed to load dungeon crawls')
+      }
         return prev
       })
     }
@@ -486,7 +486,7 @@ export default function DungeonCrawlPage() {
   // Always fetch crawls on mount and when connection changes (crawls are public)
   useEffect(() => {
     let isMounted = true
-    setLoading(true)
+      setLoading(true)
     
     const fetchData = async () => {
       // Always fetch crawls (public data)
@@ -617,7 +617,7 @@ export default function DungeonCrawlPage() {
       toast.error('Failed to join dungeon crawl')
     } finally {
       if (isMounted) {
-        setJoining(false)
+      setJoining(false)
       }
     }
   }
@@ -679,8 +679,8 @@ export default function DungeonCrawlPage() {
       toast.error('Failed to complete level')
     } finally {
       if (isMounted) {
-        setCompletingLevel(null)
-      }
+      setCompletingLevel(null)
+    }
     }
   }
 
@@ -783,10 +783,10 @@ export default function DungeonCrawlPage() {
   }, [])
 
   return (
-    <GlobalStartTimeGate pageName="Dungeon Crawl">
+    <GlobalStartTimeLock>
       <div className="min-h-screen text-white relative">
-      {/* Background Image */}
-      <div 
+        {/* Background Image */}
+        <div 
         className="fixed inset-0 z-0"
         style={{
           backgroundImage: 'url(/70ca28f7-c3f7-496c-a0c6-42044399bd58.png)',
@@ -968,7 +968,7 @@ export default function DungeonCrawlPage() {
                               <span className="text-yellow-400 font-bold">
                                 You won {instance.myRewardCount} reward{instance.myRewardCount !== 1 ? 's' : ''}!
                               </span>
-                            </div>
+                        </div>
                           )}
                           {instance.myRewardCount === 0 && instance.status === 'completed' && address && (
                             <div className="flex items-center gap-2">
@@ -976,7 +976,7 @@ export default function DungeonCrawlPage() {
                               <span className="text-stone-400 text-sm">
                                 No rewards won
                               </span>
-                            </div>
+                      </div>
                           )}
                         </div>
                       </div>
@@ -1033,33 +1033,33 @@ export default function DungeonCrawlPage() {
                 if (hasNoInstance && crawl.nextRestartAt) {
                   const restartTime = new Date(crawl.nextRestartAt).getTime()
                   const timeUntilRestart = restartTime - nowRef.current
-                  if (timeUntilRestart > 0) {
-                    const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
-                    const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
-                    const seconds = Math.floor((timeUntilRestart % (1000 * 60)) / 1000)
-                    if (hours > 0) {
-                      countdownText = `Next crawl starts in ${hours}h ${minutes}m ${seconds}s`
-                    } else if (minutes > 0) {
-                      countdownText = `Next crawl starts in ${minutes}m ${seconds}s`
+                    if (timeUntilRestart > 0) {
+                      const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
+                      const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
+                      const seconds = Math.floor((timeUntilRestart % (1000 * 60)) / 1000)
+                      if (hours > 0) {
+                        countdownText = `Next crawl starts in ${hours}h ${minutes}m ${seconds}s`
+                      } else if (minutes > 0) {
+                        countdownText = `Next crawl starts in ${minutes}m ${seconds}s`
+                      } else {
+                        countdownText = `Next crawl starts in ${seconds}s`
+                      }
                     } else {
-                      countdownText = `Next crawl starts in ${seconds}s`
+                      isOverdue = true
+                      const timeOverdue = Math.abs(timeUntilRestart)
+                      const hours = Math.floor(timeOverdue / (1000 * 60 * 60))
+                      const minutes = Math.floor((timeOverdue % (1000 * 60 * 60)) / (1000 * 60))
+                      if (hours > 0) {
+                        countdownText = `Restart overdue by ${hours}h ${minutes}m - should be available soon`
+                      } else if (minutes > 0) {
+                        countdownText = `Restart overdue by ${minutes}m - should be available soon`
+                      } else {
+                        countdownText = 'Restart overdue - should be available soon'
+                      }
                     }
-                  } else {
-                    isOverdue = true
-                    const timeOverdue = Math.abs(timeUntilRestart)
-                    const hours = Math.floor(timeOverdue / (1000 * 60 * 60))
-                    const minutes = Math.floor((timeOverdue % (1000 * 60 * 60)) / (1000 * 60))
-                    if (hours > 0) {
-                      countdownText = `Restart overdue by ${hours}h ${minutes}m - should be available soon`
-                    } else if (minutes > 0) {
-                      countdownText = `Restart overdue by ${minutes}m - should be available soon`
-                    } else {
-                      countdownText = 'Restart overdue - should be available soon'
-                    }
-                  }
                 } else if (hasNoInstance) {
-                  countdownText = 'Waiting for restart...'
-                }
+                    countdownText = 'Waiting for restart...'
+                  }
 
                 return (
                   <div key={crawl.id} className="relative group">
@@ -1290,10 +1290,10 @@ export default function DungeonCrawlPage() {
                             if (level === 3 && (instance.status === 'ready' || instance.status === 'level_1' || !instance.level2CompletedAt)) return null
                             
                             const windowData = level === 1 ? level1WindowData : level === 2 ? level2WindowData : level3WindowData
-                            
-                            return (
+
+                        return (
                               <LevelCard
-                                key={level}
+                            key={level}
                                 level={level}
                                 instance={instance}
                                 crawl={crawl}
@@ -1396,7 +1396,7 @@ export default function DungeonCrawlPage() {
                                                   : 'border-stone-600'
                                               }`}
                                             />
-                                          ) : (
+                              ) : (
                                             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 bg-stone-800/90 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${
                                               allComplete
                                                 ? 'border-emerald-400 text-emerald-200'
@@ -1416,10 +1416,10 @@ export default function DungeonCrawlPage() {
                                                 : 'text-stone-200'
                                             }`}>
                                               {displayName}
-                                            </div>
+                            </div>
                                             <div className="text-[10px] text-stone-400">
                                               {armyParticipants.length} unit{armyParticipants.length !== 1 ? 's' : ''}
-                                            </div>
+                            </div>
                                           </div>
                                           {/* Army progress badges */}
                                           <div className="flex items-center gap-1">
@@ -1439,8 +1439,8 @@ export default function DungeonCrawlPage() {
                                                   : 'bg-amber-500/30 text-amber-200'
                                               }`}>
                                                 L2: {armyProgress.level2}/{armyParticipants.length}
-                                              </div>
-                                            )}
+                              </div>
+                            )}
                                             {armyProgress.level3 > 0 && (
                                               <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                                 armyProgress.level3 === armyParticipants.length
@@ -1524,10 +1524,10 @@ export default function DungeonCrawlPage() {
                                                     </div>
                                                   </div>
                                                 </div>
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                                       </div>
                                     </div>
                                   )
@@ -1556,154 +1556,154 @@ export default function DungeonCrawlPage() {
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
                               <h3 className="font-bold text-base sm:text-lg">Select Ordinals to Join</h3>
                               <div className="flex flex-wrap gap-2">
-                                <Button
-                                  onClick={() => {
-                                    const available = ordinals.filter(
-                                      (o) => {
-                                        if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
-                                        if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
-                                        return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                      }
-                                    )
-                                    if (crawl.allowMultipleFromStock) {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(available.map((o) => o.inscriptionId)))
-                                    } else {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(available.slice(0, 1).map((o) => o.inscriptionId)))
-                                    }
-                                  }}
-                                  className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
-                                >
-                                  Select All Available
-                                </Button>
-                                <Button
-                                  onClick={() => {
-                                    const angelic = ordinals.filter(
-                                      (o) => {
-                                        if (crawl.allowedTraits === 'demonic') return false
-                                        return o.trait === 'Angelic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                      }
-                                    )
-                                    if (crawl.allowMultipleFromStock) {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(angelic.map((o) => o.inscriptionId)))
-                                    } else {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(angelic.slice(0, 1).map((o) => o.inscriptionId)))
-                                    }
-                                  }}
-                                  className="border-2 border-blue-500 hover:border-blue-400 bg-blue-900/50 hover:bg-blue-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-blue-500/20"
-                                >
-                                  Select Angelic
-                                </Button>
-                                <Button
-                                  onClick={() => {
-                                    const demonic = ordinals.filter(
-                                      (o) => {
-                                        if (crawl.allowedTraits === 'angelic') return false
-                                        return o.trait === 'Demonic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                      }
-                                    )
-                                    if (crawl.allowMultipleFromStock) {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(demonic.map((o) => o.inscriptionId)))
-                                    } else {
-                                      setSelectedOrdinalsForInstance(instance.id, new Set(demonic.slice(0, 1).map((o) => o.inscriptionId)))
-                                    }
-                                  }}
-                                  className="border-2 border-red-500 hover:border-red-400 bg-red-900/50 hover:bg-red-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-red-500/20"
-                                >
-                                  Select Demonic
-                                </Button>
-                                {getSelectedOrdinals(instance.id).size > 0 && (
-                                  <Button
-                                    onClick={() => setSelectedOrdinalsForInstance(instance.id, new Set())}
-                                    className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
-                                  >
-                                    Clear
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 max-h-96 overflow-y-auto">
-                              {ordinals
-                                .filter((o) => {
-                                  if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
-                                  if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
-                                  return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                })
-                                .map((ordinal) => {
-                                const instanceSelectedOrdinals = getSelectedOrdinals(instance.id)
-                                const isSelected = instanceSelectedOrdinals.has(ordinal.inscriptionId)
-                                const isInCrawl = instance.participants.some(
-                                  (p) => p.inscriptionId === ordinal.inscriptionId
+                            <Button
+                              onClick={() => {
+                                const available = ordinals.filter(
+                                  (o) => {
+                                    if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
+                                    if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
+                                    return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
                                 )
+                                if (crawl.allowMultipleFromStock) {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(available.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(available.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
+                            >
+                              Select All Available
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                const angelic = ordinals.filter(
+                                  (o) => {
+                                        if (crawl.allowedTraits === 'demonic') return false
+                                    return o.trait === 'Angelic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
+                                )
+                                if (crawl.allowMultipleFromStock) {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(angelic.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(angelic.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-blue-500 hover:border-blue-400 bg-blue-900/50 hover:bg-blue-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-blue-500/20"
+                            >
+                              Select Angelic
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                const demonic = ordinals.filter(
+                                  (o) => {
+                                        if (crawl.allowedTraits === 'angelic') return false
+                                    return o.trait === 'Demonic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
+                                )
+                                if (crawl.allowMultipleFromStock) {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(demonic.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(demonic.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-red-500 hover:border-red-400 bg-red-900/50 hover:bg-red-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-red-500/20"
+                            >
+                              Select Demonic
+                            </Button>
+                            {getSelectedOrdinals(instance.id).size > 0 && (
+                              <Button
+                                onClick={() => setSelectedOrdinalsForInstance(instance.id, new Set())}
+                                    className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 max-h-96 overflow-y-auto">
+                          {ordinals
+                            .filter((o) => {
+                              if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
+                              if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
+                              return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                            })
+                            .map((ordinal) => {
+                            const instanceSelectedOrdinals = getSelectedOrdinals(instance.id)
+                            const isSelected = instanceSelectedOrdinals.has(ordinal.inscriptionId)
+                            const isInCrawl = instance.participants.some(
+                              (p) => p.inscriptionId === ordinal.inscriptionId
+                            )
 
-                                return (
-                                  <div
-                                    key={ordinal.inscriptionId}
-                                    className={`relative border rounded-lg overflow-hidden cursor-pointer transition-all ${
-                                      isSelected
-                                        ? 'border-green-500 ring-2 ring-green-500'
-                                        : isInCrawl
+                            return (
+                              <div
+                                key={ordinal.inscriptionId}
+                                className={`relative border rounded-lg overflow-hidden cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'border-green-500 ring-2 ring-green-500'
+                                    : isInCrawl
                                           ? 'border-stone-500 opacity-50'
                                           : 'border-stone-600 hover:border-stone-500'
-                                    }`}
-                                    onClick={() => {
-                                      if (isInCrawl) return
-                                      const newSet = new Set(instanceSelectedOrdinals)
-                                      if (isSelected) {
-                                        newSet.delete(ordinal.inscriptionId)
-                                      } else {
-                                        if (!crawl.allowMultipleFromStock && instanceSelectedOrdinals.size > 0) {
-                                          toast.error('Only one ordinal allowed per wallet')
-                                          return
-                                        }
-                                        newSet.add(ordinal.inscriptionId)
-                                      }
-                                      setSelectedOrdinalsForInstance(instance.id, newSet)
-                                    }}
-                                  >
-                                    <div className="aspect-square relative">
-                                      <Image
-                                        src={ordinal.imageUrl}
-                                        alt={ordinal.inscriptionId}
-                                        fill
-                                        className="object-cover"
-                                        unoptimized
-                                      />
-                                    </div>
+                                }`}
+                                onClick={() => {
+                                  if (isInCrawl) return
+                                  const newSet = new Set(instanceSelectedOrdinals)
+                                  if (isSelected) {
+                                    newSet.delete(ordinal.inscriptionId)
+                                  } else {
+                                    if (!crawl.allowMultipleFromStock && instanceSelectedOrdinals.size > 0) {
+                                      toast.error('Only one ordinal allowed per wallet')
+                                      return
+                                    }
+                                    newSet.add(ordinal.inscriptionId)
+                                  }
+                                  setSelectedOrdinalsForInstance(instance.id, newSet)
+                                }}
+                              >
+                                <div className="aspect-square relative">
+                                  <Image
+                                    src={ordinal.imageUrl}
+                                    alt={ordinal.inscriptionId}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </div>
                                     <div className="p-2 bg-stone-900/90 backdrop-blur-sm">
                                       <div className="text-sm truncate text-stone-200">{ordinal.trait}</div>
-                                    </div>
-                                    {isSelected && (
+                                </div>
+                                {isSelected && (
                                       <div className="absolute top-2 right-2 bg-amber-500 rounded-full p-1 shadow-lg">
-                                        <CheckCircle2 className="w-4 h-4 text-white" />
-                                      </div>
-                                    )}
+                                    <CheckCircle2 className="w-4 h-4 text-white" />
                                   </div>
-                                )
-                              })}
-                            </div>
-                            <Button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                handleJoin(instance.id)
-                              }}
-                              disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || instance.status === 'ready'}
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleJoin(instance.id)
+                          }}
+                          disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || instance.status === 'ready'}
                               className="w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 backdrop-blur-sm"
-                            >
-                              {joining ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Joining...
-                                </>
-                              ) : instance.status === 'ready' ? (
-                                'Crawl is Full - Waiting for Start'
-                              ) : (
-                                `Join with ${getSelectedOrdinals(instance.id).size} Ordinal(s)`
-                              )}
-                            </Button>
-                          </div>
-                        ) : null}
+                        >
+                          {joining ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Joining...
+                            </>
+                          ) : instance.status === 'ready' ? (
+                            'Crawl is Full - Waiting for Start'
+                          ) : (
+                            `Join with ${getSelectedOrdinals(instance.id).size} Ordinal(s)`
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
                       </>
                     ) : null}
                     </div>
@@ -1715,6 +1715,6 @@ export default function DungeonCrawlPage() {
         </main>
       </div>
     </div>
-    </GlobalStartTimeGate>
+    </GlobalStartTimeLock>
   )
 }

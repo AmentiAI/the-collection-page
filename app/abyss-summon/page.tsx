@@ -8,7 +8,6 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
-import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
 import type { SummonParticipant, SummonRecord, DamnedOption, SummonLeaderboardEntry, Mode, ActiveTab } from './components/types'
 import { formatCountdown, formatTimestamp, isAbyssSummonClosed } from './components/utils'
 import MainNavigationTabs from './components/MainNavigationTabs'
@@ -92,7 +91,7 @@ export default function AbyssSummonPage() {
   const [inscriptionImageCache, setInscriptionImageCache] = useState<Record<string, string>>({})
   const [summonLeaderboard, setSummonLeaderboard] = useState<SummonLeaderboardEntry[]>([])
   const [summonLeaderboardLoading, setSummonLeaderboardLoading] = useState(false)
-  const [abyssClosed, setAbyssClosed] = useState({ isClosed: false, timeUntilOpen: 0, timeUntilClose: 0 })
+  const [abyssClosed, setAbyssClosed] = useState<{ isClosed: boolean; timeUntilOpen: number; timeUntilClose: number; globalRestriction?: { isRestricted: boolean; timeUntilStart: number; startTime: Date | null } }>({ isClosed: false, timeUntilOpen: 0, timeUntilClose: 0 })
   const [isDeadDemonsEligible, setIsDeadDemonsEligible] = useState<boolean | null>(null)
   const [tipsOpen, setTipsOpen] = useState(false)
   const [burnCount, setBurnCount] = useState<number | null>(null)
@@ -252,30 +251,17 @@ export default function AbyssSummonPage() {
   }, [damnedOptions])
   useEffect(() => {
     const checkStatus = async () => {
-      setNow(Date.now())
-      // Check if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00)
       const status = await isAbyssSummonClosed()
       setAbyssClosed(status)
-      
-      // Check if blocked by global start time
-      try {
-        const response = await fetch('/api/settings/global-start-time', { cache: 'no-store' })
-        const data = await response.json()
-        if (data.success && data.globalStartTime) {
-          const globalStartTime = new Date(data.globalStartTime)
-          const timeRemaining = globalStartTime.getTime() - Date.now()
-          setGlobalStartTimeBlocked(timeRemaining > 0)
-        } else {
-          setGlobalStartTimeBlocked(false)
-        }
-      } catch (error) {
-        setGlobalStartTimeBlocked(false)
-      }
     }
     
-    const intervalId = window.setInterval(checkStatus, 1000)
-    // Initial check
     checkStatus()
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+      // Check if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00)
+      // This now also checks global start time and overrides the 6-hour timer if needed
+      checkStatus()
+    }, 1000)
     return () => window.clearInterval(intervalId)
   }, [])
 
@@ -986,18 +972,19 @@ export default function AbyssSummonPage() {
         showMusicControls={true}
       />
 
-      <GlobalStartTimeGate pageName="Abyss Summon">
-        <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
-        {/* Closed State - Show if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00) or blocked by global start time */}
-        {(abyssClosed.isClosed || globalStartTimeBlocked) && !bypassClosed && (
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
+        {/* Closed State - Show if abyss-summon is closed (opens 1hr every 6hrs at UTC 05:00, 11:00, 17:00, 23:00) */}
+        {abyssClosed.isClosed && !bypassClosed && (
           <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
             <div className="flex flex-col items-center justify-center gap-6 text-center">
               <AlertTriangle className="h-16 w-16 text-red-500 animate-pulse" />
               <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-red-200 md:text-3xl">
-                Summoning Closed
+                {abyssClosed.globalRestriction?.isRestricted ? 'Access Locked' : 'Summoning Closed'}
               </h2>
               <p className="text-sm font-mono uppercase tracking-[0.3em] text-red-300/80">
-                Summoning opens for 1 hour every 6 hours (05:00, 11:00, 17:00, 23:00 UTC).
+                {abyssClosed.globalRestriction?.isRestricted 
+                  ? 'This page is currently locked until the global start time.'
+                  : 'Summoning opens for 1 hour every 6 hours (05:00, 11:00, 17:00, 23:00 UTC).'}
               </p>
               <div className="mt-4 flex flex-col items-center gap-2">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">
@@ -1007,6 +994,11 @@ export default function AbyssSummonPage() {
                   {formatCountdown(abyssClosed.timeUntilOpen)}
                 </div>
               </div>
+              {abyssClosed.globalRestriction?.startTime && (
+                <p className="text-sm text-gray-400 mt-2">
+                  Start time: {abyssClosed.globalRestriction.startTime.toLocaleString()}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -1510,8 +1502,8 @@ export default function AbyssSummonPage() {
         )}
           </>
         )}
-        </main>
-      </GlobalStartTimeGate>
+      </main>
+
     </div>
   )
 }

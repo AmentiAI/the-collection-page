@@ -6,8 +6,8 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Gem, Clock, TrendingUp, History, X } from 'lucide-react'
-import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
 import dynamicImport from 'next/dynamic'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
@@ -275,7 +275,7 @@ export default function CrystallizationPage() {
   const availableOrdinals = ordinals.filter(ord => !crystallizedIds.has(ord.inscriptionId))
 
   return (
-    <GlobalStartTimeGate pageName="Crystallization">
+    <GlobalStartTimeLock>
       <LaserEyesWrapper>
         <div className="min-h-screen bg-black text-white">
         <Header
@@ -488,7 +488,7 @@ export default function CrystallizationPage() {
         </div>
       </div>
     </LaserEyesWrapper>
-    </GlobalStartTimeGate>
+    </GlobalStartTimeLock>
   )
 }
 

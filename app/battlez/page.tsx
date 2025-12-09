@@ -10,8 +10,8 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Shield, Sword, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { GlobalStartTimeGate } from '@/components/GlobalStartTimeGate'
 import dynamicImport from 'next/dynamic'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
@@ -295,7 +295,7 @@ export default function BattlePage() {
   const demonicOrdinals = ordinals.filter((o) => o.trait === 'Demonic')
 
   return (
-    <GlobalStartTimeGate pageName="Battle">
+    <GlobalStartTimeLock>
       <LaserEyesWrapper>
         <div className="min-h-screen bg-black text-white">
         <Header
@@ -829,7 +829,7 @@ export default function BattlePage() {
         </main>
       </div>
     </LaserEyesWrapper>
-    </GlobalStartTimeGate>
+    </GlobalStartTimeLock>
   )
 }
 

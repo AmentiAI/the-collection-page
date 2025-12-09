@@ -166,20 +166,20 @@ async function checkExpiredWindows(client: any) {
           
           if (shouldFail) {
             // Archive all participants from this failed instance (don't delete for history)
-            await client.query(
+          await client.query(
               `UPDATE dungeon_crawl_participants 
                SET archived_at = NOW() 
                WHERE instance_id = $1 AND archived_at IS NULL`,
-              [instance.id]
-            )
-            await client.query(
-              `UPDATE dungeon_crawl_instances
-               SET status = 'failed', updated_at = NOW()
-               WHERE id = $1 AND status != 'failed'`,
-              [instance.id]
-            )
+            [instance.id]
+          )
+          await client.query(
+            `UPDATE dungeon_crawl_instances
+             SET status = 'failed', updated_at = NOW()
+             WHERE id = $1 AND status != 'failed'`,
+            [instance.id]
+          )
             console.log(`[checkExpiredWindows] Marked instance ${instance.id} as failed - window expired (${elapsedMinutes.toFixed(1)}m > ${windowEnd}m), level ${level} not completed, participation: ${participationPercent}% (${completed}/${total})`)
-            break // Only mark once per instance
+          break // Only mark once per instance
           }
         }
       }

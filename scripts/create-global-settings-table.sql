@@ -1,19 +1,21 @@
--- Create global_settings table for site-wide configuration
+-- Global Settings Table
+-- Stores global configuration settings like start times for pages
+
 CREATE TABLE IF NOT EXISTS global_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  setting_key TEXT UNIQUE NOT NULL,
-  setting_value TEXT,
+  setting_key TEXT NOT NULL UNIQUE,
+  setting_value TEXT NOT NULL,
   description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Create index for faster lookups
+-- Create index for fast lookups
 CREATE INDEX IF NOT EXISTS idx_global_settings_key ON global_settings(setting_key);
 
--- Insert default global_start_time (NULL means no restriction)
+-- Insert default setting for global start time (null means no restriction)
 INSERT INTO global_settings (setting_key, setting_value, description)
-VALUES ('global_start_time', NULL, 'Global start time for all game pages. Pages are inaccessible until this time passes. NULL means no restriction.')
+VALUES ('global_start_time', '', 'Global start time for pages: /battlez, /battlefield, /leaderboard, /dungeon-crawl, /crystallizationz, /abyss-summon. ISO 8601 timestamp. Empty string means no restriction.')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Add updated_at trigger
