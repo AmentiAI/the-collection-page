@@ -129,14 +129,11 @@ async function checkExpiredWindows(client: any) {
 
       const windowEnd = windowStart + windowDuration
 
-      // If window has expired and level wasn't completed, check participation
-      // For 'ready' status, check level 1 window
-      // For other statuses, check the appropriate level window
-      const shouldCheckLevel = (level === 1 && (instance.status === 'ready' || instance.status === 'level_1')) ||
-                               (level === 2 && instance.status === 'level_2') ||
-                               (level === 3 && instance.status === 'level_3')
-      
-      if (elapsedMinutes > windowEnd && !levelCompletedAt && shouldCheckLevel) {
+      // Check if window expired and level wasn't completed
+      // We need to check ALL expired windows, even if the instance has moved forward
+      // This catches cases where level 1 window expired with <80% participation but instance somehow moved to level_2
+      // Only skip if the level was actually completed (levelCompletedAt is set)
+      if (elapsedMinutes > windowEnd && !levelCompletedAt) {
         const participantsRes = await client.query(
           `SELECT COUNT(*)::int AS total, 
                   SUM(CASE WHEN ${levelColumn} = TRUE THEN 1 ELSE 0 END)::int AS completed
@@ -151,7 +148,7 @@ async function checkExpiredWindows(client: any) {
 
         // Mark as failed if window expired and level wasn't completed
         // For 'ready' status with expired window, always fail if no one completed (window closed, no completions)
-        // For other statuses, check participation threshold
+        // For other statuses, check participation threshold - if below min_participation_percent, it's a failure
         if (!levelCompletedAt) {
           let shouldFail = false
           
@@ -160,8 +157,13 @@ async function checkExpiredWindows(client: any) {
             // Even if total is 0 (shouldn't happen for 'ready', but be safe)
             shouldFail = total > 0 && completed === 0
           } else if (total > 0) {
-            // Other statuses: check participation threshold
+            // For level_1, level_2, level_3 statuses: check participation threshold
+            // If participation is below min_participation_percent, it's a failure
+            // This handles the case where window expired and not enough people completed
             shouldFail = participationPercent < instance.min_participation_percent || completed === 0
+          } else if (total === 0) {
+            // No participants at all - this shouldn't happen but mark as failed
+            shouldFail = true
           }
           
           if (shouldFail) {
@@ -178,7 +180,7 @@ async function checkExpiredWindows(client: any) {
              WHERE id = $1 AND status != 'failed'`,
             [instance.id]
           )
-            console.log(`[checkExpiredWindows] Marked instance ${instance.id} as failed - window expired (${elapsedMinutes.toFixed(1)}m > ${windowEnd}m), level ${level} not completed, participation: ${participationPercent}% (${completed}/${total})`)
+            console.log(`[checkExpiredWindows] Marked instance ${instance.id} as failed - window expired (${elapsedMinutes.toFixed(1)}m > ${windowEnd}m), level ${level} not completed, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
           break // Only mark once per instance
           }
         }
