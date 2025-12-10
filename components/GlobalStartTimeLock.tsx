@@ -15,10 +15,15 @@ export default function GlobalStartTimeLock({ children }: GlobalStartTimeLockPro
   const [loading, setLoading] = useState(true)
   const [startTime, setStartTime] = useState<Date | null>(null)
 
+  // Initial API call - only runs once on mount
   useEffect(() => {
+    let cancelled = false
+
     const checkStartTime = async () => {
       try {
         const status = await checkGlobalStartTime()
+        if (cancelled) return
+        
         setIsRestricted(status.isRestricted)
         setTimeUntilStart(status.timeUntilStart)
         setIsStarted(status.isStarted)
@@ -26,32 +31,45 @@ export default function GlobalStartTimeLock({ children }: GlobalStartTimeLockPro
       } catch (error) {
         console.error('Error checking global start time:', error)
         // On error, allow access
-        setIsRestricted(false)
-        setIsStarted(true)
+        if (!cancelled) {
+          setIsRestricted(false)
+          setIsStarted(true)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     checkStartTime()
 
-    // Update countdown every second if restricted
-    let intervalId: NodeJS.Timeout | null = null
-    if (isRestricted && !isStarted) {
-      intervalId = setInterval(() => {
-        if (startTime) {
-          const now = new Date()
-          const diff = startTime.getTime() - now.getTime()
-          setTimeUntilStart(Math.max(0, diff))
-          setIsStarted(diff <= 0)
-        }
-      }, 1000)
+    return () => {
+      cancelled = true
+    }
+  }, []) // Only run once on mount
+
+  // Separate effect for countdown updates - doesn't call API
+  useEffect(() => {
+    if (!isRestricted || isStarted || !startTime) {
+      return
     }
 
+    // Update countdown every second
+    const intervalId = setInterval(() => {
+      const now = new Date()
+      const diff = startTime.getTime() - now.getTime()
+      const newTimeUntilStart = Math.max(0, diff)
+      const newIsStarted = diff <= 0
+      
+      setTimeUntilStart(newTimeUntilStart)
+      setIsStarted(newIsStarted)
+    }, 1000)
+
     return () => {
-      if (intervalId) clearInterval(intervalId)
+      clearInterval(intervalId)
     }
-  }, [isRestricted, isStarted, startTime])
+  }, [isRestricted, isStarted, startTime]) // Only update countdown, don't call API
 
   if (loading) {
     return (
