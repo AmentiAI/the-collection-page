@@ -190,12 +190,8 @@ export async function POST(
       const windowStartTime = windowStart
       const windowEndTime = windowStart + windowDuration
 
-      // Check if window has closed - if so, check participation before allowing completion
-      let windowClosed = false
-      let participationPercentWhenClosed = 0
-      
+      // If window has closed, check if participation was sufficient
       if (elapsedMinutes > windowEndTime) {
-        windowClosed = true
         // Window closed - check if level was completed
         const allParticipantsRes = await client.query(
           `SELECT COUNT(*)::int AS total, 
@@ -207,10 +203,10 @@ export async function POST(
 
         const total = allParticipantsRes.rows[0]?.total ?? 0
         const completed = allParticipantsRes.rows[0]?.completed ?? 0
-        participationPercentWhenClosed = total > 0 ? (completed / total) * 100 : 0
+        const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
         // If participation is below threshold, mark instance as failed and archive participants
-        if (participationPercentWhenClosed < config.minParticipationPercent) {
+        if (participationPercent < config.minParticipationPercent) {
           // Archive all participants from this failed instance (preserve history)
           await client.query(
             `UPDATE dungeon_crawl_participants 
@@ -231,31 +227,25 @@ export async function POST(
           return NextResponse.json(
             {
               success: false,
-              error: `Level ${levelNum} window closed with insufficient participation (${Math.round(participationPercentWhenClosed)}% < ${config.minParticipationPercent}%). Dungeon crawl failed.`,
+              error: `Level ${levelNum} window closed with insufficient participation (${Math.round(participationPercent)}% < ${config.minParticipationPercent}%). Dungeon crawl failed.`,
               instanceFailed: true,
             },
             { status: 409 }
           )
         }
-        // If we reach here, window closed but participation is sufficient - allow completion to proceed
       }
 
-      // Only block if window hasn't opened yet
-      // If window closed, we already checked participation above - if sufficient, allow completion
-      if (elapsedMinutes < windowStartTime) {
+      if (elapsedMinutes < windowStartTime || elapsedMinutes > windowEndTime) {
         await client.query('ROLLBACK')
         return NextResponse.json(
           {
             success: false,
-            error: `Level ${levelNum} completion window has not opened yet. Window starts at ${windowStartTime} minutes`,
+            error: `Level ${levelNum} completion window is not open. Window: ${windowStartTime}-${windowEndTime} minutes`,
             elapsedMinutes: Math.round(elapsedMinutes * 100) / 100,
           },
           { status: 409 }
         )
       }
-      
-      // If window closed, we already validated participation above
-      // If we reach here and window closed, participation was sufficient, so allow completion
 
       // Check if already completed this level
       const participantLevelCheck = await client.query(
@@ -303,19 +293,16 @@ export async function POST(
       const completed = allParticipantsRes.rows[0]?.completed ?? 0
       const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
-      // windowClosed was already calculated above - reuse it
-      // Check if window has closed now (after this completion)
-      const currentWindowClosed = elapsedMinutes > windowEndTime
+      // Check if window has closed (windowEndTime was already declared above)
+      const windowClosed = elapsedMinutes > windowEndTime
 
       let levelCompleted = false
       let instanceCompleted = false
 
       // Only mark level as completed and move forward if:
-      // - Minimum participation is met (use current participation percent after this completion) AND
+      // - Minimum participation is met AND
       // - Either 100% participation OR window has closed
-      // When window closes, we already validated that participation was sufficient (before this completion)
-      // Now we use the current participation (after this completion) to check if we should advance
-      if (participationPercent >= config.minParticipationPercent && (participationPercent >= 100 || currentWindowClosed)) {
+      if (participationPercent >= config.minParticipationPercent && (participationPercent >= 100 || windowClosed)) {
         levelCompleted = true
         const completedAt = new Date()
 
