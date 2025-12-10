@@ -230,17 +230,17 @@ const LevelCard = memo(({
           : 'border-stone-600/60 bg-stone-900/50'
       }`}
     >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className={`font-bold text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <h3 className={`font-bold text-sm sm:text-base md:text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
           windowState.isOpen ? 'text-amber-300' : 'text-stone-400'
         }`}>Level {level}</h3>
         {isMyCompleted ? (
-          <CheckCircle2 className="w-6 h-6 text-green-500" />
+          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-500" />
         ) : (
-          <XCircle className="w-6 h-6 text-stone-500" />
+          <XCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-stone-500" />
         )}
       </div>
-      <div className="text-base text-stone-200 mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+      <div className="text-xs sm:text-sm md:text-base text-stone-200 mb-2 sm:mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
         {instance.status === 'ready' && level === 1 ? (
           <span>Waiting for first completion to start...</span>
         ) : (
@@ -250,7 +250,7 @@ const LevelCard = memo(({
         )}
       </div>
       {timeDisplay && participationPercent < 100 && (
-        <div className={`text-base font-semibold mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${windowState.isOpen ? 'text-amber-300' : 'text-orange-300'}`}>
+        <div className={`text-xs sm:text-sm md:text-base font-semibold mb-2 sm:mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${windowState.isOpen ? 'text-amber-300' : 'text-orange-300'}`}>
           {timeDisplay}
         </div>
       )}
@@ -263,17 +263,17 @@ const LevelCard = memo(({
             onTouchStart={handleHoldStart}
             onTouchEnd={handleHoldEnd}
             disabled={completingLevel === level}
-            className="relative w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-2 px-4 rounded-lg transition-all shadow-lg hover:shadow-amber-500/40 backdrop-blur-sm overflow-hidden z-10"
+            className="relative w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-1.5 sm:py-2 px-3 sm:px-4 text-xs sm:text-sm md:text-base rounded-lg transition-all shadow-lg hover:shadow-amber-500/40 backdrop-blur-sm overflow-hidden z-10"
           >
             {completingLevel === level ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Completing...
+                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin" />
+                <span className="text-xs sm:text-sm md:text-base">Completing...</span>
               </>
             ) : isHolding ? (
-              <span className="relative z-10">Hold to Complete... {Math.round(holdProgress)}%</span>
+              <span className="relative z-10 text-xs sm:text-sm md:text-base">Hold to Complete... {Math.round(holdProgress)}%</span>
             ) : (
-              'Hold to Complete Level'
+              <span className="text-xs sm:text-sm md:text-base">Hold to Complete Level</span>
             )}
             
             {/* Progress bar */}
@@ -810,7 +810,7 @@ export default function DungeonCrawlPage() {
           showMusicControls={true}
         />
 
-        <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-7xl">
           {/* Epic Header with corner ornaments and spinning orbs */}
           <div className="relative mb-12">
             {/* Spinning Orbs - moved down */}
@@ -825,7 +825,7 @@ export default function DungeonCrawlPage() {
             <div className="relative text-center">
               {/* Main title with epic styling */}
               <div className="inline-block relative mb-6">
-                <h1 className="text-5xl sm:text-7xl font-black mb-3 text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-amber-400 to-red-500 dungeon-title tracking-wider">
+                <h1 className="text-2xl sm:text-5xl md:text-7xl font-black mb-2 sm:mb-3 text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-amber-400 to-red-500 dungeon-title tracking-wider">
                   DUNGEON CRAWLS
                 </h1>
                 {/* Underline decoration */}
@@ -833,16 +833,16 @@ export default function DungeonCrawlPage() {
                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1/3 h-1 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-30 blur-sm" />
               </div>
               
-              <p className="text-lg text-amber-100/90 max-w-2xl mx-auto mb-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+              <p className="text-xs sm:text-base md:text-lg text-amber-100/90 max-w-2xl mx-auto mb-4 sm:mb-6 md:mb-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                 Enter the mystical dungeons with your ordinals. <br/>
                 <span className="text-red-300/80">Complete all levels together to claim legendary rewards!</span>
               </p>
 
               {/* Tab Navigation with game-like design */}
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-2 sm:gap-4">
                 <button
                   onClick={() => setShowHistory(false)}
-                  className={`relative px-8 py-3 font-bold text-lg transition-all overflow-hidden group ${
+                  className={`relative px-4 sm:px-6 md:px-8 py-2 sm:py-2.5 md:py-3 font-bold text-xs sm:text-sm md:text-lg transition-all overflow-hidden group ${
                     !showHistory 
                       ? 'text-amber-100' 
                       : 'text-stone-400 hover:text-stone-200'
@@ -860,15 +860,16 @@ export default function DungeonCrawlPage() {
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent animate-shimmer" style={{ clipPath: 'polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)' }} />
                   )}
                   
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Swords className="w-5 h-5" />
-                    ACTIVE CRAWLS
+                  <span className="relative z-10 flex items-center gap-1 sm:gap-2">
+                    <Swords className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                    <span className="hidden sm:inline">ACTIVE CRAWLS</span>
+                    <span className="sm:hidden">ACTIVE</span>
                   </span>
                 </button>
 
                 <button
                   onClick={() => setShowHistory(true)}
-                  className={`relative px-8 py-3 font-bold text-lg transition-all overflow-hidden group ${
+                  className={`relative px-4 sm:px-6 md:px-8 py-2 sm:py-2.5 md:py-3 font-bold text-xs sm:text-sm md:text-lg transition-all overflow-hidden group ${
                     showHistory 
                       ? 'text-amber-100' 
                       : 'text-stone-400 hover:text-stone-200'
@@ -886,8 +887,8 @@ export default function DungeonCrawlPage() {
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent animate-shimmer" style={{ clipPath: 'polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)' }} />
                   )}
                   
-                  <span className="relative z-10 flex items-center gap-2">
-                    <ScrollText className="w-5 h-5" />
+                  <span className="relative z-10 flex items-center gap-1 sm:gap-2">
+                    <ScrollText className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                     CHRONICLES
                   </span>
                 </button>
@@ -908,13 +909,13 @@ export default function DungeonCrawlPage() {
               <div className="space-y-6">
                 {history.map((crawl) =>
                   crawl.instances?.map((instance) => (
-                    <div key={instance.id} className="bg-stone-900/80 border-2 border-stone-700/80 rounded-lg p-4 sm:p-6 backdrop-blur-sm shadow-xl">
-                      <div className="mb-4">
-                        <h2 className="text-xl sm:text-2xl font-bold mb-2 text-amber-200 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">{crawl.name}</h2>
+                    <div key={instance.id} className="bg-stone-900/80 border-2 border-stone-700/80 rounded-lg p-3 sm:p-4 md:p-6 backdrop-blur-sm shadow-xl">
+                      <div className="mb-3 sm:mb-4">
+                        <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold mb-2 text-amber-200 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">{crawl.name}</h2>
                         
                         {/* Timestamp info box */}
-                        <div className="mb-4 p-3 bg-stone-800/60 rounded-lg border-2 border-stone-600/60 backdrop-blur-sm">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-stone-800/60 rounded-lg border-2 border-stone-600/60 backdrop-blur-sm">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                             {instance.level1StartedAt && (
                               <div>
                                 <span className="text-stone-300">Started:</span>
@@ -1073,54 +1074,54 @@ export default function DungeonCrawlPage() {
                     <div className="spinning-orb absolute -left-12 top-1/4 w-24 h-24 opacity-20 group-hover:opacity-40 transition-opacity" />
                     <div className="spinning-orb absolute -right-12 top-3/4 w-24 h-24 opacity-20 group-hover:opacity-40 transition-opacity" style={{ animationDelay: '-10s' }} />
                     
-                    <div className="dungeon-card rounded-lg p-6 backdrop-blur-sm relative overflow-hidden">
+                    <div className="dungeon-card rounded-lg p-3 sm:p-4 md:p-6 backdrop-blur-sm relative overflow-hidden">
                       {/* Side glow decorations */}
                       <div className="absolute top-1/2 -translate-y-1/2 -left-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all duration-500" />
                       <div className="absolute top-1/2 -translate-y-1/2 -right-20 w-40 h-40 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-all duration-500" />
                       
-                      <div className="mb-6 relative z-10">
+                      <div className="mb-3 sm:mb-4 md:mb-6 relative z-10">
                         {/* Crawl name with decorative line */}
-                        <div className="flex items-center gap-3 mb-4">
-                          <Shield className="w-8 h-8 text-red-400 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-amber-200 to-red-300 tracking-wide">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3 md:mb-4">
+                          <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-red-400 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                          <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-amber-200 to-red-300 tracking-wide">
                             {crawl.name.toUpperCase()}
                           </h2>
                           <div className="flex-1 h-px bg-gradient-to-r from-red-500/50 via-amber-500/50 to-transparent" />
                         </div>
                         {crawl.description && (
-                          <p className="text-amber-100/70 text-lg italic border-l-2 border-red-500/30 pl-4 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                          <p className="text-amber-100/70 text-xs sm:text-sm md:text-base lg:text-lg italic border-l-2 border-red-500/30 pl-2 sm:pl-3 md:pl-4 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                             {crawl.description}
                           </p>
                         )}
                       </div>
                       
                       {/* Game-like stats panel */}
-                      <div className="mb-6 relative">
+                      <div className="mb-3 sm:mb-4 md:mb-6 relative">
                         {/* Decorative corner brackets with red */}
                         <div className="absolute top-0 left-0 w-4 h-4 border-t border-l border-red-400/50" />
                         <div className="absolute top-0 right-0 w-4 h-4 border-t border-r border-amber-400/50" />
                         <div className="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-amber-400/50" />
                         <div className="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-red-400/50" />
                         
-                        <div className="p-4 sm:p-6 bg-black/60 rounded border border-red-900/40 backdrop-blur-sm relative overflow-hidden">
+                        <div className="p-2 sm:p-3 md:p-4 lg:p-6 bg-black/60 rounded border border-red-900/40 backdrop-blur-sm relative overflow-hidden">
                           {/* Subtle scan line effect */}
                           <div className="absolute inset-0 bg-gradient-to-b from-red-500/5 via-amber-500/5 to-transparent pointer-events-none animate-pulse" />
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm relative z-10">
-                            <div className="flex items-start gap-3">
-                              <Clock className="w-5 h-5 text-amber-400 mt-0.5 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-                              <div>
-                                <div className="text-amber-400/80 text-xs uppercase tracking-wider mb-1">Established</div>
-                                <div className="text-amber-100 font-mono font-bold">{formatDateTime(crawl.createdAt)}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm relative z-10">
+                            <div className="flex items-start gap-2 sm:gap-3">
+                              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 mt-0.5 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] flex-shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-amber-400/80 text-[10px] sm:text-xs uppercase tracking-wider mb-0.5 sm:mb-1">Established</div>
+                                <div className="text-amber-100 font-mono font-bold text-[10px] sm:text-xs md:text-sm break-words">{formatDateTime(crawl.createdAt)}</div>
                               </div>
                             </div>
                           
                           {/* Last completed/failed timestamps - Always show */}
-                          <div className="flex items-start gap-3">
-                            <Trophy className="w-5 h-5 text-emerald-400 mt-0.5 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                            <div>
-                              <div className="text-emerald-400/80 text-xs uppercase tracking-wider mb-1">Last Victory</div>
-                              <div className="text-emerald-100 font-mono font-bold">
+                          <div className="flex items-start gap-2 sm:gap-3">
+                            <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 mt-0.5 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)] flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-emerald-400/80 text-[10px] sm:text-xs uppercase tracking-wider mb-0.5 sm:mb-1">Last Victory</div>
+                              <div className="text-emerald-100 font-mono font-bold text-[10px] sm:text-xs md:text-sm">
                                 {crawl.lastCompletedAt ? (() => {
                                   const minutesAgo = Math.floor((nowRef.current - new Date(crawl.lastCompletedAt).getTime()) / (1000 * 60))
                                   const hoursAgo = Math.floor(minutesAgo / 60)
@@ -1132,11 +1133,11 @@ export default function DungeonCrawlPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-start gap-3">
-                            <Skull className="w-5 h-5 text-red-400 mt-0.5 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-                            <div>
-                              <div className="text-red-400/80 text-xs uppercase tracking-wider mb-1">Last Defeat</div>
-                              <div className="text-red-100 font-mono font-bold">
+                          <div className="flex items-start gap-2 sm:gap-3">
+                            <Skull className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mt-0.5 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)] flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-red-400/80 text-[10px] sm:text-xs uppercase tracking-wider mb-0.5 sm:mb-1">Last Defeat</div>
+                              <div className="text-red-100 font-mono font-bold text-[10px] sm:text-xs md:text-sm">
                                 {crawl.lastFailedAt ? (() => {
                                   const minutesAgo = Math.floor((nowRef.current - new Date(crawl.lastFailedAt).getTime()) / (1000 * 60))
                                   const hoursAgo = Math.floor(minutesAgo / 60)
@@ -1192,18 +1193,18 @@ export default function DungeonCrawlPage() {
                       </div>
 
                       {/* PROMINENT REWARD BANNER */}
-                      <div className="mb-6 relative">
-                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border-2 border-amber-500/60 rounded-lg p-5 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
+                      <div className="mb-3 sm:mb-4 md:mb-6 relative">
+                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border-2 border-amber-500/60 rounded-lg p-3 sm:p-4 md:p-5 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
                           {/* Animated background glow */}
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/10 to-transparent animate-shimmer" />
                           
-                          <div className="relative z-10 flex items-center justify-center gap-4">
-                            <Shield className="w-10 h-10 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                          <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 md:gap-4">
+                            <Shield className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                             <div className="text-center">
-                              <div className="text-xs uppercase tracking-wider text-amber-300/80 mb-1">REWARD</div>
-                              <div className="text-3xl font-black text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-amber-300/80 mb-0.5 sm:mb-1">REWARD</div>
+                              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                                 +{crawl.rewardValue}
-                                <span className="text-xl text-amber-200/90">
+                                <span className="text-sm sm:text-base md:text-lg lg:text-xl text-amber-200/90">
                                   {crawl.rewardType === 'block_chance' ? '% Block Chance' : ' Life Force Cap'}
                                 </span>
                               </div>
@@ -1213,7 +1214,7 @@ export default function DungeonCrawlPage() {
                       </div>
 
                       {/* Secondary info bar */}
-                      <div className="flex flex-wrap gap-3 sm:gap-4 text-sm mb-4">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm mb-3 sm:mb-4">
                         {instance && (
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4" />
@@ -1283,7 +1284,7 @@ export default function DungeonCrawlPage() {
                       </div>
                     ) : instance ? (
                       <>
-                        <div className="grid grid-cols-3 gap-4 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
                           {[1, 2, 3].map((level) => {
                             if (!instance) return null
                             if (level === 2 && (instance.status === 'ready' || !instance.level1CompletedAt)) return null
