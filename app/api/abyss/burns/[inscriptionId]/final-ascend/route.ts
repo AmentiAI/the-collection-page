@@ -125,12 +125,24 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
 
   // Use stored prompt if available (for re-ascended images), otherwise load from inscription prompts
   let prompt: string
-  if (storedPrompt) {
+  if (storedPrompt && storedPrompt.trim()) {
     prompt = storedPrompt
   } else {
     // Load inscription prompts and find matching one
     const prompts = await loadInscriptionPrompts()
-    prompt = findInscriptionPrompt(inscriptionId, prompts) || 'A gothic horror character with dark mystical energy'
+    
+    // If inscriptionId starts with "ascended_", extract the original inscription ID
+    let lookupId = inscriptionId
+    if (inscriptionId.toLowerCase().startsWith('ascended_')) {
+      // Pattern: ascended_<original_id>_<timestamp>
+      // Extract original_id by removing "ascended_" prefix and timestamp suffix
+      const lastUnderscoreIndex = inscriptionId.lastIndexOf('_')
+      if (lastUnderscoreIndex > 8) { // 'ascended_' is 8 chars
+        lookupId = inscriptionId.slice(8, lastUnderscoreIndex) // Remove 'ascended_' prefix and timestamp
+      }
+    }
+    
+    prompt = findInscriptionPrompt(lookupId, prompts) || 'A gothic horror character with dark mystical energy'
   }
 
   // Build transformation prompts (matching from admin route)
