@@ -55,10 +55,7 @@ const PROMPT_TEMPLATE_TOP = `FRONT-FACING POSE: Character facing DIRECTLY at vie
 
 HYPER-DETAILED professional digital illustration, 1024x1024 square format.
 
-ART STYLE: professional vector like quality chibi-horror abomination; massive head, gigantic eyes  40-50% head size bold black outlines portrait composition head chest only spooky but adorable day of dead influence, extreme vibrant saturated colors magical.
-
-COLLECTION: The Damned
-
+ART STYLE: professional vector like quality horror abomination; very large eyes, small head, bold black outlines portrait composition head chest only spooky but adorable day of dead influence, extreme vibrant saturated colors magical. A gothic horror lucifer with dark mystical energy; glowing with holy light; 
 
 ASSIGNED TRAITS:
 `
@@ -81,10 +78,19 @@ BORDER: spooky frame with detailed spider webs stretching across corners, small 
 
 QUALITY: Professional gallery-quality, clean linework, rich color rendering, intricate details, cohesive composition.
 
-FINAL: Professional quality, dramatic lighting, maximum color vibrancy, intricate detail, cinematic lighting effects, visually stunning. gothic horror character with dark mystical energy`
+FINAL: Professional quality, dramatic lighting, maximum color vibrancy, intricate detail, cinematic lighting effects, visually stunning. gothic horror lucifer with dark mystical energy`
+
+// Type for Magic Eden metadata with special traits
+type MagicEdenMetadata = {
+  attributes: Array<{ trait_type: string; value: string }>
+  isAngelic: boolean
+  isDemonic: boolean
+  hasSilver: boolean
+  hasGlow: boolean
+}
 
 // Fetch traits from Magic Eden for a specific inscription
-async function fetchTraitsFromMagicEden(inscriptionId: string): Promise<Array<{ trait_type: string; value: string }> | null> {
+async function fetchTraitsFromMagicEden(inscriptionId: string): Promise<MagicEdenMetadata | null> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     
@@ -131,9 +137,33 @@ async function fetchTraitsFromMagicEden(inscriptionId: string): Promise<Array<{ 
         trait_type: attr.trait_type || attr.traitType || '',
         value: attr.value || '',
       }))
-      .filter(attr => attr.trait_type && attr.value && attr.trait_type !== 'Ascended') // Exclude Ascended trait
+      .filter(attr => attr.trait_type && attr.value)
 
-    return normalizedAttributes.length > 0 ? normalizedAttributes : null
+    // Detect special traits from Magic Eden metadata
+    const ascendedTrait = normalizedAttributes.find(
+      attr => attr.trait_type === 'Ascended' && (attr.value === 'Angelic' || attr.value === 'Demonic')
+    )
+    
+    const silverTrait = normalizedAttributes.find(
+      attr => attr.trait_type === 'Silver' && attr.value === 'True'
+    )
+    
+    const glowTrait = normalizedAttributes.find(
+      attr => attr.trait_type === 'Glow' && attr.value === 'True'
+    )
+
+    // Filter out special traits from regular attributes (we'll handle them separately)
+    const regularAttributes = normalizedAttributes.filter(
+      attr => attr.trait_type !== 'Ascended' && attr.trait_type !== 'Silver' && attr.trait_type !== 'Glow'
+    )
+
+    return {
+      attributes: regularAttributes,
+      isAngelic: ascendedTrait?.value === 'Angelic',
+      isDemonic: ascendedTrait?.value === 'Demonic',
+      hasSilver: silverTrait !== undefined,
+      hasGlow: glowTrait !== undefined,
+    }
   } catch (error) {
     console.error(`Error fetching traits from Magic Eden for ${inscriptionId}:`, error)
     return null
@@ -164,17 +194,24 @@ function formatTraitsForPrompt(attributes: Array<{ trait_type: string; value: st
 }
 
 // Rebuild prompt from Magic Eden traits
-async function rebuildPromptFromMagicEden(inscriptionId: string): Promise<string | null> {
-  const attributes = await fetchTraitsFromMagicEden(inscriptionId)
+// Returns the base prompt and metadata about special traits
+async function rebuildPromptFromMagicEden(inscriptionId: string): Promise<{ prompt: string; isAngelic: boolean; isDemonic: boolean; hasSilver: boolean; hasGlow: boolean } | null> {
+  const metadata = await fetchTraitsFromMagicEden(inscriptionId)
   
-  if (!attributes || attributes.length === 0) {
+  if (!metadata || metadata.attributes.length === 0) {
     return null
   }
 
-  const traitsSection = formatTraitsForPrompt(attributes)
+  const traitsSection = formatTraitsForPrompt(metadata.attributes)
   const rebuiltPrompt = `${PROMPT_TEMPLATE_TOP}${traitsSection}${PROMPT_TEMPLATE_BOTTOM}`
   
-  return rebuiltPrompt
+  return {
+    prompt: rebuiltPrompt,
+    isAngelic: metadata.isAngelic,
+    isDemonic: metadata.isDemonic,
+    hasSilver: metadata.hasSilver,
+    hasGlow: metadata.hasGlow,
+  }
 }
 
 async function ensureAscensionInfrastructure(pool: Pool) {
@@ -244,7 +281,12 @@ async function ensureAscensionInfrastructure(pool: Pool) {
   markTableInitialized('ascended_images')
 }
 
-async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: string | null, isSecondAscension: boolean = false): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {
+async function generateMutantMonsterImage(
+  inscriptionId: string, 
+  storedPrompt?: string | null, 
+  isSecondAscension: boolean = false,
+  magicEdenMetadata?: { isAngelic: boolean; isDemonic: boolean; hasSilver: boolean; hasGlow: boolean } | null
+): Promise<{ imageUrl: string; imageBase64: string; imageBlobUrl: string; prompt: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error('Missing OpenAI API key')
@@ -252,6 +294,11 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
 
   // Use stored prompt if available (for re-ascended images), otherwise load from inscription prompts
   let prompt: string
+  let detectedIsAngelic = false
+  let detectedIsDemonic = false
+  let detectedHasSilver = false
+  let detectedHasGlow = false
+
   if (storedPrompt && storedPrompt.trim()) {
     prompt = storedPrompt
   } else {
@@ -270,11 +317,19 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     }
     
     let foundPrompt = findInscriptionPrompt(lookupId, prompts)
+    let magicEdenResult: { prompt: string; isAngelic: boolean; isDemonic: boolean; hasSilver: boolean; hasGlow: boolean } | null = null
     
     // If prompt not found in JSON, try to rebuild from Magic Eden traits
     if (!foundPrompt) {
       console.log(`Prompt not found for ${lookupId}, attempting to rebuild from Magic Eden traits...`)
-      foundPrompt = await rebuildPromptFromMagicEden(lookupId)
+      magicEdenResult = await rebuildPromptFromMagicEden(lookupId)
+      if (magicEdenResult) {
+        foundPrompt = magicEdenResult.prompt
+        detectedIsAngelic = magicEdenResult.isAngelic
+        detectedIsDemonic = magicEdenResult.isDemonic
+        detectedHasSilver = magicEdenResult.hasSilver
+        detectedHasGlow = magicEdenResult.hasGlow
+      }
     }
     
     // Fallback to default if still not found
@@ -290,28 +345,75 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     }
   }
 
+  // Use Magic Eden metadata if provided (from recovery scenario)
+  if (magicEdenMetadata) {
+    detectedIsAngelic = magicEdenMetadata.isAngelic
+    detectedIsDemonic = magicEdenMetadata.isDemonic
+    detectedHasSilver = magicEdenMetadata.hasSilver
+    detectedHasGlow = magicEdenMetadata.hasGlow
+  }
+
   // Build transformation prompts (matching from admin route)
-  const MONSTER_TRANSFORMATION_SUFFIX =
+  // Base monster transformation with gold border
+  const MONSTER_TRANSFORMATION_SUFFIX_GOLD =
     '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is gold plated.'
   
+  // Monster transformation with silver border and silver plated skin
   const MONSTER_TRANSFORMATION_SUFFIX_SILVER =
-    '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is silver plated.'
+    '  and then turn it into face, head and body into a huge monster but same traits, dont show legs; override any previous border instructions and make a richly detailed antique-silver filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision. Huge devilish vile mutant Monster, vibrant colors high contrast. character skin is silver plated.'
   
   // Angelic transformation variants: 90% standard, 10% with holy light
-  const ANGELIC_TRANSFORMATION_SUFFIX_STANDARD =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; keep head trait but halo added; border starts at first pixel; no glow; high quality; stay inside the frame;'
+  // Standard angelic with gold border
+  const ANGELIC_TRANSFORMATION_SUFFIX_STANDARD_GOLD =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; keep head trait but halo added; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision; no glow; high quality; stay inside the frame;'
   
-  const ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT =
-    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; glowing with holy light with lines; keep head trait but halo added; border starts at first pixel; high quality; stay inside the frame;'
+  // Standard angelic with silver border
+  const ANGELIC_TRANSFORMATION_SUFFIX_STANDARD_SILVER =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; keep head trait but halo added; override any previous border instructions and make a richly detailed antique-silver filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision; no glow; high quality; stay inside the frame;'
   
-  // Choose transformation suffix based on ascension level
-  // For second ascension, 90% standard, 10% holy light variant
+  // Angelic with holy light and gold border
+  const ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT_GOLD =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; glowing with holy light with lines; keep head trait but halo added; override any previous border instructions and make a richly detailed antique-gold filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision; high quality; stay inside the frame;'
+  
+  // Angelic with holy light and silver border
+  const ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT_SILVER =
+    'and then transform the figure into an angelic cute face monster, with luminous wings, restore all traits and trait colors, head item and background, except keep plated skin, has angelic hair; but making them more beautiful angelic monster; eliminate legs from view; glowing with holy light with lines; keep head trait but halo added; override any previous border instructions and make a richly detailed antique-silver filigree border perfectly aligned to the very edge, framing the artwork with ornate gothic precision; high quality; stay inside the frame;'
+  
+  // Choose transformation suffix based on:
+  // 1. If already Angelic/Demonic (from Magic Eden), use Angelic transformation
+  // 2. If second ascension, use Angelic transformation
+  // 3. Otherwise, use Monster transformation
+  // 4. Apply Silver border if detected
+  // 5. Apply Glow (holy light) if detected
   let transformationSuffix: string
   const random = Math.random()
-  if (isSecondAscension) {
-    transformationSuffix = random < 0.1 ? ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT : ANGELIC_TRANSFORMATION_SUFFIX_STANDARD
+  
+  // Determine if we should use Angelic transformation
+  const shouldUseAngelic = detectedIsAngelic || isSecondAscension
+  
+  if (shouldUseAngelic) {
+    // Angelic transformation
+    if (detectedHasGlow) {
+      // Has glow - use holy light variant
+      transformationSuffix = detectedHasSilver 
+        ? ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT_SILVER 
+        : ANGELIC_TRANSFORMATION_SUFFIX_HOLY_LIGHT_GOLD
+    } else {
+      // No glow - use standard variant
+      transformationSuffix = detectedHasSilver 
+        ? ANGELIC_TRANSFORMATION_SUFFIX_STANDARD_SILVER 
+        : ANGELIC_TRANSFORMATION_SUFFIX_STANDARD_GOLD
+    }
   } else {
-    transformationSuffix = random < 0.1 ? MONSTER_TRANSFORMATION_SUFFIX_SILVER : MONSTER_TRANSFORMATION_SUFFIX
+    // Monster transformation (first ascension, not already ascended)
+    transformationSuffix = detectedHasSilver 
+      ? MONSTER_TRANSFORMATION_SUFFIX_SILVER 
+      : MONSTER_TRANSFORMATION_SUFFIX_GOLD
+    
+    // For first ascension, 10% chance of silver variant (if not already detected)
+    if (!detectedHasSilver && random < 0.1) {
+      transformationSuffix = MONSTER_TRANSFORMATION_SUFFIX_SILVER
+    }
   }
   
   // Use ensureTransformationPrompt function logic
@@ -454,6 +556,7 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
     // Use stored prompt if available (for re-ascended images)
     // isSecondAscension is already determined above
     let storedPrompt = burnRow?.generation_prompt as string | null | undefined
+    let magicEdenMetadata: { isAngelic: boolean; isDemonic: boolean; hasSilver: boolean; hasGlow: boolean } | null = null
     
     // For second ascension, if prompt is missing from abyss_burns, look it up from the original limbo entry
     if (isSecondAscension && !storedPrompt && inscriptionId.startsWith('ascended_')) {
@@ -485,12 +588,38 @@ export async function POST(request: NextRequest, { params }: { params: { inscrip
       }
     }
     
+    // If no stored prompt, try to fetch Magic Eden metadata for recovery
+    if (!storedPrompt) {
+      let lookupId = inscriptionId
+      if (inscriptionId.toLowerCase().startsWith('ascended_')) {
+        const lastUnderscoreIndex = inscriptionId.lastIndexOf('_')
+        if (lastUnderscoreIndex > 8) {
+          lookupId = inscriptionId.slice(8, lastUnderscoreIndex)
+        }
+      }
+      
+      // Try to rebuild from Magic Eden to get metadata
+      const magicEdenResult = await rebuildPromptFromMagicEden(lookupId)
+      if (magicEdenResult) {
+        magicEdenMetadata = {
+          isAngelic: magicEdenResult.isAngelic,
+          isDemonic: magicEdenResult.isDemonic,
+          hasSilver: magicEdenResult.hasSilver,
+          hasGlow: magicEdenResult.hasGlow,
+        }
+        // Use the rebuilt prompt if we don't have a stored one
+        if (!storedPrompt) {
+          storedPrompt = magicEdenResult.prompt
+        }
+      }
+    }
+    
     let imageUrl: string
     let imageBase64: string
     let imageBlobUrl: string
     let generationPrompt: string
     try {
-      const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt, isSecondAscension)
+      const generated = await generateMutantMonsterImage(inscriptionId, storedPrompt, isSecondAscension, magicEdenMetadata)
       imageUrl = generated.imageUrl
       imageBase64 = generated.imageBase64
       imageBlobUrl = generated.imageBlobUrl
