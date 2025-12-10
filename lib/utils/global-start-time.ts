@@ -9,11 +9,32 @@ export interface GlobalStartTimeStatus {
   isStarted: boolean
 }
 
+// Cache for global start time to prevent API spam
+let cachedStatus: GlobalStartTimeStatus | null = null
+let cacheTimestamp: number = 0
+const CACHE_DURATION_MS = 30000 // Cache for 30 seconds
+
 /**
  * Check if the global start time has passed
  * Returns status information about the global start time restriction
+ * Uses caching to prevent API spam
  */
 export async function checkGlobalStartTime(): Promise<GlobalStartTimeStatus> {
+  // Return cached result if still valid
+  const now = Date.now()
+  if (cachedStatus && (now - cacheTimestamp) < CACHE_DURATION_MS) {
+    // Update timeUntilStart based on cached startTime
+    if (cachedStatus.startTime) {
+      const diff = cachedStatus.startTime.getTime() - now
+      return {
+        ...cachedStatus,
+        timeUntilStart: Math.max(0, diff),
+        isStarted: diff <= 0
+      }
+    }
+    return cachedStatus
+  }
+
   try {
     const response = await fetch('/api/admin/global-settings?key=global_start_time', {
       cache: 'no-store'
@@ -56,25 +77,37 @@ export async function checkGlobalStartTime(): Promise<GlobalStartTimeStatus> {
       }
     }
 
-    const now = new Date()
-    const timeUntilStart = Math.max(0, startTime.getTime() - now.getTime())
+    const currentTime = new Date()
+    const timeUntilStart = Math.max(0, startTime.getTime() - currentTime.getTime())
     const isStarted = timeUntilStart === 0
 
-    return {
+    const result = {
       isRestricted: true,
       startTime,
       timeUntilStart,
       isStarted
     }
+
+    // Cache the result
+    cachedStatus = result
+    cacheTimestamp = Date.now()
+
+    return result
   } catch (error) {
     console.error('Error checking global start time:', error)
     // On error, assume no restriction (allow access)
-    return {
+    const result = {
       isRestricted: false,
       startTime: null,
       timeUntilStart: 0,
       isStarted: true
     }
+
+    // Cache the error result too (for shorter duration)
+    cachedStatus = result
+    cacheTimestamp = Date.now()
+
+    return result
   }
 }
 
