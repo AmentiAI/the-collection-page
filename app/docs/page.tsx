@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, User, Skull, Sparkles, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronRight, User, Skull, Sparkles, Trophy, BookOpen } from 'lucide-react'
 
 import Header from '@/components/Header'
 
@@ -364,6 +364,41 @@ export default function DocsPage() {
               <li>Must have at least one unlisted Damned ordinal, or no listing and at least 1 graveyard ordinal</li>
               <li>Your rank is highlighted if you&apos;re on the leaderboard</li>
               <li>Shows username, avatar (if Discord linked), and wallet address</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'redemption',
+      title: 'Redemption System',
+      icon: <BookOpen className="h-5 w-5 text-emerald-400" />,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Overview</h3>
+            <p className="leading-relaxed">
+              Complete guide to all game pages including Abyss, Crystallization, Battle Arena, Pool of Life, Tree of Ascension, The Horde, Leaderboard, Graveyard, Abyss Summon, and Resurrection Chamber.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              <Link href="/docs/redemption" className="text-amber-400 underline hover:text-amber-300">→ View Redemption System Guide</Link>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold uppercase tracking-[0.15em] text-red-300">Pages Covered</h3>
+            <ul className="ml-4 list-disc space-y-1 leading-relaxed">
+              <li>Abyss - Sacrifice mechanics and burn system</li>
+              <li>Crystallization Chamber - Passive powder generation</li>
+              <li>Battle Arena - Prepare armies for battle</li>
+              <li>Battlefield - War map visualization</li>
+              <li>Pool of Life - Heal damaged armies</li>
+              <li>Tree of Ascension - Mint ascended images</li>
+              <li>The Horde - View attacking monsters</li>
+              <li>Leaderboard - War statistics</li>
+              <li>Graveyard - Ascend ordinals</li>
+              <li>Abyss Summon - Portal circles</li>
+              <li>Resurrection Chamber - Revive dead armies</li>
             </ul>
           </div>
         </div>

@@ -3,11 +3,11 @@
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
+import { useLaserEyes } from '@omnisat/lasereyes'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
-import { useWallet } from '@/lib/wallet/compatibility'
 import { MintButton } from '@/components/MintButton'
 import dynamicImport from 'next/dynamic'
 
@@ -36,11 +36,10 @@ type MintQueueImage = {
 }
 
 export default function TreeOfAscensionPage() {
-  const wallet = useWallet()
+  const { connected, address } = useLaserEyes()
   const toast = useToast()
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
-  const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [mintQueueImages, setMintQueueImages] = useState<MintQueueImage[]>([])
   const [regenerationAllowance, setRegenerationAllowance] = useState(0)
   const [regenerating, setRegenerating] = useState<string | null>(null)
@@ -56,14 +55,23 @@ export default function TreeOfAscensionPage() {
   const lastMintQueueFetch = useRef<number>(0)
   const MINT_QUEUE_THROTTLE_MS = 3000 // Minimum 3 seconds between calls
 
-  const ordinalAddress = wallet.currentAddress?.trim() || ''
+  const ordinalAddress = address?.trim() || ''
 
-  const handleConnectedChange = useCallback((connected: boolean) => {
-    setIsWalletConnected(connected)
-  }, [])
+  // Use ref to store the latest ordinalAddress to avoid dependency issues
+  const ordinalAddressRef = useRef(ordinalAddress)
+  useEffect(() => {
+    ordinalAddressRef.current = ordinalAddress
+  }, [ordinalAddress])
+
+  // Track which images are being compressed to prevent duplicate compressions
+  const compressingImages = useRef<Set<string>>(new Set())
 
   const fetchMintQueueImages = useCallback(async (force = false) => {
-    if (!ordinalAddress) return
+    const currentAddress = ordinalAddressRef.current
+    if (!currentAddress) {
+      setMintQueueImages([])
+      return
+    }
 
     // Throttle: Don't fetch if called too recently (unless forced)
     const now = Date.now()
@@ -74,7 +82,7 @@ export default function TreeOfAscensionPage() {
     lastMintQueueFetch.current = now
 
     try {
-      const response = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(ordinalAddress)}`, {
+      const response = await fetch(`/api/graveyard/mint-queue?wallet=${encodeURIComponent(currentAddress)}`, {
         headers: { 'Cache-Control': 'no-store' },
       })
       const data = await response.json().catch(() => null)
@@ -94,9 +102,10 @@ export default function TreeOfAscensionPage() {
 
         setMintQueueImages(records)
 
-        // Auto-compress uncompressed images to show KB sizes
+        // Auto-compress uncompressed images to show KB sizes (only once per image)
         records.forEach(async (record: any) => {
-          if (!record.isCompressed && record.imageUrl) {
+          if (!record.isCompressed && record.imageUrl && !compressingImages.current.has(record.id)) {
+            compressingImages.current.add(record.id)
             console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
             try {
               const compressResponse = await fetch('/api/graveyard/mint/compress', {
@@ -111,11 +120,14 @@ export default function TreeOfAscensionPage() {
               if (compressResponse.ok) {
                 const compressData = await compressResponse.json()
                 console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
-                // Refresh to show updated sizes (throttled)
-                setTimeout(() => fetchMintQueueImages(false), 2000)
+                // Refresh to show updated sizes (throttled, but don't add to compressing set again)
+                setTimeout(() => {
+                  fetchMintQueueImages(false)
+                }, 2000)
               }
             } catch (compressError) {
               console.error(`Failed to auto-compress ${record.id}:`, compressError)
+              compressingImages.current.delete(record.id)
             }
           }
         })
@@ -123,7 +135,7 @@ export default function TreeOfAscensionPage() {
     } catch (error) {
       console.error('Error fetching mint queue:', error)
     }
-  }, [ordinalAddress])
+  }, [])
 
   // Auto-refresh mint queue when there are in-progress mints
   useEffect(() => {
@@ -140,14 +152,16 @@ export default function TreeOfAscensionPage() {
 
       return () => clearInterval(refreshInterval)
     }
-  }, [mintQueueImages, ordinalAddress, fetchMintQueueImages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mintQueueImages, ordinalAddress]) // Removed fetchMintQueueImages from deps to prevent loop
 
   const loadMintQueue = useCallback(async () => {
-    if (!ordinalAddress) return
+    const currentAddress = ordinalAddressRef.current
+    if (!currentAddress) return
 
     try {
       // Fetch regeneration allowance
-      const allowanceResponse = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(ordinalAddress)}`, {
+      const allowanceResponse = await fetch(`/api/abyss/ascended/limbo?wallet=${encodeURIComponent(currentAddress)}`, {
         headers: { 'Cache-Control': 'no-store' },
       })
       const allowanceData = await allowanceResponse.json().catch(() => null)
@@ -160,7 +174,7 @@ export default function TreeOfAscensionPage() {
     } catch (err) {
       console.error('Failed to load mint queue:', err)
     }
-  }, [ordinalAddress, fetchMintQueueImages])
+  }, [fetchMintQueueImages])
 
   const handleRegenerate = useCallback(
     async (mintQueueId: string, currentImageUrl: string) => {
@@ -263,10 +277,14 @@ export default function TreeOfAscensionPage() {
   )
 
   useEffect(() => {
-    if (isWalletConnected && ordinalAddress) {
+    if (connected && address) {
       void loadMintQueue()
+    } else {
+      // Clear data when disconnected
+      setMintQueueImages([])
+      setRegenerationAllowance(0)
     }
-  }, [isWalletConnected, ordinalAddress, loadMintQueue])
+  }, [connected, address, loadMintQueue])
 
   const showMintButtons = true
 
@@ -274,8 +292,7 @@ export default function TreeOfAscensionPage() {
     <LaserEyesWrapper>
       <div className="relative min-h-screen w-full overflow-hidden bg-black text-white">
         <Header
-          connected={isWalletConnected}
-          onConnectedChange={handleConnectedChange}
+          connected={connected}
           showMusicControls={false}
         />
 
@@ -291,7 +308,7 @@ export default function TreeOfAscensionPage() {
             </p>
           </div>
 
-          {!isWalletConnected && (
+          {!connected && (
             <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-8 text-center">
               <p className="text-emerald-200">Connect your wallet to view awaiting mints</p>
             </div>
@@ -428,7 +445,7 @@ export default function TreeOfAscensionPage() {
             </section>
           )}
 
-          {mintQueueImages.length === 0 && isWalletConnected && (
+          {mintQueueImages.length === 0 && connected && (
             <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-8 text-center">
               <p className="text-emerald-200">No awaiting mints found</p>
             </div>
