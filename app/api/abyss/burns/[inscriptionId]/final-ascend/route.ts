@@ -50,6 +50,133 @@ function findInscriptionPrompt(inscriptionId: string, prompts: InscriptionPrompt
   return found?.prompt || null
 }
 
+// Template parts for rebuilding prompts
+const PROMPT_TEMPLATE_TOP = `FRONT-FACING POSE: Character facing DIRECTLY at viewer, 0° rotation, symmetrical composition.
+
+HYPER-DETAILED professional digital illustration, 1024x1024 square format.
+
+ART STYLE: professional vector like quality chibi-horror abomination; massive head, gigantic eyes  40-50% head size bold black outlines portrait composition head chest only spooky but adorable day of dead influence, extreme vibrant saturated colors magical.
+
+COLLECTION: The Damned
+
+
+ASSIGNED TRAITS:
+`
+
+const PROMPT_TEMPLATE_BOTTOM = `
+
+TRAIT RENDERING: Each trait must be rendered EXACTLY as specified in the descriptions. NO artistic interpretation, NO variation.
+
+CUSTOM RULES: BACKGROUND ELEMENTS: 5-10 dark, or spooky, or evil objects arranged symmetrically around character, varied sizes for depth, clear focal point on character's face.
+must always start the head 200px below the top and have 150 pixel on left and right edge without head.
+1 hand trait per image
+
+DETAIL: Multiple layers, texture, highlights, shadows, material quality rendering.
+
+LIGHTING: Multiple sources, dramatic setup, warm key light, cool fill light, rim lighting, atmospheric effects.
+
+COLORS: Deep saturated colors, metallic accents, bright glows, rich colored shadows, smooth gradients, high contrast.
+
+BORDER: spooky frame with detailed spider webs stretching across corners, small spiders with visible legs, and gothic arch details - Thin decorative frame (30-50px), intricate corner ornaments (10-20 elements each), material quality rendering, vibrant color accents. PLACEMENT: Outer edge EXACTLY at canvas edge (y=0, y=1024, x=0, x=1024), NO gaps, FULL BLEED. everything is behind the border. - PLACEMENT: Outer edge EXACTLY at canvas edge, NO gaps, FULL BLEED.
+
+QUALITY: Professional gallery-quality, clean linework, rich color rendering, intricate details, cohesive composition.
+
+FINAL: Professional quality, dramatic lighting, maximum color vibrancy, intricate detail, cinematic lighting effects, visually stunning. gothic horror character with dark mystical energy`
+
+// Fetch traits from Magic Eden for a specific inscription
+async function fetchTraitsFromMagicEden(inscriptionId: string): Promise<Array<{ trait_type: string; value: string }> | null> {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
+    
+    // Try to fetch the token directly by inscription ID
+    const tokenUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens/${encodeURIComponent(inscriptionId)}`
+    
+    const response = await fetch(tokenUrl, {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+        Authorization: `Bearer ${apiKey}`,
+        'User-Agent': 'TheDamned/1.0',
+      },
+      next: { revalidate: 300 }, // Cache for 5 minutes
+    })
+
+    if (!response.ok) {
+      console.warn(`Magic Eden API returned ${response.status} for inscription ${inscriptionId}`)
+      return null
+    }
+
+    const token = await response.json()
+    
+    // Extract attributes from various possible locations
+    let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
+    
+    if (token.meta?.attributes) {
+      attributes = token.meta.attributes
+    } else if (token.metadata?.attributes) {
+      attributes = token.metadata.attributes
+    } else if (token.attributes) {
+      attributes = token.attributes
+    } else if (token.meta?.traits) {
+      attributes = token.meta.traits
+    } else if (token.metadata?.traits) {
+      attributes = token.metadata.traits
+    }
+
+    // Normalize attributes to { trait_type, value } format
+    const normalizedAttributes = attributes
+      .filter(attr => attr.trait_type || attr.traitType)
+      .map(attr => ({
+        trait_type: attr.trait_type || attr.traitType || '',
+        value: attr.value || '',
+      }))
+      .filter(attr => attr.trait_type && attr.value && attr.trait_type !== 'Ascended') // Exclude Ascended trait
+
+    return normalizedAttributes.length > 0 ? normalizedAttributes : null
+  } catch (error) {
+    console.error(`Error fetching traits from Magic Eden for ${inscriptionId}:`, error)
+    return null
+  }
+}
+
+// Format traits into the ASSIGNED TRAITS section
+function formatTraitsForPrompt(attributes: Array<{ trait_type: string; value: string }>): string {
+  // Map trait types to the format used in prompts
+  const traitTypeMap: Record<string, string> = {
+    'Head': 'Head',
+    'Body Skin': 'Body Skin',
+    'Eyes': 'Eyes',
+    'Mouth': 'Mouth',
+    'Hands': 'RIght Hand', // Note: typo in original template
+    'Right Hand': 'RIght Hand',
+    'Background': 'Background',
+  }
+
+  const traitLines = attributes
+    .map(attr => {
+      const traitType = traitTypeMap[attr.trait_type] || attr.trait_type
+      return `${traitType}: ${attr.value}`
+    })
+    .join('\n')
+
+  return traitLines
+}
+
+// Rebuild prompt from Magic Eden traits
+async function rebuildPromptFromMagicEden(inscriptionId: string): Promise<string | null> {
+  const attributes = await fetchTraitsFromMagicEden(inscriptionId)
+  
+  if (!attributes || attributes.length === 0) {
+    return null
+  }
+
+  const traitsSection = formatTraitsForPrompt(attributes)
+  const rebuiltPrompt = `${PROMPT_TEMPLATE_TOP}${traitsSection}${PROMPT_TEMPLATE_BOTTOM}`
+  
+  return rebuiltPrompt
+}
+
 async function ensureAscensionInfrastructure(pool: Pool) {
   // Skip if already initialized to avoid redundant DDL operations
   if (isTableInitialized('ascended_images')) {
@@ -142,14 +269,25 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
       }
     }
     
-    prompt = findInscriptionPrompt(lookupId, prompts) || 'A gothic horror character with dark mystical energy'
+    let foundPrompt = findInscriptionPrompt(lookupId, prompts)
+    
+    // If prompt not found in JSON, try to rebuild from Magic Eden traits
+    if (!foundPrompt) {
+      console.log(`Prompt not found for ${lookupId}, attempting to rebuild from Magic Eden traits...`)
+      foundPrompt = await rebuildPromptFromMagicEden(lookupId)
+    }
+    
+    // Fallback to default if still not found
+    prompt = foundPrompt || 'A gothic horror character with dark mystical energy'
     
     // Modify prompt: replace "Chibi" and "chibi" with "chibi-horror abomination"
     prompt = prompt.replace(/\bChibi\b/g, 'chibi-horror abomination')
     prompt = prompt.replace(/\bchibi\b/g, 'chibi-horror abomination')
     
-    // Add gothic horror character with dark mystical energy to the prompt
-    prompt = `${prompt} gothic horror character with dark mystical energy`
+    // Add gothic horror character with dark mystical energy to the prompt (only if not already present)
+    if (!prompt.toLowerCase().includes('gothic horror character with dark mystical energy')) {
+      prompt = `${prompt} gothic horror character with dark mystical energy`
+    }
   }
 
   // Build transformation prompts (matching from admin route)
