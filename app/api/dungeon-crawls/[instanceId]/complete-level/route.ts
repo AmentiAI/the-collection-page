@@ -293,8 +293,7 @@ export async function POST(
       const completed = allParticipantsRes.rows[0]?.completed ?? 0
       const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
-      // Check if window has closed
-      const windowEndTime = windowStartTime + windowDuration
+      // Check if window has closed (windowEndTime was already declared above)
       const windowClosed = elapsedMinutes > windowEndTime
 
       let levelCompleted = false
