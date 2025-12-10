@@ -143,6 +143,10 @@ async function generateMutantMonsterImage(inscriptionId: string, storedPrompt?: 
     }
     
     prompt = findInscriptionPrompt(lookupId, prompts) || 'A gothic horror character with dark mystical energy'
+    
+    // Modify prompt: replace "Chibi" and "chibi" with "chibi-horror abomination"
+    prompt = prompt.replace(/\bChibi\b/g, 'chibi-horror abomination')
+    prompt = prompt.replace(/\bchibi\b/g, 'chibi-horror abomination')
   }
 
   // Build transformation prompts (matching from admin route)
