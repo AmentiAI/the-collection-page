@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Shield, Sword, AlertCircle, CheckCircle2 } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
+import HordeAttackAlert from '@/components/HordeAttackAlert'
 
 const LaserEyesWrapper = dynamicImport(
   () => import('@/components/LaserEyesWrapper'),
@@ -306,6 +307,7 @@ export default function BattlePage() {
           onVerifyingStart={handleVerifyingStart}
           onConnectedChange={() => {}}
         />
+        <HordeAttackAlert />
 
         <main className="container mx-auto px-4 py-8 max-w-7xl">
           <div className="mb-8">
