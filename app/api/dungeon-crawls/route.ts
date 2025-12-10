@@ -395,7 +395,10 @@ export async function GET(request: NextRequest) {
                 'id', p.id,
                 'wallet', p.wallet,
                 'inscriptionId', p.inscription_id,
-                'image', p.inscription_image,
+                'image', COALESCE(
+                  p.inscription_image,
+                  CONCAT('https://ord-mirror.magiceden.dev/content/', p.inscription_id)
+                ),
                 'trait', p.trait,
                 'joinedAt', p.joined_at,
                 'level1Completed', p.level_1_completed,
@@ -453,7 +456,10 @@ export async function GET(request: NextRequest) {
                 'id', p.id,
                 'wallet', p.wallet,
                 'inscriptionId', p.inscription_id,
-                'image', p.inscription_image,
+                'image', COALESCE(
+                  p.inscription_image,
+                  CONCAT('https://ord-mirror.magiceden.dev/content/', p.inscription_id)
+                ),
                 'trait', p.trait,
                 'joinedAt', p.joined_at,
                 'level1Completed', p.level_1_completed,
@@ -681,7 +687,10 @@ export async function GET(request: NextRequest) {
                     'id', p.id,
                     'wallet', p.wallet,
                     'inscriptionId', p.inscription_id,
-                    'image', p.inscription_image,
+                    'image', COALESCE(
+                      p.inscription_image,
+                      CONCAT('https://ord-mirror.magiceden.dev/content/', p.inscription_id)
+                    ),
                     'trait', p.trait,
                     'joinedAt', p.joined_at,
                     'level1Completed', p.level_1_completed,
