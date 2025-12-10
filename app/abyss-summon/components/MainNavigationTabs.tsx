@@ -28,6 +28,18 @@ export default function MainNavigationTabs({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
+          onClick={() => handleModeChange('powder')}
+          className={[
+            'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
+            IS_POWDER_MODE
+              ? 'border-amber-400 bg-amber-700/80 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
+              : 'border-amber-600/50 bg-black/70 text-amber-200/80 hover:border-amber-400/70',
+          ].join(' ')}
+        >
+          Ascension Circles
+        </button>
+        <button
+          type="button"
           onClick={() => handleModeChange('damned_pool')}
           className={[
             'rounded-full border px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.15em] sm:tracking-[0.35em] transition whitespace-normal break-words max-w-full',
