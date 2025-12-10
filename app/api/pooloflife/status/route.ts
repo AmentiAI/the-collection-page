@@ -18,19 +18,19 @@ export async function GET(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Get last heal time and check if 6 hours have passed (database-level check)
+    // Get most recent heal time from heal_history table (source of truth)
+    // This matches what the history endpoint uses
     const result = await client.query(
-      `SELECT last_heal_time,
-              EXTRACT(EPOCH FROM (NOW() - last_heal_time)) / 3600 as hours_since_heal
-       FROM battle_ordinals 
-       WHERE LOWER(wallet_address) = LOWER($1) 
-         AND last_heal_time IS NOT NULL
-       ORDER BY last_heal_time DESC 
+      `SELECT healed_at,
+              EXTRACT(EPOCH FROM (NOW() - healed_at)) / 3600 as hours_since_heal
+       FROM heal_history 
+       WHERE LOWER(wallet_address) = LOWER($1)
+       ORDER BY healed_at DESC 
        LIMIT 1`,
       [walletAddress]
     )
 
-    const lastHealTime = result.rows.length > 0 ? result.rows[0].last_heal_time : null
+    const lastHealTime = result.rows.length > 0 ? result.rows[0].healed_at : null
     let canHealToday = true
 
     if (lastHealTime) {
