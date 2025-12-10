@@ -278,11 +278,14 @@ export async function POST(
       )
 
       // Check if level should be completed (>= min_participation_percent)
+      // BUT only mark as completed and move to next level if:
+      // 1. Participation is >= min_participation_percent AND
+      // 2. Either participation is 100% OR the window has closed
       const allParticipantsRes = await client.query(
         `SELECT COUNT(*)::int AS total, 
                 SUM(CASE WHEN ${levelColumn} = TRUE THEN 1 ELSE 0 END)::int AS completed
          FROM dungeon_crawl_participants
-         WHERE instance_id = $1`,
+         WHERE instance_id = $1 AND archived_at IS NULL`,
         [instanceId]
       )
 
@@ -290,10 +293,17 @@ export async function POST(
       const completed = allParticipantsRes.rows[0]?.completed ?? 0
       const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
+      // Check if window has closed
+      const windowEndTime = windowStartTime + windowDuration
+      const windowClosed = elapsedMinutes > windowEndTime
+
       let levelCompleted = false
       let instanceCompleted = false
 
-      if (participationPercent >= config.minParticipationPercent) {
+      // Only mark level as completed and move forward if:
+      // - Minimum participation is met AND
+      // - Either 100% participation OR window has closed
+      if (participationPercent >= config.minParticipationPercent && (participationPercent >= 100 || windowClosed)) {
         levelCompleted = true
         const completedAt = new Date()
 
@@ -305,8 +315,8 @@ export async function POST(
             `
               UPDATE dungeon_crawl_instances
               SET status = 'level_2',
-                  level_1_completed_at = $1,
-                  updated_at = NOW()
+              level_1_completed_at = $1,
+              updated_at = NOW()
               WHERE id = $2
             `,
             [completedAt.toISOString(), instanceId]
@@ -316,9 +326,9 @@ export async function POST(
             `
               UPDATE dungeon_crawl_instances
               SET status = 'level_3',
-                  level_2_started_at = COALESCE(level_2_started_at, NOW()),
-                  level_2_completed_at = $1,
-                  updated_at = NOW()
+              level_2_started_at = COALESCE(level_2_started_at, NOW()),
+              level_2_completed_at = $1,
+              updated_at = NOW()
               WHERE id = $2
             `,
             [completedAt.toISOString(), instanceId]
@@ -332,10 +342,10 @@ export async function POST(
             `
               UPDATE dungeon_crawl_instances
               SET status = 'completed',
-                  level_3_started_at = COALESCE(level_3_started_at, NOW()),
-                  level_3_completed_at = $1,
-                  completed_at = $1,
-                  updated_at = NOW()
+              level_3_started_at = COALESCE(level_3_started_at, NOW()),
+              level_3_completed_at = $1,
+              completed_at = $1,
+              updated_at = NOW()
               WHERE id = $2
             `,
             [completedAtTime.toISOString(), instanceId]

@@ -254,6 +254,12 @@ const LevelCard = memo(({
           {timeDisplay}
         </div>
       )}
+      {/* Show completion status if minimum is met but not 100% yet */}
+      {participationPercent >= crawl.minParticipationPercent && participationPercent < 100 && windowState.isOpen && (
+        <div className="text-xs sm:text-sm text-amber-400 mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+          Minimum reached! Continue completing to reach 100%
+        </div>
+      )}
       {canComplete && (
         <div className="mt-2 relative">
           <Button
