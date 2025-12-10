@@ -54,6 +54,8 @@ export default function TreeOfAscensionPage() {
   // Throttle mint queue fetches
   const lastMintQueueFetch = useRef<number>(0)
   const MINT_QUEUE_THROTTLE_MS = 3000 // Minimum 3 seconds between calls
+  const refreshIntervalRef = useRef<number | null>(null)
+  const compressionTimeoutsRef = useRef<Set<number>>(new Set())
 
   const ordinalAddress = address?.trim() || ''
 
@@ -65,6 +67,9 @@ export default function TreeOfAscensionPage() {
 
   // Track which images are being compressed to prevent duplicate compressions
   const compressingImages = useRef<Set<string>>(new Set())
+  
+  // Store fetch function in ref to avoid dependency issues
+  const fetchMintQueueImagesRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
 
   const fetchMintQueueImages = useCallback(async (force = false) => {
     const currentAddress = ordinalAddressRef.current
@@ -103,54 +108,104 @@ export default function TreeOfAscensionPage() {
         setMintQueueImages(records)
 
         // Auto-compress uncompressed images to show KB sizes (only once per image)
-        records.forEach(async (record: any) => {
-          if (!record.isCompressed && record.imageUrl && !compressingImages.current.has(record.id)) {
-            compressingImages.current.add(record.id)
-            console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
-            try {
-              const compressResponse = await fetch('/api/graveyard/mint/compress', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  mintQueueId: record.id,
-                  imageUrl: record.imageUrl
-                })
-              })
+        // Use a single batch approach to avoid multiple timeouts
+        const uncompressedRecords = records.filter(
+          (record: any) => !record.isCompressed && record.imageUrl && !compressingImages.current.has(record.id)
+        )
 
-              if (compressResponse.ok) {
-                const compressData = await compressResponse.json()
-                console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
-                // Refresh to show updated sizes (throttled, but don't add to compressing set again)
-                setTimeout(() => {
-                  fetchMintQueueImages(false)
-                }, 2000)
+        if (uncompressedRecords.length > 0) {
+          // Process compression in a single batch with a single refresh timeout
+          uncompressedRecords.forEach((record: any) => {
+            compressingImages.current.add(record.id)
+          })
+
+          // Compress all at once, then refresh once after all complete
+          Promise.all(
+            uncompressedRecords.map(async (record: any) => {
+              try {
+                console.log(`🗜️ Auto-compressing mint queue image ${record.id}`)
+                const compressResponse = await fetch('/api/graveyard/mint/compress', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mintQueueId: record.id,
+                    imageUrl: record.imageUrl
+                  })
+                })
+
+                if (compressResponse.ok) {
+                  const compressData = await compressResponse.json()
+                  console.log(`✅ Auto-compressed ${record.id}: ${(compressData.compressed_size / 1024).toFixed(1)} KB`)
+                  return true
+                }
+                return false
+              } catch (compressError) {
+                console.error(`Failed to auto-compress ${record.id}:`, compressError)
+                compressingImages.current.delete(record.id)
+                return false
               }
-            } catch (compressError) {
-              console.error(`Failed to auto-compress ${record.id}:`, compressError)
-              compressingImages.current.delete(record.id)
+            })
+          ).then(() => {
+            // Single refresh after all compressions complete
+            if (fetchMintQueueImagesRef.current) {
+              const timeoutId = window.setTimeout(() => {
+                compressionTimeoutsRef.current.delete(timeoutId)
+                fetchMintQueueImagesRef.current?.(false)
+              }, 2000)
+              compressionTimeoutsRef.current.add(timeoutId)
             }
-          }
-        })
+          })
+        }
       }
     } catch (error) {
       console.error('Error fetching mint queue:', error)
     }
   }, [])
 
+  // Store fetch function in ref
+  useEffect(() => {
+    fetchMintQueueImagesRef.current = fetchMintQueueImages
+  }, [fetchMintQueueImages])
+
   // Auto-refresh mint queue when there are in-progress mints
   useEffect(() => {
+    // Clear any existing interval first
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current)
+      refreshIntervalRef.current = null
+    }
+
     const hasInProgressMint = mintQueueImages.some(mint =>
       mint.mintInscription &&
       !['completed', 'failed'].includes(mint.mintInscription.status)
     )
 
-    if (hasInProgressMint && ordinalAddress) {
+    if (hasInProgressMint && ordinalAddress && document.visibilityState === 'visible') {
       console.log('🔄 Auto-refreshing mint queue (in-progress mint detected)')
-      const refreshInterval = setInterval(() => {
-        fetchMintQueueImages(false) // Use throttled version
-      }, 20000) // Refresh every 20 seconds
+      const doPoll = () => {
+        // Only poll if page is visible
+        if (document.visibilityState === 'visible' && fetchMintQueueImagesRef.current) {
+          fetchMintQueueImagesRef.current(false)
+        }
+      }
+      
+      refreshIntervalRef.current = window.setInterval(doPoll, 20000) // Refresh every 20 seconds
 
-      return () => clearInterval(refreshInterval)
+      // Also refresh when page becomes visible
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && fetchMintQueueImagesRef.current) {
+          fetchMintQueueImagesRef.current(false)
+        }
+      }
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+
+      return () => {
+        if (refreshIntervalRef.current) {
+          clearInterval(refreshIntervalRef.current)
+          refreshIntervalRef.current = null
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mintQueueImages, ordinalAddress]) // Removed fetchMintQueueImages from deps to prevent loop
@@ -283,8 +338,27 @@ export default function TreeOfAscensionPage() {
       // Clear data when disconnected
       setMintQueueImages([])
       setRegenerationAllowance(0)
+      // Clear intervals and timeouts
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+        refreshIntervalRef.current = null
+      }
+      // Clear all compression timeouts
+      compressionTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId))
+      compressionTimeoutsRef.current.clear()
     }
   }, [connected, address, loadMintQueue])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+      }
+      compressionTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId))
+      compressionTimeoutsRef.current.clear()
+    }
+  }, [])
 
   const showMintButtons = true
 
@@ -416,12 +490,12 @@ export default function TreeOfAscensionPage() {
                           existingMintInscription={mint.mintInscription}
                           onMintComplete={() => {
                             // Refresh mint queue data (force to bypass throttle)
-                            fetchMintQueueImages(true)
+                            fetchMintQueueImagesRef.current?.(true)
                           }}
                           onMintStart={() => {
                             toast.info('Minting started - Please sign the transaction in your wallet')
                             // Refresh to hide regenerate button once mint starts
-                            fetchMintQueueImages(true)
+                            fetchMintQueueImagesRef.current?.(true)
                           }}
                         />
                       )}
