@@ -190,8 +190,12 @@ export async function POST(
       const windowStartTime = windowStart
       const windowEndTime = windowStart + windowDuration
 
-      // If window has closed, check if participation was sufficient
+      // Check if window has closed - if so, check participation before allowing completion
+      let windowClosed = false
+      let participationPercentWhenClosed = 0
+      
       if (elapsedMinutes > windowEndTime) {
+        windowClosed = true
         // Window closed - check if level was completed
         const allParticipantsRes = await client.query(
           `SELECT COUNT(*)::int AS total, 
@@ -203,10 +207,10 @@ export async function POST(
 
         const total = allParticipantsRes.rows[0]?.total ?? 0
         const completed = allParticipantsRes.rows[0]?.completed ?? 0
-        const participationPercent = total > 0 ? (completed / total) * 100 : 0
+        participationPercentWhenClosed = total > 0 ? (completed / total) * 100 : 0
 
         // If participation is below threshold, mark instance as failed and archive participants
-        if (participationPercent < config.minParticipationPercent) {
+        if (participationPercentWhenClosed < config.minParticipationPercent) {
           // Archive all participants from this failed instance (preserve history)
           await client.query(
             `UPDATE dungeon_crawl_participants 
@@ -227,15 +231,18 @@ export async function POST(
           return NextResponse.json(
             {
               success: false,
-              error: `Level ${levelNum} window closed with insufficient participation (${Math.round(participationPercent)}% < ${config.minParticipationPercent}%). Dungeon crawl failed.`,
+              error: `Level ${levelNum} window closed with insufficient participation (${Math.round(participationPercentWhenClosed)}% < ${config.minParticipationPercent}%). Dungeon crawl failed.`,
               instanceFailed: true,
             },
             { status: 409 }
           )
         }
+        // If we reach here, window closed but participation is sufficient - allow completion to proceed
       }
 
-      if (elapsedMinutes < windowStartTime || elapsedMinutes > windowEndTime) {
+      // Only block if window hasn't opened yet, or if window closed AND participation is insufficient
+      // (insufficient participation case already handled above)
+      if (elapsedMinutes < windowStartTime || (elapsedMinutes > windowEndTime && !windowClosed)) {
         await client.query('ROLLBACK')
         return NextResponse.json(
           {
@@ -293,16 +300,22 @@ export async function POST(
       const completed = allParticipantsRes.rows[0]?.completed ?? 0
       const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
-      // Check if window has closed (windowEndTime was already declared above)
-      const windowClosed = elapsedMinutes > windowEndTime
+      // windowClosed was already calculated above - reuse it
+      // If window closed, we need to check if participation was sufficient before allowing completion
+      // Use the participation percent calculated when window closed (before this completion)
+      // to determine if we should advance, but use current participation for 100% check
+      const currentWindowClosed = elapsedMinutes > windowEndTime
+      const effectiveParticipationPercent = currentWindowClosed && windowClosed 
+        ? participationPercentWhenClosed 
+        : participationPercent
 
       let levelCompleted = false
       let instanceCompleted = false
 
       // Only mark level as completed and move forward if:
-      // - Minimum participation is met AND
+      // - Minimum participation is met (using effective percent if window closed) AND
       // - Either 100% participation OR window has closed
-      if (participationPercent >= config.minParticipationPercent && (participationPercent >= 100 || windowClosed)) {
+      if (effectiveParticipationPercent >= config.minParticipationPercent && (participationPercent >= 100 || currentWindowClosed)) {
         levelCompleted = true
         const completedAt = new Date()
 
