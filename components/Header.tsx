@@ -123,6 +123,7 @@ export default function Header({
   }, [])
 
   return (
+    <>
     <header className="relative z-[9999] text-center py-3 px-4 bg-gradient-to-b from-[rgba(139,0,0,0.9)] to-[rgba(0,0,0,0.9)] border-b-[3px] border-[#8B0000] shadow-[0_4px_20px_rgba(139,0,0,0.5)]">
       <div className="flex items-center justify-between md:justify-center gap-4">
         <Link href="/" className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-widest inline-flex mb-1">
@@ -359,7 +360,8 @@ export default function Header({
           </div>
         )}
       </div>
-      <HordeAttackAlert />
     </header>
+    <HordeAttackAlert />
+    </>
   )
 }
