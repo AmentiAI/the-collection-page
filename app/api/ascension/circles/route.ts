@@ -230,12 +230,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Ascension circle creation is disabled
-  return NextResponse.json(
-    { success: false, error: 'Ascension circle creation is currently disabled.' },
-    { status: 503 },
-  )
-  
   if (!POWDER_MODE_ENABLED) {
     return NextResponse.json(
       { success: false, error: 'Powder circles are currently disabled.' },
