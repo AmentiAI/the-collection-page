@@ -509,7 +509,9 @@ export default function BattlePage() {
                       <div
                         key={ordinal.inscriptionId}
                         className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
-                          ordinal.status === 'sanctuary'
+                          ordinal.status === 'ready'
+                            ? 'border-red-600 bg-red-950/30 ring-2 ring-red-500/70 shadow-lg shadow-red-500/30'
+                            : ordinal.status === 'sanctuary'
                             ? 'border-cyan-600 bg-cyan-950/40 ring-2 ring-cyan-500/50'
                             : 'border-cyan-500/50 bg-cyan-950/20 hover:border-cyan-400'
                         }`}
@@ -558,9 +560,9 @@ export default function BattlePage() {
                           {ordinal.status && (
                             <div className="flex items-center justify-center mb-1">
                               {ordinal.status === 'ready' ? (
-                                <div className="flex items-center gap-1">
-                                <Sword className="h-3 w-3 text-cyan-400" />
-                                  <span className="text-[9px] text-cyan-400 font-semibold uppercase">Ready</span>
+                                <div className="flex items-center gap-1.5 bg-red-900/60 px-2.5 py-1 rounded border-2 border-red-500 shadow-md shadow-red-500/50">
+                                  <Sword className="h-4 w-4 text-red-400" />
+                                  <span className="text-[11px] text-red-300 font-bold uppercase tracking-wide">Ready</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-1 bg-cyan-900/50 px-2 py-0.5 rounded border border-cyan-500/50">
@@ -593,14 +595,18 @@ export default function BattlePage() {
                           ) : (
                             <Button
                               variant="outline"
-                              className="w-full text-[10px] py-1 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/50"
+                              className={`w-full text-[10px] py-1 ${
+                                ordinal.status === 'ready'
+                                  ? 'border-2 border-red-500/70 bg-red-950/40 text-red-300 hover:bg-red-950/60 font-bold'
+                                  : 'border border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/50'
+                              }`}
                               onClick={() => updateStatus(ordinal.inscriptionId, ordinal.status === 'ready' ? 'sanctuary' : 'ready')}
                               disabled={updatingStatus === ordinal.inscriptionId}
                             >
                               {updatingStatus === ordinal.inscriptionId ? (
                                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                               ) : ordinal.status === 'ready' ? (
-                                'Sanctuary'
+                                'Switch to Sanctuary'
                               ) : (
                                 'Ready'
                               )}
@@ -624,7 +630,9 @@ export default function BattlePage() {
                       <div
                         key={ordinal.inscriptionId}
                         className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
-                          ordinal.status === 'sanctuary'
+                          ordinal.status === 'ready'
+                            ? 'border-red-600 bg-red-950/30 ring-2 ring-red-500/70 shadow-lg shadow-red-500/30'
+                            : ordinal.status === 'sanctuary'
                             ? 'border-red-600 bg-red-950/40 ring-2 ring-red-500/50'
                             : 'border-red-500/50 bg-red-950/20 hover:border-red-400'
                         }`}
@@ -673,9 +681,9 @@ export default function BattlePage() {
                           {ordinal.status && (
                             <div className="flex items-center justify-center mb-1">
                               {ordinal.status === 'ready' ? (
-                                <div className="flex items-center gap-1">
-                                <Sword className="h-3 w-3 text-red-400" />
-                                  <span className="text-[9px] text-red-400 font-semibold uppercase">Ready</span>
+                                <div className="flex items-center gap-1.5 bg-red-900/60 px-2.5 py-1 rounded border-2 border-red-500 shadow-md shadow-red-500/50">
+                                  <Sword className="h-4 w-4 text-red-400" />
+                                  <span className="text-[11px] text-red-300 font-bold uppercase tracking-wide">Ready</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-1 bg-red-900/50 px-2 py-0.5 rounded border border-red-500/50">
@@ -708,14 +716,18 @@ export default function BattlePage() {
                           ) : (
                             <Button
                               variant="outline"
-                              className="w-full text-[10px] py-1 border border-red-500/50 text-red-400 hover:bg-red-950/50"
+                              className={`w-full text-[10px] py-1 ${
+                                ordinal.status === 'ready'
+                                  ? 'border-2 border-red-500/70 bg-red-950/40 text-red-300 hover:bg-red-950/60 font-bold'
+                                  : 'border border-red-500/50 text-red-400 hover:bg-red-950/50'
+                              }`}
                               onClick={() => updateStatus(ordinal.inscriptionId, ordinal.status === 'ready' ? 'sanctuary' : 'ready')}
                               disabled={updatingStatus === ordinal.inscriptionId}
                             >
                               {updatingStatus === ordinal.inscriptionId ? (
                                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                               ) : ordinal.status === 'ready' ? (
-                                'Sanctuary'
+                                'Switch to Sanctuary'
                               ) : (
                                 'Ready'
                               )}
