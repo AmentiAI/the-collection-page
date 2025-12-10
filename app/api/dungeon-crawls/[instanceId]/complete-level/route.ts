@@ -189,9 +189,10 @@ export async function POST(
       // Check if level window is open
       const windowStartTime = windowStart
       const windowEndTime = windowStart + windowDuration
+      const windowClosed = elapsedMinutes > windowEndTime
 
       // If window has closed, check if participation was sufficient
-      if (elapsedMinutes > windowEndTime) {
+      if (windowClosed) {
         // Window closed - check if level was completed
         const allParticipantsRes = await client.query(
           `SELECT COUNT(*)::int AS total, 
@@ -235,12 +236,14 @@ export async function POST(
         }
       }
 
-      if (elapsedMinutes < windowStartTime || elapsedMinutes > windowEndTime) {
+      // Block if window hasn't opened yet
+      // If window closed but we're still here, participation was sufficient (checked above), so allow completion
+      if (elapsedMinutes < windowStartTime) {
         await client.query('ROLLBACK')
         return NextResponse.json(
           {
             success: false,
-            error: `Level ${levelNum} completion window is not open. Window: ${windowStartTime}-${windowEndTime} minutes`,
+            error: `Level ${levelNum} completion window is not open yet. Window starts at ${windowStartTime} minutes`,
             elapsedMinutes: Math.round(elapsedMinutes * 100) / 100,
           },
           { status: 409 }
@@ -293,8 +296,7 @@ export async function POST(
       const completed = allParticipantsRes.rows[0]?.completed ?? 0
       const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
-      // Check if window has closed (windowEndTime was already declared above)
-      const windowClosed = elapsedMinutes > windowEndTime
+      // windowClosed was already calculated above (line 193)
 
       let levelCompleted = false
       let instanceCompleted = false
