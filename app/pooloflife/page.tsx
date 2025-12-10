@@ -86,14 +86,14 @@ export default function PoolOfLifePage() {
       const healResponse = await fetch(`/api/pooloflife/status?walletAddress=${encodeURIComponent(address)}`)
       if (healResponse.ok) {
         const healData = await healResponse.json()
+        // Use the canHealToday value directly from the API (it handles null lastHealTime correctly)
+        setCanHealToday(healData.canHealToday ?? true)
+        
         if (healData.lastHealTime) {
           const lastHeal = new Date(healData.lastHealTime)
           setLastHealTime(lastHeal)
-          
-          // Check if 6 hours have passed
-          const now = new Date()
-          const hoursSinceHeal = (now.getTime() - lastHeal.getTime()) / (1000 * 60 * 60)
-          setCanHealToday(hoursSinceHeal >= 6)
+        } else {
+          setLastHealTime(null)
         }
       }
     } catch (error) {
