@@ -1565,6 +1565,9 @@ export default function DungeonCrawlPage() {
                               <div className="flex flex-wrap gap-2">
                             <Button
                               onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
                                 const available = ordinals.filter(
                                   (o) => {
                                     if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
@@ -1572,8 +1575,11 @@ export default function DungeonCrawlPage() {
                                     return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
                                   }
                                 )
+                                
                                 if (crawl.allowMultipleFromStock) {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(available.map((o) => o.inscriptionId)))
+                                  // Only select up to the number of spots left
+                                  const toSelect = available.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
                                 } else {
                                   setSelectedOrdinalsForInstance(instance.id, new Set(available.slice(0, 1).map((o) => o.inscriptionId)))
                                 }
@@ -1584,14 +1590,20 @@ export default function DungeonCrawlPage() {
                             </Button>
                             <Button
                               onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
                                 const angelic = ordinals.filter(
                                   (o) => {
                                         if (crawl.allowedTraits === 'demonic') return false
                                     return o.trait === 'Angelic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
                                   }
                                 )
+                                
                                 if (crawl.allowMultipleFromStock) {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(angelic.map((o) => o.inscriptionId)))
+                                  // Only select up to the number of spots left
+                                  const toSelect = angelic.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
                                 } else {
                                   setSelectedOrdinalsForInstance(instance.id, new Set(angelic.slice(0, 1).map((o) => o.inscriptionId)))
                                 }
@@ -1602,14 +1614,20 @@ export default function DungeonCrawlPage() {
                             </Button>
                             <Button
                               onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
                                 const demonic = ordinals.filter(
                                   (o) => {
                                         if (crawl.allowedTraits === 'angelic') return false
                                     return o.trait === 'Demonic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
                                   }
                                 )
+                                
                                 if (crawl.allowMultipleFromStock) {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(demonic.map((o) => o.inscriptionId)))
+                                  // Only select up to the number of spots left
+                                  const toSelect = demonic.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
                                 } else {
                                   setSelectedOrdinalsForInstance(instance.id, new Set(demonic.slice(0, 1).map((o) => o.inscriptionId)))
                                 }

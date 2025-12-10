@@ -151,6 +151,7 @@ async function checkExpiredWindows(client: any) {
         // For other statuses, check participation threshold - if below min_participation_percent, it's a failure
         if (!levelCompletedAt) {
           let shouldFail = false
+          let shouldAdvance = false
           
           if (instance.status === 'ready' && level === 1) {
             // 'ready' instance: if window expired and no one completed, it's a failure
@@ -161,9 +162,82 @@ async function checkExpiredWindows(client: any) {
             // If participation is below min_participation_percent, it's a failure
             // This handles the case where window expired and not enough people completed
             shouldFail = participationPercent < instance.min_participation_percent || completed === 0
+            
+            // If participation >= minimum, advance to next level
+            // Only advance if instance is currently on the level we're checking
+            // Level 1: status should be 'ready' or 'level_1' (level 1 in progress)
+            // Level 2: status should be 'level_1' or 'level_2' (level 2 in progress)
+            // Level 3: status should be 'level_2' or 'level_3' (level 3 in progress)
+            let isOnCorrectLevel = false
+            if (level === 1) {
+              isOnCorrectLevel = instance.status === 'ready' || instance.status === 'level_1'
+            } else if (level === 2) {
+              isOnCorrectLevel = instance.status === 'level_1' || instance.status === 'level_2'
+            } else {
+              isOnCorrectLevel = instance.status === 'level_2' || instance.status === 'level_3'
+            }
+            
+            if (participationPercent >= instance.min_participation_percent && isOnCorrectLevel) {
+              shouldAdvance = true
+            }
           } else if (total === 0) {
             // No participants at all - this shouldn't happen but mark as failed
             shouldFail = true
+          }
+          
+          // Auto-advance level if window closed and minimum participation met
+          if (shouldAdvance && !shouldFail) {
+            const completedAt = new Date()
+            
+            if (level === 1) {
+              // Advance from level 1 to level 2
+              await client.query(
+                `UPDATE dungeon_crawl_instances
+                 SET status = 'level_2',
+                     level_1_completed_at = $1,
+                     level_2_started_at = COALESCE(level_2_started_at, NOW()),
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [completedAt.toISOString(), instance.id]
+              )
+              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_1 to level_2 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+            } else if (level === 2) {
+              // Advance from level 2 to level 3
+              await client.query(
+                `UPDATE dungeon_crawl_instances
+                 SET status = 'level_3',
+                     level_2_completed_at = $1,
+                     level_3_started_at = COALESCE(level_3_started_at, NOW()),
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [completedAt.toISOString(), instance.id]
+              )
+              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_2 to level_3 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+            } else if (level === 3) {
+              // Complete the entire dungeon crawl
+              await client.query(
+                `UPDATE dungeon_crawl_instances
+                 SET status = 'completed',
+                     level_3_completed_at = $1,
+                     completed_at = $1,
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [completedAt.toISOString(), instance.id]
+              )
+              console.log(`[checkExpiredWindows] Auto-completed instance ${instance.id} - level 3 window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+            }
+            
+            // Update instance status for next iteration
+            if (level === 1) {
+              instance.status = 'level_2'
+              instance.level_1_completed_at = completedAt
+            } else if (level === 2) {
+              instance.status = 'level_3'
+              instance.level_2_completed_at = completedAt
+            } else if (level === 3) {
+              instance.status = 'completed'
+              instance.level_3_completed_at = completedAt
+            }
           }
           
           if (shouldFail) {
