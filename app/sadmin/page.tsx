@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword, Flame, Cemetery } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword, Flame, Ghost } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -107,7 +107,7 @@ const adminLinks: AdminLink[] = [
     href: '/sadmin/graveyard',
     title: 'Graveyard Viewer',
     description: 'View all graveyard entries, minted, and awaiting mint items for any wallet',
-    icon: <Cemetery className="h-8 w-8" />,
+    icon: <Ghost className="h-8 w-8" />,
     color: 'red',
   },
 ]
