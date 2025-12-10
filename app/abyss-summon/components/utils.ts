@@ -94,24 +94,10 @@ export async function checkGlobalStartTimeForAbyss(): Promise<{ isRestricted: bo
 }
 
 // Check if abyss-summon is closed
-// If global start time is set and not passed, it's closed
-// Otherwise, it's always open (no more 6-hour cycle)
+// Abyss-summon is always open - not blocked by global start time
+// No more 6-hour cycle - just open all the time
 export async function isAbyssSummonClosed(): Promise<{ isClosed: boolean; timeUntilOpen: number; timeUntilClose: number; globalRestriction?: { isRestricted: boolean; timeUntilStart: number; startTime: Date | null } }> {
-  // First check global start time
-  const globalStatus = await checkGlobalStartTimeForAbyss()
-  
-  // If global start time is set and not passed, it's closed
-  if (globalStatus.isRestricted && globalStatus.timeUntilStart > 0) {
-    return {
-      isClosed: true,
-      timeUntilOpen: globalStatus.timeUntilStart,
-      timeUntilClose: 0,
-      globalRestriction: globalStatus
-    }
-  }
-  
-  // If global start time has passed or is not set, it's always open
-  // No more 6-hour cycle - just open all the time
+  // Always open - not restricted by global start time
   return {
     isClosed: false,
     timeUntilOpen: 0,
