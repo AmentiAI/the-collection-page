@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import dynamicImport from 'next/dynamic'
 import Link from 'next/link'
 import { useMusicPlayer } from '@/providers/MusicPlayerProvider'
+import HordeAttackAlert from '@/components/HordeAttackAlert'
 
 // Lazy load WalletConnect to prevent LaserEyes from loading immediately
 const WalletConnect = dynamicImport(() => import('./WalletConnect'), {
@@ -358,6 +359,7 @@ export default function Header({
           </div>
         )}
       </div>
+      <HordeAttackAlert />
     </header>
   )
 }

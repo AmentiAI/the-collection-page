@@ -974,7 +974,7 @@ export default function AbyssSummonPage() {
         showMusicControls={true}
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
+        <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16 md:px-8 overflow-x-hidden">
         {/* Closed State - Show if abyss-summon is closed (only when global start time is set and not passed) */}
         {abyssClosed.isClosed && !bypassClosed && (
           <div className="relative z-20 mx-auto w-full max-w-2xl rounded-3xl border-2 border-red-600/80 bg-black/95 p-8 shadow-[0_0_80px_rgba(220,38,38,0.8)]">
@@ -1504,7 +1504,7 @@ export default function AbyssSummonPage() {
         )}
           </>
         )}
-      </main>
+        </main>
 
     </div>
   )
