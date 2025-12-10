@@ -1139,7 +1139,12 @@ function AbyssContent() {
     const particles: Particle[] = []
     const maxParticles = 520
 
+    let animationFrameId: number | null = null
+    let isRunning = true
+
     const animate = () => {
+      if (!isRunning || !ctx) return
+      
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       if (particles.length < maxParticles) {
@@ -1157,10 +1162,10 @@ function AbyssContent() {
         }
       }
 
-      requestAnimationFrame(animate)
+      animationFrameId = requestAnimationFrame(animate)
     }
 
-    animate()
+    animationFrameId = requestAnimationFrame(animate)
 
     const emitBurst = (options?: { leftPercent?: number; topPercent?: number; axisLeftPercent?: number }) => {
       const requestedLeft = options?.leftPercent ?? BASE_LEFT_PERCENT
@@ -1191,7 +1196,12 @@ function AbyssContent() {
     emitBurstRef.current = emitBurst
 
     return () => {
+      isRunning = false
       emitBurstRef.current = undefined
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
       window.removeEventListener('resize', resizeCanvas)
     }
   }, [])

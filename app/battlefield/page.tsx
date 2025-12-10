@@ -99,44 +99,47 @@ export default function BattlefieldPage() {
     return { demonic, angelic, total: allLandmarks.length }
   }, [allLandmarks])
 
+  // Memoize style content to prevent re-rendering the style tag on every component update
+  const battlefieldStyles = useMemo(() => `
+    .map-container .leaflet-container {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1 !important;
+    }
+    .map-container {
+      position: relative !important;
+      overflow: hidden !important;
+    }
+    .landmark-tooltip {
+      background: rgba(0, 0, 0, 0.9) !important;
+      border: 2px solid rgba(255, 255, 255, 0.3) !important;
+      border-radius: 4px !important;
+      padding: 4px 8px !important;
+      font-weight: bold !important;
+      pointer-events: none !important;
+    }
+    .landmark-tooltip .leaflet-tooltip-arrow {
+      border-top-color: rgba(255, 255, 255, 0.3) !important;
+    }
+    /* Hide default Leaflet popup icons */
+    .leaflet-popup-content-wrapper {
+      display: none !important;
+    }
+    .leaflet-popup-tip {
+      display: none !important;
+    }
+    /* Prevent any default popup behavior */
+    .leaflet-marker-icon[class*="popup"] {
+      display: none !important;
+    }
+  `, [])
+
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
-        .map-container .leaflet-container {
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 100% !important;
-          z-index: 1 !important;
-        }
-        .map-container {
-          position: relative !important;
-          overflow: hidden !important;
-        }
-        .landmark-tooltip {
-          background: rgba(0, 0, 0, 0.9) !important;
-          border: 2px solid rgba(255, 255, 255, 0.3) !important;
-          border-radius: 4px !important;
-          padding: 4px 8px !important;
-          font-weight: bold !important;
-          pointer-events: none !important;
-        }
-        .landmark-tooltip .leaflet-tooltip-arrow {
-          border-top-color: rgba(255, 255, 255, 0.3) !important;
-        }
-        /* Hide default Leaflet popup icons */
-        .leaflet-popup-content-wrapper {
-          display: none !important;
-        }
-        .leaflet-popup-tip {
-          display: none !important;
-        }
-        /* Prevent any default popup behavior */
-        .leaflet-marker-icon[class*="popup"] {
-          display: none !important;
-        }
-      `}} />
+      <style dangerouslySetInnerHTML={{__html: battlefieldStyles}} />
       <div className="h-screen bg-black text-white overflow-hidden flex flex-col">
       <Header
         isHolder={isHolder}
