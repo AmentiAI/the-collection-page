@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { MintButton } from '@/components/MintButton'
+import ChestCallout from '@/components/ChestCallout'
 
 type GraveyardEntry = {
   inscriptionId: string
@@ -916,6 +917,15 @@ function GraveyardContent() {
               Fallen offerings from: {formattedSources || 'Unknown rites'}
             </p>
           )}
+          
+          {/* Chest for 300 powder */}
+          <div className="flex justify-center mt-4">
+            <ChestCallout 
+              eventKey="graveyard_chest_300" 
+              grantAmount={300}
+              size="md"
+            />
+          </div>
         </div>
 
 
