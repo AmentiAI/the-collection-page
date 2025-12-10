@@ -5,7 +5,8 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
-import { Loader2, Gem, Clock, TrendingUp, History, X } from 'lucide-react'
+import { Loader2, Gem, Clock, TrendingUp, History, X, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 import dynamicImport from 'next/dynamic'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
@@ -51,6 +52,7 @@ export default function CrystallizationPage() {
   const [entering, setEntering] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
   const [exiting, setExiting] = useState<string | null>(null)
+  const [allOrdinals, setAllOrdinals] = useState<BattleOrdinal[]>([])
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -78,11 +80,14 @@ export default function CrystallizationPage() {
       }
 
       const data = await response.json()
-      // Filter out dead ordinals and those in battle
-      const availableOrdinals = (data.ordinals || []).filter(
+      const allOrdinalsData = data.ordinals || []
+      setAllOrdinals(allOrdinalsData)
+      
+      // Only show ordinals that are in sanctuary status
+      const availableOrdinals = allOrdinalsData.filter(
         (ord: BattleOrdinal) => 
           (ord.lifeForce ?? 0) > 0 && 
-          ord.status !== 'ready'
+          ord.status === 'sanctuary'
       )
       setOrdinals(availableOrdinals)
     } catch (error) {
@@ -143,6 +148,7 @@ export default function CrystallizationPage() {
       ]).finally(() => setLoading(false))
     } else {
       setOrdinals([])
+      setAllOrdinals([])
       setCrystallizations([])
       setHistory([])
     }
@@ -392,14 +398,73 @@ export default function CrystallizationPage() {
                 </div>
               )}
 
-              {/* Available Ordinals */}
+              {/* Ordinals Not in Battle Table Warning */}
+              {(() => {
+                const notInBattle = allOrdinals.filter(
+                  (ord: BattleOrdinal) => 
+                    ord.status === null && 
+                    (ord.lifeForce ?? 0) > 0 &&
+                    !crystallizedIds.has(ord.inscriptionId)
+                )
+                if (notInBattle.length === 0) return null
+                
+                return (
+                  <div className="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-lg p-6 mb-6">
+                    <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                      <AlertCircle className="h-6 w-6" />
+                      Ordinals Need Setup
+                    </h2>
+                    <p className="text-yellow-200 mb-4">
+                      These ordinals are not in the battle system. You must go to{' '}
+                      <Link href="/battlez" className="underline font-bold hover:text-yellow-300">
+                        /battlez
+                      </Link>{' '}
+                      and ready up + put them in sanctuary before they can enter crystallization.
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {notInBattle.map((ordinal) => (
+                        <div
+                          key={ordinal.inscriptionId}
+                          className={`border-2 rounded-lg p-3 opacity-60 ${
+                            ordinal.trait === 'Angelic'
+                              ? 'border-cyan-500/50 bg-cyan-950/20'
+                              : 'border-red-500/50 bg-red-950/20'
+                          }`}
+                        >
+                          <img
+                            src={ordinal.imageUrl}
+                            alt="Ordinal"
+                            className="w-full aspect-square object-cover rounded mb-2 grayscale"
+                          />
+                          <div className="text-sm mb-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`font-bold ${ordinal.trait === 'Angelic' ? 'text-cyan-400' : 'text-red-400'}`}>
+                                {ordinal.trait}
+                              </span>
+                              <span className="text-gray-300">{ordinal.lifeForce}/100</span>
+                            </div>
+                          </div>
+                          <Button
+                            disabled
+                            className="w-full bg-gray-600 text-gray-400 py-2 text-sm font-bold cursor-not-allowed"
+                          >
+                            Setup Required
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Available Ordinals (Sanctuary Only) */}
               <div className="bg-black/60 border-2 border-purple-500/50 rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-bold text-purple-400 mb-4">Available Ordinals</h2>
+                <h2 className="text-2xl font-bold text-purple-400 mb-4">Available Ordinals (Sanctuary)</h2>
                 {availableOrdinals.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">
                     {crystallizations.length > 0 
                       ? 'All available ordinals are already in crystallization'
-                      : 'No ordinals available for crystallization. Remove them from battle first.'}
+                      : 'No ordinals in sanctuary available for crystallization. Go to /battlez and put ordinals in sanctuary first.'}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

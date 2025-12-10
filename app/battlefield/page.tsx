@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
 
@@ -58,9 +58,8 @@ export default function BattlefieldPage() {
       })
   }, [])
 
-
-  // Add demon image as a special landmark
-  const demonLandmark: Landmark = {
+  // Memoize special landmarks to prevent recreation on every render
+  const demonLandmark = useMemo<Landmark>(() => ({
     id: 'demon-left-1',
     spriteX: 0,
     spriteY: 0,
@@ -68,12 +67,12 @@ export default function BattlefieldPage() {
     spriteHeight: 0,
     mapX: 3510,
     mapY: 1017,
-    type: 'demonic',
+    type: 'demonic' as const,
     name: 'Demon',
     imageUrl: '/demon-left-1.png',
-  }
-  // Add demon image as a special landmark
-  const angelLandmark: Landmark = {
+  }), [])
+
+  const angelLandmark = useMemo<Landmark>(() => ({
     id: 'angel-left-1',
     spriteX: 0,
     spriteY: 0,
@@ -81,14 +80,24 @@ export default function BattlefieldPage() {
     spriteHeight: 0,
     mapX: -310,
     mapY: 1017,
-    type: 'angelic',
+    type: 'angelic' as const,
     name: 'Angel',
     imageUrl: '/angel-right-1.png',
-  }
-  // Combine API landmarks with special demon and angel landmarks (hide on mobile)
-  const allLandmarks = isMobile 
-    ? landmarks 
-    : [...landmarks, demonLandmark, angelLandmark]
+  }), [])
+
+  // Memoize combined landmarks array
+  const allLandmarks = useMemo(() => {
+    return isMobile 
+      ? landmarks 
+      : [...landmarks, demonLandmark, angelLandmark]
+  }, [landmarks, isMobile, demonLandmark, angelLandmark])
+
+  // Memoize landmark counts to avoid filtering on every render
+  const landmarkCounts = useMemo(() => {
+    const demonic = allLandmarks.filter(l => l.type === 'demonic').length
+    const angelic = allLandmarks.filter(l => l.type === 'angelic').length
+    return { demonic, angelic, total: allLandmarks.length }
+  }, [allLandmarks])
 
   return (
     <>
@@ -154,9 +163,9 @@ export default function BattlefieldPage() {
           {/* Landmarks count */}
           <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-black/80 border border-green-500/50 px-2 py-1.5 md:px-4 md:py-3 rounded z-[1000]">
             <div className="text-xs md:text-sm font-mono text-green-400">
-              <div>🔥 Demonic: {allLandmarks.filter(l => l.type === 'demonic').length}</div>
-              <div>✨ Angelic: {allLandmarks.filter(l => l.type === 'angelic').length}</div>
-              <div>📍 Total: {allLandmarks.length}</div>
+              <div>🔥 Demonic: {landmarkCounts.demonic}</div>
+              <div>✨ Angelic: {landmarkCounts.angelic}</div>
+              <div>📍 Total: {landmarkCounts.total}</div>
             </div>
           </div>
         </div>

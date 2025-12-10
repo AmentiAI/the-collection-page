@@ -120,12 +120,7 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
   const [isHovered, setIsHovered] = useState(false)
   const markerRef = useRef<L.Marker | null>(null)
   
-  // Debug logging
-  useEffect(() => {
-    console.log(`📍 LandmarkMarker: ${landmark.name || 'Unnamed'}`)
-    console.log(`   Map coords: X=${landmark.mapX}, Y=${landmark.mapY}`)
-    console.log(`   Leaflet coords: lat=${lat.toFixed(2)}, lng=${lng.toFixed(2)} (using directly, no conversion)`)
-  }, [landmark, lat, lng])
+  // Debug logging removed to reduce console noise
   
   // Calculate icon size based on mobile zoom level
   // At zoom -2 (mobile), we're zoomed out 4x, so icons should be 4x smaller
@@ -147,6 +142,8 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
 
   useEffect(() => {
     const cursorStyle = landmark.url ? 'cursor: pointer;' : ''
+    let img: HTMLImageElement | null = null
+    let cancelled = false
     
     // If landmark has a standalone image URL, use it directly
     if (landmark.imageUrl) {
@@ -157,7 +154,9 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
         iconAnchor: [iconSize / 2, iconSize / 2],
       })
       setIcon(newIcon)
-      return
+      return () => {
+        cancelled = true
+      }
     }
     
     // Otherwise, use sprite sheet
@@ -168,16 +167,17 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
     
     if (ctx) {
       // Create fallback icon first (colored circle)
-      const fallbackIcon = createIcon(isHovered)
+      const fallbackIcon = createIcon(false)
       setIcon(fallbackIcon)
       
-      const img = new Image()
+      img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
+        if (cancelled) return
         try {
           ctx.clearRect(0, 0, iconSize, iconSize)
           ctx.drawImage(
-            img,
+            img!,
             landmark.spriteX,
             landmark.spriteY,
             landmark.spriteWidth,
@@ -200,21 +200,31 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
             iconAnchor: [iconSize / 2, iconSize / 2],
           })
           setIcon(newIcon)
-          console.log(`✅ Icon loaded for ${landmark.name}`)
         } catch (err) {
-          console.error('Error drawing landmark sprite:', err)
+          // Silently handle errors - fallback icon is already set
         }
       }
-      img.onerror = (e) => {
-        console.error('Failed to load landmark sprite for', landmark.name, e)
+      img.onerror = () => {
+        // Silently handle errors - fallback icon is already set
       }
       const spriteSource = landmark.spriteSource || 'landmarks.png'
       img.src = `/${spriteSource}`
     }
-  }, [landmark, isHovered, isMobile, iconSize])
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      cancelled = true
+      if (img) {
+        img.onload = null
+        img.onerror = null
+        img.src = ''
+        img = null
+      }
+    }
+  }, [landmark, isMobile, iconSize]) // Removed isHovered - hover is handled via CSS filters, not icon recreation
   
   // Always render marker - use fallback icon if custom icon hasn't loaded
-  const displayIcon = icon || createIcon(isHovered)
+  const displayIcon = icon || createIcon(false)
 
   const handleMarkerClick = (e: L.LeafletMouseEvent) => {
     if (landmark.url) {
@@ -299,12 +309,11 @@ function MapInit({ isMobile }: { isMobile: boolean }) {
   const map = useMap()
   
   useEffect(() => {
-    console.log('🟡 Test 4: Map initialized, isMobile:', isMobile)
-    console.log('🟡 Map center:', map.getCenter())
-    console.log('🟡 Map zoom:', map.getZoom())
-    console.log('🟡 Map bounds:', map.getBounds())
+    let timeoutId: NodeJS.Timeout | null = null
+    let cancelled = false
     
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
+      if (cancelled) return
       try {
         map.invalidateSize()
         
@@ -318,12 +327,19 @@ function MapInit({ isMobile }: { isMobile: boolean }) {
         const ne = L.latLng(0, MAP_WIDTH)  // top-right
         const bounds = L.latLngBounds(sw, ne)
         map.fitBounds(bounds, { padding: [0, 0], animate: false, maxZoom: targetZoom })
-        console.log('✅ Test 4: Fit bounds called with zoom:', targetZoom)
-        console.log('✅ Test 4: Bounds SW:', sw.lat, sw.lng, 'NE:', ne.lat, ne.lng)
       } catch (error) {
-        console.error('❌ Test 4: Fit bounds error:', error)
+        // Silently handle initialization errors
       }
     }, 100)
+    
+    // Cleanup function to cancel timeout if component unmounts
+    return () => {
+      cancelled = true
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+    }
   }, [map, isMobile])
   
   return null
@@ -358,13 +374,7 @@ export default function LeafletTileMap({
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  useEffect(() => {
-    console.log('🟣 Test 4: LeafletTileMap component mounted')
-    console.log(`🟣 Test 4: Received ${landmarks.length} landmarks`)
-    landmarks.forEach((lm, idx) => {
-      console.log(`   ${idx + 1}. ${lm.name || 'Unnamed'}: X=${lm.mapX}, Y=${lm.mapY}`)
-    })
-  }, [landmarks])
+  // Removed debug logging to reduce console noise
   
   const bounds: [[number, number], [number, number]] = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]]
   const initialZoom = isMobile ? -2 : 0 // Much less zoom on mobile
@@ -393,7 +403,7 @@ export default function LeafletTileMap({
       zoomAnimation={false}
       markerZoomAnimation={false}
       whenReady={() => {
-        console.log('🟢 Test 4: MapContainer ready')
+        // Map container ready
       }}
     >
       <MapInit isMobile={isMobile} />
@@ -404,10 +414,10 @@ export default function LeafletTileMap({
         interactive={false}
         eventHandlers={{
           load: () => {
-            console.log('✅ Test 4: Image overlay loaded')
+            // Image overlay loaded
           },
-          error: (e) => {
-            console.error('❌ Test 4: Image overlay error:', e)
+          error: () => {
+            // Silently handle image overlay errors
           }
         }}
       />
