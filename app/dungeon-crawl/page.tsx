@@ -1193,18 +1193,18 @@ export default function DungeonCrawlPage() {
                       </div>
 
                       {/* PROMINENT REWARD BANNER */}
-                      <div className="mb-3 sm:mb-4 md:mb-6 relative">
-                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border-2 border-amber-500/60 rounded-lg p-3 sm:p-4 md:p-5 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
+                      <div className="mb-2 sm:mb-3 md:mb-4 lg:mb-6 relative">
+                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border border-amber-500/60 sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 lg:p-5 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
                           {/* Animated background glow */}
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/10 to-transparent animate-shimmer" />
                           
-                          <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 md:gap-4">
-                            <Shield className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                          <div className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-3 lg:gap-4">
+                            <Shield className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 xl:w-10 xl:h-10 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                             <div className="text-center">
-                              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-amber-300/80 mb-0.5 sm:mb-1">REWARD</div>
-                              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                              <div className="text-[9px] sm:text-[10px] md:text-xs uppercase tracking-wider text-amber-300/80 mb-0.5">REWARD</div>
+                              <div className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl font-black text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                                 +{crawl.rewardValue}
-                                <span className="text-sm sm:text-base md:text-lg lg:text-xl text-amber-200/90">
+                                <span className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-amber-200/90">
                                   {crawl.rewardType === 'block_chance' ? '% Block Chance' : ' Life Force Cap'}
                                 </span>
                               </div>
@@ -1271,9 +1271,9 @@ export default function DungeonCrawlPage() {
                     </div>
 
                     {hasNoInstance ? (
-                      <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border-2 rounded-lg p-4 mb-6 backdrop-blur-sm shadow-lg`}>
-                        <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold`}>No active dungeon crawl</p>
-                        <p className="text-stone-300 text-sm mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                      <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-5 lg:mb-6 backdrop-blur-sm shadow-lg`}>
+                        <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
+                        <p className="text-stone-300 text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 md:mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                           {countdownText || 'Waiting for restart... The next crawl will be available soon.'}
                         </p>
                       </div>
