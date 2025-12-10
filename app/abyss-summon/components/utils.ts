@@ -19,40 +19,77 @@ export function formatTimestamp(value: string | null | undefined) {
   return date.toLocaleString()
 }
 
+// Cache for global start time to prevent API spam
+let cachedAbyssStatus: { isRestricted: boolean; timeUntilStart: number; startTime: Date | null } | null = null
+let cachedAbyssTimestamp: number = 0
+const CACHE_DURATION_MS = 30000 // Cache for 30 seconds
+
 // Check global start time restriction
 export async function checkGlobalStartTimeForAbyss(): Promise<{ isRestricted: boolean; timeUntilStart: number; startTime: Date | null }> {
+  // Return cached result if still valid
+  const now = Date.now()
+  if (cachedAbyssStatus && (now - cachedAbyssTimestamp) < CACHE_DURATION_MS) {
+    // Update timeUntilStart based on cached startTime
+    if (cachedAbyssStatus.startTime) {
+      const diff = cachedAbyssStatus.startTime.getTime() - now
+      return {
+        ...cachedAbyssStatus,
+        timeUntilStart: Math.max(0, diff)
+      }
+    }
+    return cachedAbyssStatus
+  }
+
   try {
     const response = await fetch('/api/admin/global-settings?key=global_start_time', {
       cache: 'no-store'
     })
 
     if (!response.ok) {
-      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+      const result = { isRestricted: false, timeUntilStart: 0, startTime: null }
+      cachedAbyssStatus = result
+      cachedAbyssTimestamp = Date.now()
+      return result
     }
 
     const data = await response.json()
     const settingValue = data.setting?.setting_value || ''
 
     if (!settingValue || settingValue.trim() === '') {
-      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+      const result = { isRestricted: false, timeUntilStart: 0, startTime: null }
+      cachedAbyssStatus = result
+      cachedAbyssTimestamp = Date.now()
+      return result
     }
 
     const startTime = new Date(settingValue.trim())
     if (isNaN(startTime.getTime())) {
-      return { isRestricted: false, timeUntilStart: 0, startTime: null }
+      const result = { isRestricted: false, timeUntilStart: 0, startTime: null }
+      cachedAbyssStatus = result
+      cachedAbyssTimestamp = Date.now()
+      return result
     }
 
-    const now = new Date()
-    const timeUntilStart = Math.max(0, startTime.getTime() - now.getTime())
+    const currentTime = new Date()
+    const timeUntilStart = Math.max(0, startTime.getTime() - currentTime.getTime())
 
-    return {
+    const result = {
       isRestricted: true,
       timeUntilStart,
       startTime
     }
+
+    // Cache the result
+    cachedAbyssStatus = result
+    cachedAbyssTimestamp = Date.now()
+
+    return result
   } catch (error) {
     console.error('Error checking global start time:', error)
-    return { isRestricted: false, timeUntilStart: 0, startTime: null }
+    const result = { isRestricted: false, timeUntilStart: 0, startTime: null }
+    cachedAbyssStatus = result
+    cachedAbyssTimestamp = Date.now()
+    return result
   }
 }
 
