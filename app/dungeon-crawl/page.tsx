@@ -154,12 +154,12 @@ const LevelCard = memo(({
   // Recalculate canComplete with current time
   const canComplete = useMemo(() => {
     // Must be a participant to complete
-    if (!myParticipant) return false
+    if (!instance || !myParticipant) return false
     if (isMyCompleted || !windowState.isOpen) return false
     if (level === 1) return instance.status === 'ready' || instance.status === 'level_1'
     if (level === 2) return instance.status === 'level_1' || instance.status === 'level_2'
     return instance.status === 'level_2' || instance.status === 'level_3'
-  }, [myParticipant, isMyCompleted, windowState.isOpen, level, instance.status])
+  }, [instance, myParticipant, isMyCompleted, windowState.isOpen, level])
 
   const timeDisplay = useMemo(() => {
     if (!windowData) return null
@@ -248,7 +248,7 @@ const LevelCard = memo(({
         )}
       </div>
       <div className="text-xs sm:text-sm md:text-base text-stone-200 mb-2 sm:mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {instance.status === 'ready' && level === 1 && completedCount === 0 && windowState.isOpen ? (
+        {instance?.status === 'ready' && level === 1 && completedCount === 0 && windowState.isOpen ? (
           <span>Waiting for first completion to start...</span>
         ) : (
           <span>
@@ -1181,44 +1181,46 @@ export default function DungeonCrawlPage() {
                   : null
                 
                 // Compute effective status - frontend advances status when windows close and minimums are met
-                let effectiveStatus = instance.status
+                let effectiveStatus = instance?.status || 'open'
                 
-                // If level_1_started_at exists, Level 1 has started, so status should be at least 'level_1'
-                if (instance.level1StartedAt && effectiveStatus === 'ready') {
-                  effectiveStatus = 'level_1'
-                }
-                
-                // Advance to level_1 when Level 1 window closes with minimum met (if still ready)
-                if (effectiveStatus === 'ready' && level1WindowClosed && level1MinimumMet) {
-                  effectiveStatus = 'level_1'
-                }
-                
-                // Advance to level_2 when Level 2 window closes with minimum met
-                if (effectiveStatus === 'level_1' && level2WindowClosed && level2MinimumMet) {
-                  effectiveStatus = 'level_2'
-                }
-                
-                // Advance to completed when Level 3 window closes with minimum met
-                if (effectiveStatus === 'level_2' && level3WindowData) {
-                  const level3WindowClosed = nowRef.current > level3WindowData.windowEndMs
-                  const level3CompletedCount = instance?.participants?.filter(p => p.level3Completed).length || 0
-                  const level3ParticipationPercent = instance?.participants?.length > 0 
-                    ? (level3CompletedCount / crawl.requiredParticipants) * 100 
-                    : 0
-                  const level3MinimumMet = level3ParticipationPercent >= crawl.minParticipationPercent
-                  if (level3WindowClosed && level3MinimumMet) {
-                    effectiveStatus = 'completed'
+                if (instance) {
+                  // If level_1_started_at exists, Level 1 has started, so status should be at least 'level_1'
+                  if (instance.level1StartedAt && effectiveStatus === 'ready') {
+                    effectiveStatus = 'level_1'
                   }
-                }
-                
-                // If level_2_started_at exists, Level 2 has started, so status should be at least 'level_2'
-                if (instance.level2StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1')) {
-                  effectiveStatus = 'level_2'
-                }
-                
-                // If level_3_started_at exists, Level 3 has started, so status should be at least 'level_3'
-                if (instance.level3StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1' || effectiveStatus === 'level_2')) {
-                  effectiveStatus = 'level_3'
+                  
+                  // Advance to level_1 when Level 1 window closes with minimum met (if still ready)
+                  if (effectiveStatus === 'ready' && level1WindowClosed && level1MinimumMet) {
+                    effectiveStatus = 'level_1'
+                  }
+                  
+                  // Advance to level_2 when Level 2 window closes with minimum met
+                  if (effectiveStatus === 'level_1' && level2WindowClosed && level2MinimumMet) {
+                    effectiveStatus = 'level_2'
+                  }
+                  
+                  // Advance to completed when Level 3 window closes with minimum met
+                  if (effectiveStatus === 'level_2' && level3WindowData) {
+                    const level3WindowClosed = nowRef.current > level3WindowData.windowEndMs
+                    const level3CompletedCount = instance?.participants?.filter(p => p.level3Completed).length || 0
+                    const level3ParticipationPercent = instance?.participants?.length > 0 
+                      ? (level3CompletedCount / crawl.requiredParticipants) * 100 
+                      : 0
+                    const level3MinimumMet = level3ParticipationPercent >= crawl.minParticipationPercent
+                    if (level3WindowClosed && level3MinimumMet) {
+                      effectiveStatus = 'completed'
+                    }
+                  }
+                  
+                  // If level_2_started_at exists, Level 2 has started, so status should be at least 'level_2'
+                  if (instance.level2StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1')) {
+                    effectiveStatus = 'level_2'
+                  }
+                  
+                  // If level_3_started_at exists, Level 3 has started, so status should be at least 'level_3'
+                  if (instance.level3StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1' || effectiveStatus === 'level_2')) {
+                    effectiveStatus = 'level_3'
+                  }
                 }
 
                 let countdownText: string | null = null
