@@ -1179,6 +1179,24 @@ export default function DungeonCrawlPage() {
                 const level3WindowData = shouldShowLevel3
                   ? calculateLevelWindow(instance, crawl, 3)
                   : null
+                
+                // Compute effective status - frontend advances status when windows close and minimums are met
+                let effectiveStatus = instance.status
+                if (instance.status === 'ready' && level1WindowClosed && level1MinimumMet) {
+                  effectiveStatus = 'level_1' // Advance to level_1 when Level 1 window closes with minimum met
+                } else if (instance.status === 'level_1' && level2WindowClosed && level2MinimumMet) {
+                  effectiveStatus = 'level_2' // Advance to level_2 when Level 2 window closes with minimum met
+                } else if (instance.status === 'level_2' && level3WindowData) {
+                  const level3WindowClosed = nowRef.current > level3WindowData.windowEndMs
+                  const level3CompletedCount = instance?.participants?.filter(p => p.level3Completed).length || 0
+                  const level3ParticipationPercent = instance?.participants?.length > 0 
+                    ? (level3CompletedCount / crawl.requiredParticipants) * 100 
+                    : 0
+                  const level3MinimumMet = level3ParticipationPercent >= crawl.minParticipationPercent
+                  if (level3WindowClosed && level3MinimumMet) {
+                    effectiveStatus = 'completed' // Advance to completed when Level 3 window closes with minimum met
+                  }
+                }
 
                 let countdownText: string | null = null
                 let isOverdue = false
@@ -1459,22 +1477,28 @@ export default function DungeonCrawlPage() {
                               : false
                             const level2MinimumMet = level2ParticipationPercent >= crawl.minParticipationPercent
                             
-                            // Show Level 2 if: status advanced OR (window closed AND minimum met)
-                            if (level === 2 && instance.status === 'ready' && !(level1WindowClosed && level1MinimumMet)) {
+                            // Show Level 2 if: effective status allows it OR (window closed AND minimum met)
+                            if (level === 2 && effectiveStatus === 'ready' && !(level1WindowClosed && level1MinimumMet)) {
                               return null
                             }
-                            // Show Level 3 if: status advanced OR (window closed AND minimum met)
-                            if (level === 3 && (instance.status === 'ready' || instance.status === 'level_1') && !(level2WindowClosed && level2MinimumMet)) {
+                            // Show Level 3 if: effective status allows it OR (window closed AND minimum met)
+                            if (level === 3 && (effectiveStatus === 'ready' || effectiveStatus === 'level_1') && !(level2WindowClosed && level2MinimumMet)) {
                               return null
                             }
                             
                             const windowData = level === 1 ? level1WindowData : level === 2 ? level2WindowData : level3WindowData
 
+                        // Create instance with effective status for this level
+                        const instanceWithEffectiveStatus = {
+                          ...instance,
+                          status: effectiveStatus
+                        }
+
                         return (
                               <LevelCard
                             key={level}
                                 level={level}
-                                instance={instance}
+                                instance={instanceWithEffectiveStatus}
                                 crawl={crawl}
                                 windowData={windowData}
                                 myParticipant={myParticipant ?? null}
@@ -1489,14 +1513,14 @@ export default function DungeonCrawlPage() {
                         {/* Select Ordinals to Join - Show above Battle Formation, hide if full */}
                         {instance && (() => {
                           // Don't show join section for failed instances
-                          if (!instance || instance.status === 'failed') return false
+                          if (!instance || effectiveStatus === 'failed') return false
                           // Hide if crawl is full
                           const currentParticipantCount = instance.participantCount ?? instance.participants.length
                           if (currentParticipantCount >= crawl.requiredParticipants) return false
                           // Show for open/filling
-                          if (instance.status === 'open' || instance.status === 'filling') return true
+                          if (effectiveStatus === 'open' || effectiveStatus === 'filling') return true
                           // For 'ready' status, only show if window is still open (hasn't expired)
-                          if (instance.status === 'ready') {
+                          if (effectiveStatus === 'ready') {
                             if (!level1WindowData) return false
                             const now = Date.now()
                             // windowEndMs is already the absolute end time
@@ -1658,7 +1682,7 @@ export default function DungeonCrawlPage() {
                             e.stopPropagation()
                             handleJoin(instance.id)
                           }}
-                          disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || instance.status === 'ready'}
+                          disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || effectiveStatus === 'ready'}
                               className="w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 backdrop-blur-sm"
                         >
                           {joining ? (
@@ -1666,7 +1690,7 @@ export default function DungeonCrawlPage() {
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Joining...
                             </>
-                          ) : instance.status === 'ready' ? (
+                          ) : effectiveStatus === 'ready' ? (
                             'Crawl is Full - Waiting for Start'
                           ) : (
                             `Join with ${getSelectedOrdinals(instance.id).size} Ordinal(s)`
@@ -1838,12 +1862,12 @@ export default function DungeonCrawlPage() {
                                               >
                                                 {/* Unit card */}
                                                 <div
-                                                  className={`relative rounded-lg border-2 backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:z-20 ${
+                                                  className={`relative rounded-lg border-2 backdrop-blur-sm transition-all duration-300 ${
                                                     allLevelsCompleted
-                                                      ? 'border-emerald-400/80 bg-emerald-900/30 shadow-md shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/60'
+                                                      ? 'border-emerald-400/80 bg-emerald-900/30 shadow-md shadow-emerald-500/30'
                                                       : unitProgress
-                                                      ? 'border-amber-400/70 bg-amber-900/25 shadow-sm shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/50'
-                                                      : 'border-stone-600/60 bg-stone-900/60 hover:shadow-md hover:border-stone-500'
+                                                      ? 'border-amber-400/70 bg-amber-900/25 shadow-sm shadow-amber-500/20'
+                                                      : 'border-stone-600/60 bg-stone-900/60'
                                                   }`}
                                                   style={{ width: '64px', height: '80px' }}
                                                 >
