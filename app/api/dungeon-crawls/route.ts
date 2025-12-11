@@ -148,7 +148,7 @@ async function checkExpiredWindows(client: any) {
 
         // Mark as failed if window expired and level wasn't completed
         // For 'ready' status with expired window, always fail if no one completed (window closed, no completions)
-        // For other statuses, check participation threshold - if below min_participation_percent, it's a failure
+        // For other statuses, check participation threshold - if at or below min_participation_percent, it's a failure
         if (!levelCompletedAt) {
           let shouldFail = false
           let shouldAdvance = false
@@ -163,7 +163,7 @@ async function checkExpiredWindows(client: any) {
             // This handles the case where window expired and not enough people completed
             shouldFail = participationPercent <= instance.min_participation_percent || completed === 0
             
-            // If participation >= minimum, advance to next level
+            // If participation > minimum, advance to next level automatically when window closes
             // Only advance if instance is currently on the level we're checking
             // Level 1: status should be 'ready' or 'level_1' (level 1 in progress)
             // Level 2: status should be 'level_1' or 'level_2' (level 2 in progress)
@@ -177,7 +177,7 @@ async function checkExpiredWindows(client: any) {
               isOnCorrectLevel = instance.status === 'level_2' || instance.status === 'level_3'
             }
             
-            // Must be OVER the minimum (not equal) to advance
+            // Must be OVER the minimum (not equal) to advance when window closes
             if (participationPercent > instance.min_participation_percent && isOnCorrectLevel) {
               shouldAdvance = true
             }
@@ -186,7 +186,7 @@ async function checkExpiredWindows(client: any) {
             shouldFail = true
           }
           
-          // Auto-advance level if window closed and minimum participation met
+          // Auto-advance level if window closed and participation > minimum (PRIORITY: do this before failing)
           if (shouldAdvance && !shouldFail) {
             const completedAt = new Date()
             
@@ -201,7 +201,11 @@ async function checkExpiredWindows(client: any) {
                  WHERE id = $2`,
                 [completedAt.toISOString(), instance.id]
               )
-              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_1 to level_2 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_1 to level_2 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
+              // Update instance status for next iteration
+              instance.status = 'level_2'
+              instance.level_1_completed_at = completedAt
+              continue // Skip to next level check, don't mark as failed
             } else if (level === 2) {
               // Advance from level 2 to level 3
               await client.query(
@@ -213,7 +217,11 @@ async function checkExpiredWindows(client: any) {
                  WHERE id = $2`,
                 [completedAt.toISOString(), instance.id]
               )
-              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_2 to level_3 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+              console.log(`[checkExpiredWindows] Auto-advanced instance ${instance.id} from level_2 to level_3 - window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
+              // Update instance status for next iteration
+              instance.status = 'level_3'
+              instance.level_2_completed_at = completedAt
+              continue // Skip to next level check, don't mark as failed
             } else if (level === 3) {
               // Complete the entire dungeon crawl
               await client.query(
@@ -225,19 +233,11 @@ async function checkExpiredWindows(client: any) {
                  WHERE id = $2`,
                 [completedAt.toISOString(), instance.id]
               )
-              console.log(`[checkExpiredWindows] Auto-completed instance ${instance.id} - level 3 window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
-            }
-            
-            // Update instance status for next iteration
-            if (level === 1) {
-              instance.status = 'level_2'
-              instance.level_1_completed_at = completedAt
-            } else if (level === 2) {
-              instance.status = 'level_3'
-              instance.level_2_completed_at = completedAt
-            } else if (level === 3) {
+              console.log(`[checkExpiredWindows] Auto-completed instance ${instance.id} - level 3 window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
+              // Update instance status
               instance.status = 'completed'
               instance.level_3_completed_at = completedAt
+              break // Instance is complete, no need to check further levels
             }
           }
           
@@ -255,7 +255,7 @@ async function checkExpiredWindows(client: any) {
              WHERE id = $1 AND status != 'failed'`,
             [instance.id]
           )
-            console.log(`[checkExpiredWindows] Marked instance ${instance.id} as failed - window expired (${elapsedMinutes.toFixed(1)}m > ${windowEnd}m), level ${level} not completed, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: ${instance.min_participation_percent}%`)
+            console.log(`[checkExpiredWindows] Marked instance ${instance.id} as failed - window expired (${elapsedMinutes.toFixed(1)}m > ${windowEnd}m), level ${level} not completed, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
           break // Only mark once per instance
           }
         }
