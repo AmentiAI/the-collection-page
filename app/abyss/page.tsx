@@ -648,6 +648,26 @@ function AbyssContent() {
         const inscriptionId = (token?.id || token?.inscriptionId)?.toString().trim()
         if (!inscriptionId) continue
 
+        // Check if ordinal has "Ascended" trait - exclude it if it does
+        let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
+        if (token?.meta?.attributes && Array.isArray(token.meta.attributes)) {
+          attributes = token.meta.attributes
+        } else if (token?.metadata?.attributes && Array.isArray(token.metadata.attributes)) {
+          attributes = token.metadata.attributes
+        } else if (token?.attributes && Array.isArray(token.attributes)) {
+          attributes = token.attributes
+        }
+
+        const hasAscendedTrait = attributes.some(
+          (attr) =>
+            (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
+            (attr.value === 'Angelic' || attr.value === 'Demonic')
+        )
+
+        if (hasAscendedTrait) {
+          continue // Skip ordinals with Ascended trait
+        }
+
         const blockHeight = Number(token?.locationBlockHeight ?? token?.genesisTransactionBlockHeight ?? 0)
 
         const rawOutput = typeof token?.output === 'string' && token.output.includes(':')
