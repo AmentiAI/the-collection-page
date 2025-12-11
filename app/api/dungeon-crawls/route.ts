@@ -271,6 +271,7 @@ async function cleanupInvalidInstances(client: any) {
   // 1. There's a completed instance that completed before this instance was created, and it's still in cooldown
   // 2. There's a failed instance that failed before this instance was created, and it's still in cooldown
   // 3. There's a more recent completed/failed instance that's still in cooldown (takes priority)
+  // 4. There's a failed instance that was updated recently (within last 5 minutes) - prevents spam loops
   const invalidInstancesRes = await client.query(`
     SELECT 
       i.id,
@@ -286,6 +287,15 @@ async function cleanupInvalidInstances(client: any) {
     JOIN dungeon_crawls c ON c.id = i.crawl_id
     WHERE i.status IN ('open', 'filling', 'ready')
       AND (
+        -- Safety check: if there's ANY failed instance updated in last 5 minutes, mark this as invalid
+        -- This prevents spam loops where instances are created and immediately marked as failed
+        EXISTS (
+          SELECT 1 FROM dungeon_crawl_instances failed
+          WHERE failed.crawl_id = i.crawl_id
+            AND failed.status = 'failed'
+            AND failed.updated_at > NOW() - '5 minutes'::INTERVAL
+        )
+        OR
         -- Check if there's a completed instance that's still in cooldown
         -- Priority: most recent completed instance
         EXISTS (
@@ -333,6 +343,7 @@ async function cleanupInvalidInstances(client: any) {
   `)
 
   // Mark invalid instances as failed
+  let markedCount = 0
   for (const invalid of invalidInstancesRes.rows) {
     // Archive participants
     await client.query(
@@ -342,14 +353,19 @@ async function cleanupInvalidInstances(client: any) {
       [invalid.id]
     )
     // Mark instance as failed
-    await client.query(
+    const updateResult = await client.query(
       `UPDATE dungeon_crawl_instances
        SET status = 'failed', updated_at = NOW()
-       WHERE id = $1 AND status != 'failed'`,
+       WHERE id = $1 AND status != 'failed'
+       RETURNING id`,
       [invalid.id]
     )
-    console.log(`[cleanupInvalidInstances] Marked instance ${invalid.id} as failed - created too early (cooldown not expired)`)
+    if (updateResult.rows.length > 0) {
+      markedCount++
+      console.log(`[cleanupInvalidInstances] Marked instance ${invalid.id} as failed - created too early (cooldown not expired)`)
+    }
   }
+  return markedCount
 }
 
 // Helper function to auto-restart overdue crawls
@@ -424,16 +440,22 @@ async function autoRestartOverdueCrawls(client: any) {
   // Create new instance for each crawl that should be restarted
   // Double-check no active instances exist before creating (prevent race conditions)
   for (const row of crawlsToRestart.rows) {
-    // Final safety check: ensure no active instance exists right before creation
+    // Final safety check: ensure no active instance exists AND no recent failures
     const finalCheck = await client.query(
-      `SELECT 1 FROM dungeon_crawl_instances 
+      `SELECT 
+        COUNT(*)::int as active_count,
+        COUNT(CASE WHEN status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL) THEN 1 END)::int as recent_failures
+       FROM dungeon_crawl_instances 
        WHERE crawl_id = $1 
-       AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
-       LIMIT 1`,
+         AND (status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
+           OR (status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL)))`,
       [row.id]
     )
     
-    if (finalCheck.rows.length === 0) {
+    const hasActive = finalCheck.rows[0]?.active_count > 0
+    const hasRecentFailures = finalCheck.rows[0]?.recent_failures > 0
+    
+    if (!hasActive && !hasRecentFailures) {
       await client.query(
         `INSERT INTO dungeon_crawl_instances (crawl_id, status)
          VALUES ($1, 'open')
@@ -442,7 +464,11 @@ async function autoRestartOverdueCrawls(client: any) {
       )
       console.log(`[autoRestartOverdueCrawls] Created new instance for crawl ${row.id}`)
     } else {
-      console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - active instance exists`)
+      if (hasRecentFailures) {
+        console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - recent failure detected (within last 10 minutes)`)
+      } else {
+        console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - active instance exists`)
+      }
     }
   }
 }
@@ -460,36 +486,44 @@ export async function GET(request: NextRequest) {
     const client = await pool.connect()
     try {
       // Cleanup invalid instances (created too early, before cooldown expired)
-      await cleanupInvalidInstances(client)
+      const cleanupResult = await cleanupInvalidInstances(client)
       
       // Check for expired windows and mark failed instances
       await checkExpiredWindows(client)
       
       // Auto-restart overdue crawls (create new instances if restart time has passed)
       // Only run if there are no active instances to prevent restart loops
-      // Also check if any instance was just marked as failed (within last 5 minutes) to prevent race conditions
+      // Also check if any instance was just marked as failed (within last 10 minutes) to prevent race conditions
       const activeInstanceCheck = await client.query(
         `SELECT 
           COUNT(*)::int as active_count
          FROM dungeon_crawl_instances 
          WHERE status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`
       )
+      // Check for recent failures (updated or created) to prevent spam loops
       const recentFailureCheck = await client.query(
         `SELECT COUNT(*)::int as recent_failures
          FROM dungeon_crawl_instances 
          WHERE status = 'failed' 
-           AND updated_at > NOW() - '5 minutes'::INTERVAL`
+           AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL)`
       )
       const hasActiveInstances = activeInstanceCheck.rows[0]?.active_count > 0
       const hasRecentFailures = recentFailureCheck.rows[0]?.recent_failures > 0
+      const justCleanedUp = cleanupResult > 0
       
       // Only auto-restart if:
       // 1. No active instances exist
       // 2. No instances were just marked as failed (prevents race condition where checkExpiredWindows just failed one)
-      if (!hasActiveInstances && !hasRecentFailures) {
+      // 3. No instances were created recently that might be invalid
+      // 4. cleanupInvalidInstances didn't just mark anything as failed (prevents immediate re-creation)
+      if (!hasActiveInstances && !hasRecentFailures && !justCleanedUp) {
         await autoRestartOverdueCrawls(client)
-      } else if (hasRecentFailures) {
-        console.log(`[GET] Skipped autoRestartOverdueCrawls - recent failure detected (within last 5 minutes)`)
+      } else {
+        if (justCleanedUp) {
+          console.log(`[GET] Skipped autoRestartOverdueCrawls - cleanupInvalidInstances just marked ${cleanupResult} instance(s) as failed`)
+        } else if (hasRecentFailures) {
+          console.log(`[GET] Skipped autoRestartOverdueCrawls - recent failure detected (within last 10 minutes)`)
+        }
       }
       
       // Get all active crawl configs with their current active instances
@@ -813,16 +847,22 @@ export async function GET(request: NextRequest) {
           `, [crawlId])
           
           if (shouldCreateInstance.rows.length > 0 && shouldCreateInstance.rows[0].should_create) {
-            // Final safety check: ensure no active instance exists right before creation
+            // Final safety check: ensure no active instance exists AND no recent failures
             const finalCheck = await client.query(
-              `SELECT 1 FROM dungeon_crawl_instances 
+              `SELECT 
+                COUNT(*)::int as active_count,
+                COUNT(CASE WHEN status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL) THEN 1 END)::int as recent_failures
+               FROM dungeon_crawl_instances 
                WHERE crawl_id = $1 
-               AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
-               LIMIT 1`,
+                 AND (status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
+                   OR (status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL)))`,
               [crawlId]
             )
             
-            if (finalCheck.rows.length === 0) {
+            const hasActive = finalCheck.rows[0]?.active_count > 0
+            const hasRecentFailures = finalCheck.rows[0]?.recent_failures > 0
+            
+            if (!hasActive && !hasRecentFailures) {
               // Create new instance only if cooldown has passed and no active instance exists
               await client.query(
                 `INSERT INTO dungeon_crawl_instances (crawl_id, status)
@@ -832,7 +872,11 @@ export async function GET(request: NextRequest) {
               )
               console.log(`[GET] Created new instance for crawl ${crawlId} (fallback logic)`)
             } else {
-              console.log(`[GET] Skipped creating instance for crawl ${crawlId} - active instance exists (fallback logic)`)
+              if (hasRecentFailures) {
+                console.log(`[GET] Skipped creating instance for crawl ${crawlId} - recent failure detected (within last 10 minutes) (fallback logic)`)
+              } else {
+                console.log(`[GET] Skipped creating instance for crawl ${crawlId} - active instance exists (fallback logic)`)
+              }
             }
           }
           // If should_create is false, don't create - cooldown hasn't passed
