@@ -1425,6 +1425,195 @@ export default function DungeonCrawlPage() {
                           })}
                         </div>
 
+                        {/* Select Ordinals to Join - Show above Battle Formation, hide if full */}
+                        {instance && (() => {
+                          // Don't show join section for failed instances
+                          if (!instance || instance.status === 'failed') return false
+                          // Hide if crawl is full
+                          const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                          if (currentParticipantCount >= crawl.requiredParticipants) return false
+                          // Show for open/filling
+                          if (instance.status === 'open' || instance.status === 'filling') return true
+                          // For 'ready' status, only show if window is still open (hasn't expired)
+                          if (instance.status === 'ready') {
+                            if (!level1WindowData) return false
+                            const now = Date.now()
+                            // windowEndMs is already the absolute end time
+                            return now < level1WindowData.windowEndMs
+                          }
+                          return false
+                        })() && (
+                          <div className="border-t-2 border-stone-700/60 pt-6 mb-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+                              <h3 className="font-bold text-base sm:text-lg">Select Ordinals to Join</h3>
+                              <div className="flex flex-wrap gap-2">
+                            <Button
+                              onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
+                                const available = ordinals.filter(
+                                  (o) => {
+                                    if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
+                                    if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
+                                    return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
+                                )
+                                
+                                if (crawl.allowMultipleFromStock) {
+                                  // Only select up to the number of spots left
+                                  const toSelect = available.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(available.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
+                            >
+                              Select All Available
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
+                                const angelic = ordinals.filter(
+                                  (o) => {
+                                        if (crawl.allowedTraits === 'demonic') return false
+                                    return o.trait === 'Angelic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
+                                )
+                                
+                                if (crawl.allowMultipleFromStock) {
+                                  // Only select up to the number of spots left
+                                  const toSelect = angelic.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(angelic.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-blue-500 hover:border-blue-400 bg-blue-900/50 hover:bg-blue-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-blue-500/20"
+                            >
+                              Select Angelic
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
+                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
+                                
+                                const demonic = ordinals.filter(
+                                  (o) => {
+                                        if (crawl.allowedTraits === 'angelic') return false
+                                    return o.trait === 'Demonic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                                  }
+                                )
+                                
+                                if (crawl.allowMultipleFromStock) {
+                                  // Only select up to the number of spots left
+                                  const toSelect = demonic.slice(0, spotsLeft)
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
+                                } else {
+                                  setSelectedOrdinalsForInstance(instance.id, new Set(demonic.slice(0, 1).map((o) => o.inscriptionId)))
+                                }
+                              }}
+                                  className="border-2 border-red-500 hover:border-red-400 bg-red-900/50 hover:bg-red-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-red-500/20"
+                            >
+                              Select Demonic
+                            </Button>
+                            {getSelectedOrdinals(instance.id).size > 0 && (
+                              <Button
+                                onClick={() => setSelectedOrdinalsForInstance(instance.id, new Set())}
+                                    className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 max-h-96 overflow-y-auto">
+                          {ordinals
+                            .filter((o) => {
+                              if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
+                              if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
+                              return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
+                            })
+                            .map((ordinal) => {
+                            const instanceSelectedOrdinals = getSelectedOrdinals(instance.id)
+                            const isSelected = instanceSelectedOrdinals.has(ordinal.inscriptionId)
+                            const isInCrawl = instance.participants.some(
+                              (p) => p.inscriptionId === ordinal.inscriptionId
+                            )
+
+                            return (
+                              <div
+                                key={ordinal.inscriptionId}
+                                className={`relative border rounded-lg overflow-hidden cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'border-green-500 ring-2 ring-green-500'
+                                    : isInCrawl
+                                          ? 'border-stone-500 opacity-50'
+                                          : 'border-stone-600 hover:border-stone-500'
+                                }`}
+                                onClick={() => {
+                                  if (isInCrawl) return
+                                  const newSet = new Set(instanceSelectedOrdinals)
+                                  if (isSelected) {
+                                    newSet.delete(ordinal.inscriptionId)
+                                  } else {
+                                    if (!crawl.allowMultipleFromStock && instanceSelectedOrdinals.size > 0) {
+                                      toast.error('Only one ordinal allowed per wallet')
+                                      return
+                                    }
+                                    newSet.add(ordinal.inscriptionId)
+                                  }
+                                  setSelectedOrdinalsForInstance(instance.id, newSet)
+                                }}
+                              >
+                                <div className="aspect-square relative">
+                                  <Image
+                                    src={ordinal.imageUrl}
+                                    alt={ordinal.inscriptionId}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </div>
+                                    <div className="p-2 bg-stone-900/90 backdrop-blur-sm">
+                                      <div className="text-sm truncate text-stone-200">{ordinal.trait}</div>
+                                </div>
+                                {isSelected && (
+                                      <div className="absolute top-2 right-2 bg-amber-500 rounded-full p-1 shadow-lg">
+                                    <CheckCircle2 className="w-4 h-4 text-white" />
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleJoin(instance.id)
+                          }}
+                          disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || instance.status === 'ready'}
+                              className="w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 backdrop-blur-sm"
+                        >
+                          {joining ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Joining...
+                            </>
+                          ) : instance.status === 'ready' ? (
+                            'Crawl is Full - Waiting for Start'
+                          ) : (
+                            `Join with ${getSelectedOrdinals(instance.id).size} Ordinal(s)`
+                          )}
+                        </Button>
+                      </div>
+                        )}
+
                         {/* Participants Visualization - Battle Formation */}
                         {instance && instance.participants.length > 0 && (
                           <div className="border-t-2 border-stone-700/60 pt-4 mb-6">
@@ -1656,190 +1845,6 @@ export default function DungeonCrawlPage() {
                           </div>
                         )}
 
-                        {(() => {
-                          // Don't show join section for failed instances
-                          if (!instance || instance.status === 'failed') return false
-                          // Show for open/filling
-                          if (instance.status === 'open' || instance.status === 'filling') return true
-                          // For 'ready' status, only show if window is still open (hasn't expired)
-                          if (instance.status === 'ready') {
-                            if (!level1WindowData) return false
-                            const now = Date.now()
-                            // windowEndMs is already the absolute end time
-                            return now < level1WindowData.windowEndMs
-                          }
-                          return false
-                        })() ? (
-                          <div className="border-t-2 border-stone-700/60 pt-6">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
-                              <h3 className="font-bold text-base sm:text-lg">Select Ordinals to Join</h3>
-                              <div className="flex flex-wrap gap-2">
-                            <Button
-                              onClick={() => {
-                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
-                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
-                                
-                                const available = ordinals.filter(
-                                  (o) => {
-                                    if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
-                                    if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
-                                    return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                  }
-                                )
-                                
-                                if (crawl.allowMultipleFromStock) {
-                                  // Only select up to the number of spots left
-                                  const toSelect = available.slice(0, spotsLeft)
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
-                                } else {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(available.slice(0, 1).map((o) => o.inscriptionId)))
-                                }
-                              }}
-                                  className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
-                            >
-                              Select All Available
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
-                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
-                                
-                                const angelic = ordinals.filter(
-                                  (o) => {
-                                        if (crawl.allowedTraits === 'demonic') return false
-                                    return o.trait === 'Angelic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                  }
-                                )
-                                
-                                if (crawl.allowMultipleFromStock) {
-                                  // Only select up to the number of spots left
-                                  const toSelect = angelic.slice(0, spotsLeft)
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
-                                } else {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(angelic.slice(0, 1).map((o) => o.inscriptionId)))
-                                }
-                              }}
-                                  className="border-2 border-blue-500 hover:border-blue-400 bg-blue-900/50 hover:bg-blue-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-blue-500/20"
-                            >
-                              Select Angelic
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                const currentParticipantCount = instance.participantCount ?? instance.participants.length
-                                const spotsLeft = Math.max(0, crawl.requiredParticipants - currentParticipantCount)
-                                
-                                const demonic = ordinals.filter(
-                                  (o) => {
-                                        if (crawl.allowedTraits === 'angelic') return false
-                                    return o.trait === 'Demonic' && !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                                  }
-                                )
-                                
-                                if (crawl.allowMultipleFromStock) {
-                                  // Only select up to the number of spots left
-                                  const toSelect = demonic.slice(0, spotsLeft)
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(toSelect.map((o) => o.inscriptionId)))
-                                } else {
-                                  setSelectedOrdinalsForInstance(instance.id, new Set(demonic.slice(0, 1).map((o) => o.inscriptionId)))
-                                }
-                              }}
-                                  className="border-2 border-red-500 hover:border-red-400 bg-red-900/50 hover:bg-red-800/60 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all shadow-md hover:shadow-red-500/20"
-                            >
-                              Select Demonic
-                            </Button>
-                            {getSelectedOrdinals(instance.id).size > 0 && (
-                              <Button
-                                onClick={() => setSelectedOrdinalsForInstance(instance.id, new Set())}
-                                    className="border-2 border-stone-600 hover:border-stone-500 bg-stone-800/70 hover:bg-stone-700/80 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg backdrop-blur-sm transition-all"
-                              >
-                                Clear
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 max-h-96 overflow-y-auto">
-                          {ordinals
-                            .filter((o) => {
-                              if (crawl.allowedTraits === 'angelic' && o.trait !== 'Angelic') return false
-                              if (crawl.allowedTraits === 'demonic' && o.trait !== 'Demonic') return false
-                              return !instance.participants.some((p) => p.inscriptionId === o.inscriptionId)
-                            })
-                            .map((ordinal) => {
-                            const instanceSelectedOrdinals = getSelectedOrdinals(instance.id)
-                            const isSelected = instanceSelectedOrdinals.has(ordinal.inscriptionId)
-                            const isInCrawl = instance.participants.some(
-                              (p) => p.inscriptionId === ordinal.inscriptionId
-                            )
-
-                            return (
-                              <div
-                                key={ordinal.inscriptionId}
-                                className={`relative border rounded-lg overflow-hidden cursor-pointer transition-all ${
-                                  isSelected
-                                    ? 'border-green-500 ring-2 ring-green-500'
-                                    : isInCrawl
-                                          ? 'border-stone-500 opacity-50'
-                                          : 'border-stone-600 hover:border-stone-500'
-                                }`}
-                                onClick={() => {
-                                  if (isInCrawl) return
-                                  const newSet = new Set(instanceSelectedOrdinals)
-                                  if (isSelected) {
-                                    newSet.delete(ordinal.inscriptionId)
-                                  } else {
-                                    if (!crawl.allowMultipleFromStock && instanceSelectedOrdinals.size > 0) {
-                                      toast.error('Only one ordinal allowed per wallet')
-                                      return
-                                    }
-                                    newSet.add(ordinal.inscriptionId)
-                                  }
-                                  setSelectedOrdinalsForInstance(instance.id, newSet)
-                                }}
-                              >
-                                <div className="aspect-square relative">
-                                  <Image
-                                    src={ordinal.imageUrl}
-                                    alt={ordinal.inscriptionId}
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                </div>
-                                    <div className="p-2 bg-stone-900/90 backdrop-blur-sm">
-                                      <div className="text-sm truncate text-stone-200">{ordinal.trait}</div>
-                                </div>
-                                {isSelected && (
-                                      <div className="absolute top-2 right-2 bg-amber-500 rounded-full p-1 shadow-lg">
-                                    <CheckCircle2 className="w-4 h-4 text-white" />
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <Button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            handleJoin(instance.id)
-                          }}
-                          disabled={joining || getSelectedOrdinals(instance.id).size === 0 || !connected || instance.status === 'ready'}
-                              className="w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 backdrop-blur-sm"
-                        >
-                          {joining ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Joining...
-                            </>
-                          ) : instance.status === 'ready' ? (
-                            'Crawl is Full - Waiting for Start'
-                          ) : (
-                            `Join with ${getSelectedOrdinals(instance.id).size} Ordinal(s)`
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
                       </>
                     ) : null}
                     </div>
