@@ -45,30 +45,31 @@ export default function HordeAttackAlert() {
   }, [])
 
   // Fetch ready army count and injured count
-  // Use string comparison to prevent re-runs when address/connected haven't actually changed
+  // Use stable string keys to prevent unnecessary re-runs
   const addressKey = address ? address.toLowerCase() : ''
-  const connectedKey = connected ? '1' : '0'
+  const prevAddressKeyRef = useRef<string>('')
+  const prevConnectedRef = useRef<boolean>(false)
   
   useEffect(() => {
+    // Only run if address or connected actually changed
+    if (addressKey === prevAddressKeyRef.current && connected === prevConnectedRef.current) {
+      return
+    }
+    
+    prevAddressKeyRef.current = addressKey
+    prevConnectedRef.current = connected
+    
     if (!connected || !address) {
       setReadyCount(null)
       setInjuredCount(null)
-      addressRef.current = address
-      connectedRef.current = connected
       return
     }
 
     let isMounted = true
     const currentAddress = address
-    const currentConnected = connected
-    
-    // Update refs
-    addressRef.current = address
-    connectedRef.current = connected
     
     const fetchReadyCount = async () => {
-      // Check if still mounted and values haven't changed
-      if (!isMounted || addressRef.current !== currentAddress || connectedRef.current !== currentConnected) {
+      if (!isMounted || prevAddressKeyRef.current !== addressKey) {
         return
       }
       
@@ -77,13 +78,13 @@ export default function HordeAttackAlert() {
           `/api/battle/ordinals?walletAddress=${encodeURIComponent(currentAddress)}`,
           { cache: 'no-store' }
         )
-        if (response.ok && isMounted && addressRef.current === currentAddress) {
+        if (response.ok && isMounted && prevAddressKeyRef.current === addressKey) {
           const data = await response.json()
           const readyArmies = (data.ordinals || []).filter(
             (ord: { status: string; lifeForce: number }) => 
               ord.status === 'ready' && ord.lifeForce > 0
           )
-          if (isMounted && addressRef.current === currentAddress) {
+          if (isMounted && prevAddressKeyRef.current === addressKey) {
             setReadyCount(readyArmies.length)
             
             // Count injured (life force < 40)
@@ -108,7 +109,7 @@ export default function HordeAttackAlert() {
       isMounted = false
       clearInterval(interval)
     }
-  }, [addressKey, connectedKey]) // Use stable keys instead of direct values
+  }, [addressKey, connected]) // Use stable addressKey and connected boolean
 
   // Fetch next dungeon crawl time
   useEffect(() => {
