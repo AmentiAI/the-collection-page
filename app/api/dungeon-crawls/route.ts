@@ -418,13 +418,28 @@ async function autoRestartOverdueCrawls(client: any) {
   `)
 
   // Create new instance for each crawl that should be restarted
+  // Double-check no active instances exist before creating (prevent race conditions)
   for (const row of crawlsToRestart.rows) {
-    await client.query(
-      `INSERT INTO dungeon_crawl_instances (crawl_id, status)
-       VALUES ($1, 'open')
-       ON CONFLICT DO NOTHING`,
+    // Final safety check: ensure no active instance exists right before creation
+    const finalCheck = await client.query(
+      `SELECT 1 FROM dungeon_crawl_instances 
+       WHERE crawl_id = $1 
+       AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
+       LIMIT 1`,
       [row.id]
     )
+    
+    if (finalCheck.rows.length === 0) {
+      await client.query(
+        `INSERT INTO dungeon_crawl_instances (crawl_id, status)
+         VALUES ($1, 'open')
+         ON CONFLICT DO NOTHING`,
+        [row.id]
+      )
+      console.log(`[autoRestartOverdueCrawls] Created new instance for crawl ${row.id}`)
+    } else {
+      console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - active instance exists`)
+    }
   }
 }
 
@@ -707,6 +722,7 @@ export async function GET(request: NextRequest) {
           }
           
           // Check if we should create a new instance (respect cooldown)
+          // Must check MOST RECENT failed/completed instance to prevent loops
           const shouldCreateInstance = await client.query(`
             SELECT 
               CASE 
@@ -715,21 +731,56 @@ export async function GET(request: NextRequest) {
                   SELECT 1 FROM dungeon_crawl_instances i
                   WHERE i.crawl_id = c.id
                 ) THEN TRUE
-                -- Failed instance: check restart_after_failure_hours
+                -- Check if MOST RECENT completed instance is past cooldown (completed takes priority)
                 WHEN EXISTS (
-                  SELECT 1 FROM dungeon_crawl_instances i
-                  WHERE i.crawl_id = c.id
-                    AND i.status = 'failed'
-                    AND i.updated_at <= NOW() - (COALESCE(c.restart_after_failure_hours, c.restart_interval_hours, 2) || ' hours')::INTERVAL
-                ) THEN TRUE
-                -- Completed instance: check cooldown_hours
-                WHEN EXISTS (
-                  SELECT 1 FROM dungeon_crawl_instances i
-                  WHERE i.crawl_id = c.id
-                    AND i.status = 'completed'
-                    AND i.completed_at IS NOT NULL
-                    AND i.completed_at <= NOW() - (COALESCE(c.cooldown_hours, c.cooldown_days * 24, 168) || ' hours')::INTERVAL
+                  SELECT 1 FROM (
+                    SELECT completed_at
+                    FROM dungeon_crawl_instances i
+                    WHERE i.crawl_id = c.id
+                      AND i.status = 'completed'
+                      AND i.completed_at IS NOT NULL
+                    ORDER BY i.completed_at DESC
+                    LIMIT 1
+                  ) most_recent_completed
+                  WHERE most_recent_completed.completed_at <= NOW() - (COALESCE(NULLIF(c.cooldown_hours, 0), c.cooldown_days * 24, 168) || ' hours')::INTERVAL
                     AND COALESCE(c.never_restart_after_completion, FALSE) = FALSE
+                ) THEN TRUE
+                -- If no completed instances OR most recent completed is past cooldown, check MOST RECENT failed
+                WHEN (
+                  -- No completed instances exist, OR most recent completed is past cooldown
+                  NOT EXISTS (
+                    SELECT 1 FROM (
+                      SELECT completed_at
+                      FROM dungeon_crawl_instances i
+                      WHERE i.crawl_id = c.id
+                        AND i.status = 'completed'
+                        AND i.completed_at IS NOT NULL
+                      ORDER BY i.completed_at DESC
+                      LIMIT 1
+                    ) blocking_completed
+                    WHERE blocking_completed.completed_at > NOW() - (COALESCE(NULLIF(c.cooldown_hours, 0), c.cooldown_days * 24, 168) || ' hours')::INTERVAL
+                      AND COALESCE(c.never_restart_after_completion, FALSE) = FALSE
+                  )
+                  AND (
+                    -- No failed instances, OR most recent failed is past cooldown
+                    NOT EXISTS (
+                      SELECT 1 FROM dungeon_crawl_instances i
+                      WHERE i.crawl_id = c.id
+                        AND i.status = 'failed'
+                    )
+                    OR
+                    NOT EXISTS (
+                      SELECT 1 FROM (
+                        SELECT updated_at
+                        FROM dungeon_crawl_instances i
+                        WHERE i.crawl_id = c.id
+                          AND i.status = 'failed'
+                        ORDER BY i.updated_at DESC
+                        LIMIT 1
+                      ) most_recent_failed
+                      WHERE most_recent_failed.updated_at > NOW() - (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL
+                    )
+                  )
                 ) THEN TRUE
                 ELSE FALSE
               END as should_create
@@ -738,13 +789,27 @@ export async function GET(request: NextRequest) {
           `, [crawlId])
           
           if (shouldCreateInstance.rows.length > 0 && shouldCreateInstance.rows[0].should_create) {
-            // Create new instance only if cooldown has passed
-            await client.query(
-              `INSERT INTO dungeon_crawl_instances (crawl_id, status)
-               VALUES ($1, 'open')
-               ON CONFLICT DO NOTHING`,
+            // Final safety check: ensure no active instance exists right before creation
+            const finalCheck = await client.query(
+              `SELECT 1 FROM dungeon_crawl_instances 
+               WHERE crawl_id = $1 
+               AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
+               LIMIT 1`,
               [crawlId]
             )
+            
+            if (finalCheck.rows.length === 0) {
+              // Create new instance only if cooldown has passed and no active instance exists
+              await client.query(
+                `INSERT INTO dungeon_crawl_instances (crawl_id, status)
+                 VALUES ($1, 'open')
+                 ON CONFLICT DO NOTHING`,
+                [crawlId]
+              )
+              console.log(`[GET] Created new instance for crawl ${crawlId} (fallback logic)`)
+            } else {
+              console.log(`[GET] Skipped creating instance for crawl ${crawlId} - active instance exists (fallback logic)`)
+            }
           }
           // If should_create is false, don't create - cooldown hasn't passed
           
