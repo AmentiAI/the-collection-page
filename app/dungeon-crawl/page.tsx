@@ -1182,11 +1182,24 @@ export default function DungeonCrawlPage() {
                 
                 // Compute effective status - frontend advances status when windows close and minimums are met
                 let effectiveStatus = instance.status
-                if (instance.status === 'ready' && level1WindowClosed && level1MinimumMet) {
-                  effectiveStatus = 'level_1' // Advance to level_1 when Level 1 window closes with minimum met
-                } else if (instance.status === 'level_1' && level2WindowClosed && level2MinimumMet) {
-                  effectiveStatus = 'level_2' // Advance to level_2 when Level 2 window closes with minimum met
-                } else if (instance.status === 'level_2' && level3WindowData) {
+                
+                // If level_1_started_at exists, Level 1 has started, so status should be at least 'level_1'
+                if (instance.level1StartedAt && effectiveStatus === 'ready') {
+                  effectiveStatus = 'level_1'
+                }
+                
+                // Advance to level_1 when Level 1 window closes with minimum met (if still ready)
+                if (effectiveStatus === 'ready' && level1WindowClosed && level1MinimumMet) {
+                  effectiveStatus = 'level_1'
+                }
+                
+                // Advance to level_2 when Level 2 window closes with minimum met
+                if (effectiveStatus === 'level_1' && level2WindowClosed && level2MinimumMet) {
+                  effectiveStatus = 'level_2'
+                }
+                
+                // Advance to completed when Level 3 window closes with minimum met
+                if (effectiveStatus === 'level_2' && level3WindowData) {
                   const level3WindowClosed = nowRef.current > level3WindowData.windowEndMs
                   const level3CompletedCount = instance?.participants?.filter(p => p.level3Completed).length || 0
                   const level3ParticipationPercent = instance?.participants?.length > 0 
@@ -1194,8 +1207,18 @@ export default function DungeonCrawlPage() {
                     : 0
                   const level3MinimumMet = level3ParticipationPercent >= crawl.minParticipationPercent
                   if (level3WindowClosed && level3MinimumMet) {
-                    effectiveStatus = 'completed' // Advance to completed when Level 3 window closes with minimum met
+                    effectiveStatus = 'completed'
                   }
+                }
+                
+                // If level_2_started_at exists, Level 2 has started, so status should be at least 'level_2'
+                if (instance.level2StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1')) {
+                  effectiveStatus = 'level_2'
+                }
+                
+                // If level_3_started_at exists, Level 3 has started, so status should be at least 'level_3'
+                if (instance.level3StartedAt && (effectiveStatus === 'ready' || effectiveStatus === 'level_1' || effectiveStatus === 'level_2')) {
+                  effectiveStatus = 'level_3'
                 }
 
                 let countdownText: string | null = null
