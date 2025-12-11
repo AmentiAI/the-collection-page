@@ -1429,8 +1429,8 @@ export default function DungeonCrawlPage() {
                               {countdownText}
                             </span>
                           ) : instance ? (
-                            <span className={instance.status === 'failed' ? 'text-red-500 font-bold' : ''}>
-                              Status: {instance.status === 'failed' ? 'FAILED' : instance.status.toUpperCase()}
+                            <span className={effectiveStatus === 'failed' ? 'text-red-500 font-bold' : ''}>
+                              Status: {effectiveStatus === 'failed' ? 'FAILED' : effectiveStatus.toUpperCase()}
                             </span>
                           ) : (
                             <span className="text-stone-300">Waiting for restart...</span>
