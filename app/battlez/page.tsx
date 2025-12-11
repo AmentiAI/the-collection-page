@@ -10,13 +10,9 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Shield, Sword, AlertCircle, CheckCircle2 } from 'lucide-react'
-import dynamicImport from 'next/dynamic'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
-const LaserEyesWrapper = dynamicImport(
-  () => import('@/components/LaserEyesWrapper'),
-  { ssr: false, loading: () => null },
-)
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface BattleOrdinal {
   inscriptionId: string
@@ -296,8 +292,7 @@ export default function BattlePage() {
 
   return (
     <GlobalStartTimeLock>
-      <LaserEyesWrapper>
-        <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
@@ -840,7 +835,6 @@ export default function BattlePage() {
           )}
         </main>
       </div>
-    </LaserEyesWrapper>
     </GlobalStartTimeLock>
   )
 }
