@@ -1025,8 +1025,112 @@ export default function DungeonCrawlPage() {
               <p className="text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">No active dungeon crawls available</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {crawls.map((crawl) => {
+            <div>
+              {/* Tab Navigation */}
+              <div className="flex flex-wrap gap-2 mb-6 border-b-2 border-stone-700/60 pb-2">
+                {crawls.map((crawl) => {
+                  const activeInstances = crawl.instances?.filter(i => i.status !== 'failed') || []
+                  const instance = activeInstances[0]
+                  const hasNoInstance = !instance
+                  const isActive = selectedCrawl?.id === crawl.id
+                  
+                  // Calculate countdown for tab display
+                  let tabCountdown: string | null = null
+                  if (hasNoInstance && crawl.nextRestartAt) {
+                    const restartTime = new Date(crawl.nextRestartAt).getTime()
+                    const timeUntilRestart = restartTime - nowRef.current
+                    if (timeUntilRestart > 0) {
+                      const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
+                      const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
+                      if (hours > 0) {
+                        tabCountdown = `${hours}h ${minutes}m`
+                      } else if (minutes > 0) {
+                        tabCountdown = `${minutes}m`
+                      } else {
+                        tabCountdown = 'Soon'
+                      }
+                    } else {
+                      tabCountdown = 'Overdue'
+                    }
+                  } else if (instance) {
+                    // Show time remaining for current level
+                    const level1WindowData = calculateLevelWindow(instance, crawl, 1)
+                    const level2WindowData = instance.status !== 'ready' && instance.level1CompletedAt 
+                      ? calculateLevelWindow(instance, crawl, 2) 
+                      : null
+                    const level3WindowData = instance.status !== 'ready' && instance.status !== 'level_1' && instance.level2CompletedAt
+                      ? calculateLevelWindow(instance, crawl, 3)
+                      : null
+                    
+                    // Determine which window is currently active
+                    const now = nowRef.current
+                    let activeWindow: { windowStartMs: number; windowEndMs: number } | null = null
+                    
+                    if (level3WindowData && now >= level3WindowData.windowStartMs && now <= level3WindowData.windowEndMs) {
+                      activeWindow = level3WindowData
+                    } else if (level2WindowData && now >= level2WindowData.windowStartMs && now <= level2WindowData.windowEndMs) {
+                      activeWindow = level2WindowData
+                    } else if (level1WindowData && now >= level1WindowData.windowStartMs && now <= level1WindowData.windowEndMs) {
+                      activeWindow = level1WindowData
+                    }
+                    
+                    if (activeWindow) {
+                      const timeLeft = Math.max(0, activeWindow.windowEndMs - now)
+                      if (timeLeft > 0) {
+                        const minutes = Math.floor(timeLeft / (1000 * 60))
+                        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000)
+                        if (minutes > 0) {
+                          tabCountdown = `${minutes}m ${seconds}s`
+                        } else {
+                          tabCountdown = `${seconds}s`
+                        }
+                      } else {
+                        tabCountdown = 'Closed'
+                      }
+                    } else if (instance.status === 'ready') {
+                      tabCountdown = 'Waiting'
+                    } else {
+                      tabCountdown = 'In Progress'
+                    }
+                  } else {
+                    tabCountdown = 'Waiting'
+                  }
+                  
+                  return (
+                    <button
+                      key={crawl.id}
+                      onClick={() => {
+                        setSelectedCrawl(crawl)
+                        if (instance) {
+                          setSelectedInstance(instance)
+                        } else {
+                          setSelectedInstance(null)
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-t-lg font-semibold text-sm transition-all ${
+                        isActive
+                          ? 'bg-stone-800/90 border-t-2 border-l-2 border-r-2 border-red-500/70 text-red-200'
+                          : 'bg-stone-900/50 border-t-2 border-l-2 border-r-2 border-stone-600/40 text-stone-400 hover:bg-stone-800/70 hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{crawl.name}</span>
+                        {tabCountdown && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            isActive ? 'bg-red-900/50' : 'bg-stone-700/50'
+                          }`}>
+                            {tabCountdown}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              
+              {/* Selected Crawl Content */}
+              {selectedCrawl && (() => {
+                const crawl = selectedCrawl
                 // Filter out any failed instances that might have slipped through
                 const activeInstances = crawl.instances?.filter(i => i.status !== 'failed') || []
                 const instance = activeInstances[0]
@@ -1741,7 +1845,7 @@ export default function DungeonCrawlPage() {
                     </div>
                   </div>
                 )
-              })}
+              })()}
             </div>
           )}
         </main>
