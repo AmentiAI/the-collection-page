@@ -481,7 +481,8 @@ export default function TreeOfAscensionPage() {
                       )}
 
                       {/* Mint Button - Always show for available mints */}
-                      {showMintButtons && (
+                      {/* TEMPORARILY HIDDEN */}
+                      {false && showMintButtons && (
                         <MintButton
                           mintQueueId={mint.id}
                           imageUrl={mint.imageUrl}
@@ -501,7 +502,8 @@ export default function TreeOfAscensionPage() {
                       )}
 
                       {/* Regenerate button - Show if no mint has been started OR status is awaiting_mint */}
-                      {(!mint.mintInscription || mint.mintInscription.status === 'awaiting_mint') && regenerationAllowance > 0 && (
+                      {/* TEMPORARILY HIDDEN */}
+                      {false && (!mint.mintInscription || mint.mintInscription?.status === 'awaiting_mint') && regenerationAllowance > 0 && (
                         <button
                           type="button"
                           onClick={() => handleRegenerate(mint.id, mint.imageUrl)}

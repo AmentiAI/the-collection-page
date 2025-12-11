@@ -135,13 +135,6 @@ export default function BattlefieldPage() {
       : [...landmarks, demonLandmark, angelLandmark]
   }, [landmarks, isMobile, demonLandmark, angelLandmark])
 
-  // Memoize landmark counts to avoid filtering on every render
-  const landmarkCounts = useMemo(() => {
-    const demonic = allLandmarks.filter(l => l.type === 'demonic').length
-    const angelic = allLandmarks.filter(l => l.type === 'angelic').length
-    return { demonic, angelic, total: allLandmarks.length }
-  }, [allLandmarks])
-
   // Memoize style content to prevent re-rendering the style tag on every component update
   const battlefieldStyles = useMemo(() => `
     .map-container .leaflet-container {
@@ -199,15 +192,6 @@ export default function BattlefieldPage() {
 
           {/* Coordinate display overlay - uses direct DOM updates to avoid React re-renders */}
           <CoordinateDisplay onUpdateRef={coordinateUpdateRef} />
-          
-          {/* Landmarks count */}
-          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-black/80 border border-green-500/50 px-2 py-1.5 md:px-4 md:py-3 rounded z-[1000]">
-            <div className="text-xs md:text-sm font-mono text-green-400">
-              <div>🔥 Demonic: {landmarkCounts.demonic}</div>
-              <div>✨ Angelic: {landmarkCounts.angelic}</div>
-              <div>📍 Total: {landmarkCounts.total}</div>
-            </div>
-          </div>
         </div>
       </div>
     </>
