@@ -61,7 +61,7 @@ export async function checkGlobalStartTimeForAbyss(): Promise<{ isRestricted: bo
       cachedAbyssTimestamp = Date.now()
       return result
     }
-
+    
     const startTime = new Date(settingValue.trim())
     if (isNaN(startTime.getTime())) {
       const result = { isRestricted: false, timeUntilStart: 0, startTime: null }
@@ -69,7 +69,7 @@ export async function checkGlobalStartTimeForAbyss(): Promise<{ isRestricted: bo
       cachedAbyssTimestamp = Date.now()
       return result
     }
-
+    
     const currentTime = new Date()
     const timeUntilStart = Math.max(0, startTime.getTime() - currentTime.getTime())
 

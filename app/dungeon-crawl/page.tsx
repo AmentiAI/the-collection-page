@@ -248,7 +248,7 @@ const LevelCard = memo(({
         )}
       </div>
       <div className="text-xs sm:text-sm md:text-base text-stone-200 mb-2 sm:mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {instance.status === 'ready' && level === 1 ? (
+        {instance.status === 'ready' && level === 1 && completedCount === 0 && windowState.isOpen ? (
           <span>Waiting for first completion to start...</span>
         ) : (
           <span>
@@ -261,10 +261,13 @@ const LevelCard = memo(({
           {timeDisplay}
         </div>
       )}
-      {/* Show completion status if minimum is met but not 100% yet */}
-      {participationPercent >= crawl.minParticipationPercent && participationPercent < 100 && windowState.isOpen && (
+      {/* Show completion status if minimum is met but not 100% yet - show even when window is closed */}
+      {participationPercent >= crawl.minParticipationPercent && participationPercent < 100 && (
         <div className="text-xs sm:text-sm text-amber-400 mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-          Minimum reached! Continue completing to reach 100%
+          {windowState.isOpen 
+            ? 'Minimum reached! Continue completing to reach 100%'
+            : 'Minimum reached! Level will advance automatically'
+          }
         </div>
       )}
       {canComplete && (
@@ -1761,8 +1764,9 @@ export default function DungeonCrawlPage() {
                                         </div>
                                         
                                         {/* Army units in a horizontal row */}
-                                        <div className="flex gap-2">
-                                          {armyParticipants.map((participant, index) => {
+                                        <div className="overflow-x-auto -mx-3 px-3">
+                                          <div className="flex gap-2 min-w-max">
+                                            {armyParticipants.map((participant, index) => {
                                             const allLevelsCompleted = participant.level1Completed && participant.level2Completed && participant.level3Completed
                                             const level1Done = participant.level1Completed
                                             const level2Done = participant.level2Completed
@@ -1834,7 +1838,8 @@ export default function DungeonCrawlPage() {
                           </div>
                         )
                       })}
-                    </div>
+                                            </div>
+                                        </div>
                                       </div>
                                     </div>
                                   )
