@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { useLaserEyes } from '@omnisat/lasereyes'
 
@@ -10,6 +10,10 @@ export default function HordeAttackAlert() {
   const [readyCount, setReadyCount] = useState<number | null>(null)
   const [injuredCount, setInjuredCount] = useState<number | null>(null)
   const [dungeonCrawlTimeRemaining, setDungeonCrawlTimeRemaining] = useState<number | null>(null)
+  
+  // Use refs to store current values and prevent unnecessary effect re-runs
+  const addressRef = useRef<string | null | undefined>(undefined)
+  const connectedRef = useRef<boolean>(false)
 
   useEffect(() => {
     const calculateTimeRemaining = () => {
@@ -41,43 +45,70 @@ export default function HordeAttackAlert() {
   }, [])
 
   // Fetch ready army count and injured count
+  // Use string comparison to prevent re-runs when address/connected haven't actually changed
+  const addressKey = address ? address.toLowerCase() : ''
+  const connectedKey = connected ? '1' : '0'
+  
   useEffect(() => {
     if (!connected || !address) {
       setReadyCount(null)
       setInjuredCount(null)
+      addressRef.current = address
+      connectedRef.current = connected
       return
     }
 
+    let isMounted = true
+    const currentAddress = address
+    const currentConnected = connected
+    
+    // Update refs
+    addressRef.current = address
+    connectedRef.current = connected
+    
     const fetchReadyCount = async () => {
+      // Check if still mounted and values haven't changed
+      if (!isMounted || addressRef.current !== currentAddress || connectedRef.current !== currentConnected) {
+        return
+      }
+      
       try {
         const response = await fetch(
-          `/api/battle/ordinals?walletAddress=${encodeURIComponent(address)}`,
+          `/api/battle/ordinals?walletAddress=${encodeURIComponent(currentAddress)}`,
           { cache: 'no-store' }
         )
-        if (response.ok) {
+        if (response.ok && isMounted && addressRef.current === currentAddress) {
           const data = await response.json()
           const readyArmies = (data.ordinals || []).filter(
             (ord: { status: string; lifeForce: number }) => 
               ord.status === 'ready' && ord.lifeForce > 0
           )
-          setReadyCount(readyArmies.length)
-          
-          // Count injured (life force < 40)
-          const injuredArmies = readyArmies.filter(
-            (ord: { lifeForce: number }) => ord.lifeForce < 40
-          )
-          setInjuredCount(injuredArmies.length)
+          if (isMounted && addressRef.current === currentAddress) {
+            setReadyCount(readyArmies.length)
+            
+            // Count injured (life force < 40)
+            const injuredArmies = readyArmies.filter(
+              (ord: { lifeForce: number }) => ord.lifeForce < 40
+            )
+            setInjuredCount(injuredArmies.length)
+          }
         }
       } catch (error) {
-        console.error('Error fetching ready count:', error)
+        if (isMounted) {
+          console.error('Error fetching ready count:', error)
+        }
       }
     }
 
     fetchReadyCount()
     // Refresh every 30 seconds
     const interval = setInterval(fetchReadyCount, 30000)
-    return () => clearInterval(interval)
-  }, [connected, address])
+    
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [addressKey, connectedKey]) // Use stable keys instead of direct values
 
   // Fetch next dungeon crawl time
   useEffect(() => {
