@@ -1142,10 +1142,41 @@ export default function DungeonCrawlPage() {
                 
                 // Calculate window data for this instance
                 const level1WindowData = instance && !isFailed ? calculateLevelWindow(instance, crawl, 1) : null
-                const level2WindowData = instance && !isFailed && instance.status !== 'ready' && instance.level1CompletedAt 
+                
+                // Check if Level 1 window is closed and minimum is met (for showing Level 2)
+                const level1CompletedCount = instance?.participants?.filter(p => p.level1Completed).length || 0
+                const level1ParticipationPercent = instance?.participants?.length > 0 
+                  ? (level1CompletedCount / crawl.requiredParticipants) * 100 
+                  : 0
+                const level1WindowClosed = level1WindowData 
+                  ? nowRef.current > level1WindowData.windowEndMs 
+                  : false
+                const level1MinimumMet = level1ParticipationPercent >= crawl.minParticipationPercent
+                const shouldShowLevel2 = instance && !isFailed && (
+                  (instance.status !== 'ready' && instance.level1CompletedAt) || // Normal case: status advanced
+                  (level1WindowClosed && level1MinimumMet) // Window closed and minimum met
+                )
+                
+                // Calculate Level 2 window data if we should show it
+                const level2WindowData = shouldShowLevel2 
                   ? calculateLevelWindow(instance, crawl, 2) 
                   : null
-                const level3WindowData = instance && !isFailed && instance.status !== 'ready' && instance.status !== 'level_1' && instance.level2CompletedAt
+                
+                // Check if Level 2 window is closed and minimum is met (for showing Level 3)
+                const level2CompletedCount = instance?.participants?.filter(p => p.level2Completed).length || 0
+                const level2ParticipationPercent = instance?.participants?.length > 0 
+                  ? (level2CompletedCount / crawl.requiredParticipants) * 100 
+                  : 0
+                const level2WindowClosed = level2WindowData 
+                  ? nowRef.current > level2WindowData.windowEndMs 
+                  : false
+                const level2MinimumMet = level2ParticipationPercent >= crawl.minParticipationPercent
+                const shouldShowLevel3 = instance && !isFailed && (
+                  (instance.status !== 'ready' && instance.status !== 'level_1' && instance.level2CompletedAt) || // Normal case: status advanced
+                  (level2WindowClosed && level2MinimumMet) // Window closed and minimum met
+                )
+                
+                const level3WindowData = shouldShowLevel3
                   ? calculateLevelWindow(instance, crawl, 3)
                   : null
 
@@ -1407,8 +1438,35 @@ export default function DungeonCrawlPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
                           {[1, 2, 3].map((level) => {
                             if (!instance) return null
-                            if (level === 2 && (instance.status === 'ready' || !instance.level1CompletedAt)) return null
-                            if (level === 3 && (instance.status === 'ready' || instance.status === 'level_1' || !instance.level2CompletedAt)) return null
+                            
+                            // Check if Level 1 window is closed and minimum is met (for showing Level 2)
+                            const level1CompletedCount = instance.participants.filter(p => p.level1Completed).length
+                            const level1ParticipationPercent = instance.participants.length > 0 
+                              ? (level1CompletedCount / crawl.requiredParticipants) * 100 
+                              : 0
+                            const level1WindowClosed = level1WindowData 
+                              ? nowRef.current > level1WindowData.windowEndMs 
+                              : false
+                            const level1MinimumMet = level1ParticipationPercent >= crawl.minParticipationPercent
+                            
+                            // Check if Level 2 window is closed and minimum is met (for showing Level 3)
+                            const level2CompletedCount = instance.participants.filter(p => p.level2Completed).length
+                            const level2ParticipationPercent = instance.participants.length > 0 
+                              ? (level2CompletedCount / crawl.requiredParticipants) * 100 
+                              : 0
+                            const level2WindowClosed = level2WindowData 
+                              ? nowRef.current > level2WindowData.windowEndMs 
+                              : false
+                            const level2MinimumMet = level2ParticipationPercent >= crawl.minParticipationPercent
+                            
+                            // Show Level 2 if: status advanced OR (window closed AND minimum met)
+                            if (level === 2 && instance.status === 'ready' && !(level1WindowClosed && level1MinimumMet)) {
+                              return null
+                            }
+                            // Show Level 3 if: status advanced OR (window closed AND minimum met)
+                            if (level === 3 && (instance.status === 'ready' || instance.status === 'level_1') && !(level2WindowClosed && level2MinimumMet)) {
+                              return null
+                            }
                             
                             const windowData = level === 1 ? level1WindowData : level === 2 ? level2WindowData : level3WindowData
 
