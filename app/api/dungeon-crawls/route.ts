@@ -401,6 +401,7 @@ async function autoRestartOverdueCrawls(client: any) {
             )
             OR
             -- Check if the MOST RECENT failed instance is past its cooldown
+            -- Also add a safety buffer: don't create if failed within last 5 minutes (prevents race conditions)
             NOT EXISTS (
               SELECT 1 FROM (
                 SELECT updated_at
@@ -410,7 +411,10 @@ async function autoRestartOverdueCrawls(client: any) {
                 ORDER BY i.updated_at DESC
                 LIMIT 1
               ) most_recent_failed
-              WHERE most_recent_failed.updated_at > NOW() - (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL
+              WHERE most_recent_failed.updated_at > NOW() - GREATEST(
+                (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL,
+                '5 minutes'::INTERVAL
+              )
             )
           )
         )
@@ -463,12 +467,29 @@ export async function GET(request: NextRequest) {
       
       // Auto-restart overdue crawls (create new instances if restart time has passed)
       // Only run if there are no active instances to prevent restart loops
+      // Also check if any instance was just marked as failed (within last 5 minutes) to prevent race conditions
       const activeInstanceCheck = await client.query(
-        `SELECT COUNT(*)::int as count FROM dungeon_crawl_instances 
+        `SELECT 
+          COUNT(*)::int as active_count
+         FROM dungeon_crawl_instances 
          WHERE status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`
       )
-      if (activeInstanceCheck.rows[0]?.count === 0) {
+      const recentFailureCheck = await client.query(
+        `SELECT COUNT(*)::int as recent_failures
+         FROM dungeon_crawl_instances 
+         WHERE status = 'failed' 
+           AND updated_at > NOW() - '5 minutes'::INTERVAL`
+      )
+      const hasActiveInstances = activeInstanceCheck.rows[0]?.active_count > 0
+      const hasRecentFailures = recentFailureCheck.rows[0]?.recent_failures > 0
+      
+      // Only auto-restart if:
+      // 1. No active instances exist
+      // 2. No instances were just marked as failed (prevents race condition where checkExpiredWindows just failed one)
+      if (!hasActiveInstances && !hasRecentFailures) {
         await autoRestartOverdueCrawls(client)
+      } else if (hasRecentFailures) {
+        console.log(`[GET] Skipped autoRestartOverdueCrawls - recent failure detected (within last 5 minutes)`)
       }
       
       // Get all active crawl configs with their current active instances
@@ -778,7 +799,10 @@ export async function GET(request: NextRequest) {
                         ORDER BY i.updated_at DESC
                         LIMIT 1
                       ) most_recent_failed
-                      WHERE most_recent_failed.updated_at > NOW() - (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL
+                      WHERE most_recent_failed.updated_at > NOW() - GREATEST(
+                        (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL,
+                        '5 minutes'::INTERVAL
+                      )
                     )
                   )
                 ) THEN TRUE
