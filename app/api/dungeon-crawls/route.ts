@@ -400,7 +400,8 @@ async function autoRestartOverdueCrawls(client: any) {
                 AND i.status = 'failed'
             )
             OR
-            EXISTS (
+            -- Check if the MOST RECENT failed instance is past its cooldown
+            NOT EXISTS (
               SELECT 1 FROM (
                 SELECT updated_at
                 FROM dungeon_crawl_instances i
@@ -408,8 +409,8 @@ async function autoRestartOverdueCrawls(client: any) {
                   AND i.status = 'failed'
                 ORDER BY i.updated_at DESC
                 LIMIT 1
-              ) recent_failed
-              WHERE recent_failed.updated_at <= NOW() - (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL
+              ) most_recent_failed
+              WHERE most_recent_failed.updated_at > NOW() - (COALESCE(NULLIF(c.restart_after_failure_hours, 0), c.restart_interval_hours, 2) || ' hours')::INTERVAL
             )
           )
         )
