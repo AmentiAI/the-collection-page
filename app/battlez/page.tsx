@@ -289,6 +289,28 @@ export default function BattlePage() {
 
   const angelicOrdinals = ordinals.filter((o) => o.trait === 'Angelic')
   const demonicOrdinals = ordinals.filter((o) => o.trait === 'Demonic')
+  
+  // Calculate army composition and bonus status
+  const readyAngels = angelicOrdinals.filter((o) => o.status === 'ready' && o.lifeForce > 0).length
+  const readyDemons = demonicOrdinals.filter((o) => o.status === 'ready' && o.lifeForce > 0).length
+  const totalReady = readyAngels + readyDemons
+  
+  // Balanced army bonus: All angels OR all demons OR equal mix
+  const isBalanced = totalReady > 0 && (
+    (readyAngels > 0 && readyDemons === 0) || // All angels
+    (readyDemons > 0 && readyAngels === 0) || // All demons
+    (readyAngels > 0 && readyDemons > 0 && readyAngels === readyDemons) // Equal mix
+  )
+  
+  const armyComposition = totalReady > 0
+    ? readyAngels > 0 && readyDemons === 0
+      ? 'All Angels'
+      : readyDemons > 0 && readyAngels === 0
+      ? 'All Demons'
+      : readyAngels === readyDemons
+      ? 'Even Mix'
+      : 'Unbalanced'
+    : 'No Ready Armies'
 
   return (
     <GlobalStartTimeLock>
@@ -311,6 +333,38 @@ export default function BattlePage() {
               Prepare your damned ordinals for battle
             </p>
           </div>
+          
+          {/* Army Bonus Status */}
+          {connected && totalReady > 0 && (
+            <div className={`mb-6 rounded-lg border-2 p-4 ${
+              isBalanced 
+                ? 'border-green-500/70 bg-green-950/30' 
+                : 'border-yellow-500/70 bg-yellow-950/30'
+            }`}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-wide mb-1">
+                    Army Composition
+                  </div>
+                  <div className="text-lg font-mono">
+                    {armyComposition} ({readyAngels} Angels, {readyDemons} Demons)
+                  </div>
+                </div>
+                <div className={`px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wide ${
+                  isBalanced
+                    ? 'bg-green-600/80 text-green-100'
+                    : 'bg-yellow-600/80 text-yellow-100'
+                }`}>
+                  {isBalanced ? '✓ Balanced Bonus Active' : '✗ No Bonus'}
+                </div>
+              </div>
+              {isBalanced && (
+                <div className="mt-2 text-sm text-green-300">
+                  Balanced armies receive 30% damage reduction from horde attacks
+                </div>
+              )}
+            </div>
+          )}
 
           {!connected && (
             <div className="rounded-2xl border-2 border-red-500/70 bg-red-950/30 p-8 text-center">
