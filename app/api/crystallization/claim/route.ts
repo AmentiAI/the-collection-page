@@ -40,10 +40,10 @@ export async function POST(request: NextRequest) {
     const record = recordResult.rows[0]
     const enteredAt = new Date(record.entered_at)
 
-    // Calculate powder earned (1 per 30 minutes)
-    // EXTRACT(EPOCH FROM ...) gives seconds, divide by 1800 (30 min * 60 sec)
+    // Calculate powder earned (3 per 30 minutes)
+    // EXTRACT(EPOCH FROM ...) gives seconds, divide by 1800 (30 min * 60 sec) to get 30-min intervals, then multiply by 3
     const powderResult = await client.query(
-      `SELECT FLOOR(EXTRACT(EPOCH FROM (NOW() - $1::TIMESTAMPTZ)) / 1800)::INTEGER as powder_earned`,
+      `SELECT (FLOOR(EXTRACT(EPOCH FROM (NOW() - $1::TIMESTAMPTZ)) / 1800)::INTEGER * 3)::INTEGER as powder_earned`,
       [enteredAt]
     )
 

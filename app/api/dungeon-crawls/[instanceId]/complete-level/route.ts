@@ -206,8 +206,9 @@ export async function POST(
         const completed = allParticipantsRes.rows[0]?.completed ?? 0
         const participationPercent = total > 0 ? (completed / total) * 100 : 0
 
-        // If participation is below threshold, mark instance as failed and archive participants
-        if (participationPercent < config.minParticipationPercent) {
+        // If participation is at or below threshold, mark instance as failed immediately (rule #3)
+        // Must be OVER the minimum to pass
+        if (participationPercent <= config.minParticipationPercent) {
           // Archive all participants from this failed instance (preserve history)
           await client.query(
             `UPDATE dungeon_crawl_participants 
@@ -302,9 +303,9 @@ export async function POST(
       let instanceCompleted = false
 
       // Only mark level as completed and move forward if:
-      // - Minimum participation is met AND
+      // - Participation is OVER the minimum (not equal) AND
       // - Either 100% participation OR window has closed
-      if (participationPercent >= config.minParticipationPercent && (participationPercent >= 100 || windowClosed)) {
+      if (participationPercent > config.minParticipationPercent && (participationPercent >= 100 || windowClosed)) {
         levelCompleted = true
         const completedAt = new Date()
 

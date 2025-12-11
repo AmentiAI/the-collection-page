@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
          cr.entered_at,
          cr.status,
          FLOOR(EXTRACT(EPOCH FROM (NOW() - cr.entered_at)) / 60)::INTEGER as minutes_elapsed,
-         FLOOR(EXTRACT(EPOCH FROM (NOW() - cr.entered_at)) / 1800)::INTEGER as powder_earned,
+         (FLOOR(EXTRACT(EPOCH FROM (NOW() - cr.entered_at)) / 1800)::INTEGER * 3)::INTEGER as powder_earned,
          (1800 - (EXTRACT(EPOCH FROM (NOW() - cr.entered_at))::INTEGER % 1800))::INTEGER as seconds_until_next_powder
        FROM crystallization_records cr
        WHERE LOWER(cr.wallet_address) = LOWER($1)

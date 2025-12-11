@@ -153,11 +153,13 @@ const LevelCard = memo(({
 
   // Recalculate canComplete with current time
   const canComplete = useMemo(() => {
+    // Must be a participant to complete
+    if (!myParticipant) return false
     if (isMyCompleted || !windowState.isOpen) return false
     if (level === 1) return instance.status === 'ready' || instance.status === 'level_1'
     if (level === 2) return instance.status === 'level_1' || instance.status === 'level_2'
     return instance.status === 'level_2' || instance.status === 'level_3'
-  }, [isMyCompleted, windowState.isOpen, level, instance.status])
+  }, [myParticipant, isMyCompleted, windowState.isOpen, level, instance.status])
 
   const timeDisplay = useMemo(() => {
     if (!windowData) return null
@@ -187,6 +189,7 @@ const LevelCard = memo(({
 
   const handleHoldStart = () => {
     if (completingLevel === level) return
+    if (!myParticipant) return // Don't allow if not a participant
     setIsHolding(true)
     setHoldProgress(0)
     holdStartTimeRef.current = Date.now()
@@ -205,8 +208,12 @@ const LevelCard = memo(({
           }
           setIsHolding(false)
           setHoldProgress(0)
+          const startTime = holdStartTimeRef.current
           holdStartTimeRef.current = null
-          onComplete(level)
+          // Only call onComplete if we actually held for the full duration
+          if (Date.now() - startTime >= HOLD_DURATION_MS) {
+            onComplete(level)
+          }
         }
       }
     }, 16) // ~60fps updates

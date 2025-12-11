@@ -159,9 +159,9 @@ async function checkExpiredWindows(client: any) {
             shouldFail = total > 0 && completed === 0
           } else if (total > 0) {
             // For level_1, level_2, level_3 statuses: check participation threshold
-            // If participation is below min_participation_percent, it's a failure
+            // If participation is at or below min_participation_percent, it's a failure (must be OVER minimum)
             // This handles the case where window expired and not enough people completed
-            shouldFail = participationPercent < instance.min_participation_percent || completed === 0
+            shouldFail = participationPercent <= instance.min_participation_percent || completed === 0
             
             // If participation >= minimum, advance to next level
             // Only advance if instance is currently on the level we're checking
@@ -177,7 +177,8 @@ async function checkExpiredWindows(client: any) {
               isOnCorrectLevel = instance.status === 'level_2' || instance.status === 'level_3'
             }
             
-            if (participationPercent >= instance.min_participation_percent && isOnCorrectLevel) {
+            // Must be OVER the minimum (not equal) to advance
+            if (participationPercent > instance.min_participation_percent && isOnCorrectLevel) {
               shouldAdvance = true
             }
           } else if (total === 0) {
@@ -445,7 +446,14 @@ export async function GET(request: NextRequest) {
       await checkExpiredWindows(client)
       
       // Auto-restart overdue crawls (create new instances if restart time has passed)
-      await autoRestartOverdueCrawls(client)
+      // Only run if there are no active instances to prevent restart loops
+      const activeInstanceCheck = await client.query(
+        `SELECT COUNT(*)::int as count FROM dungeon_crawl_instances 
+         WHERE status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`
+      )
+      if (activeInstanceCheck.rows[0]?.count === 0) {
+        await autoRestartOverdueCrawls(client)
+      }
       
       // Get all active crawl configs with their current active instances
       const crawlsRes = await client.query(`
