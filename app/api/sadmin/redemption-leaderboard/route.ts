@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getPool } from '@/lib/db'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
+  let client
+  try {
+    client = await getPool().connect()
+
+    // Aggregate all stats per wallet using subqueries to avoid cartesian products
+    const result = await client.query(`
+      WITH base_wallets AS (
+        SELECT DISTINCT wallet_address
+        FROM (
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM battle_ordinals WHERE wallet_address IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM mega_monster_attack_logs WHERE wallet_address IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM heal_history WHERE wallet_address IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM crystallization_records WHERE wallet_address IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(creator_wallet) as wallet_address FROM summoning_powder_circles WHERE creator_wallet IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(wallet) as wallet_address FROM summoning_powder_participants WHERE wallet IS NOT NULL
+        ) all_wallets
+      ),
+      wallet_stats AS (
+        SELECT 
+          bw.wallet_address,
+          COALESCE(du.discord_user_id, '') as discord_username,
+          -- Army counts
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM battle_ordinals bo
+            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+              AND bo.life_force > 0
+              AND bo.is_dead = false
+          ), 0) as army_count,
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM battle_ordinals bo
+            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+              AND bo.trait = 'Angelic'
+              AND bo.life_force > 0
+              AND bo.is_dead = false
+          ), 0) as angel_count,
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM battle_ordinals bo
+            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+              AND bo.trait = 'Demonic'
+              AND bo.life_force > 0
+              AND bo.is_dead = false
+          ), 0) as demon_count,
+          -- Battle count (distinct attacks per wallet)
+          COALESCE((
+            SELECT COUNT(DISTINCT al.id)::int
+            FROM mega_monster_attack_logs al
+            WHERE LOWER(al.wallet_address) = bw.wallet_address
+          ), 0) as battles_count,
+          -- Heal count (sum of healed_count from heal_history)
+          COALESCE((
+            SELECT SUM(hh.healed_count)::int
+            FROM heal_history hh
+            WHERE LOWER(hh.wallet_address) = bw.wallet_address
+          ), 0) as heals_count,
+          -- Crystallization count (distinct inscriptions)
+          COALESCE((
+            SELECT COUNT(DISTINCT cr.inscription_id)::int
+            FROM crystallization_records cr
+            WHERE LOWER(cr.wallet_address) = bw.wallet_address
+          ), 0) as crystallization_count,
+          -- Ascension circles: created + participated (distinct)
+          COALESCE((
+            SELECT COUNT(DISTINCT ac.id)::int
+            FROM summoning_powder_circles ac
+            WHERE LOWER(ac.creator_wallet) = bw.wallet_address
+          ), 0) + COALESCE((
+            SELECT COUNT(DISTINCT acp.circle_id)::int
+            FROM summoning_powder_participants acp
+            WHERE LOWER(acp.wallet) = bw.wallet_address
+          ), 0) as ascension_circle_count,
+          -- Resurrections
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM battle_ordinals bo
+            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+              AND bo.resurrection_time IS NOT NULL
+          ), 0) as resurrections_count
+        FROM base_wallets bw
+        LEFT JOIN profiles p ON LOWER(p.wallet_address) = bw.wallet_address
+        LEFT JOIN discord_users du ON du.profile_id = p.id
+      )
+      SELECT 
+        wallet_address,
+        discord_username,
+        army_count,
+        angel_count,
+        demon_count,
+        battles_count,
+        heals_count,
+        crystallization_count,
+        ascension_circle_count,
+        resurrections_count
+      FROM wallet_stats
+      WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0
+      ORDER BY 
+        (army_count + battles_count + heals_count + crystallization_count + ascension_circle_count + resurrections_count) DESC,
+        wallet_address ASC
+    `)
+
+    return NextResponse.json({
+      success: true,
+      leaderboard: result.rows,
+    })
+  } catch (error) {
+    console.error('Error fetching redemption leaderboard:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
+  } finally {
+    if (client) client.release()
+  }
+}
+
