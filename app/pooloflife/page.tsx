@@ -14,6 +14,8 @@ interface ArmyStatus {
   imageUrl: string
   trait: 'Angelic' | 'Demonic'
   lifeForce: number
+  maxLifeForce?: number
+  status?: 'ready' | 'sanctuary' | null
   canHeal: boolean
 }
 
@@ -72,6 +74,7 @@ export default function PoolOfLifePage() {
 
       const data = await response.json()
       // Filter out dead armies (lifeForce === 0) - they need to be resurrected, not healed
+      // Include both ready and sanctuary armies (like battle page does)
       const armiesData = (data.ordinals || [])
         .filter((ord: any) => {
           // Explicitly check: if lifeForce is 0, hide it. If null/undefined, default to 100 and show it.
@@ -81,12 +84,18 @@ export default function PoolOfLifePage() {
         .map((ord: any) => {
           // Preserve 0 if it's 0, otherwise default to 100 for null/undefined
           const lifeForce = ord.lifeForce != null ? ord.lifeForce : 100
+          const maxLifeForce = ord.maxLifeForce ?? 100
+          const status = ord.status || null
+          // Can heal if below max (accounting for health cap bonuses)
+          const canHeal = lifeForce < maxLifeForce
           return {
             inscriptionId: ord.inscriptionId,
             imageUrl: ord.imageUrl,
             trait: ord.trait,
             lifeForce,
-            canHeal: lifeForce < 100,
+            maxLifeForce,
+            status,
+            canHeal,
           }
         })
 
@@ -176,7 +185,11 @@ export default function PoolOfLifePage() {
     }
 
     // Filter out dead armies (lifeForce === 0) - they can't be healed, only resurrected
-    const armiesNeedingHeal = armies.filter(a => a.lifeForce > 0 && a.lifeForce < 100)
+    // Check against maxLifeForce (which includes health cap bonuses)
+    const armiesNeedingHeal = armies.filter(a => {
+      const maxHealth = a.maxLifeForce ?? 100
+      return a.lifeForce > 0 && a.lifeForce < maxHealth
+    })
     if (armiesNeedingHeal.length === 0) {
       toast.error('All your armies are at full health!')
       return
@@ -225,7 +238,10 @@ export default function PoolOfLifePage() {
   }
 
   const timeUntilNext = getTimeUntilNextHeal()
-  const armiesNeedingHeal = armies.filter(a => a.lifeForce < 100)
+  const armiesNeedingHeal = armies.filter(a => {
+    const maxHealth = a.maxLifeForce ?? 100
+    return a.lifeForce < maxHealth
+  })
 
   return (
     <GlobalStartTimeLock>
@@ -329,18 +345,38 @@ export default function PoolOfLifePage() {
                           className="w-full aspect-square object-cover rounded mb-2"
                         />
                         <div className="text-sm">
+                          {army.status && (
+                            <div className="flex items-center justify-center mb-1">
+                              {army.status === 'ready' ? (
+                                <div className="flex items-center gap-1 bg-red-900/60 px-2 py-0.5 rounded border border-red-500/50">
+                                  <span className="text-[9px] text-red-300 font-bold uppercase">Ready</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 bg-red-900/50 px-2 py-0.5 rounded border border-red-500/50">
+                                  <Shield className="h-3 w-3 text-red-300" />
+                                  <span className="text-[9px] text-red-300 font-bold uppercase">Sanctuary</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mb-1">
                             <span className={`font-bold ${army.trait === 'Angelic' ? 'text-cyan-400' : 'text-red-400'}`}>
                               {army.trait}
                             </span>
-                            <span className="text-gray-300">{army.lifeForce}/100</span>
+                            <span className="text-gray-300">
+                              {army.lifeForce}/{army.maxLifeForce ?? 100}
+                            </span>
                           </div>
                           <div className="w-full bg-gray-700 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${
-                                army.lifeForce > 50 ? 'bg-green-500' : army.lifeForce > 25 ? 'bg-yellow-500' : 'bg-red-500'
+                                army.lifeForce > (army.maxLifeForce ?? 100) * 0.5 
+                                  ? 'bg-green-500' 
+                                  : army.lifeForce > (army.maxLifeForce ?? 100) * 0.25 
+                                  ? 'bg-yellow-500' 
+                                  : 'bg-red-500'
                               }`}
-                              style={{ width: `${army.lifeForce}%` }}
+                              style={{ width: `${(army.lifeForce / (army.maxLifeForce ?? 100)) * 100}%` }}
                             />
                           </div>
                         </div>
