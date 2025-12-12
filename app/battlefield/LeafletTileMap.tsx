@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { MapContainer, ImageOverlay, useMap, useMapEvents, Marker, Tooltip } from 'react-leaflet'
+import { useEffect, useState, useRef, memo } from 'react'
+import { MapContainer, ImageOverlay, useMap, Marker, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useRouter } from 'next/navigation'
@@ -42,78 +42,8 @@ function mapToLatLng(mapX: number, mapY: number): [number, number] {
   return [mapY, mapX]
 }
 
-// Component to track mouse coordinates - uses pixel coordinates directly
-// Throttled to improve performance during dragging
-function MapCoordinates({ onCoordsChange }: { onCoordsChange: (coords: { x: number; y: number } | null) => void }) {
-  const map = useMap()
-  const lastUpdateRef = useRef<number>(0)
-  const isDraggingRef = useRef<boolean>(false)
-  const throttleDelay = 50 // Update coordinates every 50ms max
-  
-  useMapEvents({
-    mousedown: () => {
-      isDraggingRef.current = true
-    },
-    mouseup: () => {
-      isDraggingRef.current = false
-    },
-    dragstart: () => {
-      isDraggingRef.current = true
-    },
-    dragend: () => {
-      isDraggingRef.current = false
-    },
-    mousemove: (e) => {
-      // Skip coordinate updates during drag for better performance
-      if (isDraggingRef.current) return
-      
-      const now = Date.now()
-      if (now - lastUpdateRef.current < throttleDelay) return
-      lastUpdateRef.current = now
-      
-      const container = map.getContainer()
-      if (!container) return
-      
-      // Get the visible map bounds in CRS.Simple coordinates
-      const bounds = map.getBounds()
-      const sw = bounds.getSouthWest() // bottom-left: [high Y, low X]
-      const ne = bounds.getNorthEast() // top-right: [low Y, high X]
-      
-      // In CRS.Simple: lat = Y, lng = X
-      // Calculate visible map area in map pixel coordinates
-      const visibleMapWidth = ne.lng - sw.lng
-      const visibleMapHeight = sw.lat - ne.lat
-      
-      // Get mouse position relative to container (0 to container size)
-      const containerX = e.containerPoint.x
-      const containerY = e.containerPoint.y
-      
-      // Convert container position to map pixel coordinates
-      // X: left to right (0 to MAP_WIDTH)
-      const mapX = Math.round(sw.lng + (containerX / container.clientWidth) * visibleMapWidth)
-      
-      // Y: top to bottom (0 to MAP_HEIGHT)
-      // In CRS.Simple: ne.lat is top (Y=0), sw.lat is bottom (Y=MAP_HEIGHT)
-      // containerY=0 is top, containerY=height is bottom
-      // So: mapY = ne.lat (top) + (containerY / height) * visibleHeight
-      const mapY = Math.round(ne.lat + (containerY / container.clientHeight) * visibleMapHeight)
-      
-      // Clamp to valid pixel range
-      const clampedX = Math.max(0, Math.min(MAP_WIDTH - 1, mapX))
-      const clampedY = Math.max(0, Math.min(MAP_HEIGHT - 1, mapY))
-      
-      onCoordsChange({ x: clampedX, y: clampedY })
-    },
-    mouseout: () => {
-      onCoordsChange(null)
-    },
-  })
-  
-  return null
-}
-
-// Landmark marker component
-function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?: boolean }) {
+// Landmark marker component - memoized to prevent unnecessary re-renders
+const LandmarkMarker = memo(function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?: boolean }) {
   const router = useRouter()
   const [lat, lng] = mapToLatLng(landmark.mapX, landmark.mapY)
   const [icon, setIcon] = useState<L.DivIcon | null>(null)
@@ -303,7 +233,21 @@ function LandmarkMarker({ landmark, isMobile }: { landmark: Landmark; isMobile?:
       </Tooltip>
     </Marker>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent re-renders when props haven't meaningfully changed
+  return (
+    prevProps.landmark.id === nextProps.landmark.id &&
+    prevProps.landmark.mapX === nextProps.landmark.mapX &&
+    prevProps.landmark.mapY === nextProps.landmark.mapY &&
+    prevProps.landmark.imageUrl === nextProps.landmark.imageUrl &&
+    prevProps.landmark.spriteX === nextProps.landmark.spriteX &&
+    prevProps.landmark.spriteY === nextProps.landmark.spriteY &&
+    prevProps.landmark.spriteWidth === nextProps.landmark.spriteWidth &&
+    prevProps.landmark.spriteHeight === nextProps.landmark.spriteHeight &&
+    prevProps.landmark.spriteSource === nextProps.landmark.spriteSource &&
+    prevProps.isMobile === nextProps.isMobile
+  )
+})
 
 function MapInit({ isMobile }: { isMobile: boolean }) {
   const map = useMap()
@@ -346,11 +290,9 @@ function MapInit({ isMobile }: { isMobile: boolean }) {
 }
 
 export default function LeafletTileMap({ 
-  landmarks = [], 
-  onCoordsChange 
+  landmarks = []
 }: { 
   landmarks?: Landmark[]
-  onCoordsChange?: (coords: { x: number; y: number } | null) => void 
 }) {
   // Initialize mobile detection immediately (not in useEffect)
   // Check both screen width and touch capability for better mobile detection
@@ -421,8 +363,6 @@ export default function LeafletTileMap({
           }
         }}
       />
-      {onCoordsChange && <MapCoordinates onCoordsChange={onCoordsChange} />}
-      
       {/* Render landmarks */}
       {landmarks.map((landmark) => (
         <LandmarkMarker key={landmark.id || `${landmark.mapX}-${landmark.mapY}`} landmark={landmark} isMobile={isMobile} />

@@ -22,55 +22,12 @@ interface Landmark {
   spriteSource?: string // Which sprite sheet image to use (landmarks.png or landmarks2.png)
 }
 
-// Component that updates DOM directly via callback to avoid React re-renders
-function CoordinateDisplay({ onUpdateRef }: { onUpdateRef: React.MutableRefObject<((coords: { x: number; y: number } | null) => void) | null> }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const textRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    // Register update function so parent can call it directly
-    onUpdateRef.current = (coords: { x: number; y: number } | null) => {
-      if (!containerRef.current || !textRef.current) return
-
-      if (coords) {
-        containerRef.current.style.display = 'block'
-        textRef.current.textContent = `X: ${coords.x}, Y: ${coords.y}`
-      } else {
-        containerRef.current.style.display = 'none'
-      }
-    }
-
-    return () => {
-      onUpdateRef.current = null
-    }
-  }, [onUpdateRef])
-
-  return (
-    <div 
-      ref={containerRef}
-      className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-black/80 border border-green-500/50 px-2 py-1.5 md:px-4 md:py-3 rounded z-[1000]"
-      style={{ display: 'none' }}
-    >
-      <div ref={textRef} className="text-xs md:text-sm font-mono text-green-400" />
-    </div>
-  )
-}
 
 export default function BattlefieldPage() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [landmarks, setLandmarks] = useState<Landmark[]>([])
   const [isMobile, setIsMobile] = useState(false)
-  
-  // Ref to store coordinate update callback - avoids React re-renders
-  const coordinateUpdateRef = useRef<((coords: { x: number; y: number } | null) => void) | null>(null)
-  
-  // Wrapper that updates DOM directly without triggering React re-render
-  const handleCoordsChange = useRef((coords: { x: number; y: number } | null) => {
-    if (coordinateUpdateRef.current) {
-      coordinateUpdateRef.current(coords)
-    }
-  }).current
 
   // Mobile detection
   useEffect(() => {
@@ -188,10 +145,7 @@ export default function BattlefieldPage() {
       />
 
         <div className="flex-1 map-container relative">
-          <LeafletTileMap landmarks={allLandmarks} onCoordsChange={handleCoordsChange} />
-
-          {/* Coordinate display overlay - uses direct DOM updates to avoid React re-renders */}
-          <CoordinateDisplay onUpdateRef={coordinateUpdateRef} />
+          <LeafletTileMap landmarks={allLandmarks} />
         </div>
       </div>
     </>
