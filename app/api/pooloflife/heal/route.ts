@@ -51,24 +51,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Heal all armies for this wallet (exclude dead armies - they must be resurrected first)
-    const healResult = await client.query(
-      `UPDATE battle_ordinals
-       SET 
-         life_force = 100,
-         is_dead = false,
-         last_heal_time = NOW(),
-         updated_at = NOW()
-       WHERE LOWER(wallet_address) = LOWER($1)
-         AND status = 'ready'
-         AND life_force > 0
-         AND life_force < 100
-         AND is_dead = false
-       RETURNING id`,
+    // Get all armies with their life force caps (including bonuses)
+    const armiesWithCaps = await client.query(
+      `
+        SELECT 
+          bo.id,
+          bo.inscription_id,
+          bo.life_force,
+          COALESCE(SUM(dcr.reward_value)::int, 0) AS life_force_cap_increase
+        FROM battle_ordinals bo
+        LEFT JOIN dungeon_crawl_rewards dcr ON 
+          dcr.inscription_id = bo.inscription_id
+          AND dcr.reward_type = 'life_force_cap'
+          AND dcr.is_active = TRUE
+          AND (dcr.expires_at IS NULL OR dcr.expires_at > NOW())
+        WHERE LOWER(bo.wallet_address) = LOWER($1)
+          AND bo.status = 'ready'
+          AND bo.life_force > 0
+          AND bo.is_dead = false
+        GROUP BY bo.id, bo.inscription_id, bo.life_force
+      `,
       [walletAddress]
     )
 
-    const healedCount = healResult.rows.length
+    // Heal each army to its individual max life force (100 + bonuses)
+    let healedCount = 0
+    for (const army of armiesWithCaps.rows) {
+      const lifeForceCapIncrease = Number(army.life_force_cap_increase ?? 0)
+      const maxLifeForce = 100 + lifeForceCapIncrease
+      const currentLifeForce = Number(army.life_force)
+      
+      // Only heal if below max
+      if (currentLifeForce < maxLifeForce) {
+        await client.query(
+          `UPDATE battle_ordinals
+           SET 
+             life_force = $1,
+             is_dead = false,
+             last_heal_time = NOW(),
+             updated_at = NOW()
+           WHERE id = $2`,
+          [maxLifeForce, army.id]
+        )
+        healedCount++
+      }
+    }
 
     // Record heal history
     if (healedCount > 0) {

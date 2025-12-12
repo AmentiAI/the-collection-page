@@ -244,8 +244,8 @@ export async function GET(request: NextRequest) {
           let newLifeForce = currentLifeForce
           
           if (!wasBlocked) {
-            // Random damage between 2-7
-            const baseDamage = Math.floor(Math.random() * 6) + 2 // 2-7
+            // Random damage between 2-6
+            const baseDamage = Math.floor(Math.random() * 5) + 2 // 2-6
             
             // Reduce damage by 30% if balanced army (separate from block chance)
             damage = isBalanced ? Math.floor(baseDamage * 0.7) : baseDamage
@@ -342,8 +342,8 @@ export async function GET(request: NextRequest) {
         weakestMonsterHealth = parseInt(weakestMonsterResult.rows[0].health || '15000', 10)
         weakestMonsterName = weakestMonsterResult.rows[0].name
         
-        // Reduce health by 350, but not below 0
-        const newHealth = Math.max(0, weakestMonsterHealth - 350)
+        // Reduce health by 800, but not below 0
+        const newHealth = Math.max(0, weakestMonsterHealth - 800)
         
         await client.query(
           'UPDATE mega_monsters SET health = $1, updated_at = NOW() WHERE id = $2',
@@ -360,7 +360,7 @@ export async function GET(request: NextRequest) {
       deaths,
       weakestMonsterId,
       weakestMonsterHealth,
-      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 350) : null,
+      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 800) : null,
       timestamp: new Date().toISOString()
     })
 
