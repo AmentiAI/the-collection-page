@@ -124,7 +124,7 @@
 **How it works:**
 1. View all your armies with their current life force
 2. Select individual armies to heal OR use "Heal All"
-3. **Cooldown:** 6 hours between heals
+3. **Cooldown:** 5 hours between heals
 4. Each heal restores life force (amount varies)
 5. View your healing history
 
@@ -318,7 +318,7 @@
 
 ### Cooldowns:
 - **Abyss Burns:** 15 minutes
-- **Pool of Life:** 6 hours
+- **Pool of Life:** 5 hours
 - **Resurrection:** 1 hour after death
 - **Crystallization:** None (passive earning)
 

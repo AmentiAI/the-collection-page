@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     client = await getPool().connect()
 
-    // Check if user has healed in the last 6 hours using heal_history table (source of truth)
+    // Check if user has healed in the last 5 hours using heal_history table (source of truth)
     // This matches what the status endpoint uses
     const lastHealResult = await client.query(
       `SELECT healed_at,
@@ -33,18 +33,18 @@ export async function POST(request: NextRequest) {
     if (lastHealResult.rows.length > 0) {
       const hoursSinceHeal = parseFloat(lastHealResult.rows[0].hours_since_heal || '0')
       
-      if (hoursSinceHeal < 6) {
-        const hoursRemaining = Math.ceil(6 - hoursSinceHeal)
-        const minutesRemaining = Math.ceil((6 - hoursSinceHeal) * 60)
+      if (hoursSinceHeal < 5) {
+        const hoursRemaining = Math.ceil(5 - hoursSinceHeal)
+        const minutesRemaining = Math.ceil((5 - hoursSinceHeal) * 60)
         
         if (hoursRemaining > 0) {
           return NextResponse.json(
-            { error: `You can only use the Pool of Life once every 6 hours. Try again in ${hoursRemaining} hour(s).` },
+            { error: `You can only use the Pool of Life once every 5 hours. Try again in ${hoursRemaining} hour(s).` },
             { status: 403 }
           )
         } else if (minutesRemaining > 0) {
           return NextResponse.json(
-            { error: `You can only use the Pool of Life once every 6 hours. Try again in ${minutesRemaining} minute(s).` },
+            { error: `You can only use the Pool of Life once every 5 hours. Try again in ${minutesRemaining} minute(s).` },
             { status: 403 }
           )
         }

@@ -143,7 +143,7 @@ export default function PoolOfLifePage() {
     }
 
     if (!canHealToday) {
-      toast.error('You can only use the Pool of Life once every 6 hours')
+      toast.error('You can only use the Pool of Life once every 5 hours')
       return
     }
 
@@ -185,7 +185,7 @@ export default function PoolOfLifePage() {
     if (!lastHealTime || canHealToday) return null
     
     const now = new Date()
-    const nextHealTime = new Date(lastHealTime.getTime() + 6 * 60 * 60 * 1000) // 6 hours
+    const nextHealTime = new Date(lastHealTime.getTime() + 5 * 60 * 60 * 1000) // 5 hours
     const msUntilNext = nextHealTime.getTime() - now.getTime()
     
     if (msUntilNext <= 0) return null
@@ -219,7 +219,7 @@ export default function PoolOfLifePage() {
               Pool of Life
             </h1>
             <p className="text-xl text-gray-400">
-              Restore your armies to full health. Can be used once every 6 hours.
+              Restore your armies to full health. Can be used once every 5 hours.
             </p>
           </div>
 

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     if (lastHealTime) {
       const hoursSinceHeal = parseFloat(result.rows[0].hours_since_heal || '0')
-      canHealToday = hoursSinceHeal >= 6
+      canHealToday = hoursSinceHeal >= 5
     }
 
     return NextResponse.json({
