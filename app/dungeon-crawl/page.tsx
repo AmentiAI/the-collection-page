@@ -6,7 +6,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
-import { Loader2, Sword, Shield, Clock, Users, CheckCircle2, XCircle, Gift, Trophy, Skull, ScrollText, Swords, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Sword, Shield, Clock, Users, CheckCircle2, XCircle, Gift, Trophy, Skull, ScrollText, Swords, ChevronDown, ChevronUp, RotateCw } from 'lucide-react'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
@@ -460,28 +460,49 @@ export default function DungeonCrawlPage() {
     fetchCrawlsRef.current = fetchCrawls
   }, [fetchCrawls])
 
-  // Auto-refetch when restart is overdue to catch new instances
+  // Auto-refetch when restart countdown is low or overdue to catch new instances
   useEffect(() => {
-    if (crawls.length === 0) return
+    if (crawls.length === 0 || !fetchCrawlsRef.current) return
 
-    // Check if any crawl is overdue
-    const hasOverdue = crawls.some(crawl => {
-      if (crawl.instances && crawl.instances.length > 0) return false
-      if (!crawl.nextRestartAt) return false
-      const restartTime = new Date(crawl.nextRestartAt).getTime()
-      return restartTime <= Date.now()
-    })
+    // Check if any crawl is overdue or countdown is very low (< 2 minutes)
+    const checkAndRefresh = () => {
+      const now = Date.now()
+      let needsRefresh = false
+      let refreshInterval = 10000 // Default 10 seconds
 
-    if (!hasOverdue) return
+      for (const crawl of crawls) {
+        if (crawl.instances && crawl.instances.length > 0) continue
+        if (!crawl.nextRestartAt) continue
+        
+        const restartTime = new Date(crawl.nextRestartAt).getTime()
+        const timeUntilRestart = restartTime - now
+        
+        // If overdue, refresh immediately and frequently
+        if (timeUntilRestart <= 0) {
+          needsRefresh = true
+          refreshInterval = 3000 // Refresh every 3 seconds when overdue
+          break
+        }
+        
+        // If countdown is < 2 minutes, refresh more frequently
+        if (timeUntilRestart > 0 && timeUntilRestart < 2 * 60 * 1000) {
+          needsRefresh = true
+          refreshInterval = Math.min(refreshInterval, 5000) // Refresh every 5 seconds when < 2 min
+        }
+      }
 
-    // If overdue, refetch every 10 seconds to catch new instances
-    const overdueInterval = setInterval(() => {
-      if (fetchCrawlsRef.current) {
+      if (needsRefresh && fetchCrawlsRef.current) {
         fetchCrawlsRef.current()
       }
-    }, 10000) // Refetch every 10 seconds when overdue
+    }
 
-    return () => clearInterval(overdueInterval)
+    // Check immediately
+    checkAndRefresh()
+
+    // Set up interval - check every 3-10 seconds depending on urgency
+    const interval = setInterval(checkAndRefresh, 5000) // Check every 5 seconds
+
+    return () => clearInterval(interval)
   }, [crawls])
 
   const fetchBattleOrdinals = useCallback(async () => {
@@ -1490,10 +1511,31 @@ export default function DungeonCrawlPage() {
 
                     {hasNoInstance ? (
                       <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-5 lg:mb-6 backdrop-blur-sm shadow-lg`}>
-                        <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
-                        <p className="text-stone-300 text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 md:mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                          {countdownText || 'Waiting for restart... The next crawl will be available soon.'}
-                        </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
+                            <p className="text-stone-300 text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 md:mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                              {countdownText || 'Waiting for restart... The next crawl will be available soon.'}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (fetchCrawlsRef.current) {
+                                fetchCrawlsRef.current()
+                              }
+                            }}
+                            disabled={loading}
+                            className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 p-0 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/60 text-amber-100 disabled:opacity-50"
+                            title="Refresh"
+                          >
+                            {loading ? (
+                              <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                            ) : (
+                              <RotateCw className="h-4 w-4 sm:h-5 sm:w-5" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     ) : isFailed ? (
                       <div className="bg-red-900/50 border-2 border-red-600 rounded-lg p-4 mb-6 backdrop-blur-sm shadow-lg">

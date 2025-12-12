@@ -331,20 +331,43 @@ export async function POST(request: NextRequest) {
       if (cooldownCheckRes.rows.length > 0) {
         const lastCreated = new Date(cooldownCheckRes.rows[0].created_at)
         const cooldownEnds = new Date(lastCreated.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000)
-        const hoursRemaining = Math.ceil((cooldownEnds.getTime() - Date.now()) / (1000 * 60 * 60))
+        const now = Date.now()
+        const msRemaining = cooldownEnds.getTime() - now
+        
+        // Calculate accurate time remaining (don't use Math.ceil which inflates hours)
+        const totalMinutes = Math.floor(msRemaining / (1000 * 60))
+        const hours = Math.floor(totalMinutes / 60)
+        const minutes = totalMinutes % 60
+        
+        // Format message - show hours and minutes if > 1 hour, otherwise just minutes
+        let timeMessage: string
+        if (hours > 0) {
+          if (minutes > 0) {
+            timeMessage = `${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''}`
+          } else {
+            timeMessage = `${hours} hour${hours !== 1 ? 's' : ''}`
+          }
+        } else {
+          timeMessage = `${Math.max(1, minutes)} minute${minutes !== 1 ? 's' : ''}`
+        }
         
         console.log(`[damned-pool/circles] COOLDOWN ACTIVE - Blocking creation`, {
           lastCreated: lastCreated.toISOString(),
           cooldownEnds: cooldownEnds.toISOString(),
-          hoursRemaining,
+          msRemaining,
+          hours,
+          minutes,
+          timeMessage,
         })
         
         await client.query('ROLLBACK')
         return NextResponse.json(
           { 
             success: false, 
-            error: `Portal circle cooldown active. You can initiate another portal in ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}.`,
+            error: `Portal circle cooldown active. You can initiate another portal in ${timeMessage}.`,
             cooldownEnds: cooldownEnds.toISOString(),
+            hoursRemaining: hours,
+            minutesRemaining: minutes,
           },
           { status: 429 },
         )

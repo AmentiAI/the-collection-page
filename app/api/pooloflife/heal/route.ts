@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get all armies with their life force caps (including bonuses)
-    // Include both 'ready' and 'sanctuary' status armies (like battle page does)
+    // Include 'ready', 'sanctuary', and NULL status armies (like battle page shows all armies)
+    // Only exclude armies that are explicitly dead or have 0 life force
     const armiesWithCaps = await client.query(
       `
         SELECT 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
           AND dcr.is_active = TRUE
           AND (dcr.expires_at IS NULL OR dcr.expires_at > NOW())
         WHERE LOWER(bo.wallet_address) = LOWER($1)
-          AND bo.status IN ('ready', 'sanctuary')
+          AND (bo.status IN ('ready', 'sanctuary') OR bo.status IS NULL)
           AND bo.life_force > 0
           AND bo.is_dead = false
         GROUP BY bo.id, bo.inscription_id, bo.life_force, bo.status
@@ -86,9 +87,11 @@ export async function POST(request: NextRequest) {
     )
 
     // Heal each army to its individual max life force (100 + bonuses)
-    // Include both ready and sanctuary armies
+    // Include both ready and sanctuary armies, and NULL status armies
     let healedCount = 0
     const errors: string[] = []
+    
+    console.log(`[pooloflife/heal] Found ${armiesWithCaps.rows.length} armies to check for healing`)
     
     for (const army of armiesWithCaps.rows) {
       try {
@@ -105,8 +108,8 @@ export async function POST(request: NextRequest) {
           continue
         }
       
-      // Only heal if below max
-      if (currentLifeForce < maxLifeForce) {
+        // Only heal if below max
+        if (currentLifeForce < maxLifeForce) {
           const updateResult = await client.query(
           `UPDATE battle_ordinals
            SET 
@@ -120,10 +123,13 @@ export async function POST(request: NextRequest) {
         )
           
           if (updateResult.rowCount === 0) {
-            console.warn(`[pooloflife/heal] No rows updated for army ${army.id}`)
+            console.warn(`[pooloflife/heal] No rows updated for army ${army.id} (inscription: ${army.inscription_id})`)
           } else {
-        healedCount++
+            console.log(`[pooloflife/heal] Healed army ${army.inscription_id} from ${currentLifeForce} to ${maxLifeForce}`)
+            healedCount++
           }
+        } else {
+          console.log(`[pooloflife/heal] Army ${army.inscription_id} already at max health (${currentLifeForce}/${maxLifeForce})`)
         }
       } catch (armyError) {
         console.error(`[pooloflife/heal] Error healing army ${army.id}:`, armyError)
