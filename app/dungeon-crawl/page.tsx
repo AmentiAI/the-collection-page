@@ -1107,22 +1107,42 @@ export default function DungeonCrawlPage() {
                   const isActive = selectedCrawl?.id === crawl.id
                   
                   // Calculate countdown for tab display
+                  // Client-side validation: Check if we're actually in a failure cooldown period
                   let tabCountdown: string | null = null
-                  if (hasNoInstance && crawl.nextRestartAt) {
-                    const restartTime = new Date(crawl.nextRestartAt).getTime()
-                    const timeUntilRestart = restartTime - nowRef.current
-                    if (timeUntilRestart > 0) {
-                      const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
-                      const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
-                      if (hours > 0) {
-                        tabCountdown = `${hours}h ${minutes}m`
-                      } else if (minutes > 0) {
-                        tabCountdown = `${minutes}m`
-                      } else {
-                        tabCountdown = 'Soon'
+                  if (hasNoInstance) {
+                    let actualRestartTime: number | null = null
+                    
+                    // If lastFailedAt exists and is recent, calculate the actual restart time
+                    if (crawl.lastFailedAt) {
+                      const lastFailedTime = new Date(crawl.lastFailedAt).getTime()
+                      const restartAfterFailureMs = crawl.restartAfterFailureHours * 60 * 60 * 1000
+                      const failureCooldownEnds = lastFailedTime + restartAfterFailureMs
+                      const timeUntilFailureCooldownEnds = failureCooldownEnds - nowRef.current
+                      
+                      // If we're still in the failure cooldown period, use that as the actual restart time
+                      if (timeUntilFailureCooldownEnds > 0) {
+                        actualRestartTime = failureCooldownEnds
                       }
-                    } else {
-                      tabCountdown = 'Overdue'
+                    }
+                    
+                    // Use actual restart time if in failure cooldown, otherwise use nextRestartAt
+                    const restartTime = actualRestartTime || (crawl.nextRestartAt ? new Date(crawl.nextRestartAt).getTime() : null)
+                    
+                    if (restartTime) {
+                      const timeUntilRestart = restartTime - nowRef.current
+                      if (timeUntilRestart > 0) {
+                        const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
+                        const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
+                        if (hours > 0) {
+                          tabCountdown = `${hours}h ${minutes}m`
+                        } else if (minutes > 0) {
+                          tabCountdown = `${minutes}m`
+                        } else {
+                          tabCountdown = 'Soon'
+                        }
+                      } else {
+                        tabCountdown = 'Overdue'
+                      }
                     }
                   } else if (instance) {
                     // Show time remaining for current level
@@ -1294,10 +1314,33 @@ export default function DungeonCrawlPage() {
 
                 let countdownText: string | null = null
                 let isOverdue = false
-                if (hasNoInstance && crawl.nextRestartAt) {
-                  const restartTime = new Date(crawl.nextRestartAt).getTime()
-                  const timeUntilRestart = restartTime - nowRef.current
+                if (hasNoInstance) {
+                  // Client-side validation: Check if we're actually in a failure cooldown period
+                  // If lastFailedAt exists and is recent, calculate the actual restart time
+                  let actualRestartTime: number | null = null
+                  let isInFailureCooldown = false
+                  
+                  if (crawl.lastFailedAt) {
+                    const lastFailedTime = new Date(crawl.lastFailedAt).getTime()
+                    const restartAfterFailureMs = crawl.restartAfterFailureHours * 60 * 60 * 1000
+                    const failureCooldownEnds = lastFailedTime + restartAfterFailureMs
+                    const timeSinceFailure = nowRef.current - lastFailedTime
+                    const timeUntilFailureCooldownEnds = failureCooldownEnds - nowRef.current
+                    
+                    // If we're still in the failure cooldown period, use that as the actual restart time
+                    if (timeUntilFailureCooldownEnds > 0) {
+                      isInFailureCooldown = true
+                      actualRestartTime = failureCooldownEnds
+                    }
+                  }
+                  
+                  // Use actual restart time if in failure cooldown, otherwise use nextRestartAt
+                  const restartTime = actualRestartTime || (crawl.nextRestartAt ? new Date(crawl.nextRestartAt).getTime() : null)
+                  
+                  if (restartTime) {
+                    const timeUntilRestart = restartTime - nowRef.current
                     if (timeUntilRestart > 0) {
+                      // Still waiting for restart
                       const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
                       const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
                       const seconds = Math.floor((timeUntilRestart % (1000 * 60)) / 1000)
@@ -1308,7 +1351,9 @@ export default function DungeonCrawlPage() {
                       } else {
                         countdownText = `Next crawl starts in ${seconds}s`
                       }
+                      isOverdue = false
                     } else {
+                      // Actually overdue (past the calculated restart time)
                       isOverdue = true
                       const timeOverdue = Math.abs(timeUntilRestart)
                       const hours = Math.floor(timeOverdue / (1000 * 60 * 60))
@@ -1321,9 +1366,10 @@ export default function DungeonCrawlPage() {
                         countdownText = 'Restart overdue - should be available soon'
                       }
                     }
-                } else if (hasNoInstance) {
+                  } else {
                     countdownText = 'Waiting for restart...'
                   }
+                }
 
                 return (
                   <div key={crawl.id} className="relative group">
