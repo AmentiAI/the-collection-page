@@ -221,18 +221,17 @@ export async function POST(
       // First, check database for existing traits (faster and more reliable)
       const dbTraitRes = await client.query(
         `
-          SELECT inscription_id, trait, inscription_image
+          SELECT inscription_id, trait
           FROM battle_ordinals
           WHERE inscription_id = ANY($1)
         `,
         [inscriptionIds]
       )
       
-      const dbTraits: Record<string, { trait?: 'Angelic' | 'Demonic', image?: string }> = {}
+      const dbTraits: Record<string, { trait?: 'Angelic' | 'Demonic' }> = {}
       for (const row of dbTraitRes.rows) {
         dbTraits[row.inscription_id] = {
           trait: row.trait as 'Angelic' | 'Demonic' | undefined,
-          image: row.inscription_image || undefined,
         }
       }
       
@@ -288,13 +287,10 @@ export async function POST(
         }
       }
       
-      // Fill in missing images from database if Magic Eden didn't provide them
+      // Fill in missing images - use Magic Eden content URL as fallback
       for (const inscriptionId of inscriptionIds) {
         if (!inscriptionData[inscriptionId]) {
           inscriptionData[inscriptionId] = {}
-        }
-        if (!inscriptionData[inscriptionId].image && dbTraits[inscriptionId]?.image) {
-          inscriptionData[inscriptionId].image = dbTraits[inscriptionId].image
         }
         if (!inscriptionData[inscriptionId].image) {
           inscriptionData[inscriptionId].image = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`
