@@ -179,7 +179,7 @@ export default function ResurrectPage() {
 
   return (
     <GlobalStartTimeLock>
-      <LaserEyesWrapper>
+
         <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
