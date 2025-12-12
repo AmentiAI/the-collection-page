@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Heart, Clock, Shield } from 'lucide-react'
-import dynamicImport from 'next/dynamic'
+import dynamic from 'next/dynamic'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
-const LaserEyesWrapper = dynamicImport(
+const LaserEyesWrapper = dynamic(
   () => import('@/components/LaserEyesWrapper'),
   { ssr: false, loading: () => null },
 )
@@ -34,6 +34,10 @@ export default function PoolOfLifePage() {
   const [canHealToday, setCanHealToday] = useState(true)
   const [healHistory, setHealHistory] = useState<Array<{ id: string; healed_count: number; healed_at: string }>>([])
 
+  // Use refs to track previous values and prevent unnecessary re-renders
+  const addressRef = useRef<string | null | undefined>(undefined)
+  const connectedRef = useRef<boolean>(false)
+
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
     setIsVerifying(false)
@@ -41,6 +45,17 @@ export default function PoolOfLifePage() {
 
   const handleVerifyingStart = useCallback(() => {
     setIsVerifying(true)
+  }, [])
+
+  const handleConnectedChange = useCallback((connected: boolean) => {
+    if (!connected) {
+      setIsHolder(undefined)
+      setIsVerifying(false)
+      setArmies([])
+      setHealHistory([])
+      setCanHealToday(true)
+      setLastHealTime(null)
+    }
   }, [])
 
   const fetchArmies = useCallback(async () => {
@@ -126,13 +141,31 @@ export default function PoolOfLifePage() {
     }
   }, [address])
 
+  // Only fetch when address or connected state actually changes
   useEffect(() => {
-    if (connected && address) {
+    const addressChanged = addressRef.current !== address
+    const connectedChanged = connectedRef.current !== connected
+    
+    // Update refs after checking for changes
+    const prevAddress = addressRef.current
+    const prevConnected = connectedRef.current
+    addressRef.current = address
+    connectedRef.current = connected
+
+    // Clear data when disconnected or address removed
+    if (!connected || !address) {
+      if (prevConnected || prevAddress) {
+        // Only clear if we were previously connected/had address
+        setArmies([])
+        setHealHistory([])
+      }
+      return
+    }
+
+    // Only fetch if we have a valid connection and address, and something actually changed
+    if ((addressChanged || connectedChanged)) {
       fetchArmies()
       fetchHealHistory()
-    } else {
-      setArmies([])
-      setHealHistory([])
     }
   }, [connected, address, fetchArmies, fetchHealHistory])
 
@@ -179,7 +212,7 @@ export default function PoolOfLifePage() {
     } finally {
       setHealing(false)
     }
-  }, [address, armies, canHealToday, toast, fetchArmies])
+  }, [address, armies, canHealToday, toast, fetchArmies, fetchHealHistory])
 
   const getTimeUntilNextHeal = () => {
     if (!lastHealTime || canHealToday) return null
@@ -209,7 +242,7 @@ export default function PoolOfLifePage() {
           connected={connected}
           onHolderVerified={handleHolderVerified}
           onVerifyingStart={handleVerifyingStart}
-          onConnectedChange={() => {}}
+          onConnectedChange={handleConnectedChange}
         />
 
         <div className="max-w-6xl mx-auto px-4 py-8">
