@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
     client = await getPool().connect()
     console.log('[mega-monster-attack] Database connected')
 
-    // Get all mega monsters
+    // Get all mega monsters with health > 0 (exclude dead monsters)
     const monstersResult = await client.query(
-      'SELECT id FROM mega_monsters WHERE image_blob_url IS NOT NULL OR image_data IS NOT NULL'
+      'SELECT id FROM mega_monsters WHERE (image_blob_url IS NOT NULL OR image_data IS NOT NULL) AND health > 0'
     )
     const monsterCount = monstersResult.rows.length
 
@@ -323,10 +323,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // At the end of the attack, find the monster with the least health and reduce it by 150
+    let weakestMonsterId: string | null = null
+    let weakestMonsterHealth: number | null = null
+    let weakestMonsterName: string | null = null
+    
+    if (monsterCount > 0) {
+      const weakestMonsterResult = await client.query(`
+        SELECT id, health, name
+        FROM mega_monsters
+        WHERE (image_blob_url IS NOT NULL OR image_data IS NOT NULL) AND health > 0
+        ORDER BY health ASC
+        LIMIT 1
+      `)
+      
+      if (weakestMonsterResult.rows.length > 0) {
+        weakestMonsterId = weakestMonsterResult.rows[0].id
+        weakestMonsterHealth = parseInt(weakestMonsterResult.rows[0].health || '15000', 10)
+        weakestMonsterName = weakestMonsterResult.rows[0].name
+        
+        // Reduce health by 150, but not below 0
+        const newHealth = Math.max(0, weakestMonsterHealth - 150)
+        
+        await client.query(
+          'UPDATE mega_monsters SET health = $1, updated_at = NOW() WHERE id = $2',
+          [newHealth, weakestMonsterId]
+        )
+        
+        console.log(`[mega-monster-attack] Weakest monster (${weakestMonsterName || weakestMonsterId}) health reduced: ${weakestMonsterHealth} -> ${newHealth}`)
+      }
+    }
+
     console.log(`[mega-monster-attack] Completed successfully`, {
       monsterCount,
       attacksProcessed,
       deaths,
+      weakestMonsterId,
+      weakestMonsterHealth,
+      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 150) : null,
       timestamp: new Date().toISOString()
     })
 
@@ -336,6 +370,13 @@ export async function GET(request: NextRequest) {
       monsterCount,
       attacksProcessed,
       deaths,
+      weakestMonster: weakestMonsterId ? {
+        id: weakestMonsterId,
+        name: weakestMonsterName,
+        healthBefore: weakestMonsterHealth,
+        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 150),
+        damageTaken: 150
+      } : null,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
