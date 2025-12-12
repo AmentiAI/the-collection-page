@@ -374,8 +374,8 @@ export async function GET(request: NextRequest) {
         id: weakestMonsterId,
         name: weakestMonsterName,
         healthBefore: weakestMonsterHealth,
-        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 350),
-        damageTaken: 350
+        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 800),
+        damageTaken: 800
       } : null,
       timestamp: new Date().toISOString(),
     })
