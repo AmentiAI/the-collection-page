@@ -8,10 +8,7 @@
       "path": "/api/afk-circle/reward",
       "schedule": "0 * * * *"
     },
-    {
-      "path": "/api/cron/mega-monster-attack",
-      "schedule": "0 * * * *"
-    },
+   
     {
       "path": "/api/cron/sync-flashnet-pools",
       "schedule": "*/3 * * * *"
