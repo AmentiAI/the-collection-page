@@ -469,10 +469,10 @@ async function autoRestartOverdueCrawls(client: any) {
       )
       if (result.rowCount > 0) {
         console.log(`[autoRestartOverdueCrawls] ✅ Created new instance for crawl ${row.id}`)
-      } else {
+    } else {
         console.log(`[autoRestartOverdueCrawls] Instance already exists for crawl ${row.id} (race condition)`)
       }
-    } else {
+      } else {
       if (hasVeryRecentFailures) {
         console.log(`[autoRestartOverdueCrawls] ⚠️ Skipped creating instance for crawl ${row.id} - very recent failure detected (within last 30 seconds)`)
       } else {
@@ -542,10 +542,10 @@ export async function GET(request: NextRequest) {
           
           if (!hasVeryRecentFailures) {
             console.log(`[GET] 🔄 Attempting to auto-restart overdue crawls...`)
-            await autoRestartOverdueCrawls(client)
-          } else {
+        await autoRestartOverdueCrawls(client)
+      } else {
             console.log(`[GET] ⏸️ Skipped autoRestartOverdueCrawls - very recent failure detected (within last 30 seconds)`)
-          }
+        }
         }
       } else {
         console.log(`[GET] ⏸️ Skipped autoRestartOverdueCrawls - active instances exist`)

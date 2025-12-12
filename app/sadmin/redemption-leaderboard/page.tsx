@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Trophy, Loader2, RefreshCw } from 'lucide-react'
+import Image from 'next/image'
 import Header from '@/components/Header'
 
 type LeaderboardEntry = {
   wallet_address: string
   discord_username: string
+  discord_avatar_url: string
   army_count: number
   angel_count: number
   demon_count: number
@@ -15,6 +17,7 @@ type LeaderboardEntry = {
   crystallization_count: number
   ascension_circle_count: number
   resurrections_count: number
+  total_score: number
 }
 
 export default function RedemptionLeaderboardPage() {
@@ -96,14 +99,20 @@ export default function RedemptionLeaderboardPage() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-red-600/40 bg-black/60">
-            <table className="w-full min-w-[1500px] divide-y divide-red-800/50">
+            <table className="w-full min-w-[1600px] divide-y divide-red-800/50">
               <thead className="bg-red-900/20">
                 <tr>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
+                    Rank
+                  </th>
                   <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Wallet
                   </th>
                   <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Discord
+                  </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
+                    Total Score
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Army Count
@@ -134,7 +143,7 @@ export default function RedemptionLeaderboardPage() {
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -144,11 +153,34 @@ export default function RedemptionLeaderboardPage() {
                       key={entry.wallet_address}
                       className="transition hover:bg-red-900/10"
                     >
+                      <td className="px-4 py-3 text-center font-mono text-xs font-bold text-amber-400">
+                        #{index + 1}
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-200">
                         {truncateWallet(entry.wallet_address)}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-300">
-                        {entry.discord_username || '-'}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {entry.discord_avatar_url ? (
+                            <Image
+                              src={entry.discord_avatar_url}
+                              alt={entry.discord_username || 'Discord'}
+                              width={24}
+                              height={24}
+                              className="rounded-full"
+                            />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-gray-700 flex items-center justify-center">
+                              <span className="text-[10px] text-gray-400">?</span>
+                            </div>
+                          )}
+                          <span className="text-xs text-gray-300">
+                            {entry.discord_username || '-'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-amber-400">
+                        {entry.total_score.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-xs text-gray-200">
                         {entry.army_count.toLocaleString()}

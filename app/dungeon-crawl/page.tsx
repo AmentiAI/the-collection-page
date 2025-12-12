@@ -1129,19 +1129,19 @@ export default function DungeonCrawlPage() {
                     const restartTime = actualRestartTime || (crawl.nextRestartAt ? new Date(crawl.nextRestartAt).getTime() : null)
                     
                     if (restartTime) {
-                      const timeUntilRestart = restartTime - nowRef.current
-                      if (timeUntilRestart > 0) {
-                        const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
-                        const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
-                        if (hours > 0) {
-                          tabCountdown = `${hours}h ${minutes}m`
-                        } else if (minutes > 0) {
-                          tabCountdown = `${minutes}m`
-                        } else {
-                          tabCountdown = 'Soon'
-                        }
+                    const timeUntilRestart = restartTime - nowRef.current
+                    if (timeUntilRestart > 0) {
+                      const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
+                      const minutes = Math.floor((timeUntilRestart % (1000 * 60 * 60)) / (1000 * 60))
+                      if (hours > 0) {
+                        tabCountdown = `${hours}h ${minutes}m`
+                      } else if (minutes > 0) {
+                        tabCountdown = `${minutes}m`
                       } else {
-                        tabCountdown = 'Overdue'
+                        tabCountdown = 'Soon'
+                      }
+                    } else {
+                      tabCountdown = 'Overdue'
                       }
                     }
                   } else if (instance) {
@@ -1338,7 +1338,7 @@ export default function DungeonCrawlPage() {
                   const restartTime = actualRestartTime || (crawl.nextRestartAt ? new Date(crawl.nextRestartAt).getTime() : null)
                   
                   if (restartTime) {
-                    const timeUntilRestart = restartTime - nowRef.current
+                  const timeUntilRestart = restartTime - nowRef.current
                     if (timeUntilRestart > 0) {
                       // Still waiting for restart
                       const hours = Math.floor(timeUntilRestart / (1000 * 60 * 60))
@@ -1369,7 +1369,7 @@ export default function DungeonCrawlPage() {
                   } else {
                     countdownText = 'Waiting for restart...'
                   }
-                }
+                  }
 
                 return (
                   <div key={crawl.id} className="relative group">

@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       wallet_stats AS (
         SELECT 
           bw.wallet_address,
-          COALESCE(du.discord_user_id, '') as discord_username,
+          COALESCE(p.username, '') as discord_username,
+          COALESCE(p.avatar_url, '') as discord_avatar_url,
           -- Army counts
           COALESCE((
             SELECT COUNT(*)::int
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         wallet_address,
         discord_username,
+        discord_avatar_url,
         army_count,
         angel_count,
         demon_count,
@@ -103,11 +105,22 @@ export async function GET(request: NextRequest) {
         heals_count,
         crystallization_count,
         ascension_circle_count,
-        resurrections_count
+        resurrections_count,
+        -- Calculate total score with resurrection penalty and curve for small armies
+        -- Formula: (activities - resurrections*3) / (army_count^0.4)
+        -- This rewards efficiency and penalizes deaths, helping smaller armies compete
+        CASE 
+          WHEN army_count > 0 THEN
+            (
+              (battles_count + heals_count + crystallization_count + ascension_circle_count - resurrections_count * 3)::numeric
+              / POWER(GREATEST(army_count, 1)::numeric, 0.4)
+            )::numeric(10, 2)
+          ELSE 0
+        END as total_score
       FROM wallet_stats
       WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0
       ORDER BY 
-        (army_count + battles_count + heals_count + crystallization_count + ascension_circle_count + resurrections_count) DESC,
+        total_score DESC,
         wallet_address ASC
     `)
 

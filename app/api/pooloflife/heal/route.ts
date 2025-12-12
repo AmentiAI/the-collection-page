@@ -60,67 +60,93 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get all armies with their life force caps (including bonuses)
-    // Include 'ready', 'sanctuary', and NULL status armies (like battle page shows all armies)
-    // Only exclude armies that are explicitly dead or have 0 life force
-    // Match the battle/ordinals API query structure for consistency
-    const armiesWithCaps = await client.query(
+    // Get all armies - match battle/ordinals API structure exactly
+    // First get all armies, then get their life force caps separately (like battle API does)
+    const armiesResult = await client.query(
       `
         SELECT 
           bo.id,
           bo.inscription_id,
           bo.life_force,
-          bo.status,
-          COALESCE(SUM(dcr.reward_value)::int, 0) AS life_force_cap_increase
+          bo.status
         FROM battle_ordinals bo
-        LEFT JOIN dungeon_crawl_rewards dcr ON 
-          dcr.inscription_id = bo.inscription_id
-          AND LOWER(dcr.wallet) = LOWER($1)
-          AND dcr.reward_type = 'life_force_cap'
-          AND dcr.is_active = TRUE
-          AND (dcr.expires_at IS NULL OR dcr.expires_at > NOW())
         WHERE LOWER(bo.wallet_address) = LOWER($1)
           AND (bo.status IN ('ready', 'sanctuary') OR bo.status IS NULL)
           AND bo.life_force > 0
           AND bo.is_dead = false
-        GROUP BY bo.id, bo.inscription_id, bo.life_force, bo.status
       `,
       [walletAddress]
     )
+
+    // Get inscription IDs to fetch life force caps
+    const inscriptionIds = armiesResult.rows.map((row: any) => row.inscription_id).filter(Boolean)
+    
+    // Get life force cap increases per inscription (exactly like battle API)
+    const lifeForceCapMap: Record<string, number> = {}
+    if (inscriptionIds.length > 0) {
+      const capRes = await client.query(
+        `
+          SELECT inscription_id, SUM(reward_value)::int AS total
+          FROM dungeon_crawl_rewards
+          WHERE LOWER(wallet) = LOWER($1)
+            AND inscription_id = ANY($2)
+            AND reward_type = 'life_force_cap'
+            AND is_active = TRUE
+            AND (expires_at IS NULL OR expires_at > NOW())
+          GROUP BY inscription_id
+        `,
+        [walletAddress, inscriptionIds]
+      )
+      capRes.rows.forEach((row: any) => {
+        lifeForceCapMap[row.inscription_id] = Number(row.total ?? 0)
+      })
+    }
+
+    // Combine armies with their cap increases (exactly like battle API calculates maxLifeForce)
+    const armiesWithCaps = armiesResult.rows.map((army: any) => {
+      const baseCap = 100
+      const capIncrease = lifeForceCapMap[army.inscription_id] ?? 0
+      const maxLifeForce = baseCap + capIncrease
+      return {
+        ...army,
+        life_force_cap_increase: capIncrease,
+        max_life_force: maxLifeForce,
+      }
+    })
 
     // Heal each army to its individual max life force (100 + bonuses)
     // Include both ready and sanctuary armies, and NULL status armies
     let healedCount = 0
     const errors: string[] = []
     
-    console.log(`[pooloflife/heal] Found ${armiesWithCaps.rows.length} armies to check for healing`)
+    console.log(`[pooloflife/heal] Found ${armiesWithCaps.length} armies to check for healing`)
     console.log(`[pooloflife/heal] Wallet: ${walletAddress}`)
     
     // Log all armies found for debugging
-    if (armiesWithCaps.rows.length > 0) {
+    if (armiesWithCaps.length > 0) {
       console.log(`[pooloflife/heal] Sample army data:`, {
         firstArmy: {
-          id: armiesWithCaps.rows[0].id,
-          inscription_id: armiesWithCaps.rows[0].inscription_id,
-          life_force: armiesWithCaps.rows[0].life_force,
-          status: armiesWithCaps.rows[0].status,
-          life_force_cap_increase: armiesWithCaps.rows[0].life_force_cap_increase,
+          id: armiesWithCaps[0].id,
+          inscription_id: armiesWithCaps[0].inscription_id,
+          life_force: armiesWithCaps[0].life_force,
+          status: armiesWithCaps[0].status,
+          life_force_cap_increase: armiesWithCaps[0].life_force_cap_increase,
+          max_life_force: armiesWithCaps[0].max_life_force,
         }
       })
     }
     
-    for (const army of armiesWithCaps.rows) {
+    for (const army of armiesWithCaps) {
       try {
-      const lifeForceCapIncrease = Number(army.life_force_cap_increase ?? 0)
-      const maxLifeForce = 100 + lifeForceCapIncrease
+        // Use the calculated maxLifeForce (exactly like battle API)
+        const maxLifeForce = army.max_life_force ?? 100
         const currentLifeForce = Number(army.life_force ?? 0)
         
         // Log each army's calculation for debugging
         console.log(`[pooloflife/heal] Army ${army.inscription_id}:`, {
           raw_life_force: army.life_force,
-          raw_cap_increase: army.life_force_cap_increase,
+          cap_increase: army.life_force_cap_increase,
           currentLifeForce,
-          lifeForceCapIncrease,
           maxLifeForce,
           needsHealing: currentLifeForce < maxLifeForce,
           comparison: `${currentLifeForce} < ${maxLifeForce} = ${currentLifeForce < maxLifeForce}`,
@@ -130,10 +156,10 @@ export async function POST(request: NextRequest) {
         // Validate values
         if (isNaN(maxLifeForce) || isNaN(currentLifeForce)) {
           console.error(`[pooloflife/heal] Invalid life force values for army ${army.id}:`, {
-            lifeForceCapIncrease,
+            maxLifeForce,
             currentLifeForce: army.life_force,
             raw_life_force: army.life_force,
-            raw_cap_increase: army.life_force_cap_increase,
+            cap_increase: army.life_force_cap_increase,
           })
           continue
         }
@@ -184,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     // Log summary before returning
     console.log(`[pooloflife/heal] Summary:`, {
-      totalArmies: armiesWithCaps.rows.length,
+      totalArmies: armiesWithCaps.length,
       healedCount,
       errorsCount: errors.length,
       walletAddress,
@@ -198,7 +224,7 @@ export async function POST(request: NextRequest) {
         message: `Healed ${healedCount} armies to full health${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
         errors: errors.length > 0 ? errors : undefined,
       })
-    } else if (armiesWithCaps.rows.length === 0) {
+    } else if (armiesWithCaps.length === 0) {
       console.log(`[pooloflife/heal] No armies found for wallet ${walletAddress}`)
       return NextResponse.json(
         { error: 'No armies found to heal. Make sure your armies are ready or in sanctuary.' },
@@ -206,12 +232,12 @@ export async function POST(request: NextRequest) {
       )
     } else {
       // Log detailed info when all armies appear to be at max
-      console.warn(`[pooloflife/heal] All ${armiesWithCaps.rows.length} armies appear to be at max health, but user reports they are damaged.`)
-      console.warn(`[pooloflife/heal] First few armies:`, armiesWithCaps.rows.slice(0, 3).map(a => ({
+      console.warn(`[pooloflife/heal] All ${armiesWithCaps.length} armies appear to be at max health, but user reports they are damaged.`)
+      console.warn(`[pooloflife/heal] First few armies:`, armiesWithCaps.slice(0, 3).map(a => ({
         inscription_id: a.inscription_id,
         life_force: a.life_force,
         cap_increase: a.life_force_cap_increase,
-        calculated_max: 100 + Number(a.life_force_cap_increase ?? 0),
+        calculated_max: a.max_life_force,
         status: a.status,
       })))
       return NextResponse.json(

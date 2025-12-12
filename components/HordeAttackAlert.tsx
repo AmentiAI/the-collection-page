@@ -121,15 +121,48 @@ export default function HordeAttackAlert() {
         if (response.ok) {
           const data = await response.json()
           if (data.success && data.crawls && data.crawls.length > 0) {
-            // Find the earliest nextRestartAt from all active crawls
-            const nextRestartTimes = data.crawls
-              .map((crawl: { nextRestartAt?: string | null }) => crawl.nextRestartAt)
-              .filter((time: string | null | undefined): time is string => time != null)
-              .map((time: string) => new Date(time).getTime())
-              .filter((time: number) => !isNaN(time) && time > Date.now())
+            const now = Date.now()
             
-            if (nextRestartTimes.length > 0) {
-              const earliestTime = Math.min(...nextRestartTimes)
+            // Calculate actual restart times for each crawl (with client-side validation)
+            // Match the logic from dungeon-crawl page
+            const actualRestartTimes = data.crawls
+              .map((crawl: { 
+                nextRestartAt?: string | null
+                lastFailedAt?: string | null
+                restartAfterFailureHours?: number
+                instances?: Array<{ status: string }>
+              }) => {
+                // Skip if there's an active instance
+                const hasActiveInstance = crawl.instances?.some(
+                  (i: { status: string }) => 
+                    ['open', 'filling', 'ready', 'level_1', 'level_2', 'level_3'].includes(i.status)
+                )
+                if (hasActiveInstance) return null
+                
+                // Client-side validation: Check if we're in a failure cooldown period
+                let actualRestartTime: number | null = null
+                
+                if (crawl.lastFailedAt) {
+                  const lastFailedTime = new Date(crawl.lastFailedAt).getTime()
+                  const restartAfterFailureMs = (crawl.restartAfterFailureHours || 2) * 60 * 60 * 1000
+                  const failureCooldownEnds = lastFailedTime + restartAfterFailureMs
+                  const timeUntilFailureCooldownEnds = failureCooldownEnds - now
+                  
+                  // If we're still in the failure cooldown period, use that as the actual restart time
+                  if (timeUntilFailureCooldownEnds > 0) {
+                    actualRestartTime = failureCooldownEnds
+                  }
+                }
+                
+                // Use actual restart time if in failure cooldown, otherwise use nextRestartAt
+                const restartTime = actualRestartTime || (crawl.nextRestartAt ? new Date(crawl.nextRestartAt).getTime() : null)
+                
+                return restartTime && !isNaN(restartTime) ? restartTime : null
+              })
+              .filter((time: number | null): time is number => time !== null && time > now)
+            
+            if (actualRestartTimes.length > 0) {
+              const earliestTime = Math.min(...actualRestartTimes)
               const calculateTimeRemaining = () => {
                 const now = Date.now()
                 const remaining = earliestTime - now
