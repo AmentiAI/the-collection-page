@@ -442,34 +442,41 @@ async function autoRestartOverdueCrawls(client: any) {
   // Create new instance for each crawl that should be restarted
   // Double-check no active instances exist before creating (prevent race conditions)
   for (const row of crawlsToRestart.rows) {
-    // Final safety check: ensure no active instance exists AND no recent failures
+    // Final safety check: ensure no active instance exists
+    // Only check for VERY recent failures (within last 30 seconds) to prevent immediate re-creation loops
+    // If restart is overdue, we should restart regardless of older failures
     const finalCheck = await client.query(
       `SELECT 
         COUNT(*)::int as active_count,
-        COUNT(CASE WHEN status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL) THEN 1 END)::int as recent_failures
+        COUNT(CASE WHEN status = 'failed' AND (updated_at > NOW() - '30 seconds'::INTERVAL OR created_at > NOW() - '30 seconds'::INTERVAL) THEN 1 END)::int as very_recent_failures
        FROM dungeon_crawl_instances 
        WHERE crawl_id = $1 
          AND (status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
-           OR (status = 'failed' AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL)))`,
+           OR (status = 'failed' AND (updated_at > NOW() - '30 seconds'::INTERVAL OR created_at > NOW() - '30 seconds'::INTERVAL)))`,
       [row.id]
     )
     
     const hasActive = finalCheck.rows[0]?.active_count > 0
-    const hasRecentFailures = finalCheck.rows[0]?.recent_failures > 0
+    const hasVeryRecentFailures = finalCheck.rows[0]?.very_recent_failures > 0
     
-    if (!hasActive && !hasRecentFailures) {
-      await client.query(
+    if (!hasActive && !hasVeryRecentFailures) {
+      const result = await client.query(
         `INSERT INTO dungeon_crawl_instances (crawl_id, status)
          VALUES ($1, 'open')
-         ON CONFLICT DO NOTHING`,
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
         [row.id]
       )
-      console.log(`[autoRestartOverdueCrawls] Created new instance for crawl ${row.id}`)
-    } else {
-      if (hasRecentFailures) {
-        console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - recent failure detected (within last 10 minutes)`)
+      if (result.rowCount > 0) {
+        console.log(`[autoRestartOverdueCrawls] ✅ Created new instance for crawl ${row.id}`)
       } else {
-        console.log(`[autoRestartOverdueCrawls] Skipped creating instance for crawl ${row.id} - active instance exists`)
+        console.log(`[autoRestartOverdueCrawls] Instance already exists for crawl ${row.id} (race condition)`)
+      }
+    } else {
+      if (hasVeryRecentFailures) {
+        console.log(`[autoRestartOverdueCrawls] ⚠️ Skipped creating instance for crawl ${row.id} - very recent failure detected (within last 30 seconds)`)
+      } else {
+        console.log(`[autoRestartOverdueCrawls] ⚠️ Skipped creating instance for crawl ${row.id} - active instance exists`)
       }
     }
   }
@@ -513,34 +520,35 @@ export async function GET(request: NextRequest) {
       const hasRecentFailures = recentFailureCheck.rows[0]?.recent_failures > 0
       const justCleanedUp = cleanupResult > 0
       
-      // Only auto-restart if:
+      // Auto-restart overdue crawls if:
       // 1. No active instances exist
-      // 2. No instances were just marked as failed (prevents race condition where checkExpiredWindows just failed one)
-      // 3. No instances were created recently that might be invalid
-      // 4. cleanupInvalidInstances didn't just mark anything as failed (prevents immediate re-creation)
-      // BUT: If there are no active instances and no recent failures, always try to restart
-      // (handles edge cases where restart is overdue but system is stuck)
-      if (!hasActiveInstances && !justCleanedUp) {
-        // Only skip if there are very recent failures (within last 2 minutes) to prevent spam
-        const veryRecentFailures = await client.query(
-          `SELECT COUNT(*)::int as count
-           FROM dungeon_crawl_instances 
-           WHERE status = 'failed' 
-             AND (updated_at > NOW() - '2 minutes'::INTERVAL OR created_at > NOW() - '2 minutes'::INTERVAL)`
-        )
-        const hasVeryRecentFailures = veryRecentFailures.rows[0]?.count > 0
-        
-        if (!hasVeryRecentFailures) {
-        await autoRestartOverdueCrawls(client)
+      // 2. No instances were just marked as failed in this request (prevents immediate re-creation)
+      // If restart is overdue, we should restart regardless of older failures
+      // Only skip if there are VERY recent failures (within last 30 seconds) to prevent spam loops
+      if (!hasActiveInstances) {
+        // Only skip if cleanup just happened (prevents immediate re-creation after cleanup)
+        // OR if there are very recent failures (within last 30 seconds)
+        if (justCleanedUp) {
+          console.log(`[GET] ⏸️ Skipped autoRestartOverdueCrawls - cleanupInvalidInstances just marked ${cleanupResult} instance(s) as failed`)
         } else {
-          console.log(`[GET] Skipped autoRestartOverdueCrawls - very recent failure detected (within last 2 minutes)`)
+          // Check for very recent failures (only 30 seconds, not 2 minutes)
+          const veryRecentFailures = await client.query(
+            `SELECT COUNT(*)::int as count
+             FROM dungeon_crawl_instances 
+             WHERE status = 'failed' 
+               AND (updated_at > NOW() - '30 seconds'::INTERVAL OR created_at > NOW() - '30 seconds'::INTERVAL)`
+          )
+          const hasVeryRecentFailures = veryRecentFailures.rows[0]?.count > 0
+          
+          if (!hasVeryRecentFailures) {
+            console.log(`[GET] 🔄 Attempting to auto-restart overdue crawls...`)
+            await autoRestartOverdueCrawls(client)
+          } else {
+            console.log(`[GET] ⏸️ Skipped autoRestartOverdueCrawls - very recent failure detected (within last 30 seconds)`)
+          }
         }
       } else {
-        if (justCleanedUp) {
-          console.log(`[GET] Skipped autoRestartOverdueCrawls - cleanupInvalidInstances just marked ${cleanupResult} instance(s) as failed`)
-        } else if (hasActiveInstances) {
-          console.log(`[GET] Skipped autoRestartOverdueCrawls - active instances exist`)
-        }
+        console.log(`[GET] ⏸️ Skipped autoRestartOverdueCrawls - active instances exist`)
       }
       
       // Get all active crawl configs with their current active instances
