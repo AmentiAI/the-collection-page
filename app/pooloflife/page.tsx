@@ -83,11 +83,17 @@ export default function PoolOfLifePage() {
         })
         .map((ord: any) => {
           // Preserve 0 if it's 0, otherwise default to 100 for null/undefined
-          const lifeForce = ord.lifeForce != null ? ord.lifeForce : 100
-          const maxLifeForce = ord.maxLifeForce ?? 100
+          const lifeForce = Number(ord.lifeForce != null ? ord.lifeForce : 100)
+          const maxLifeForce = Number(ord.maxLifeForce ?? 100)
           const status = ord.status || null
           // Can heal if below max (accounting for health cap bonuses)
           const canHeal = lifeForce < maxLifeForce
+          
+          // Debug logging for armies with bonuses
+          if (maxLifeForce > 100) {
+            console.log(`[pooloflife/fetch] Army ${ord.inscriptionId}: ${lifeForce}/${maxLifeForce}, canHeal: ${canHeal}`)
+          }
+          
           return {
             inscriptionId: ord.inscriptionId,
             imageUrl: ord.imageUrl,
@@ -184,12 +190,64 @@ export default function PoolOfLifePage() {
       return
     }
 
+    // Fetch fresh armies data directly from API to avoid stale state issues
+    // This ensures we're checking against the latest data, not potentially stale React state
+    let freshArmies: ArmyStatus[] = []
+    try {
+      const response = await fetch(
+        `/api/battle/ordinals?walletAddress=${encodeURIComponent(address)}`,
+        { cache: 'no-store' }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        freshArmies = (data.ordinals || [])
+          .filter((ord: any) => {
+            const lifeForce = Number(ord.lifeForce != null ? ord.lifeForce : 100)
+            return lifeForce > 0
+          })
+          .map((ord: any) => {
+            const lifeForce = Number(ord.lifeForce != null ? ord.lifeForce : 100)
+            const maxLifeForce = Number(ord.maxLifeForce ?? 100)
+            return {
+              inscriptionId: ord.inscriptionId,
+              imageUrl: ord.imageUrl,
+              trait: ord.trait,
+              lifeForce,
+              maxLifeForce,
+              status: ord.status || null,
+              canHeal: lifeForce < maxLifeForce,
+            }
+          })
+      }
+    } catch (error) {
+      console.error('[pooloflife] Error fetching fresh armies:', error)
+      // Fall back to using current state if fetch fails
+      freshArmies = armies
+    }
+
     // Filter out dead armies (lifeForce === 0) - they can't be healed, only resurrected
     // Check against maxLifeForce (which includes health cap bonuses)
-    const armiesNeedingHeal = armies.filter(a => {
-      const maxHealth = a.maxLifeForce ?? 100
-      return a.lifeForce > 0 && a.lifeForce < maxHealth
+    const armiesNeedingHeal = freshArmies.filter(a => {
+      const maxHealth = Number(a.maxLifeForce ?? 100)
+      const currentHealth = Number(a.lifeForce ?? 0)
+      const needsHealing = currentHealth > 0 && currentHealth < maxHealth
+      
+      // Debug logging for armies with bonuses
+      if (maxHealth > 100) {
+        console.log(`[pooloflife] Army ${a.inscriptionId}: ${currentHealth}/${maxHealth}, needsHealing: ${needsHealing}`)
+      }
+      
+      return needsHealing
     })
+    
+    // Debug: Log all armies to see what we're working with
+    console.log(`[pooloflife] Total armies: ${freshArmies.length}, Needing heal: ${armiesNeedingHeal.length}`)
+    freshArmies.forEach(a => {
+      if (Number(a.maxLifeForce ?? 100) > 100) {
+        console.log(`[pooloflife] Army with bonus: ${a.inscriptionId}, ${a.lifeForce}/${a.maxLifeForce}`)
+      }
+    })
+    
     if (armiesNeedingHeal.length === 0) {
       toast.error('All your armies are at full health!')
       return
@@ -239,8 +297,9 @@ export default function PoolOfLifePage() {
 
   const timeUntilNext = getTimeUntilNextHeal()
   const armiesNeedingHeal = armies.filter(a => {
-    const maxHealth = a.maxLifeForce ?? 100
-    return a.lifeForce < maxHealth
+    const maxHealth = Number(a.maxLifeForce ?? 100)
+    const currentHealth = Number(a.lifeForce ?? 0)
+    return currentHealth < maxHealth
   })
 
   return (

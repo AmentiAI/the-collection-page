@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_dungeon_crawl_reward_items_inscription ON dungeon
 -- We'll keep dungeon_crawl_rewards for tracking applied items
 
 
+
