@@ -518,13 +518,28 @@ export async function GET(request: NextRequest) {
       // 2. No instances were just marked as failed (prevents race condition where checkExpiredWindows just failed one)
       // 3. No instances were created recently that might be invalid
       // 4. cleanupInvalidInstances didn't just mark anything as failed (prevents immediate re-creation)
-      if (!hasActiveInstances && !hasRecentFailures && !justCleanedUp) {
-        await autoRestartOverdueCrawls(client)
+      // BUT: If there are no active instances and no recent failures, always try to restart
+      // (handles edge cases where restart is overdue but system is stuck)
+      if (!hasActiveInstances && !justCleanedUp) {
+        // Only skip if there are very recent failures (within last 2 minutes) to prevent spam
+        const veryRecentFailures = await client.query(
+          `SELECT COUNT(*)::int as count
+           FROM dungeon_crawl_instances 
+           WHERE status = 'failed' 
+             AND (updated_at > NOW() - '2 minutes'::INTERVAL OR created_at > NOW() - '2 minutes'::INTERVAL)`
+        )
+        const hasVeryRecentFailures = veryRecentFailures.rows[0]?.count > 0
+        
+        if (!hasVeryRecentFailures) {
+          await autoRestartOverdueCrawls(client)
+        } else {
+          console.log(`[GET] Skipped autoRestartOverdueCrawls - very recent failure detected (within last 2 minutes)`)
+        }
       } else {
         if (justCleanedUp) {
           console.log(`[GET] Skipped autoRestartOverdueCrawls - cleanupInvalidInstances just marked ${cleanupResult} instance(s) as failed`)
-        } else if (hasRecentFailures) {
-          console.log(`[GET] Skipped autoRestartOverdueCrawls - recent failure detected (within last 10 minutes)`)
+        } else if (hasActiveInstances) {
+          console.log(`[GET] Skipped autoRestartOverdueCrawls - active instances exist`)
         }
       }
       
@@ -690,7 +705,13 @@ export async function GET(request: NextRequest) {
             WHERE active.crawl_id = c.id
               AND active.status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')
           )
-        ORDER BY c.id, i.updated_at DESC
+        ORDER BY c.id, 
+          CASE 
+            WHEN i.status = 'completed' THEN 1
+            WHEN i.status = 'failed' THEN 2
+            ELSE 3
+          END,
+          COALESCE(i.completed_at, i.updated_at) DESC
       `)
 
       const nextRestartMap = new Map()
@@ -710,6 +731,7 @@ export async function GET(request: NextRequest) {
         }
         
         // Always set nextRestartTime, even if it's in the past (means restart is overdue)
+        // Keep the overdue time so frontend can show countdown and trigger refresh
         if (nextRestartTime) {
           nextRestartMap.set(row.crawl_id, nextRestartTime.toISOString())
         }
@@ -991,11 +1013,16 @@ export async function GET(request: NextRequest) {
         crawl.instances.push(instance)
       }
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         crawls: Array.from(crawlsMap.values()),
         history: Array.from(historyMap.values()),
       })
+      // Prevent caching to ensure fresh data, especially for overdue restarts
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
+      return response
     } finally {
       client.release()
     }

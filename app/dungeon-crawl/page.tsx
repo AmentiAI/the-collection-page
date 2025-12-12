@@ -460,6 +460,30 @@ export default function DungeonCrawlPage() {
     fetchCrawlsRef.current = fetchCrawls
   }, [fetchCrawls])
 
+  // Auto-refetch when restart is overdue to catch new instances
+  useEffect(() => {
+    if (crawls.length === 0) return
+
+    // Check if any crawl is overdue
+    const hasOverdue = crawls.some(crawl => {
+      if (crawl.instances && crawl.instances.length > 0) return false
+      if (!crawl.nextRestartAt) return false
+      const restartTime = new Date(crawl.nextRestartAt).getTime()
+      return restartTime <= Date.now()
+    })
+
+    if (!hasOverdue) return
+
+    // If overdue, refetch every 10 seconds to catch new instances
+    const overdueInterval = setInterval(() => {
+      if (fetchCrawlsRef.current) {
+        fetchCrawlsRef.current()
+      }
+    }, 10000) // Refetch every 10 seconds when overdue
+
+    return () => clearInterval(overdueInterval)
+  }, [crawls])
+
   const fetchBattleOrdinals = useCallback(async () => {
     if (!address) {
       setOrdinals([])
