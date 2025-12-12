@@ -218,51 +218,87 @@ export async function POST(
         )
       }
 
-      // Fetch inscription data from Magic Eden API to get traits and images
+      // First, check database for existing traits (faster and more reliable)
+      const dbTraitRes = await client.query(
+        `
+          SELECT inscription_id, trait, inscription_image
+          FROM battle_ordinals
+          WHERE inscription_id = ANY($1)
+        `,
+        [inscriptionIds]
+      )
+      
+      const dbTraits: Record<string, { trait?: 'Angelic' | 'Demonic', image?: string }> = {}
+      for (const row of dbTraitRes.rows) {
+        dbTraits[row.inscription_id] = {
+          trait: row.trait as 'Angelic' | 'Demonic' | undefined,
+          image: row.inscription_image || undefined,
+        }
+      }
+      
+      // Fetch inscription data from Magic Eden API to get traits and images for missing ones
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
       
-      let inscriptionData: Record<string, { trait?: 'Angelic' | 'Demonic', image?: string }> = {}
+      let inscriptionData: Record<string, { trait?: 'Angelic' | 'Demonic', image?: string }> = { ...dbTraits }
       
-      try {
-        const magicEdenResponse = await fetch(
-          `${baseUrl}/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
-          {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-            cache: 'no-store',
-          }
-        )
+      // Only fetch from Magic Eden for inscriptions missing traits or images
+      const missingTraitIds = inscriptionIds.filter(id => !inscriptionData[id]?.trait)
+      
+      if (missingTraitIds.length > 0) {
+        try {
+          const magicEdenResponse = await fetch(
+            `${baseUrl}/api/magic-eden?ownerAddress=${encodeURIComponent(wallet)}&collectionSymbol=the-damned&fetchAll=true`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+              cache: 'no-store',
+            }
+          )
 
-        if (magicEdenResponse.ok) {
-          const magicEdenData = await magicEdenResponse.json()
-          const tokens = Array.isArray(magicEdenData.tokens) ? magicEdenData.tokens : []
-          
-          for (const token of tokens) {
-            const inscriptionId = token.id || token.inscriptionId
-            if (!inscriptionId || !inscriptionIds.includes(inscriptionId)) continue
+          if (magicEdenResponse.ok) {
+            const magicEdenData = await magicEdenResponse.json()
+            const tokens = Array.isArray(magicEdenData.tokens) ? magicEdenData.tokens : []
+            
+            for (const token of tokens) {
+              const inscriptionId = token.id || token.inscriptionId
+              if (!inscriptionId || !missingTraitIds.includes(inscriptionId)) continue
 
-            let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
-            if (token.meta?.attributes) attributes = token.meta.attributes
-            else if (token.metadata?.attributes) attributes = token.metadata.attributes
-            else if (token.attributes) attributes = token.attributes
+              let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
+              if (token.meta?.attributes) attributes = token.meta.attributes
+              else if (token.metadata?.attributes) attributes = token.metadata.attributes
+              else if (token.attributes) attributes = token.attributes
 
-            const ascendedTrait = attributes.find(
-              (attr) =>
-                (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
-                (attr.value === 'Angelic' || attr.value === 'Demonic')
-            )
+              const ascendedTrait = attributes.find(
+                (attr) =>
+                  (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
+                  (attr.value === 'Angelic' || attr.value === 'Demonic')
+              )
 
-            inscriptionData[inscriptionId] = {
-              trait: ascendedTrait?.value as 'Angelic' | 'Demonic' | undefined,
-              image: token.contentURI || token.imageURI || 
-                `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`,
+              inscriptionData[inscriptionId] = {
+                trait: ascendedTrait?.value as 'Angelic' | 'Demonic' | undefined,
+                image: token.contentURI || token.imageURI || 
+                  `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`,
+              }
             }
           }
+        } catch (error) {
+          console.error('Error fetching inscription data from Magic Eden:', error)
+          // Continue with database traits only
         }
-      } catch (error) {
-        console.error('Error fetching inscription data:', error)
-        // Continue without trait/image data
+      }
+      
+      // Fill in missing images from database if Magic Eden didn't provide them
+      for (const inscriptionId of inscriptionIds) {
+        if (!inscriptionData[inscriptionId]) {
+          inscriptionData[inscriptionId] = {}
+        }
+        if (!inscriptionData[inscriptionId].image && dbTraits[inscriptionId]?.image) {
+          inscriptionData[inscriptionId].image = dbTraits[inscriptionId].image
+        }
+        if (!inscriptionData[inscriptionId].image) {
+          inscriptionData[inscriptionId].image = `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`
+        }
       }
 
       // Validate trait restrictions
