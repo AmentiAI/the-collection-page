@@ -1228,13 +1228,13 @@ function GraveyardContent() {
                           )}
                           {entry.ascensionPowder >= ascensionTarget ? (
                             <div className="flex flex-col items-center gap-1">
-                              <Button
-                                type="button"
+                            <Button
+                              type="button"
                                 disabled={true}
                                 className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/30 bg-black/40 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-200/40 transition disabled:cursor-not-allowed"
-                              >
+                            >
                                 Ascend
-                              </Button>
+                            </Button>
                               <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-amber-200/50">
                                 Unavailable
                               </span>

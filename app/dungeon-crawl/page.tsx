@@ -115,6 +115,7 @@ const LevelCard = memo(({
   const [holdProgress, setHoldProgress] = useState(0)
   const holdIntervalRef = useRef<number | null>(null)
   const holdStartTimeRef = useRef<number | null>(null)
+  const windowWasOpenRef = useRef<boolean>(false) // Track if window was open when hold started
   const HOLD_DURATION_MS = 1500 // 1.5 seconds to complete
   // Memoize completed count calculation
   const completedCount = useMemo(() => {
@@ -190,6 +191,17 @@ const LevelCard = memo(({
   const handleHoldStart = () => {
     if (completingLevel === level) return
     if (!myParticipant) return // Don't allow if not a participant
+    if (!canComplete) return // Don't allow if window is not open or other conditions not met
+    
+    // Capture window state at the start of the hold
+    windowWasOpenRef.current = windowState.isOpen
+    
+    // Double-check window is actually open before starting
+    if (!windowWasOpenRef.current) {
+      console.warn(`[dungeon-crawl] Cannot start hold - window is not open for level ${level}`)
+      return
+    }
+    
     setIsHolding(true)
     setHoldProgress(0)
     holdStartTimeRef.current = Date.now()
@@ -201,7 +213,7 @@ const LevelCard = memo(({
         setHoldProgress(progress)
         
         if (progress >= 100) {
-          // Complete!
+          // Complete! Check if window was open when we started (even if it closed during hold)
           if (holdIntervalRef.current) {
             clearInterval(holdIntervalRef.current)
             holdIntervalRef.current = null
@@ -209,10 +221,21 @@ const LevelCard = memo(({
           setIsHolding(false)
           setHoldProgress(0)
           const startTime = holdStartTimeRef.current
+          const wasOpenWhenStarted = windowWasOpenRef.current
           holdStartTimeRef.current = null
-          // Only call onComplete if we actually held for the full duration
-          if (Date.now() - startTime >= HOLD_DURATION_MS) {
+          windowWasOpenRef.current = false
+          
+          // Only call onComplete if:
+          // 1. We actually held for the full duration
+          // 2. Window was open when we started (even if it closed during the hold)
+          if (Date.now() - startTime >= HOLD_DURATION_MS && wasOpenWhenStarted) {
             onComplete(level)
+          } else {
+            console.warn(`[dungeon-crawl] Hold completed but validation failed:`, {
+              elapsed: Date.now() - startTime,
+              wasOpenWhenStarted,
+              level,
+            })
           }
         }
       }
@@ -227,6 +250,7 @@ const LevelCard = memo(({
     setIsHolding(false)
     setHoldProgress(0)
     holdStartTimeRef.current = null
+    windowWasOpenRef.current = false
   }
 
   return (
@@ -270,7 +294,7 @@ const LevelCard = memo(({
           }
         </div>
       )}
-      {canComplete && (
+      {(canComplete || isHolding) && (
         <div className="mt-2 relative">
           <Button
             onMouseDown={handleHoldStart}
@@ -278,7 +302,7 @@ const LevelCard = memo(({
             onMouseLeave={handleHoldEnd}
             onTouchStart={handleHoldStart}
             onTouchEnd={handleHoldEnd}
-            disabled={completingLevel === level}
+            disabled={completingLevel === level || (!canComplete && !isHolding)}
             className="relative w-full border-2 border-amber-600 hover:border-amber-500 bg-amber-900/50 hover:bg-amber-800/60 text-white font-bold py-1.5 sm:py-2 px-3 sm:px-4 text-xs sm:text-sm md:text-base rounded-lg transition-all shadow-lg hover:shadow-amber-500/40 backdrop-blur-sm overflow-hidden z-10"
           >
             {completingLevel === level ? (
@@ -1513,10 +1537,10 @@ export default function DungeonCrawlPage() {
                       <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-5 lg:mb-6 backdrop-blur-sm shadow-lg`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
-                            <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
-                            <p className="text-stone-300 text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 md:mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                              {countdownText || 'Waiting for restart... The next crawl will be available soon.'}
-                            </p>
+                        <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
+                        <p className="text-stone-300 text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 md:mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                          {countdownText || 'Waiting for restart... The next crawl will be available soon.'}
+                        </p>
                           </div>
                           <Button
                             type="button"

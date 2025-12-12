@@ -138,8 +138,8 @@ export async function POST(request: NextRequest) {
           continue
         }
       
-        // Only heal if below max
-        if (currentLifeForce < maxLifeForce) {
+      // Only heal if below max
+      if (currentLifeForce < maxLifeForce) {
           const updateResult = await client.query(
           `UPDATE battle_ordinals
            SET 
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
             console.warn(`[pooloflife/heal] No rows updated for army ${army.id} (inscription: ${army.inscription_id})`)
           } else {
             console.log(`[pooloflife/heal] Healed army ${army.inscription_id} from ${currentLifeForce} to ${maxLifeForce}`)
-            healedCount++
+        healedCount++
           }
         } else {
           console.log(`[pooloflife/heal] Army ${army.inscription_id} already at max health (${currentLifeForce}/${maxLifeForce}) - skipping`)
