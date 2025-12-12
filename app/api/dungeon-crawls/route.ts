@@ -531,7 +531,7 @@ export async function GET(request: NextRequest) {
         const hasVeryRecentFailures = veryRecentFailures.rows[0]?.count > 0
         
         if (!hasVeryRecentFailures) {
-          await autoRestartOverdueCrawls(client)
+        await autoRestartOverdueCrawls(client)
         } else {
           console.log(`[GET] Skipped autoRestartOverdueCrawls - very recent failure detected (within last 2 minutes)`)
         }
