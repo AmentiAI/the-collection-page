@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
     
     for (const army of armiesWithCaps.rows) {
       try {
-        const lifeForceCapIncrease = Number(army.life_force_cap_increase ?? 0)
-        const maxLifeForce = 100 + lifeForceCapIncrease
+      const lifeForceCapIncrease = Number(army.life_force_cap_increase ?? 0)
+      const maxLifeForce = 100 + lifeForceCapIncrease
         const currentLifeForce = Number(army.life_force ?? 0)
         
         // Validate values
@@ -104,25 +104,25 @@ export async function POST(request: NextRequest) {
           })
           continue
         }
-        
-        // Only heal if below max
-        if (currentLifeForce < maxLifeForce) {
+      
+      // Only heal if below max
+      if (currentLifeForce < maxLifeForce) {
           const updateResult = await client.query(
-            `UPDATE battle_ordinals
-             SET 
-               life_force = $1,
-               is_dead = false,
-               last_heal_time = NOW(),
-               updated_at = NOW()
+          `UPDATE battle_ordinals
+           SET 
+             life_force = $1,
+             is_dead = false,
+             last_heal_time = NOW(),
+             updated_at = NOW()
              WHERE id = $2
              RETURNING id`,
-            [maxLifeForce, army.id]
-          )
+          [maxLifeForce, army.id]
+        )
           
           if (updateResult.rowCount === 0) {
             console.warn(`[pooloflife/heal] No rows updated for army ${army.id}`)
           } else {
-            healedCount++
+        healedCount++
           }
         }
       } catch (armyError) {
@@ -135,11 +135,11 @@ export async function POST(request: NextRequest) {
     // Record heal history
     if (healedCount > 0) {
       try {
-        await client.query(
-          `INSERT INTO heal_history (wallet_address, healed_count, healed_at)
-           VALUES ($1, $2, NOW())`,
+      await client.query(
+        `INSERT INTO heal_history (wallet_address, healed_count, healed_at)
+         VALUES ($1, $2, NOW())`,
           [walletAddress.trim(), healedCount]
-        )
+      )
       } catch (historyError) {
         console.error('[pooloflife/heal] Error recording heal history:', historyError)
         // Don't fail the request if history recording fails
@@ -148,9 +148,9 @@ export async function POST(request: NextRequest) {
 
     // Return success even if some armies failed (partial success)
     if (healedCount > 0) {
-      return NextResponse.json({
-        success: true,
-        healedCount,
+    return NextResponse.json({
+      success: true,
+      healedCount,
         message: `Healed ${healedCount} armies to full health${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
         errors: errors.length > 0 ? errors : undefined,
       })

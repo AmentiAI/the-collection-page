@@ -1227,28 +1227,18 @@ function GraveyardContent() {
                             </div>
                           )}
                           {entry.ascensionPowder >= ascensionTarget ? (
-                            <Button
-                              type="button"
-                              disabled={
-                                ascending === entry.inscriptionId ||
-                                Boolean(ascending) ||
-                                limboImages.length > 0 ||
-                                Boolean(selectedLimbo)
-                              }
-                              onClick={() => handleFinalAscend(entry)}
-                              className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45 disabled:cursor-not-allowed disabled:border-amber-500/30 disabled:bg-black/40 disabled:text-amber-200/40"
-                            >
-                              {ascending === entry.inscriptionId ? (
-                                <>
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  Summoning...
-                                </>
-                              ) : limboImages.length > 0 || selectedLimbo ? (
-                                'Pending Choice'
-                              ) : (
-                                'Ascend'
-                              )}
-                            </Button>
+                            <div className="flex flex-col items-center gap-1">
+                              <Button
+                                type="button"
+                                disabled={true}
+                                className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/30 bg-black/40 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-200/40 transition disabled:cursor-not-allowed"
+                              >
+                                Ascend
+                              </Button>
+                              <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-amber-200/50">
+                                Unavailable
+                              </span>
+                            </div>
                           ) : (
                             <>
                               <Button

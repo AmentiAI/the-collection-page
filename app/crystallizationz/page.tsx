@@ -279,7 +279,7 @@ export default function CrystallizationPage() {
 
   return (
     <GlobalStartTimeLock>
-      <div className="min-h-screen bg-black text-white">
+        <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}

@@ -24,7 +24,7 @@ const Card = ({ title, children }: { title: string; children: ReactNode }) => (
 
 function DualityGuide() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-[#0b0202] to-black text-red-100">
+      <div className="min-h-screen bg-gradient-to-b from-black via-[#0b0202] to-black text-red-100">
         <Header showMusicControls={false} />
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-5 py-12">
           <header className="space-y-4 text-center">
