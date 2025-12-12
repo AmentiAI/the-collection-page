@@ -9,10 +9,7 @@ import { Loader2, Skull, Clock, CheckCircle } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
-const LaserEyesWrapper = dynamicImport(
-  () => import('@/components/LaserEyesWrapper'),
-  { ssr: false, loading: () => null },
-)
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface DeadArmy {
   inscriptionId: string
@@ -348,7 +345,6 @@ export default function ResurrectPage() {
           )}
         </div>
       </div>
-    </LaserEyesWrapper>
     </GlobalStartTimeLock>
   )
 }

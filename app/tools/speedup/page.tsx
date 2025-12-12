@@ -12,7 +12,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { InscriptionService } from '@/services/inscription-service'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 type SpeedupStrategy = 'rbf' | 'cpfp' | 'hybrid'
 
@@ -123,7 +123,7 @@ function SpeedupPage() {
   const [connected, setConnected] = useState(false)
 
   return (
-    <LaserEyesWrapper>
+    <>
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -144,7 +144,7 @@ function SpeedupPage() {
       >
         <SpeedupPageContent initialHolder={isHolder} />
       </Suspense>
-    </LaserEyesWrapper>
+    </>
   )
 }
 

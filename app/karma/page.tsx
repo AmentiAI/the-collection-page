@@ -14,10 +14,7 @@ import DualityStatus from '@/components/dashboard/DualityStatus'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 
-const LaserEyesWrapper = dynamicImport(
-  () => import('@/components/LaserEyesWrapper'),
-  { ssr: false, loading: () => null },
-)
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface MagicEdenToken {
   id?: string
@@ -1576,10 +1573,6 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
-  return (
-    <LaserEyesWrapper>
-      <DashboardContent />
-    </LaserEyesWrapper>
-  )
+  return <DashboardContent />
 }
 

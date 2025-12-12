@@ -5,10 +5,7 @@ import dynamicImport from 'next/dynamic'
 import Link from 'next/link'
 import Header from '@/components/Header'
 
-const LaserEyesWrapper = dynamicImport(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 const SectionTitle = ({ children }: { children: string }) => (
   <h2 className="text-2xl font-black uppercase tracking-widest text-red-400 drop-shadow-[0_0_10px_rgba(255,0,0,0.6)]">
@@ -27,8 +24,7 @@ const Card = ({ title, children }: { title: string; children: ReactNode }) => (
 
 function DualityGuide() {
   return (
-    <LaserEyesWrapper>
-      <div className="min-h-screen bg-gradient-to-b from-black via-[#0b0202] to-black text-red-100">
+    <div className="min-h-screen bg-gradient-to-b from-black via-[#0b0202] to-black text-red-100">
         <Header showMusicControls={false} />
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-5 py-12">
           <header className="space-y-4 text-center">
@@ -127,7 +123,6 @@ function DualityGuide() {
           </section>
         </main>
       </div>
-    </LaserEyesWrapper>
   )
 }
 

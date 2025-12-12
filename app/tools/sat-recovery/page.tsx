@@ -22,7 +22,7 @@ import { useWallet } from '@/lib/wallet/compatibility'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
-import LaserEyesWrapper from '@/components/LaserEyesWrapper'
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 import type { CategorisedWalletAssets, InscriptionUtxo } from '@/lib/sandshrew'
 
 interface OrdinalContentMetadata {
@@ -941,7 +941,7 @@ export default function SatRecoveryPage() {
   const [connected, setConnected] = useState(false)
 
   return (
-    <LaserEyesWrapper>
+    <>
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -956,7 +956,7 @@ export default function SatRecoveryPage() {
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
         <SatRecoveryContent isHolder={isHolder} />
       </Suspense>
-    </LaserEyesWrapper>
+    </>
   )
 }
 

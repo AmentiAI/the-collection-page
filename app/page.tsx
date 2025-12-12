@@ -14,10 +14,7 @@ import SplashScreen from '@/components/SplashScreen'
 import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer'
 import { Ordinal, Trait } from '@/types'
 
-const LaserEyesWrapper = dynamicImport(
-  () => import('@/components/LaserEyesWrapper'),
-  { ssr: false, loading: () => null },
-)
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 export default function Home() {
   const [ordinals, setOrdinals] = useState<Ordinal[]>([])
@@ -121,7 +118,7 @@ export default function Home() {
   }
 
   return (
-    <LaserEyesWrapper>
+    <>
       {showSplash ? (
         <SplashScreen onEnter={handleEnter} />
       ) : (
@@ -169,6 +166,6 @@ export default function Home() {
           )}
         </>
       )}
-    </LaserEyesWrapper>
+    </>
   )
 }

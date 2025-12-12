@@ -2091,16 +2091,9 @@ function AbyssContent() {
   )
 }
 
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 export default function AbyssPage() {
-  return (
-    <LaserEyesWrapper>
-      <AbyssContent />
-    </LaserEyesWrapper>
-  )
+  return <AbyssContent />
 }
 

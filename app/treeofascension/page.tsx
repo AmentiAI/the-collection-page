@@ -11,10 +11,7 @@ import { useToast } from '@/components/Toast'
 import { MintButton } from '@/components/MintButton'
 import dynamicImport from 'next/dynamic'
 
-const LaserEyesWrapper = dynamicImport(
-  () => import('@/components/LaserEyesWrapper'),
-  { ssr: false, loading: () => null },
-)
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 type MintQueueImage = {
   id: string
@@ -363,8 +360,7 @@ export default function TreeOfAscensionPage() {
   const showMintButtons = true
 
   return (
-    <LaserEyesWrapper>
-      <div className="relative min-h-screen w-full overflow-hidden bg-black text-white">
+    <div className="relative min-h-screen w-full overflow-hidden bg-black text-white">
         <Header
           connected={connected}
           showMusicControls={false}
@@ -599,7 +595,6 @@ export default function TreeOfAscensionPage() {
           )}
         </main>
       </div>
-    </LaserEyesWrapper>
   )
 }
 

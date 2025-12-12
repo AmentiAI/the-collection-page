@@ -21,10 +21,7 @@ import type {
 import { InscriptionService } from '@/services/inscription-service'
 import dynamic from 'next/dynamic'
 
-const LaserEyesWrapper = dynamic(() => import('@/components/LaserEyesWrapper'), {
-  ssr: false,
-  loading: () => null,
-})
+// LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 type AssetTabKey = 'inscriptions' | 'spendable' | 'runes' | 'alkanes'
 
@@ -182,7 +179,7 @@ export default function AssetsToolsPage() {
   const [connected, setConnected] = useState(false)
 
   return (
-    <LaserEyesWrapper>
+    <>
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -195,7 +192,7 @@ export default function AssetsToolsPage() {
         onConnectedChange={setConnected}
       />
       <AssetsPageContent isHolder={isHolder} />
-    </LaserEyesWrapper>
+    </>
   )
 }
 
