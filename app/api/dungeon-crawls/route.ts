@@ -129,11 +129,13 @@ async function checkExpiredWindows(client: any) {
 
       const windowEnd = windowStart + windowDuration
 
+      // Only check windows that have actually started (elapsedMinutes >= windowStart)
+      // Don't check future windows - they haven't opened yet
       // Check if window expired and level wasn't completed
       // We need to check ALL expired windows, even if the instance has moved forward
       // This catches cases where level 1 window expired with <80% participation but instance somehow moved to level_2
       // Only skip if the level was actually completed (levelCompletedAt is set)
-      if (elapsedMinutes > windowEnd && !levelCompletedAt) {
+      if (elapsedMinutes >= windowStart && elapsedMinutes > windowEnd && !levelCompletedAt) {
         const participantsRes = await client.query(
           `SELECT COUNT(*)::int AS total, 
                   SUM(CASE WHEN ${levelColumn} = TRUE THEN 1 ELSE 0 END)::int AS completed
@@ -192,11 +194,11 @@ async function checkExpiredWindows(client: any) {
             
             if (level === 1) {
               // Advance from level 1 to level 2
+              // Don't set level_2_started_at - window timing is based on level_1_started_at + window_start_minutes
               await client.query(
                 `UPDATE dungeon_crawl_instances
                  SET status = 'level_2',
                      level_1_completed_at = $1,
-                     level_2_started_at = COALESCE(level_2_started_at, NOW()),
                      updated_at = NOW()
                  WHERE id = $2`,
                 [completedAt.toISOString(), instance.id]
@@ -208,11 +210,11 @@ async function checkExpiredWindows(client: any) {
               continue // Skip to next level check, don't mark as failed
             } else if (level === 2) {
               // Advance from level 2 to level 3
+              // Don't set level_3_started_at - window timing is based on level_1_started_at + window_start_minutes
               await client.query(
                 `UPDATE dungeon_crawl_instances
                  SET status = 'level_3',
                      level_2_completed_at = $1,
-                     level_3_started_at = COALESCE(level_3_started_at, NOW()),
                      updated_at = NOW()
                  WHERE id = $2`,
                 [completedAt.toISOString(), instance.id]

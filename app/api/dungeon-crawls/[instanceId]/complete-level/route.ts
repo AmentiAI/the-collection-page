@@ -238,14 +238,17 @@ export async function POST(
       }
 
       // Block if window hasn't opened yet
+      // For level 2 and 3, we need to wait for the window to actually start
       // If window closed but we're still here, participation was sufficient (checked above), so allow completion
+      // But only if the window has actually opened (elapsedMinutes >= windowStartTime)
       if (elapsedMinutes < windowStartTime) {
         await client.query('ROLLBACK')
         return NextResponse.json(
           {
             success: false,
-            error: `Level ${levelNum} completion window is not open yet. Window starts at ${windowStartTime} minutes`,
+            error: `Level ${levelNum} completion window is not open yet. Window starts at ${windowStartTime} minutes after level 1 started`,
             elapsedMinutes: Math.round(elapsedMinutes * 100) / 100,
+            windowStartMinutes: windowStartTime,
           },
           { status: 409 }
         )
@@ -313,6 +316,8 @@ export async function POST(
         if (levelNum === 1) {
           // Level 1 is completed - move to level 2
           // level_1_started_at should already be set by the code above
+          // Don't set level_2_started_at here - it will be set when level 2 window actually opens
+          // The level 2 window starts at level_2_window_start_minutes after level_1_started_at
           await client.query(
             `
               UPDATE dungeon_crawl_instances
@@ -324,11 +329,12 @@ export async function POST(
             [completedAt.toISOString(), instanceId]
           )
         } else if (levelNum === 2) {
+          // Level 2 is completed - move to level 3
+          // Don't set level_3_started_at here - it will be set when level 3 window actually opens
           await client.query(
             `
               UPDATE dungeon_crawl_instances
               SET status = 'level_3',
-              level_2_started_at = COALESCE(level_2_started_at, NOW()),
               level_2_completed_at = $1,
               updated_at = NOW()
               WHERE id = $2

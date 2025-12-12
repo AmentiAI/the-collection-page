@@ -342,8 +342,8 @@ export async function GET(request: NextRequest) {
         weakestMonsterHealth = parseInt(weakestMonsterResult.rows[0].health || '15000', 10)
         weakestMonsterName = weakestMonsterResult.rows[0].name
         
-        // Reduce health by 150, but not below 0
-        const newHealth = Math.max(0, weakestMonsterHealth - 150)
+        // Reduce health by 350, but not below 0
+        const newHealth = Math.max(0, weakestMonsterHealth - 350)
         
         await client.query(
           'UPDATE mega_monsters SET health = $1, updated_at = NOW() WHERE id = $2',
@@ -360,7 +360,7 @@ export async function GET(request: NextRequest) {
       deaths,
       weakestMonsterId,
       weakestMonsterHealth,
-      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 150) : null,
+      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 350) : null,
       timestamp: new Date().toISOString()
     })
 
@@ -374,8 +374,8 @@ export async function GET(request: NextRequest) {
         id: weakestMonsterId,
         name: weakestMonsterName,
         healthBefore: weakestMonsterHealth,
-        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 150),
-        damageTaken: 150
+        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 350),
+        damageTaken: 350
       } : null,
       timestamp: new Date().toISOString(),
     })
