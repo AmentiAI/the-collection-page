@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         image_data,
         image_blob_url,
         full_body_image_blob_url,
+        health,
         created_at,
         updated_at
       FROM mega_monsters

@@ -18,6 +18,7 @@ export async function GET() {
         image_data,
         full_body_image_blob_url,
         COALESCE(total_fights, 0) as total_fights,
+        health,
         created_at,
         updated_at
       FROM mega_monsters
@@ -44,6 +45,7 @@ export async function GET() {
         createdAt: monster.created_at,
         updatedAt: monster.updated_at,
         totalFights: parseInt(monster.total_fights || '0', 10),
+        health: parseInt(monster.health || '15000', 10),
       }
     })
 

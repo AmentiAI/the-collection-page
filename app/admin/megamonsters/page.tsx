@@ -16,6 +16,7 @@ type MegaMonster = {
   image_data: string | null
   image_blob_url: string | null
   full_body_image_blob_url: string | null
+  health: number
   created_at: string
   updated_at: string
 }

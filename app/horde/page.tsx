@@ -14,6 +14,7 @@ interface MegaMonster {
   createdAt: string
   updatedAt: string
   totalFights: number
+  health: number
 }
 
 export default function HordePage() {
@@ -112,6 +113,28 @@ export default function HordePage() {
                   {monster.name && (
                     <h3 className="text-lg font-bold text-red-400 mb-2">{monster.name}</h3>
                   )}
+                  
+                  {/* Health Bar */}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Health</span>
+                      <span className="text-sm font-bold text-red-400">
+                        {monster.health.toLocaleString()} / 15,000
+                      </span>
+                    </div>
+                    <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                      <div 
+                        className="h-full bg-gradient-to-r from-red-600 via-red-500 to-red-400 transition-all duration-300"
+                        style={{ 
+                          width: `${Math.min(100, (monster.health / 15000) * 100)}%` 
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 text-right">
+                      {Math.round((monster.health / 15000) * 100)}%
+                    </div>
+                  </div>
+                  
                   <div className="flex items-center gap-2 mb-2">
                     <Sword className="h-4 w-4 text-red-400" />
                     <span className="text-sm font-bold text-red-400">
