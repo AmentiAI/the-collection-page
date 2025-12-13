@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Header from '@/components/Header'
-import { Loader2, Trophy, Sword, Shield, Skull, Heart, Medal } from 'lucide-react'
+import Image from 'next/image'
+import { Loader2, Trophy, Sword, Shield, Skull, Heart, Medal, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface LeaderboardEntry {
   side: 'Angelic' | 'Demonic'
@@ -15,11 +16,20 @@ interface LeaderboardEntry {
 
 interface IndividualLeader {
   wallet_address: string
-  trait: 'Angelic' | 'Demonic'
-  total_battles: number
-  total_deaths: number
-  total_resurrections: number
-  score: number
+  discord_username: string
+  discord_avatar_url: string
+  army_count: number
+  angel_count: number
+  demon_count: number
+  battles_count: number
+  heals_count: number
+  crystallization_count: number
+  ascension_circle_count: number
+  resurrections_count: number
+  killing_blows_count: number
+  abyss_burns_count: number
+  mints_count: number
+  total_score: number
 }
 
 export default function LeaderboardPage() {
@@ -28,14 +38,19 @@ export default function LeaderboardPage() {
   const [demonicLeaders, setDemonicLeaders] = useState<IndividualLeader[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingLeaders, setLoadingLeaders] = useState(true)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [scoreConfig, setScoreConfig] = useState<Record<string, number>>({})
+  const [efficiencyExponent, setEfficiencyExponent] = useState<number>(0.25)
 
   useEffect(() => {
     fetchLeaderboard()
     fetchIndividualLeaders()
+    fetchScoreConfig()
     // Refresh every 30 seconds
     const interval = setInterval(() => {
       fetchLeaderboard()
       fetchIndividualLeaders()
+      fetchScoreConfig()
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -56,26 +71,38 @@ export default function LeaderboardPage() {
     }
   }
 
+  const fetchScoreConfig = async () => {
+    try {
+      const response = await fetch('/api/sadmin/redemption-leaderboard/score-config', {
+        cache: 'no-store',
+      })
+      const result = await response.json()
+      if (result.success) {
+        const configMap: Record<string, number> = {}
+        result.config.forEach((item: any) => {
+          configMap[item.categoryKey] = item.pointsValue
+        })
+        setScoreConfig(configMap)
+        setEfficiencyExponent(result.efficiencyExponent || 0.25)
+      }
+    } catch (err) {
+      console.error('Error fetching score config:', err)
+    }
+  }
+
   const fetchIndividualLeaders = async () => {
     try {
       setLoadingLeaders(true)
-      const [angelicResponse, demonicResponse] = await Promise.all([
-        fetch('/api/leaderboard/individual?side=Angelic&limit=10'),
-        fetch('/api/leaderboard/individual?side=Demonic&limit=10'),
-      ])
+      const response = await fetch('/api/sadmin/redemption-leaderboard', {
+        cache: 'no-store',
+      })
 
-      if (angelicResponse.ok) {
-        const angelicData = await angelicResponse.json()
-        if (angelicData.success) {
-          setAngelicLeaders(angelicData.leaders)
-        }
-      }
-
-      if (demonicResponse.ok) {
-        const demonicData = await demonicResponse.json()
-        if (demonicData.success) {
-          setDemonicLeaders(demonicData.leaders)
-        }
+      const result = await response.json()
+      if (result.success && result.leaderboard) {
+        // Get top 50 leaders
+        const allLeaders = result.leaderboard.slice(0, 50)
+        setAngelicLeaders(allLeaders)
+        setDemonicLeaders([]) // Not used anymore, but keeping for compatibility
       }
     } catch (error) {
       console.error('Error fetching individual leaders:', error)
@@ -87,6 +114,20 @@ export default function LeaderboardPage() {
   const formatWallet = (wallet: string) => {
     return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
   }
+
+  const toggleRow = (walletAddress: string) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(walletAddress)) {
+      newExpanded.delete(walletAddress)
+    } else {
+      newExpanded.add(walletAddress)
+    }
+    setExpandedRows(newExpanded)
+  }
+
+  // Use redemption leaderboard data
+  const allLeaders = angelicLeaders
+    .map((leader, index) => ({ ...leader, rank: index + 1 }))
 
   const angelic = leaderboard.find((e) => e.side === 'Angelic')
   const demonic = leaderboard.find((e) => e.side === 'Demonic')
@@ -244,87 +285,192 @@ export default function LeaderboardPage() {
         )}
 
         {/* Individual Leaders */}
-        {!loadingLeaders && (angelicLeaders.length > 0 || demonicLeaders.length > 0) && (
+        {!loadingLeaders && allLeaders.length > 0 && (
           <div className="mt-16">
             <h2 className="text-3xl font-black uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
               <Medal className="h-8 w-8 text-yellow-500" />
               Top Individual Leaders
             </h2>
 
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Top Angelic Leaders */}
-              {angelicLeaders.length > 0 && (
-                <div className="border-2 border-cyan-500/50 rounded-lg p-6 bg-black/60">
-                  <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-cyan-400 mb-6">
-                    Top Angels
-                  </h3>
-                  <div className="space-y-3">
-                    {angelicLeaders.map((leader, index) => (
-                      <div
-                        key={leader.wallet_address}
-                        className="flex items-center justify-between p-4 bg-black/40 rounded border border-cyan-500/30"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-500/20 border-2 border-cyan-500/50 flex items-center justify-center font-bold text-cyan-400">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-mono text-sm text-gray-300 truncate">
-                              {formatWallet(leader.wallet_address)}
+            <div className="overflow-x-auto rounded-xl border border-yellow-600/40 bg-black/60">
+              <table className="w-full divide-y divide-yellow-800/50">
+                <thead className="bg-yellow-900/20">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200 w-12">
+                      
+                    </th>
+                    <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200">
+                      Rank
+                    </th>
+                    <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200 min-w-[140px]">
+                      Name
+                    </th>
+                    <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200">
+                      Score
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-yellow-900/40">
+                  {allLeaders.map((leader) => {
+                    const isExpanded = expandedRows.has(leader.wallet_address)
+                    
+                    return (
+                      <>
+                        <tr
+                          key={leader.wallet_address}
+                          onClick={() => toggleRow(leader.wallet_address)}
+                          className="transition hover:bg-yellow-900/20 cursor-pointer"
+                        >
+                          <td className="px-3 py-3 text-center">
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 text-yellow-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-yellow-400" />
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center font-mono text-xs font-bold text-amber-400">
+                            #{leader.rank}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {leader.discord_avatar_url ? (
+                                <Image
+                                  src={leader.discord_avatar_url}
+                                  alt={leader.discord_username || 'Discord'}
+                                  width={20}
+                                  height={20}
+                                  className="rounded-full"
+                                />
+                              ) : (
+                                <div className="h-5 w-5 rounded-full bg-gray-700 flex items-center justify-center">
+                                  <span className="text-[8px] text-gray-400">?</span>
+                                </div>
+                              )}
+                              <span className="text-xs text-gray-300">
+                                {leader.discord_username || formatWallet(leader.wallet_address)}
+                              </span>
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {leader.total_battles} battles • {leader.total_deaths} deaths • {leader.total_resurrections} res
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-cyan-400">
-                            {leader.score.toLocaleString()}
-                          </div>
-                          <div className="text-xs text-gray-500">score</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Top Demonic Leaders */}
-              {demonicLeaders.length > 0 && (
-                <div className="border-2 border-red-500/50 rounded-lg p-6 bg-black/60">
-                  <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-red-400 mb-6">
-                    Top Demons
-                  </h3>
-                  <div className="space-y-3">
-                    {demonicLeaders.map((leader, index) => (
-                      <div
-                        key={leader.wallet_address}
-                        className="flex items-center justify-between p-4 bg-black/40 rounded border border-red-500/30"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center font-bold text-red-400">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-mono text-sm text-gray-300 truncate">
-                              {formatWallet(leader.wallet_address)}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {leader.total_battles} battles • {leader.total_deaths} deaths • {leader.total_resurrections} res
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-red-400">
-                            {leader.score.toLocaleString()}
-                          </div>
-                          <div className="text-xs text-gray-500">score</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-sm font-bold text-amber-400">
+                            {typeof leader.total_score === 'number' ? leader.total_score.toFixed(2) : Number(leader.total_score || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${leader.wallet_address}-details`} className="bg-yellow-950/30">
+                            <td colSpan={4} className="px-4 py-6">
+                              <div className="overflow-x-auto">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs min-w-[600px]">
+                                  <div className="flex flex-col p-3 rounded border border-yellow-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Army</div>
+                                    <div className="text-base font-bold text-yellow-300">
+                                      {leader.army_count.toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-cyan-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Angels</div>
+                                    <div className="text-base font-bold text-cyan-300">
+                                      {leader.angel_count.toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-red-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Demons</div>
+                                    <div className="text-base font-bold text-red-300">
+                                      {leader.demon_count.toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-yellow-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Battles</div>
+                                    <div className="text-base font-bold text-yellow-300">
+                                      {leader.battles_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['battles'] ?? 1.0
+                                        const score = leader.battles_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-green-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Heals</div>
+                                    <div className="text-base font-bold text-green-300">
+                                      {leader.heals_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['heals'] ?? 0.5
+                                        const score = leader.heals_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toFixed(1)})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-purple-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Crystal</div>
+                                    <div className="text-base font-bold text-purple-300">
+                                      {leader.crystallization_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['crystallizations'] ?? 1.0
+                                        const score = leader.crystallization_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-amber-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Ascension</div>
+                                    <div className="text-base font-bold text-amber-300">
+                                      {leader.ascension_circle_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['ascension_circles'] ?? 0.5
+                                        const score = leader.ascension_circle_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toFixed(1)})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-cyan-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Res</div>
+                                    <div className="text-base font-bold text-cyan-300">
+                                      {leader.resurrections_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['resurrections'] ?? -10.0
+                                        const score = leader.resurrections_count * points
+                                        return <span className="text-red-400 ml-1 text-sm">({score < 0 ? '' : score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-yellow-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Kills</div>
+                                    <div className="text-base font-bold text-yellow-400">
+                                      {leader.killing_blows_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['killing_blows'] ?? 50.0
+                                        const score = leader.killing_blows_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-purple-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Burns</div>
+                                    <div className="text-base font-bold text-purple-300">
+                                      {leader.abyss_burns_count.toLocaleString()}
+                                      {(() => {
+                                        const points = scoreConfig['burns'] ?? 1.0
+                                        const score = leader.abyss_burns_count * points
+                                        return <span className="text-green-400 ml-1 text-sm">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                                      })()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col p-3 rounded border border-green-500/30 bg-black/40">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Mints</div>
+                                    <div className="text-base font-bold text-gray-400">
+                                      {leader.mints_count.toLocaleString()}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
