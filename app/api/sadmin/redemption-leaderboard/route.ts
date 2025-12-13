@@ -44,16 +44,12 @@ export async function GET(request: NextRequest) {
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = bw.wallet_address
               AND bo.trait = 'Angelic'
-              AND bo.life_force > 0
-              AND bo.is_dead = false
           ), 0) as angel_count,
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = bw.wallet_address
               AND bo.trait = 'Demonic'
-              AND bo.life_force > 0
-              AND bo.is_dead = false
           ), 0) as demon_count,
           -- Battle count (distinct attacks per wallet)
           COALESCE((
@@ -124,9 +120,23 @@ export async function GET(request: NextRequest) {
         wallet_address ASC
     `)
 
+    // Convert numeric fields to numbers (PostgreSQL numeric types come as strings)
+    const leaderboard = result.rows.map((row: any) => ({
+      ...row,
+      army_count: Number(row.army_count) || 0,
+      angel_count: Number(row.angel_count) || 0,
+      demon_count: Number(row.demon_count) || 0,
+      battles_count: Number(row.battles_count) || 0,
+      heals_count: Number(row.heals_count) || 0,
+      crystallization_count: Number(row.crystallization_count) || 0,
+      ascension_circle_count: Number(row.ascension_circle_count) || 0,
+      resurrections_count: Number(row.resurrections_count) || 0,
+      total_score: Number(row.total_score) || 0,
+    }))
+
     return NextResponse.json({
       success: true,
-      leaderboard: result.rows,
+      leaderboard,
     })
   } catch (error) {
     console.error('Error fetching redemption leaderboard:', error)

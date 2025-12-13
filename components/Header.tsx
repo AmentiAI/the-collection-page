@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamicImport from 'next/dynamic'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useMusicPlayer } from '@/providers/MusicPlayerProvider'
 import HordeAttackAlert from '@/components/HordeAttackAlert'
 
@@ -31,10 +32,14 @@ export default function Header({
   onConnectedChange,
   showMusicControls = true,
 }: HeaderProps) {
+  const pathname = usePathname()
   const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted, toggleMute } = useMusicPlayer()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [shake, setShake] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  
+  // Always show music controls on admin/sadmin pages
+  const shouldShowMusicControls = showMusicControls || pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin')
   const title = 'THE DAMNED'
   const socialLinks = [
     {
@@ -242,7 +247,7 @@ export default function Header({
                 )}
               </div>
             )}
-            {showMusicControls && (
+            {shouldShowMusicControls && (
               <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
                 <button
                   onClick={(e) => {
@@ -309,7 +314,7 @@ export default function Header({
           </div>
         )}
         {/* Music Volume Control */}
-        {showMusicControls && (
+        {shouldShowMusicControls && (
           <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
             <button
               onClick={(e) => {

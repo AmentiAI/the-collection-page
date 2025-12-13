@@ -485,49 +485,61 @@ export default function DungeonCrawlPage() {
   }, [fetchCrawls])
 
   // Auto-refetch when restart countdown is low or overdue to catch new instances
+  // Use a ref to track last fetch time and current crawls to prevent loops
+  const lastRefreshTimeRef = useRef<number>(0)
+  const refreshIntervalRef = useRef<number | null>(null)
+  const crawlsRef = useRef<DungeonCrawl[]>([])
+  
+  // Keep crawls ref in sync
   useEffect(() => {
-    if (crawls.length === 0 || !fetchCrawlsRef.current) return
+    crawlsRef.current = crawls
+  }, [crawls])
+  
+  useEffect(() => {
+    if (!fetchCrawlsRef.current) return
 
-    // Check if any crawl is overdue or countdown is very low (< 2 minutes)
+    // Check if any crawl is overdue - use ref to avoid dependency on crawls
     const checkAndRefresh = () => {
       const now = Date.now()
+      // Throttle: don't refresh more than once every 5 seconds
+      if (now - lastRefreshTimeRef.current < 5000) {
+        return
+      }
+      
+      const currentCrawls = crawlsRef.current
       let needsRefresh = false
-      let refreshInterval = 10000 // Default 10 seconds
 
-      for (const crawl of crawls) {
+      for (const crawl of currentCrawls) {
         if (crawl.instances && crawl.instances.length > 0) continue
         if (!crawl.nextRestartAt) continue
         
         const restartTime = new Date(crawl.nextRestartAt).getTime()
         const timeUntilRestart = restartTime - now
         
-        // If overdue, refresh immediately and frequently
+        // If overdue, refresh
         if (timeUntilRestart <= 0) {
           needsRefresh = true
-          refreshInterval = 3000 // Refresh every 3 seconds when overdue
           break
-        }
-        
-        // If countdown is < 2 minutes, refresh more frequently
-        if (timeUntilRestart > 0 && timeUntilRestart < 2 * 60 * 1000) {
-          needsRefresh = true
-          refreshInterval = Math.min(refreshInterval, 5000) // Refresh every 5 seconds when < 2 min
         }
       }
 
+      // Only refresh if overdue and throttled time has passed
       if (needsRefresh && fetchCrawlsRef.current) {
+        lastRefreshTimeRef.current = now
         fetchCrawlsRef.current()
       }
     }
 
-    // Check immediately
-    checkAndRefresh()
+    // Set up interval - check every 5 seconds
+    refreshIntervalRef.current = window.setInterval(checkAndRefresh, 5000)
 
-    // Set up interval - check every 3-10 seconds depending on urgency
-    const interval = setInterval(checkAndRefresh, 5000) // Check every 5 seconds
-
-    return () => clearInterval(interval)
-  }, [crawls])
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+        refreshIntervalRef.current = null
+      }
+    }
+  }, []) // Empty deps - only set up once
 
   const fetchBattleOrdinals = useCallback(async () => {
     if (!address) {
@@ -632,7 +644,7 @@ export default function DungeonCrawlPage() {
       isSetupRef.current = false
     }
 
-    const POLL_INTERVAL = 5_000 // Poll every 5 seconds to catch failures quickly
+    const POLL_INTERVAL = 30_000 // Poll every 30 seconds (reduced from 5 seconds)
     let isMounted = true
 
     const doPoll = () => {

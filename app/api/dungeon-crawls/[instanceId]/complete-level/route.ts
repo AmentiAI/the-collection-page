@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { getCrawlTiming, upsertCrawlTiming } from '@/lib/dungeon-crawl-timing'
 
 export const dynamic = 'force-dynamic'
 
@@ -169,11 +170,74 @@ export async function POST(
       // Check instance status
       // For level 2, allow both 'level_1' (when level 1 just completed) and 'level_2' (current status)
       // For level 3, allow both 'level_2' (when level 2 just completed) and 'level_3' (current status)
-      const allowedStatuses = levelNum === 2 
+      // Also allow 'ready' for level 2 if Level 1 window is closed and minimum is met (frontend effective status)
+      let allowedStatuses = levelNum === 2 
         ? [levelStatus, 'level_2', nextStatus]
         : levelNum === 3
         ? [levelStatus, 'level_3', nextStatus]
         : [levelStatus, nextStatus]
+      
+      // Special case: If status is 'ready' and trying to complete Level 2, check if Level 1 window closed + minimum met
+      if (levelNum === 2 && instance.status === 'ready') {
+        // Calculate Level 1 window end time
+        const level1WindowStart = config.level1WindowStart
+        const level1WindowDuration = config.level1WindowDuration
+        const level1WindowEnd = level1WindowStart + level1WindowDuration
+        const level1WindowClosed = elapsedMinutes > level1WindowEnd
+        
+        if (level1WindowClosed) {
+          // Check if Level 1 minimum participation was met
+          const level1ParticipantsRes = await client.query(
+            `SELECT COUNT(*)::int AS total, 
+                    SUM(CASE WHEN level_1_completed = TRUE THEN 1 ELSE 0 END)::int AS completed
+             FROM dungeon_crawl_participants
+             WHERE instance_id = $1`,
+            [instanceId]
+          )
+          const level1Total = level1ParticipantsRes.rows[0]?.total || 0
+          const level1Completed = level1ParticipantsRes.rows[0]?.completed || 0
+          const level1ParticipationPercent = level1Total > 0 
+            ? (level1Completed / level1Total) * 100 
+            : 0
+          const level1MinimumMet = level1ParticipationPercent >= config.minParticipationPercent
+          
+          // If Level 1 window closed and minimum met, allow Level 2 completion even with 'ready' status
+          if (level1MinimumMet) {
+            allowedStatuses = [...allowedStatuses, 'ready']
+          }
+        }
+      }
+      
+      // Similar check for Level 3 when status is 'ready' or 'level_1'
+      if (levelNum === 3 && (instance.status === 'ready' || instance.status === 'level_1')) {
+        // Calculate Level 2 window end time
+        const level2WindowStart = config.level2WindowStart
+        const level2WindowDuration = config.level2WindowDuration
+        const level2WindowEnd = level2WindowStart + level2WindowDuration
+        const level2WindowClosed = elapsedMinutes > level2WindowEnd
+        
+        if (level2WindowClosed) {
+          // Check if Level 2 minimum participation was met
+          const level2ParticipantsRes = await client.query(
+            `SELECT COUNT(*)::int AS total, 
+                    SUM(CASE WHEN level_2_completed = TRUE THEN 1 ELSE 0 END)::int AS completed
+             FROM dungeon_crawl_participants
+             WHERE instance_id = $1`,
+            [instanceId]
+          )
+          const level2Total = level2ParticipantsRes.rows[0]?.total || 0
+          const level2Completed = level2ParticipantsRes.rows[0]?.completed || 0
+          const level2ParticipationPercent = level2Total > 0 
+            ? (level2Completed / level2Total) * 100 
+            : 0
+          const level2MinimumMet = level2ParticipationPercent >= config.minParticipationPercent
+          
+          // If Level 2 window closed and minimum met, allow Level 3 completion even with 'ready' or 'level_1' status
+          if (level2MinimumMet) {
+            allowedStatuses = [...allowedStatuses, 'ready', 'level_1']
+          }
+        }
+      }
       
       if (!allowedStatuses.includes(instance.status)) {
         await client.query('ROLLBACK')
@@ -216,15 +280,38 @@ export async function POST(
              WHERE instance_id = $1 AND archived_at IS NULL`,
             [instanceId]
           )
+          // Get crawl_id and config for timing table update
+          const crawlIdRes = await client.query(
+            `SELECT i.crawl_id, c.restart_after_failure_hours
+             FROM dungeon_crawl_instances i
+             JOIN dungeon_crawls c ON c.id = i.crawl_id
+             WHERE i.id = $1`,
+            [instanceId]
+          )
+          const crawlId = crawlIdRes.rows[0]?.crawl_id
+          const restartAfterFailureHours = crawlIdRes.rows[0]?.restart_after_failure_hours || 2
+          
           await client.query(
             `
               UPDATE dungeon_crawl_instances
               SET status = 'failed',
-                  updated_at = NOW()
+              updated_at = NOW()
               WHERE id = $1
             `,
             [instanceId]
           )
+          
+          // Update timing table - Instance failed
+          if (crawlId) {
+            const now = new Date()
+            const nextInstanceStartsAt = new Date(now.getTime() + restartAfterFailureHours * 60 * 60 * 1000)
+            await upsertCrawlTiming(client, crawlId, {
+              instanceEndedAt: now,
+              instanceStatus: 'failed',
+              nextInstanceStartsAt,
+            })
+          }
+          
           await client.query('COMMIT')
           return NextResponse.json(
             {
@@ -312,6 +399,13 @@ export async function POST(
         levelCompleted = true
         const completedAt = new Date()
 
+        // Get crawl_id for timing table update
+        const crawlIdRes = await client.query(
+          `SELECT crawl_id FROM dungeon_crawl_instances WHERE id = $1`,
+          [instanceId]
+        )
+        const crawlId = crawlIdRes.rows[0]?.crawl_id
+
         // Update instance level completion
         if (levelNum === 1) {
           // Level 1 is completed - move to level 2
@@ -328,6 +422,15 @@ export async function POST(
             `,
             [completedAt.toISOString(), instanceId]
           )
+          
+          // Update timing table - Level 1 ends, Level 2 becomes active
+          if (crawlId) {
+            await upsertCrawlTiming(client, crawlId, {
+              level1EndedAt: completedAt,
+              level1Active: false,
+              level2Active: true,
+            })
+          }
         } else if (levelNum === 2) {
           // Level 2 is completed - move to level 3
           // Don't set level_3_started_at here - it will be set when level 3 window actually opens
@@ -341,10 +444,29 @@ export async function POST(
             `,
             [completedAt.toISOString(), instanceId]
           )
+          
+          // Update timing table - Level 2 ends, Level 3 becomes active
+          if (crawlId) {
+            await upsertCrawlTiming(client, crawlId, {
+              level2EndedAt: completedAt,
+              level2Active: false,
+              level3Active: true,
+            })
+          }
         } else {
           // Level 3 completed - dungeon crawl is complete!
           instanceCompleted = true
           const completedAtTime = new Date()
+          
+          // Get crawl config for cooldown calculation
+          const crawlConfigRes = await client.query(
+            `SELECT c.id, c.cooldown_hours, c.never_restart_after_completion
+             FROM dungeon_crawls c
+             JOIN dungeon_crawl_instances i ON i.crawl_id = c.id
+             WHERE i.id = $1`,
+            [instanceId]
+          )
+          const crawlConfig = crawlConfigRes.rows[0]
           
           await client.query(
             `
@@ -358,6 +480,21 @@ export async function POST(
             `,
             [completedAtTime.toISOString(), instanceId]
           )
+          
+          // Update timing table - Instance completed
+          if (crawlId) {
+            const nextInstanceStartsAt = crawlConfig?.never_restart_after_completion 
+              ? null 
+              : new Date(completedAtTime.getTime() + (crawlConfig?.cooldown_hours || 168) * 60 * 60 * 1000)
+            
+            await upsertCrawlTiming(client, crawlId, {
+              level3EndedAt: completedAtTime,
+              level3Active: false,
+              instanceEndedAt: completedAtTime,
+              instanceStatus: 'completed',
+              nextInstanceStartsAt,
+            })
+          }
 
           // Grant reward items with chance-based drops to participants who completed all 3 levels
           const eligibleParticipantsRes = await client.query(

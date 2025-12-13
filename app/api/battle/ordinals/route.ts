@@ -188,6 +188,7 @@ export async function GET(request: NextRequest) {
     let statusMap: Record<string, 'ready' | 'sanctuary'> = {}
     let lifeForceMap: Record<string, number> = {}
     const traitMap: Record<string, 'Angelic' | 'Demonic'> = {}
+    const lifeForceCapMap: Record<string, number> = {}
 
     if (inscriptionIds.length > 0) {
       // First, check for any battle_ordinals records with these inscription_ids that belong to different wallets
@@ -211,9 +212,9 @@ export async function GET(request: NextRequest) {
         console.log(`[battle/ordinals] Updated ownership for ${transferredIds.length} transferred ordinals`)
       }
 
-      // Now fetch battle statuses, life force, and trait for current wallet
+      // Now fetch battle statuses, life force, life_force_cap, and trait for current wallet
       const statusResult = await client.query(
-        `SELECT inscription_id, status, life_force, trait
+        `SELECT inscription_id, status, life_force, life_force_cap, trait
          FROM battle_ordinals 
          WHERE LOWER(wallet_address) = LOWER($1) AND inscription_id = ANY($2)`,
         [walletAddress, inscriptionIds]
@@ -222,30 +223,10 @@ export async function GET(request: NextRequest) {
       statusResult.rows.forEach((row) => {
         statusMap[row.inscription_id] = row.status
         lifeForceMap[row.inscription_id] = row.life_force ?? 100
+        lifeForceCapMap[row.inscription_id] = Number(row.life_force_cap ?? 100)
         if (row.trait) {
           traitMap[row.inscription_id] = row.trait as 'Angelic' | 'Demonic'
         }
-      })
-    }
-
-    // Get life force cap increases for inscriptions
-    const lifeForceCapMap: Record<string, number> = {}
-    if (inscriptionIds.length > 0) {
-      const capRes = await client.query(
-        `
-          SELECT inscription_id, SUM(reward_value)::int AS total
-          FROM dungeon_crawl_rewards
-          WHERE LOWER(wallet) = LOWER($1)
-            AND inscription_id = ANY($2)
-            AND reward_type = 'life_force_cap'
-            AND is_active = TRUE
-            AND (expires_at IS NULL OR expires_at > NOW())
-          GROUP BY inscription_id
-        `,
-        [walletAddress, inscriptionIds]
-      )
-      capRes.rows.forEach((row) => {
-        lifeForceCapMap[row.inscription_id] = Number(row.total ?? 0)
       })
     }
 
@@ -273,10 +254,9 @@ export async function GET(request: NextRequest) {
     // Add status and life force to each ordinal (null if not in DB - requires manual ready action)
     // Use trait from database if available, otherwise use trait from Magic Eden metadata
     const ordinalsWithStatus = battleOrdinals.map((ordinal) => {
-      const baseCap = 100
-      const capIncrease = lifeForceCapMap[ordinal.inscriptionId] ?? 0
-      const maxLifeForce = baseCap + capIncrease
-      const currentLifeForce = lifeForceMap[ordinal.inscriptionId] ?? baseCap
+      const maxLifeForce = lifeForceCapMap[ordinal.inscriptionId] ?? 100
+      const currentLifeForce = lifeForceMap[ordinal.inscriptionId] ?? 100
+      const capIncrease = maxLifeForce - 100 // Calculate bonus for display
       const blockChance = blockChanceMap[ordinal.inscriptionId] ?? 0
       // Use trait from database if available, otherwise use trait from Magic Eden
       const trait = traitMap[ordinal.inscriptionId] || ordinal.trait

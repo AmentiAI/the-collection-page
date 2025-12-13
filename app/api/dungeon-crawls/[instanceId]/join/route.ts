@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { upsertCrawlTiming } from '@/lib/dungeon-crawl-timing'
 
 export const dynamic = 'force-dynamic'
 
@@ -386,6 +387,7 @@ export async function POST(
         // Set status to 'ready' and calculate expires_at (10 minutes from now for 3 levels)
         // Also set level_1_started_at when instance becomes ready - this starts the timer
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+        const now = new Date()
         await client.query(
           `
             UPDATE dungeon_crawl_instances
@@ -397,6 +399,13 @@ export async function POST(
           `,
           [expiresAt.toISOString(), instanceId]
         )
+        
+        // Update timing table - Level 1 starts now
+        await upsertCrawlTiming(client, crawl.id, {
+          instanceId,
+          level1StartedAt: now,
+          level1Active: true,
+        })
       } else if (instance.status === 'open') {
         await client.query(
           `UPDATE dungeon_crawl_instances SET status = 'filling', updated_at = NOW() WHERE id = $1`,

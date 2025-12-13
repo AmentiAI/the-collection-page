@@ -138,6 +138,28 @@ export async function POST(request: NextRequest) {
         ]
       )
 
+      // If this is a life_force_cap reward, update the battle_ordinals life_force_cap field
+      if (item.reward_type === 'life_force_cap') {
+        // Recalculate life_force_cap: 100 (base) + sum of all active life_force_cap rewards for this inscription
+        await client.query(
+          `
+            UPDATE battle_ordinals
+            SET life_force_cap = (
+              SELECT 100 + COALESCE(SUM(dcr.reward_value), 0)::int
+              FROM dungeon_crawl_rewards dcr
+              WHERE LOWER(dcr.wallet) = LOWER(battle_ordinals.wallet_address)
+                AND dcr.inscription_id = battle_ordinals.inscription_id
+                AND dcr.reward_type = 'life_force_cap'
+                AND dcr.is_active = TRUE
+                AND (dcr.expires_at IS NULL OR dcr.expires_at > NOW())
+            )
+            WHERE LOWER(wallet_address) = LOWER($1)
+              AND inscription_id = $2
+          `,
+          [wallet, inscriptionId]
+        )
+      }
+
       await client.query('COMMIT')
 
       return NextResponse.json({
