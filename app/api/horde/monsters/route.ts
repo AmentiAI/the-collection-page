@@ -45,7 +45,7 @@ export async function GET() {
         createdAt: monster.created_at,
         updatedAt: monster.updated_at,
         totalFights: parseInt(monster.total_fights || '0', 10),
-        health: parseInt(monster.health || '15000', 10),
+        health: monster.health != null ? parseInt(monster.health, 10) : 15000,
       }
     })
 

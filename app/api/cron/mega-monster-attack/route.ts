@@ -339,7 +339,7 @@ export async function GET(request: NextRequest) {
       
       if (weakestMonsterResult.rows.length > 0) {
         weakestMonsterId = weakestMonsterResult.rows[0].id
-        weakestMonsterHealth = parseInt(weakestMonsterResult.rows[0].health || '15000', 10)
+        weakestMonsterHealth = weakestMonsterResult.rows[0].health != null ? parseInt(weakestMonsterResult.rows[0].health, 10) : 15000
         weakestMonsterName = weakestMonsterResult.rows[0].name
         
         // Reduce health by 800, but not below 0
