@@ -39,10 +39,8 @@ export async function GET(request: NextRequest) {
         SELECT 
           trait as side,
           COUNT(*) as total_resurrections
-        FROM battle_ordinals
-        WHERE resurrection_time IS NOT NULL
-          AND is_dead = false
-          AND trait IN ('Angelic', 'Demonic')
+        FROM resurrection_history
+        WHERE trait IN ('Angelic', 'Demonic')
         GROUP BY trait
       ),
       all_sides AS (

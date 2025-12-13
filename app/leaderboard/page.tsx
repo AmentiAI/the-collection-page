@@ -293,6 +293,64 @@ export default function LeaderboardPage() {
               Top Individual Leaders
             </h2>
 
+            {/* Points Legend */}
+            {Object.keys(scoreConfig).length > 0 && (
+              <div className="mb-6 rounded-lg border border-yellow-600/40 bg-black/60 p-4">
+                <div className="text-xs font-mono text-yellow-200 font-semibold uppercase tracking-wide mb-3">How to Earn Points</div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+                  {scoreConfig['battles'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Sword className="h-3.5 w-3.5 text-yellow-400" />
+                      <span className="text-gray-300">Battles:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['battles']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['heals'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-3.5 w-3.5 text-green-400" />
+                      <span className="text-gray-300">Heals:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['heals']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['crystallizations'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Trophy className="h-3.5 w-3.5 text-purple-400" />
+                      <span className="text-gray-300">Crystal:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['crystallizations']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['ascension_circles'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Medal className="h-3.5 w-3.5 text-amber-400" />
+                      <span className="text-gray-300">Ascension:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['ascension_circles']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['killing_blows'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Skull className="h-3.5 w-3.5 text-yellow-400" />
+                      <span className="text-gray-300">Slay Horde:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['killing_blows']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['burns'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-purple-400" />
+                      <span className="text-gray-300">Burns:</span>
+                      <span className="text-green-400 font-bold">+{scoreConfig['burns']}</span>
+                    </div>
+                  )}
+                  {scoreConfig['resurrections'] !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-3.5 w-3.5 text-red-400" />
+                      <span className="text-gray-300">Resurrections:</span>
+                      <span className="text-red-400 font-bold">{scoreConfig['resurrections']}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto rounded-xl border border-yellow-600/40 bg-black/60">
               <table className="w-full divide-y divide-yellow-800/50">
                 <thead className="bg-yellow-900/20">
