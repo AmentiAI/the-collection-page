@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 const COMPLETION_WINDOW_MS = 2 * 60 * 1000
 const POWDER_REWARD_HOST = 20
 const POWDER_REWARD_PARTICIPANT = 18
-const MIN_COMPLETION_COUNT = 9 // Only need 9 out of 10 to complete
+const MIN_COMPLETION_COUNT = 7 // Only need 7 out of 8 to complete
 // Set to false to disable powder circles at the API level
 const POWDER_MODE_ENABLED = process.env.NEXT_PUBLIC_POWDER_MODE_ENABLED !== 'false'
 
@@ -345,7 +345,7 @@ export async function POST(
       )
       const participants = participantsRes.rows
       const completedCount = participants.filter((row) => row.completed).length
-      // Require 9 out of 10 participants to mark complete
+      // Require 7 out of 8 participants to mark complete
       const allCompleted = participants.length >= circle.required_participants && completedCount >= MIN_COMPLETION_COUNT
 
       let rewardGranted = Boolean(circle.reward_granted)

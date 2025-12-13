@@ -5,7 +5,7 @@ import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const REQUIRED_PARTICIPANTS = 10
+const REQUIRED_PARTICIPANTS = 8
 const CIRCLE_DURATION_MS = 10 * 60 * 1000
 const POWDER_REWARD = 2
 const MAX_ACTIVE_CIRCLES_PER_USER = 6 // Total circles user can be in (hosting + participating)

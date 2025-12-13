@@ -51,7 +51,7 @@ export default function AbyssSummonPage() {
   const IS_POWDER_MODE = mode === 'powder'
   const IS_DAMNED_POOL_MODE = mode === 'damned_pool'
   const IS_DEAD_DEMONS_MODE = mode === 'dead_demons'
-  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 10 : IS_DEAD_DEMONS_MODE ? 10 : 8
+  const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 8 : IS_DEAD_DEMONS_MODE ? 10 : 8
   const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
     ? '/api/damned-pool/circles'
     : IS_POWDER_MODE
@@ -1103,7 +1103,7 @@ export default function AbyssSummonPage() {
                 <div className="space-y-2">
                   <p className="font-semibold uppercase tracking-[0.2em]">Ascension Circles</p>
                   <ul className="ml-4 list-disc space-y-1 text-xs uppercase tracking-[0.15em] opacity-90">
-                    <li>Requires 9 out of 10 participants to complete in the last 2 minutes</li>
+                    <li>Requires 7 out of 8 participants to complete in the last 2 minutes</li>
                     <li>Gives ascension_powder (8 for host, 7 for participants)</li>
                   </ul>
                 </div>

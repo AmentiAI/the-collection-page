@@ -63,19 +63,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Get total count of all monsters (for damage scaling calculation)
+    const totalMonstersResult = await client.query(
+      'SELECT COUNT(*)::int as count FROM mega_monsters WHERE image_blob_url IS NOT NULL OR image_data IS NOT NULL'
+    )
+    const totalMonsterCount = totalMonstersResult.rows[0]?.count ?? 0
+
     // Get all mega monsters with health > 0 (exclude dead monsters)
     const monstersResult = await client.query(
       'SELECT id FROM mega_monsters WHERE (image_blob_url IS NOT NULL OR image_data IS NOT NULL) AND health > 0'
     )
-    const monsterCount = monstersResult.rows.length
+    const activeMonsterCount = monstersResult.rows.length
 
-    if (monsterCount === 0) {
+    // Calculate damage multiplier: if monsters are missing, remaining ones do more damage
+    // Example: 10 total, 9 active = 10/9 = 1.111 (11% more damage)
+    const damageMultiplier = totalMonsterCount > 0 && activeMonsterCount > 0 
+      ? totalMonsterCount / activeMonsterCount 
+      : 1.0
+
+    if (activeMonsterCount === 0) {
       return NextResponse.json({
         success: true,
         message: 'No mega monsters to attack with',
         attacksProcessed: 0,
       })
     }
+
+    console.log(`[mega-monster-attack] Monster stats: ${activeMonsterCount} active out of ${totalMonsterCount} total, damage multiplier: ${damageMultiplier.toFixed(3)}`)
 
     // Get all armies that are ready for battle (not dead, not in sanctuary)
     // Order by life_force DESC so we attack strongest armies first
@@ -109,7 +123,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'No armies ready for battle',
-        monsterCount,
+        monsterCount: activeMonsterCount,
+        totalMonsterCount,
+        damageMultiplier,
         attacksProcessed: 0,
         deaths: 0,
         timestamp: new Date().toISOString(),
@@ -286,8 +302,11 @@ export async function GET(request: NextRequest) {
             // Random damage between 2-6
             const baseDamage = Math.floor(Math.random() * 5) + 2 // 2-6
             
-            // Reduce damage by 30% if balanced army (separate from block chance)
-            damage = isBalanced ? Math.floor(baseDamage * 0.7) : baseDamage
+            // Apply damage multiplier if monsters are missing (to compensate for lost monsters)
+            const multipliedDamage = Math.floor(baseDamage * damageMultiplier)
+            
+            // Reduce damage by 30% if balanced army (separate from block chance and multiplier)
+            damage = isBalanced ? Math.floor(multipliedDamage * 0.7) : multipliedDamage
             
             newLifeForce = Math.max(0, Math.min(currentLifeForce - damage, maxLifeForce))
           } else {
@@ -367,7 +386,7 @@ export async function GET(request: NextRequest) {
     let weakestMonsterHealth: number | null = null
     let weakestMonsterName: string | null = null
     
-    if (monsterCount > 0) {
+    if (activeMonsterCount > 0) {
       const weakestMonsterResult = await client.query(`
         SELECT id, health, name
         FROM mega_monsters
@@ -405,7 +424,9 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`[mega-monster-attack] Completed successfully`, {
-      monsterCount,
+      activeMonsterCount,
+      totalMonsterCount,
+      damageMultiplier,
       attacksProcessed,
       deaths,
       weakestMonsterId,
@@ -417,7 +438,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Mega monster attack completed',
-      monsterCount,
+      monsterCount: activeMonsterCount,
+      totalMonsterCount,
+      damageMultiplier,
       attacksProcessed,
       deaths,
       weakestMonster: weakestMonsterId ? {
