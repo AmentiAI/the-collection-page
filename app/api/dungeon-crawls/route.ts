@@ -533,56 +533,13 @@ export async function GET(request: NextRequest) {
     const client = await pool.connect()
     try {
       // Cleanup invalid instances (created too early, before cooldown expired)
-      const cleanupResult = await cleanupInvalidInstances(client)
+      await cleanupInvalidInstances(client)
       
       // Check for expired windows and mark failed instances
       await checkExpiredWindows(client)
       
-      // Auto-restart overdue crawls (create new instances if restart time has passed)
-      // Only run if there are no active instances to prevent restart loops
-      // Also check if any instance was just marked as failed (within last 10 minutes) to prevent race conditions
-      const activeInstanceCheck = await client.query(
-        `SELECT 
-          COUNT(*)::int as active_count
-         FROM dungeon_crawl_instances 
-         WHERE status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`
-      )
-      // Check for recent failures (updated or created) to prevent spam loops
-      const recentFailureCheck = await client.query(
-        `SELECT COUNT(*)::int as recent_failures
-         FROM dungeon_crawl_instances 
-         WHERE status = 'failed' 
-           AND (updated_at > NOW() - '10 minutes'::INTERVAL OR created_at > NOW() - '10 minutes'::INTERVAL)`
-      )
-      const hasActiveInstances = activeInstanceCheck.rows[0]?.active_count > 0
-      const hasRecentFailures = recentFailureCheck.rows[0]?.recent_failures > 0
-      const justCleanedUp = cleanupResult > 0
-      
-      // Auto-restart overdue crawls if:
-      // 1. No active instances exist
-      // 2. No instances were just marked as failed in this request (prevents immediate re-creation)
-      // If restart is overdue, we should restart regardless of older failures
-      // Only skip if there are VERY recent failures (within last 30 seconds) to prevent spam loops
-      if (!hasActiveInstances) {
-        // Only skip if cleanup just happened (prevents immediate re-creation after cleanup)
-        // OR if there are very recent failures (within last 30 seconds)
-        if (!justCleanedUp) {
-          // Check for very recent failures (only 30 seconds, not 2 minutes)
-          const veryRecentFailures = await client.query(
-            `SELECT COUNT(*)::int as count
-             FROM dungeon_crawl_instances 
-             WHERE status = 'failed' 
-               AND (updated_at > NOW() - '30 seconds'::INTERVAL OR created_at > NOW() - '30 seconds'::INTERVAL)`
-          )
-          const hasVeryRecentFailures = veryRecentFailures.rows[0]?.count > 0
-          
-          if (!hasVeryRecentFailures) {
-            await autoRestartOverdueCrawls(client)
-          }
-          // Don't log when skipping - too verbose
-        }
-        // Don't log when skipping - too verbose
-      }
+      // Instance creation is now handled exclusively by the cron job (/api/cron/dungeon-crawl-restart)
+      // which runs every minute and uses the timing table for proper restart logic
       
       // Get all active crawl configs with their current active instances
       const crawlsRes = await client.query(`
@@ -775,7 +732,7 @@ export async function GET(request: NextRequest) {
       }
       
       // Ensure all active crawls are in the map (even if they have no instances)
-      // Instance creation is now handled by autoRestartOverdueCrawls using the timing table
+      // Instance creation is now handled exclusively by the cron job (/api/cron/dungeon-crawl-restart)
       for (const crawlId of Array.from(allActiveCrawlIds)) {
         const crawl = crawlsMap.get(crawlId)
         if (!crawl) {
