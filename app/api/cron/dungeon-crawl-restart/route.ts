@@ -93,19 +93,19 @@ export async function GET(request: NextRequest) {
         // Use the most recent instance (whether failed or completed)
         if (lastInstance.status === 'completed') {
           const completedAt = new Date(lastInstance.completed_at)
-          lastInstanceType = 'completed'
-          lastInstanceEndedAt = completedAt
-          timeSinceLastInstance = now.getTime() - completedAt.getTime()
-          
-          if (!crawl.never_restart_after_completion) {
-            expectedRestartAt = new Date(completedAt.getTime() + crawl.cooldown_hours * 60 * 60 * 1000)
-          }
+        lastInstanceType = 'completed'
+        lastInstanceEndedAt = completedAt
+        timeSinceLastInstance = now.getTime() - completedAt.getTime()
+        
+        if (!crawl.never_restart_after_completion) {
+          expectedRestartAt = new Date(completedAt.getTime() + crawl.cooldown_hours * 60 * 60 * 1000)
+        }
         } else if (lastInstance.status === 'failed') {
           const failedAt = new Date(lastInstance.updated_at)
-          lastInstanceType = 'failed'
-          lastInstanceEndedAt = failedAt
-          timeSinceLastInstance = now.getTime() - failedAt.getTime()
-          expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
+        lastInstanceType = 'failed'
+        lastInstanceEndedAt = failedAt
+        timeSinceLastInstance = now.getTime() - failedAt.getTime()
+        expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
         }
       }
       

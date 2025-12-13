@@ -986,13 +986,13 @@ function GraveyardContent() {
           
           {/* Purchase Bonus Burn Credit Button */}
           {isWalletConnected && ordinalAddress && (
-            <div className="flex justify-center mt-4">
+          <div className="flex justify-center mt-4">
               <PurchaseBonusBurnButton 
                 walletAddress={ordinalAddress}
                 powderAvailable={powderAvailable}
                 onPurchaseComplete={loadGraveyard}
-              />
-            </div>
+            />
+          </div>
           )}
         </div>
 

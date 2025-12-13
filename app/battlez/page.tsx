@@ -462,19 +462,19 @@ export default function BattlePage() {
           {connected && hasListed && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
               <div className="rounded-2xl border-2 border-amber-500/70 bg-amber-950/30 p-8 text-center max-w-md mx-4">
-                <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-amber-200 mb-2">
-                  Listed Ordinals Detected
-                </h2>
-                <p className="text-gray-400 mb-4">
+              <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-amber-200 mb-2">
+                Listed Ordinals Detected
+              </h2>
+              <p className="text-gray-400 mb-4">
                   You must delist to continue playing.
-                </p>
-                <Button
-                  onClick={fetchBattleOrdinals}
-                  className="bg-amber-600 hover:bg-amber-700 text-white"
-                >
-                  Check Again
-                </Button>
+              </p>
+              <Button
+                onClick={fetchBattleOrdinals}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Check Again
+              </Button>
               </div>
             </div>
           )}
@@ -482,10 +482,10 @@ export default function BattlePage() {
           {connected && !hasListed && (
             <>
               {loading && (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="h-12 w-12 animate-spin text-red-500" />
-                </div>
-              )}
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-12 w-12 animate-spin text-red-500" />
+            </div>
+          )}
 
               {!loading && ordinals.length === 0 && (
             <div className="rounded-2xl border-2 border-gray-600/50 bg-gray-900/30 p-8 text-center">
@@ -498,9 +498,9 @@ export default function BattlePage() {
                 they are all listed.
               </p>
             </div>
-              )}
+          )}
 
-              {/* Reward Items Section */}
+          {/* Reward Items Section */}
               {rewardItems.length > 0 && (
             <div className="mb-8 rounded-2xl border-2 border-purple-500/70 bg-purple-950/30 p-6">
               <div className="flex items-center justify-between mb-4">
@@ -627,10 +627,10 @@ export default function BattlePage() {
                 </div>
               )}
             </div>
-              )}
+          )}
 
               {!loading && ordinals.length > 0 && (
-                <div className="space-y-12">
+            <div className="space-y-12">
               {angelicOrdinals.length > 0 && (
                 <section>
                   <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-cyan-400 mb-6 flex items-center gap-3">
@@ -969,7 +969,7 @@ export default function BattlePage() {
                   </div>
                 </section>
               )}
-                </div>
+            </div>
               )}
             </>
           )}

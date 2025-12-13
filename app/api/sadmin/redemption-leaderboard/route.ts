@@ -69,6 +69,12 @@ export async function GET(request: NextRequest) {
     const burnsPoints = configMap['burns'] ?? 1.0
     const resurrectionsPoints = configMap['resurrections'] ?? -10.0
 
+    // Ensure max_army_count column exists in profiles table
+    await client.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS max_army_count INTEGER DEFAULT 0
+    `)
+
     // Aggregate all stats per wallet using subqueries to avoid cartesian products
     // Also aggregate linked wallets into their primary wallet
     const result = await client.query(`
@@ -83,6 +89,8 @@ export async function GET(request: NextRequest) {
           UNION
           SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM crystallization_records WHERE wallet_address IS NOT NULL
           UNION
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM crystallization_daily_history WHERE wallet_address IS NOT NULL
+          UNION
           SELECT DISTINCT LOWER(creator_wallet) as wallet_address FROM summoning_powder_circles WHERE creator_wallet IS NOT NULL
           UNION
           SELECT DISTINCT LOWER(wallet) as wallet_address FROM summoning_powder_participants WHERE wallet IS NOT NULL
@@ -92,6 +100,8 @@ export async function GET(request: NextRequest) {
           SELECT DISTINCT LOWER(payment_wallet) as wallet_address FROM abyss_burns WHERE payment_wallet IS NOT NULL AND inscription_id IS NOT NULL AND NOT (inscription_id LIKE 'ascended_%')
           UNION
           SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM ascended_images_mint_queue WHERE wallet_address IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(wallet_address) as wallet_address FROM resurrection_history WHERE wallet_address IS NOT NULL
         ) all_wallets
       ),
       -- Map each wallet to its primary wallet (or itself if primary)
@@ -125,6 +135,17 @@ export async function GET(request: NextRequest) {
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as army_count,
+          -- Max army count (track peak army size to prevent score manipulation)
+          COALESCE((
+            SELECT GREATEST(
+              COALESCE((SELECT max_army_count FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), 0),
+              (
+                SELECT COUNT(*)::int
+                FROM battle_ordinals bo
+                WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
+              )
+            )
+          ), 0) as max_army_count,
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
@@ -149,12 +170,12 @@ export async function GET(request: NextRequest) {
             FROM heal_history hh
             WHERE LOWER(hh.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as heals_count,
-          -- Crystallization count (count all records where powder has been claimed)
+          -- Crystallization count (sum of all claimed powder from daily history)
           COALESCE((
-            SELECT COUNT(*)::int
-            FROM crystallization_records cr
-            WHERE LOWER(cr.wallet_address) = ANY(pwg.all_wallets_lower)
-              AND cr.claimed_at IS NOT NULL
+            SELECT SUM(cdh.total_ascension_powder)::int
+            FROM crystallization_daily_history cdh
+            WHERE LOWER(cdh.wallet_address) = ANY(pwg.all_wallets_lower)
+              AND cdh.total_ascension_powder > 0
           ), 0) as crystallization_count,
           -- Ascension circles: created + participated (distinct)
           COALESCE((
@@ -166,12 +187,11 @@ export async function GET(request: NextRequest) {
             FROM summoning_powder_participants acp
             WHERE LOWER(acp.wallet) = ANY(pwg.all_wallets_lower)
           ), 0) as ascension_circle_count,
-          -- Resurrections
+          -- Resurrections (count from resurrection_history table)
           COALESCE((
             SELECT COUNT(*)::int
-            FROM battle_ordinals bo
-            WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
-              AND bo.resurrection_time IS NOT NULL
+            FROM resurrection_history rh
+            WHERE LOWER(rh.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as resurrections_count,
           -- Killing blows: count monsters killed by inscriptions owned by this wallet group
           COALESCE((
@@ -207,6 +227,7 @@ export async function GET(request: NextRequest) {
         discord_username,
         discord_avatar_url,
         army_count,
+        max_army_count,
         angel_count,
         demon_count,
         battles_count,
@@ -219,17 +240,29 @@ export async function GET(request: NextRequest) {
         mints_count,
         -- Calculate total score using configurable point values
         -- Formula uses stored point values from redemption_score_config table
+        -- Killing blows and balanced army bonus are applied AFTER the division (not affected by army count penalty)
+        -- Balanced army: all angels, all demons, or equal amounts of both
+        -- Uses max_army_count (peak army size) instead of current army_count to prevent manipulation
         CASE 
-          WHEN army_count > 0 THEN
+          WHEN max_army_count > 0 THEN
             (
-              (battles_count * $1::numeric + 
-               heals_count * $2::numeric + 
-               crystallization_count * $3::numeric + 
-               ascension_circle_count * $4::numeric + 
-               killing_blows_count * $5::numeric + 
-               abyss_burns_count * $6::numeric + 
-               resurrections_count * $7::numeric)::numeric
-              / POWER(GREATEST(army_count, 1)::numeric, $8::numeric)
+              (
+                (battles_count * $1::numeric + 
+                 heals_count * $2::numeric + 
+                 crystallization_count * $3::numeric + 
+                 ascension_circle_count * $4::numeric + 
+                 abyss_burns_count * $6::numeric + 
+                 resurrections_count * $7::numeric)::numeric
+                / POWER(GREATEST(max_army_count, 1)::numeric, $8::numeric)
+              )::numeric(10, 2)
+              + (killing_blows_count * $5::numeric)
+              + CASE 
+                  WHEN (angel_count > 0 AND demon_count = 0) OR 
+                       (demon_count > 0 AND angel_count = 0) OR 
+                       (angel_count > 0 AND demon_count > 0 AND angel_count = demon_count)
+                  THEN 10::numeric
+                  ELSE 0::numeric
+                END
             )::numeric(10, 2)
           ELSE 0
         END as total_score
@@ -249,10 +282,25 @@ export async function GET(request: NextRequest) {
       efficiencyExponent,
     ])
 
+    // Update max_army_count in profiles for all wallets (prevent score manipulation)
+    for (const row of result.rows) {
+      const walletAddress = row.wallet_address
+      const maxArmyCount = Number(row.max_army_count) || 0
+      if (maxArmyCount > 0) {
+        await client.query(`
+          UPDATE profiles
+          SET max_army_count = GREATEST(COALESCE(max_army_count, 0), $1),
+              updated_at = NOW()
+          WHERE LOWER(wallet_address) = LOWER($2)
+        `, [maxArmyCount, walletAddress])
+      }
+    }
+
     // Convert numeric fields to numbers (PostgreSQL numeric types come as strings)
     const leaderboard = result.rows.map((row: any) => ({
       ...row,
       army_count: Number(row.army_count) || 0,
+      max_army_count: Number(row.max_army_count) || 0,
       angel_count: Number(row.angel_count) || 0,
       demon_count: Number(row.demon_count) || 0,
       battles_count: Number(row.battles_count) || 0,

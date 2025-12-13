@@ -10,6 +10,7 @@ type LeaderboardEntry = {
   discord_username: string
   discord_avatar_url: string
   army_count: number
+  max_army_count: number
   angel_count: number
   demon_count: number
   battles_count: number
@@ -74,9 +75,12 @@ export default function RedemptionLeaderboardPage() {
     }
   }
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = async (isRefresh = false) => {
     try {
       setError(null)
+      if (!isRefresh) {
+        setLoading(true)
+      }
       const response = await fetch('/api/sadmin/redemption-leaderboard', {
         cache: 'no-store',
       })
@@ -90,7 +94,9 @@ export default function RedemptionLeaderboardPage() {
       setLeaderboard(result.leaderboard || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
-      setLeaderboard([])
+      if (!isRefresh) {
+        setLeaderboard([])
+      }
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -157,7 +163,7 @@ export default function RedemptionLeaderboardPage() {
 
   const handleRefresh = () => {
     setRefreshing(true)
-    fetchLeaderboard()
+    fetchLeaderboard(true) // Pass true to indicate this is a refresh, not initial load
   }
 
   const truncateWallet = (wallet: string) => {
@@ -303,6 +309,7 @@ export default function RedemptionLeaderboardPage() {
             <h1 className="text-3xl font-bold text-red-500">Redemption Leaderboard</h1>
           </div>
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={refreshing || loading}
             className="flex items-center gap-2 rounded-lg border border-red-600/40 bg-red-900/20 px-4 py-2 text-sm font-mono uppercase tracking-wider text-red-200 transition hover:bg-red-900/40 disabled:opacity-50"
@@ -330,6 +337,7 @@ export default function RedemptionLeaderboardPage() {
               <p className="text-xs text-gray-400 mt-1">How points are calculated for the Redemption Leaderboard</p>
             </div>
             <button
+              type="button"
               onClick={() => setShowConfigEditor(!showConfigEditor)}
               className="px-4 py-2 rounded-lg border border-red-600/40 bg-red-900/20 text-sm font-mono uppercase tracking-wider text-red-200 transition hover:bg-red-900/40"
             >
@@ -354,6 +362,7 @@ export default function RedemptionLeaderboardPage() {
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-sm font-bold text-red-200 uppercase tracking-wide">Edit Score Values</h3>
                           <button
+                            type="button"
                             onClick={handleSaveConfig}
                             disabled={savingConfig}
                             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-green-600/40 bg-green-900/20 text-sm font-mono uppercase tracking-wider text-green-200 transition hover:bg-green-900/40 disabled:opacity-50"
@@ -388,7 +397,7 @@ export default function RedemptionLeaderboardPage() {
                           <div className="flex items-center gap-3 p-3 rounded border border-yellow-800/30 bg-black/40">
                             <div className="flex-1 min-w-0">
                               <div className="text-xs font-mono text-yellow-200 font-semibold uppercase">Efficiency Exponent</div>
-                              <div className="text-[10px] text-gray-400 mt-1">Army Count exponent (lower = closer scores)</div>
+                              <div className="text-[10px] text-gray-400 mt-1">Max Army exponent (lower = closer scores, uses peak army size)</div>
                             </div>
                             <input
                               type="number"
@@ -478,43 +487,52 @@ export default function RedemptionLeaderboardPage() {
                             {scoreConfig.length > 0 ? (
                               <>
                                 {scoreConfig
-                                  .filter(item => item.categoryLabel === 'GAIN')
+                                  .filter(item => item.categoryLabel === 'GAIN' || item.categoryKey === 'resurrections')
                                   .map((item, idx) => {
                                     const points = editingConfig[item.categoryKey] ?? item.pointsValue
                                     return (
-                                      <span key={item.categoryKey} className="text-green-400">
+                                      <span key={item.categoryKey} className={item.categoryKey === 'resurrections' ? 'text-red-400' : 'text-green-400'}>
                                         {idx > 0 ? ' + ' : ''}
                                         {points !== 1 ? `${item.actionLabel} × ${points}` : item.actionLabel}
                                       </span>
                                     )
                                   })}
-                                {scoreConfig.find(c => c.categoryKey === 'killing_blows') && (
-                                  <span className="text-yellow-400">
-                                    {' + '}
-                                    Killing Blows × {editingConfig['killing_blows'] ?? scoreConfig.find(c => c.categoryKey === 'killing_blows')?.pointsValue ?? 50}
-                                  </span>
-                                )}
-                                {scoreConfig.find(c => c.categoryKey === 'resurrections') && (
-                                  <span className="text-red-400">
-                                    {' + '}
-                                    Resurrections × {editingConfig['resurrections'] ?? scoreConfig.find(c => c.categoryKey === 'resurrections')?.pointsValue ?? -10}
-                                  </span>
-                                )}
                               </>
                             ) : (
                               <>
                                 <span className="text-green-400">Battles + (Heals × 0.5) + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
                                 {' + '}
-                                <span className="text-yellow-400">Killing Blows × 50</span>
-                                {' + '}
                                 <span className="text-red-400">Resurrections × -10</span>
                               </>
                             )}
-                          ) ÷ <span className="text-yellow-400">Army Count<sup>{efficiencyExponent}</sup></span>
+                          ) ÷ <span className="text-yellow-400">Max Army<sup>{efficiencyExponent}</sup></span>
+                          {scoreConfig.length > 0 ? (
+                            <>
+                              {scoreConfig.find(c => c.categoryKey === 'killing_blows') && (
+                                <>
+                                  {' + '}
+                                  <span className="text-yellow-400">
+                                    Killing Blows × {editingConfig['killing_blows'] ?? scoreConfig.find(c => c.categoryKey === 'killing_blows')?.pointsValue ?? 50}
+                                  </span>
+                                </>
+                              )}
+                              {' + '}
+                              <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
+                            </>
+                          ) : (
+                            <>
+                              {' + '}
+                              <span className="text-yellow-400">Killing Blows × 50</span>
+                              {' + '}
+                              <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
+                            </>
+                          )}
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
-                          The efficiency curve (army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
-                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus! 
+                          The efficiency curve (max_army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
+                          Score uses your PEAK army size (max_army_count), not your current army size, to prevent score manipulation by downsizing armies.
+                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus added AFTER the division, so they're not affected by army count! 
+                          Balanced Army Bonus: +10 points if you have all angels, all demons, or equal amounts of both (added after division).
                           Resurrections are penalized 10x to encourage keeping armies alive.
                         </div>
                       </div>
@@ -526,12 +544,18 @@ export default function RedemptionLeaderboardPage() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && leaderboard.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-red-500" />
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-red-600/40 bg-black/60">
+          <div className="overflow-x-auto rounded-xl border border-red-600/40 bg-black/60 relative">
+            {refreshing && (
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-2 px-3 py-1 rounded-lg bg-red-900/80 border border-red-600/40 text-xs font-mono text-red-200">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Refreshing...
+              </div>
+            )}
             <table className="w-full divide-y divide-red-800/50">
               <thead className="bg-red-900/20">
                 <tr>
@@ -552,6 +576,9 @@ export default function RedemptionLeaderboardPage() {
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Army
+                  </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200" title="Peak army size (used for score calculation)">
+                    Max Army
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Angels
@@ -624,6 +651,7 @@ export default function RedemptionLeaderboardPage() {
                                 {truncateWallet(entry.wallet_address)}
                               </span>
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleCopyWallet(entry.wallet_address)
@@ -664,6 +692,9 @@ export default function RedemptionLeaderboardPage() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-gray-200">
                             {entry.army_count.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-yellow-300" title="Peak army size (used for score calculation)">
+                            {entry.max_army_count?.toLocaleString() || entry.army_count.toLocaleString()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-blue-300">
                             {entry.angel_count.toLocaleString()}
