@@ -41,6 +41,7 @@ export default function LeaderboardPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [scoreConfig, setScoreConfig] = useState<Record<string, number>>({})
   const [efficiencyExponent, setEfficiencyExponent] = useState<number>(0.25)
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchLeaderboard()
@@ -333,17 +334,24 @@ export default function LeaderboardPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {leader.discord_avatar_url ? (
-                                <Image
-                                  src={leader.discord_avatar_url}
-                                  alt={leader.discord_username || 'Discord'}
-                                  width={20}
-                                  height={20}
-                                  className="rounded-full"
-                                />
+                              {leader.discord_avatar_url && !imageErrors.has(leader.wallet_address) ? (
+                                <div className="relative h-5 w-5 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30">
+                                  <Image
+                                    src={leader.discord_avatar_url}
+                                    alt={leader.discord_username || 'Discord'}
+                                    width={20}
+                                    height={20}
+                                    className="rounded-full"
+                                    onError={() => {
+                                      setImageErrors(prev => new Set(prev).add(leader.wallet_address))
+                                    }}
+                                  />
+                                </div>
                               ) : (
-                                <div className="h-5 w-5 rounded-full bg-gray-700 flex items-center justify-center">
-                                  <span className="text-[8px] text-gray-400">?</span>
+                                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
+                                  <svg className="h-3 w-3 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                                  </svg>
                                 </div>
                               )}
                               <span className="text-xs text-gray-300">
