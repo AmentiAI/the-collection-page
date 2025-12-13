@@ -8,6 +8,7 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
+import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 import type { SummonParticipant, SummonRecord, DamnedOption, SummonLeaderboardEntry, Mode, ActiveTab } from './components/types'
 import { formatCountdown, formatTimestamp, isAbyssSummonClosed } from './components/utils'
 import MainNavigationTabs from './components/MainNavigationTabs'
@@ -1950,6 +1951,7 @@ function SummoningCircleGraphic({
         }}
       />
     </div>
+    </GlobalStartTimeLock>
   )
 }
 
