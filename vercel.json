@@ -9,13 +9,10 @@
       "schedule": "0 * * * *"
     },
    
-    {
-      "path": "/api/cron/sync-flashnet-pools",
-      "schedule": "*/3 * * * *"
-    },
+   
     {
       "path": "/api/cron/dungeon-crawl-restart",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

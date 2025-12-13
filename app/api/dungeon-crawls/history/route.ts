@@ -47,13 +47,7 @@ export async function GET(request: NextRequest) {
         ORDER BY created_at DESC
       `)
 
-      // Get total count of completed instances for pagination
-      const countRes = await client.query(`
-        SELECT COUNT(*)::int as total
-        FROM dungeon_crawl_instances
-        WHERE status = 'completed'
-      `)
-      const total = countRes.rows[0]?.total || 0
+      // We'll calculate total crawls after fetching (since we need to know which crawls have instances)
 
       const history: any[] = []
 
@@ -164,68 +158,77 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Apply pagination to the flattened instances
-      const allInstances = history.flatMap((crawl) => 
-        crawl.instances.map((instance: any) => ({ ...instance, crawlId: crawl.id, crawlName: crawl.name }))
-      )
-      
-      // Sort all instances by completed_at DESC (most recent completed first)
-      allInstances.sort((a, b) => {
-        // Use completed_at if available, otherwise fall back to level completion times or started_at
-        const aTime = a.completedAt 
-          ? new Date(a.completedAt).getTime()
-          : a.level3CompletedAt
-          ? new Date(a.level3CompletedAt).getTime()
-          : a.level2CompletedAt
-          ? new Date(a.level2CompletedAt).getTime()
-          : a.level1CompletedAt
-          ? new Date(a.level1CompletedAt).getTime()
-          : new Date(a.startedAt).getTime()
-        
-        const bTime = b.completedAt 
-          ? new Date(b.completedAt).getTime()
-          : b.level3CompletedAt
-          ? new Date(b.level3CompletedAt).getTime()
-          : b.level2CompletedAt
-          ? new Date(b.level2CompletedAt).getTime()
-          : b.level1CompletedAt
-          ? new Date(b.level1CompletedAt).getTime()
-          : new Date(b.startedAt).getTime()
-        
-        return bTime - aTime
+      // Sort instances within each crawl by completed_at DESC (most recent first)
+      history.forEach((crawl) => {
+        crawl.instances.sort((a: any, b: any) => {
+          // Use completed_at if available, otherwise fall back to level completion times or started_at
+          const aTime = a.completedAt 
+            ? new Date(a.completedAt).getTime()
+            : a.level3CompletedAt
+            ? new Date(a.level3CompletedAt).getTime()
+            : a.level2CompletedAt
+            ? new Date(a.level2CompletedAt).getTime()
+            : a.level1CompletedAt
+            ? new Date(a.level1CompletedAt).getTime()
+            : new Date(a.startedAt).getTime()
+          
+          const bTime = b.completedAt 
+            ? new Date(b.completedAt).getTime()
+            : b.level3CompletedAt
+            ? new Date(b.level3CompletedAt).getTime()
+            : b.level2CompletedAt
+            ? new Date(b.level2CompletedAt).getTime()
+            : b.level1CompletedAt
+            ? new Date(b.level1CompletedAt).getTime()
+            : new Date(b.startedAt).getTime()
+          
+          return bTime - aTime
+        })
       })
 
-      // Apply pagination
-      const paginatedInstances = allInstances.slice(offset, offset + limit)
+      // Sort crawls by their most recent instance completion time
+      history.sort((a, b) => {
+        const aMostRecent = a.instances.length > 0 
+          ? (a.instances[0].completedAt 
+              ? new Date(a.instances[0].completedAt).getTime()
+              : a.instances[0].level3CompletedAt
+              ? new Date(a.instances[0].level3CompletedAt).getTime()
+              : a.instances[0].level2CompletedAt
+              ? new Date(a.instances[0].level2CompletedAt).getTime()
+              : a.instances[0].level1CompletedAt
+              ? new Date(a.instances[0].level1CompletedAt).getTime()
+              : new Date(a.instances[0].startedAt).getTime())
+          : 0
+        
+        const bMostRecent = b.instances.length > 0
+          ? (b.instances[0].completedAt 
+              ? new Date(b.instances[0].completedAt).getTime()
+              : b.instances[0].level3CompletedAt
+              ? new Date(b.instances[0].level3CompletedAt).getTime()
+              : b.instances[0].level2CompletedAt
+              ? new Date(b.instances[0].level2CompletedAt).getTime()
+              : b.instances[0].level1CompletedAt
+              ? new Date(b.instances[0].level1CompletedAt).getTime()
+              : new Date(b.instances[0].startedAt).getTime())
+          : 0
+        
+        return bMostRecent - aMostRecent
+      })
 
-      // Group paginated instances back by crawl
-      const paginatedHistoryMap = new Map()
-      for (const instance of paginatedInstances) {
-        if (!paginatedHistoryMap.has(instance.crawlId)) {
-          const crawl = history.find(c => c.id === instance.crawlId)
-          if (crawl) {
-            paginatedHistoryMap.set(instance.crawlId, {
-              ...crawl,
-              instances: [],
-            })
-          }
-        }
-        const crawl = paginatedHistoryMap.get(instance.crawlId)
-        if (crawl) {
-          // Remove crawlId and crawlName from instance before adding
-          const { crawlId, crawlName, ...instanceData } = instance
-          crawl.instances.push(instanceData)
-        }
-      }
+      // Pagination applies to crawls, not instances - each crawl shows ALL its instances
+
+      // Get total count of crawls that have completed instances
+      const totalCrawls = history.length
+      const paginatedCrawls = history.slice(offset, offset + limit)
 
       return NextResponse.json({
         success: true,
-        history: Array.from(paginatedHistoryMap.values()),
+        history: paginatedCrawls,
         pagination: {
           page,
           limit,
-          total,
-          totalPages: Math.ceil(total / limit),
+          total: totalCrawls,
+          totalPages: Math.ceil(totalCrawls / limit),
         },
       })
     } finally {
