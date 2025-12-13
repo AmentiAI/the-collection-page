@@ -4,14 +4,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock, AlertCircle } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, Clock, AlertCircle, Coins } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/Toast'
 import { useWallet } from '@/lib/wallet/compatibility'
 import { MintButton } from '@/components/MintButton'
-import ChestCallout from '@/components/ChestCallout'
 
 type GraveyardEntry = {
   inscriptionId: string
@@ -61,6 +60,73 @@ function formatRelativeTime(value?: string | null) {
   }
 
   return `${diffSeconds}s ago`
+}
+
+function PurchaseBonusBurnButton({ 
+  walletAddress, 
+  powderAvailable, 
+  onPurchaseComplete 
+}: { 
+  walletAddress: string
+  powderAvailable: number
+  onPurchaseComplete: () => Promise<void>
+}) {
+  const toast = useToast()
+  const [purchasing, setPurchasing] = useState(false)
+  const REQUIRED_POWDER = 1000
+
+  const handlePurchase = useCallback(async () => {
+    if (purchasing) return
+
+    if (powderAvailable < REQUIRED_POWDER) {
+      toast.error(`Insufficient ascension powder. Required: ${REQUIRED_POWDER}, Available: ${powderAvailable}`)
+      return
+    }
+
+    setPurchasing(true)
+    try {
+      const response = await fetch('/api/graveyard/purchase-bonus-burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to purchase bonus burn credit.')
+      }
+
+      toast.success(`Purchased +1 bonus burn credit for ${REQUIRED_POWDER} ascension powder!`)
+      await onPurchaseComplete()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to purchase bonus burn credit.'
+      toast.error(message)
+    } finally {
+      setPurchasing(false)
+    }
+  }, [walletAddress, powderAvailable, purchasing, toast, onPurchaseComplete])
+
+  return (
+    <Button
+      type="button"
+      onClick={handlePurchase}
+      disabled={purchasing || powderAvailable < REQUIRED_POWDER}
+      className="flex items-center gap-2 rounded-full border border-amber-500/60 bg-amber-700/80 px-6 py-3 text-sm font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {purchasing ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Purchasing...
+        </>
+      ) : (
+        <>
+          <Coins className="h-4 w-4" />
+          Purchase Bonus Burn Credit ({REQUIRED_POWDER} Powder)
+        </>
+      )}
+    </Button>
+  )
 }
 
 function formatTimeUntilGraveRob(updatedAt: string | null | undefined, createdAt: string | null | undefined): string | null {
@@ -918,14 +984,16 @@ function GraveyardContent() {
             </p>
           )}
           
-          {/* Chest for 300 powder */}
-          <div className="flex justify-center mt-4">
-            <ChestCallout 
-              eventKey="graveyard_chest_300" 
-              grantAmount={300}
-              size="md"
-            />
-          </div>
+          {/* Purchase Bonus Burn Credit Button */}
+          {isWalletConnected && ordinalAddress && (
+            <div className="flex justify-center mt-4">
+              <PurchaseBonusBurnButton 
+                walletAddress={ordinalAddress}
+                powderAvailable={powderAvailable}
+                onPurchaseComplete={loadGraveyard}
+              />
+            </div>
+          )}
         </div>
 
 
@@ -1028,57 +1096,6 @@ function GraveyardContent() {
               </section>
             )}
 
-            {/* Awoken Warning - Playing Both Sides */}
-            {hasPlayedBothSides && (
-              <section className={`relative overflow-hidden rounded-3xl border-2 bg-black/95 ${
-                bothSidesImage === 'heavenly' 
-                  ? 'border-amber-500/60 shadow-[0_0_60px_rgba(251,191,36,0.8)]' 
-                  : 'border-red-500/60 shadow-[0_0_60px_rgba(220,38,38,0.8)]'
-              }`}>
-              
-                  <div className="relative z-10 flex flex-col items-center gap-6 px-8 py-10 text-center">
-                    <div className="relative h-96 w-96 animate-pulse md:h-[32rem] md:w-[32rem]">
-                      <Image
-                        src={bothSidesImage === 'heavenly' ? '/heavenly.png' : '/awaken.png'}
-                        alt={bothSidesImage === 'heavenly' ? 'Divine presence' : 'Something has awoken'}
-                        fill
-                        className={`object-contain ${
-                          bothSidesImage === 'heavenly'
-                            ? 'drop-shadow-[0_0_30px_rgba(251,191,36,0.9)]'
-                            : 'drop-shadow-[0_0_30px_rgba(220,38,38,0.9)]'
-                        }`}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-3">
-                    {bothSidesImage === 'heavenly' ? (
-                      <>
-                        <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-amber-200 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)] md:text-3xl">
-                          Divine Conflict
-                        </h2>
-                        <p className="max-w-2xl text-base font-semibold uppercase tracking-[0.35em] text-amber-300/90 drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]">
-                          The heavens watch your indecision!
-                        </p>
-                        <p className="mt-2 max-w-xl text-xs uppercase tracking-[0.3em] text-amber-200/70">
-                          You have chosen to walk both the path of the ascended and the damned. This defiance does not go unnoticed.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-red-200 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)] md:text-3xl">
-                          Playing Both Sides?
-                        </h2>
-                        <p className="max-w-2xl text-base font-semibold uppercase tracking-[0.35em] text-red-300/90 drop-shadow-[0_0_10px_rgba(220,38,38,0.6)]">
-                          Your ignorance has awoken something!
-                        </p>
-                        <p className="mt-2 max-w-xl text-xs uppercase tracking-[0.3em] text-red-200/70">
-                          You have chosen to walk both the path of the ascended and the damned. This defiance does not go unnoticed.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
 
             <section className="flex flex-col gap-5">
             {error && (
