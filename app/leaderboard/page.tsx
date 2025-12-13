@@ -140,13 +140,10 @@ export default function LeaderboardPage() {
       
       <div className="container mx-auto px-4 py-12 max-w-6xl">
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-black uppercase tracking-[0.3em] mb-4 flex items-center justify-center gap-4">
-            <Trophy className="h-12 w-12 text-yellow-500" />
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-4 flex items-center justify-center gap-2 sm:gap-4">
+            <Trophy className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-yellow-500" />
             Angels vs Demons Leaderboard
           </h1>
-          <p className="text-gray-400 text-lg">
-            Score = Total Battles - Total Deaths
-          </p>
         </div>
 
         {loading ? (
@@ -202,16 +199,6 @@ export default function LeaderboardPage() {
                       {angelic.total_deaths.toLocaleString()}
                     </span>
                   </div>
-
-                  <div className="flex items-center justify-between p-4 bg-black/40 rounded border border-green-500/30">
-                    <div className="flex items-center gap-3">
-                      <Heart className="h-5 w-5 text-green-400" />
-                      <span className="text-gray-300">Resurrections</span>
-                    </div>
-                    <span className="text-2xl font-bold text-green-400">
-                      {angelic.total_resurrections.toLocaleString()}
-                    </span>
-                  </div>
                 </div>
               </div>
             )}
@@ -261,16 +248,6 @@ export default function LeaderboardPage() {
                     </div>
                     <span className="text-2xl font-bold text-red-400">
                       {demonic.total_deaths.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-black/40 rounded border border-green-500/30">
-                    <div className="flex items-center gap-3">
-                      <Heart className="h-5 w-5 text-green-400" />
-                      <span className="text-gray-300">Resurrections</span>
-                    </div>
-                    <span className="text-2xl font-bold text-green-400">
-                      {demonic.total_resurrections.toLocaleString()}
                     </span>
                   </div>
                 </div>

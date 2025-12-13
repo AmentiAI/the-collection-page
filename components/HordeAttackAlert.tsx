@@ -238,11 +238,11 @@ export default function HordeAttackAlert() {
       {/* Animated background effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-red-500/20 to-transparent animate-pulse" />
       
-      <div className="relative z-10 container mx-auto px-4 py-2 sm:py-3 flex items-center justify-center gap-3 flex-wrap">
-        <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-200 flex-shrink-0 animate-pulse" />
-        <span className="text-red-100 font-bold text-sm sm:text-base md:text-lg uppercase tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+      <div className="relative z-10 container mx-auto px-2 sm:px-4 py-1.5 sm:py-2 md:py-3 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+        <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-red-200 flex-shrink-0 animate-pulse" />
+        <span className="text-red-100 font-bold text-xs sm:text-sm md:text-base lg:text-lg uppercase tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
           {readyCount !== null && (
-            <span className="text-red-50 font-mono mr-2">
+            <span className="text-red-50 font-mono mr-1 sm:mr-2">
               Army: {readyCount}
               {deadCount !== null && deadCount > 0 && (
                 <span className="text-gray-400"> - Dead: {deadCount}</span>
@@ -252,12 +252,12 @@ export default function HordeAttackAlert() {
               )}
             </span>
           )}
-          {readyCount !== null && <span className="text-red-200/70 mx-2">|</span>}
-          Horde Attacks: <span className="text-red-50 font-mono text-base sm:text-lg md:text-xl ml-1">{formatCountdown(timeRemaining)}</span>
+          {readyCount !== null && <span className="text-red-200/70 mx-1 sm:mx-2">|</span>}
+          Horde Attacks: <span className="text-red-50 font-mono text-xs sm:text-sm md:text-base lg:text-lg ml-1">{formatCountdown(timeRemaining)}</span>
           {dungeonCrawlTimeRemaining !== null && dungeonCrawlTimeRemaining > 0 && (
             <>
-              <span className="text-red-200/70 mx-2">|</span>
-              <span className="text-red-100">Crawl: <span className="text-red-50 font-mono text-base sm:text-lg md:text-xl ml-1">{formatMinutesCountdown(dungeonCrawlTimeRemaining)}</span></span>
+              <span className="text-red-200/70 mx-1 sm:mx-2">|</span>
+              <span className="text-red-100">Crawl: <span className="text-red-50 font-mono text-xs sm:text-sm md:text-base lg:text-lg ml-1">{formatMinutesCountdown(dungeonCrawlTimeRemaining)}</span></span>
             </>
           )}
         </span>
