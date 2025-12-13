@@ -308,12 +308,6 @@ export default function RedemptionLeaderboardPage() {
                   <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn&apos;t start with &quot;ascended_&quot; (abyss_burns)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Mints</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per mint</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each image in the mint queue from tree of ascension (ascended_images_mint_queue)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
                   <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-10 per resurrection</td>
@@ -326,7 +320,7 @@ export default function RedemptionLeaderboardPage() {
                       <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
-                            <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.5) + Burns + Mints</span>
+                            <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
                             {' + '}
                             <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
@@ -520,9 +514,8 @@ export default function RedemptionLeaderboardPage() {
                             {entry.abyss_burns_count.toLocaleString()}
                             <span className="text-green-400 ml-1">({entry.abyss_burns_count > 0 ? '+' : ''}{entry.abyss_burns_count.toLocaleString()})</span>
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
+                          <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">
                             {entry.mints_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.mints_count > 0 ? '+' : ''}{entry.mints_count.toLocaleString()})</span>
                           </td>
                         </tr>
                         {isExpanded && (
