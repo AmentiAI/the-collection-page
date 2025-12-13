@@ -531,7 +531,7 @@ export default function RedemptionLeaderboardPage() {
                         <div className="text-xs text-gray-400 mt-2">
                           The efficiency curve (max_army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
                           Score uses your PEAK army size (max_army_count), not your current army size, to prevent score manipulation by downsizing armies.
-                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus added AFTER the division, so they're not affected by army count! 
+                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus added AFTER the division, so they&apos;re not affected by army count! 
                           Balanced Army Bonus: +10 points if you have all angels, all demons, or equal amounts of both (added after division).
                           Resurrections are penalized 10x to encourage keeping armies alive.
                         </div>
