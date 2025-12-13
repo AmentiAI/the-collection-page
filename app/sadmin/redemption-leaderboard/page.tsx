@@ -274,7 +274,7 @@ export default function RedemptionLeaderboardPage() {
                 <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Battles</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1.5 per battle</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per battle</td>
                   <td className="px-4 py-3 text-xs text-gray-400">Each time your army participates in a horde attack (mega_monster_attack_logs)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
@@ -302,6 +302,18 @@ export default function RedemptionLeaderboardPage() {
                   <td className="px-4 py-3 text-xs text-gray-400">Each mega monster killed (delivered the final blow - mega_monsters.killed_by matches your inscription)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Burns</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per burn</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn't start with "ascended_" (abyss_burns)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Mints</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per mint</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each image in the mint queue from tree of ascension (ascended_images_mint_queue)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
                   <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-10 per resurrection</td>
@@ -314,7 +326,7 @@ export default function RedemptionLeaderboardPage() {
                       <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
-                            <span className="text-green-400">(Battles × 1.5) + Heals + Crystallizations + (Ascension Circles × 0.5)</span>
+                            <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.5) + Burns + Mints</span>
                             {' + '}
                             <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
