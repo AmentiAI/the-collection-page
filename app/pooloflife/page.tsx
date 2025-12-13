@@ -6,7 +6,6 @@ import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Heart, Clock, Shield } from 'lucide-react'
-import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface ArmyStatus {
@@ -303,8 +302,7 @@ export default function PoolOfLifePage() {
   })
 
   return (
-    <GlobalStartTimeLock>
-      <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
@@ -483,7 +481,6 @@ export default function PoolOfLifePage() {
           )}
         </div>
       </div>
-    </GlobalStartTimeLock>
   )
 }
 

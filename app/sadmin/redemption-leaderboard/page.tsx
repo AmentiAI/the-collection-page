@@ -261,7 +261,7 @@ export default function RedemptionLeaderboardPage() {
                 <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Battles</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per battle</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1.5 per battle</td>
                   <td className="px-4 py-3 text-xs text-gray-400">Each time your army participates in a horde attack (mega_monster_attack_logs)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
@@ -279,7 +279,7 @@ export default function RedemptionLeaderboardPage() {
                 <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Ascension Circles</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.25 per circle</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per circle</td>
                   <td className="px-4 py-3 text-xs text-gray-400">Each ascension circle created or participated in (summoning_powder_circles + summoning_powder_participants)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
@@ -301,7 +301,7 @@ export default function RedemptionLeaderboardPage() {
                       <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
-                            <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.25)</span>
+                            <span className="text-green-400">(Battles × 1.5) + Heals + Crystallizations + (Ascension Circles × 0.5)</span>
                             {' + '}
                             <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
