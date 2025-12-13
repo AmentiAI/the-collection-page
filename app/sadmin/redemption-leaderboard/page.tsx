@@ -19,6 +19,7 @@ type LeaderboardEntry = {
   resurrections_count: number
   killing_blows_count: number
   abyss_burns_count: number
+  mints_count: number
   total_score: number
 }
 
@@ -388,12 +389,15 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-purple-200">
                     Burns
                   </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-green-200">
+                    Mints
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={15} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={16} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -497,10 +501,13 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.abyss_burns_count.toLocaleString()}
                           </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
+                            {entry.mints_count.toLocaleString()}
+                          </td>
                         </tr>
                         {isExpanded && (
                           <tr key={`${entry.wallet_address}-details`} className="bg-red-950/30">
-                            <td colSpan={15} className="px-4 py-6">
+                            <td colSpan={16} className="px-4 py-6">
                               {details?.loading ? (
                                 <div className="flex items-center justify-center py-8">
                                   <Loader2 className="h-6 w-6 animate-spin text-red-400" />
