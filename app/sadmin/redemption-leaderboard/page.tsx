@@ -325,7 +325,7 @@ export default function RedemptionLeaderboardPage() {
                             <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
                             <span className="text-red-400">Resurrections × 10</span>
-                          ) ÷ <span className="text-yellow-400">Army Count<sup>0.4</sup></span>
+                          ) ÷ <span className="text-yellow-400">Army Count<sup>0.25</sup></span>
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
                           The efficiency curve (army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 

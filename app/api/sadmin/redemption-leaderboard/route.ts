@@ -170,8 +170,9 @@ export async function GET(request: NextRequest) {
         abyss_burns_count,
         mints_count,
         -- Calculate total score with resurrection penalty and curve for small armies
-        -- Formula: (activities + killing_blows*50 + burns - resurrections*10) / (army_count^0.4)
+        -- Formula: (activities + killing_blows*50 + burns - resurrections*10) / (army_count^0.25)
         -- This rewards efficiency and penalizes deaths, helping smaller armies compete
+        -- The lower exponent (0.25) makes results closer together for all army sizes
         -- Battles are worth 1 point each
         -- Heals are worth 0.5 points each
         -- Ascension circles are worth 0.5 points each
@@ -181,7 +182,7 @@ export async function GET(request: NextRequest) {
           WHEN army_count > 0 THEN
             (
               (battles_count + (heals_count * 0.5) + crystallization_count + (ascension_circle_count * 0.5) + (killing_blows_count * 50) + abyss_burns_count - resurrections_count * 10)::numeric
-              / POWER(GREATEST(army_count, 1)::numeric, 0.4)
+              / POWER(GREATEST(army_count, 1)::numeric, 0.25)
             )::numeric(10, 2)
           ELSE 0
         END as total_score
