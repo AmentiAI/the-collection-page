@@ -305,7 +305,7 @@ export default function RedemptionLeaderboardPage() {
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Burns</td>
                   <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per burn</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn't start with "ascended_" (abyss_burns)</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn&apos;t start with &quot;ascended_&quot; (abyss_burns)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
