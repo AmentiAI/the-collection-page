@@ -33,6 +33,36 @@ export async function GET(request: NextRequest) {
     client = await getPool().connect()
     console.log('[mega-monster-attack] Database connected')
 
+    // Check global start time - skip all cron logic if timer hasn't started
+    const globalStartTimeResult = await client.query(
+      `SELECT setting_value FROM global_settings WHERE setting_key = 'global_start_time'`
+    )
+
+    if (globalStartTimeResult.rows.length > 0) {
+      const settingValue = globalStartTimeResult.rows[0].setting_value
+      if (settingValue && settingValue.trim() !== '') {
+        const startTime = new Date(settingValue.trim())
+        if (!isNaN(startTime.getTime())) {
+          const currentTime = new Date()
+          const timeUntilStart = startTime.getTime() - currentTime.getTime()
+          
+          if (timeUntilStart > 0) {
+            console.log('[mega-monster-attack] Global start time not reached, skipping cron execution', {
+              startTime: startTime.toISOString(),
+              currentTime: currentTime.toISOString(),
+              timeUntilStart: Math.floor(timeUntilStart / 1000) + ' seconds'
+            })
+            return NextResponse.json({
+              success: true,
+              message: 'Global start time not reached, cron skipped',
+              skipped: true,
+              timeUntilStart: Math.floor(timeUntilStart / 1000)
+            })
+          }
+        }
+      }
+    }
+
     // Get all mega monsters with health > 0 (exclude dead monsters)
     const monstersResult = await client.query(
       'SELECT id FROM mega_monsters WHERE (image_blob_url IS NOT NULL OR image_data IS NOT NULL) AND health > 0'
