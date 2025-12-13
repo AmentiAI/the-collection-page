@@ -89,8 +89,9 @@ export async function GET(request: NextRequest) {
       }
       
       // If timing table says 'active' but no actual instance exists, fix the timing table
+      let timingInconsistencyFixed = false
       if (timing?.instanceStatus === 'active' && !hasActiveInstance) {
-        console.log(`[cron/dungeon-crawl-restart] ⚠️ Timing table inconsistency detected for crawl ${crawl.id}: timing says 'active' but no actual instance exists. Fixing...`)
+        console.log(`[cron/dungeon-crawl-restart] ⚠️ Timing table inconsistency detected for crawl ${crawl.id} (${crawl.name}): timing says 'active' but no actual instance exists. Fixing...`)
         
         // Update timing table to reflect actual state
         if (lastCompleted) {
@@ -117,26 +118,35 @@ export async function GET(request: NextRequest) {
         // Refresh timing after fix
         const updatedTiming = await getCrawlTiming(client, crawl.id)
         timing = updatedTiming
+        timingInconsistencyFixed = true
+        console.log(`[cron/dungeon-crawl-restart] ✅ Fixed timing table for crawl ${crawl.id} (${crawl.name}) - new status: ${timing?.instanceStatus}`)
       }
       
       // Check timing table to see if we should create a new instance
-      const shouldCreate = await shouldCreateNewInstance(
-        client,
-        crawl.id,
-        crawl.restart_after_failure_hours,
-        crawl.cooldown_hours,
-        crawl.never_restart_after_completion
-      )
+      // But if we just fixed an inconsistency and it's overdue, skip the check and create immediately
+      let finalShouldCreate = false
+      let finalReason = ''
       
-      // Override shouldCreate if no actual instance exists and it's overdue
-      let finalShouldCreate = shouldCreate.shouldCreate
-      let finalReason = shouldCreate.reason
-      
-      if (!hasActiveInstance && !finalShouldCreate) {
-        // Check if it's actually overdue
-        if (expectedRestartAt && expectedRestartAt <= now) {
+      if (timingInconsistencyFixed && expectedRestartAt && expectedRestartAt <= now) {
+        // Timing table was inconsistent and it's overdue - create immediately
+        finalShouldCreate = true
+        finalReason = 'OVERDUE - timing table was inconsistent, now fixed and overdue'
+      } else {
+        // Normal check
+        const shouldCreate = await shouldCreateNewInstance(
+          client,
+          crawl.id,
+          crawl.restart_after_failure_hours,
+          crawl.cooldown_hours,
+          crawl.never_restart_after_completion
+        )
+        finalShouldCreate = shouldCreate.shouldCreate
+        finalReason = shouldCreate.reason || ''
+        
+        // Override if no actual instance exists and it's overdue (safety check)
+        if (!hasActiveInstance && !finalShouldCreate && expectedRestartAt && expectedRestartAt <= now) {
           finalShouldCreate = true
-          finalReason = 'OVERDUE - timing table was inconsistent, now fixed'
+          finalReason = 'OVERDUE - expected restart time has passed'
         }
       }
       
