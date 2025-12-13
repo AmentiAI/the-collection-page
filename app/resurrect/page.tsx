@@ -7,7 +7,6 @@ import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Skull, Clock, CheckCircle } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
-import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
@@ -178,9 +177,7 @@ export default function ResurrectPage() {
   }, [address, toast, fetchDeadArmies])
 
   return (
-    <GlobalStartTimeLock>
-
-        <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white">
         <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
@@ -345,7 +342,6 @@ export default function ResurrectPage() {
           )}
         </div>
       </div>
-    </GlobalStartTimeLock>
   )
 }
 

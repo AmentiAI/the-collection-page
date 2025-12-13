@@ -89,10 +89,10 @@ export default function GlobalStartTimeLock({ children }: GlobalStartTimeLockPro
           <div className="flex flex-col items-center justify-center gap-6 text-center">
             <AlertTriangle className="h-16 w-16 text-red-500 animate-pulse" />
             <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-red-200 md:text-3xl">
-              Access Locked
+              DANGER!
             </h2>
             <p className="text-lg text-red-300/90 max-w-xl">
-              The horde has build some kind of machine...it glows with explosive power!
+              The horde has built some kind of machine...it glows with explosive power!
             </p>
             <div className="mt-4 flex flex-col items-center gap-2">
               <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">
