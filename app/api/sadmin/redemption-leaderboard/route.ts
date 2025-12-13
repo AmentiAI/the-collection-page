@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
           SELECT DISTINCT LOWER(creator_wallet) as wallet_address FROM summoning_powder_circles WHERE creator_wallet IS NOT NULL
           UNION
           SELECT DISTINCT LOWER(wallet) as wallet_address FROM summoning_powder_participants WHERE wallet IS NOT NULL
+          UNION
+          SELECT DISTINCT LOWER(ordinal_wallet) as wallet_address FROM abyss_burns WHERE ordinal_wallet IS NOT NULL AND inscription_id IS NOT NULL AND NOT (inscription_id LIKE 'ascended_%')
+          UNION
+          SELECT DISTINCT LOWER(payment_wallet) as wallet_address FROM abyss_burns WHERE payment_wallet IS NOT NULL AND inscription_id IS NOT NULL AND NOT (inscription_id LIKE 'ascended_%')
         ) all_wallets
       ),
       -- Map each wallet to its primary wallet (or itself if primary)
@@ -66,12 +70,11 @@ export async function GET(request: NextRequest) {
           COALESCE((SELECT username FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_username,
           COALESCE((SELECT avatar_url FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_avatar_url,
           -- Army counts (aggregated across all linked wallets)
+          -- Count all armies regardless of health/death status for consistency
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
-              AND bo.life_force > 0
-              AND bo.is_dead = false
           ), 0) as army_count,
           COALESCE((
             SELECT COUNT(*)::int
@@ -131,7 +134,16 @@ export async function GET(request: NextRequest) {
                 WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
                   AND bo.inscription_id IS NOT NULL
               )
-          ), 0) as killing_blows_count
+          ), 0) as killing_blows_count,
+          -- Abyss burns: count burns where inscription_id doesn't start with "ascended_"
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM abyss_burns ab
+            WHERE (LOWER(ab.ordinal_wallet) = ANY(pwg.all_wallets_lower)
+              OR LOWER(ab.payment_wallet) = ANY(pwg.all_wallets_lower))
+              AND ab.inscription_id IS NOT NULL
+              AND NOT (ab.inscription_id LIKE 'ascended_%')
+          ), 0) as abyss_burns_count
         FROM primary_wallet_groups pwg
       )
       SELECT 
@@ -147,6 +159,7 @@ export async function GET(request: NextRequest) {
         ascension_circle_count,
         resurrections_count,
         killing_blows_count,
+        abyss_burns_count,
         -- Calculate total score with resurrection penalty and curve for small armies
         -- Formula: (activities + killing_blows*50 - resurrections*10) / (army_count^0.4)
         -- This rewards efficiency and penalizes deaths, helping smaller armies compete
@@ -162,7 +175,7 @@ export async function GET(request: NextRequest) {
           ELSE 0
         END as total_score
       FROM wallet_stats
-      WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0 OR killing_blows_count > 0
+      WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0 OR killing_blows_count > 0 OR abyss_burns_count > 0
       ORDER BY 
         total_score DESC,
         wallet_address ASC
@@ -180,6 +193,7 @@ export async function GET(request: NextRequest) {
       ascension_circle_count: Number(row.ascension_circle_count) || 0,
       resurrections_count: Number(row.resurrections_count) || 0,
       killing_blows_count: Number(row.killing_blows_count) || 0,
+      abyss_burns_count: Number(row.abyss_burns_count) || 0,
       total_score: Number(row.total_score) || 0,
     }))
 

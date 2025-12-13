@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Trophy, Loader2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trophy, Loader2, RefreshCw, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
 import Image from 'next/image'
 import Header from '@/components/Header'
 
@@ -18,6 +18,7 @@ type LeaderboardEntry = {
   ascension_circle_count: number
   resurrections_count: number
   killing_blows_count: number
+  abyss_burns_count: number
   total_score: number
 }
 
@@ -46,6 +47,17 @@ export default function RedemptionLeaderboardPage() {
   const [editingCell, setEditingCell] = useState<{ wallet: string; inscriptionId: string; field: string } | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
   const [saving, setSaving] = useState<Set<string>>(new Set())
+  const [copiedWallet, setCopiedWallet] = useState<string | null>(null)
+
+  const handleCopyWallet = async (walletAddress: string) => {
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      setCopiedWallet(walletAddress)
+      setTimeout(() => setCopiedWallet(null), 2000)
+    } catch (error) {
+      console.error('Failed to copy wallet address:', error)
+    }
+  }
 
   const fetchLeaderboard = async () => {
     try {
@@ -344,10 +356,10 @@ export default function RedemptionLeaderboardPage() {
                     Discord
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Total Score
+                    Score
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Army Count
+                    Army
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Angels
@@ -362,23 +374,26 @@ export default function RedemptionLeaderboardPage() {
                     Heals
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Crystallizations
+                    Crystal
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Ascension Circles
+                    Ascension
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
-                    Resurrections
+                    Res
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200">
-                    Killing Blows
+                    Kills
+                  </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-purple-200">
+                    Burns
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={15} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -408,8 +423,26 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-center font-mono text-xs font-bold text-amber-400">
                             #{index + 1}
                           </td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-200">
-                            {truncateWallet(entry.wallet_address)}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-gray-200">
+                                {truncateWallet(entry.wallet_address)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCopyWallet(entry.wallet_address)
+                                }}
+                                className="text-gray-400 hover:text-white transition-colors"
+                                title="Copy full wallet address"
+                              >
+                                {copiedWallet === entry.wallet_address ? (
+                                  <Check className="h-3 w-3 text-green-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -461,10 +494,13 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-right font-mono text-xs font-bold text-yellow-400">
                             {entry.killing_blows_count.toLocaleString()}
                           </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
+                            {entry.abyss_burns_count.toLocaleString()}
+                          </td>
                         </tr>
                         {isExpanded && (
                           <tr key={`${entry.wallet_address}-details`} className="bg-red-950/30">
-                            <td colSpan={14} className="px-4 py-6">
+                            <td colSpan={15} className="px-4 py-6">
                               {details?.loading ? (
                                 <div className="flex items-center justify-center py-8">
                                   <Loader2 className="h-6 w-6 animate-spin text-red-400" />
