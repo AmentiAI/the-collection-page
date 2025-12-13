@@ -98,7 +98,9 @@ export default function RedemptionLeaderboardPage() {
       setExpandedRows(newExpanded)
     } else {
       // Expand - fetch army details if not already loaded
-      setExpandedRows(new Set([...expandedRows, walletAddress]))
+      const newExpanded = new Set(expandedRows)
+      newExpanded.add(walletAddress)
+      setExpandedRows(newExpanded)
       
       if (!armyDetails[walletAddress]) {
         setArmyDetails(prev => ({
@@ -143,7 +145,11 @@ export default function RedemptionLeaderboardPage() {
     if (!editingCell) return
     
     const cellKey = `${wallet}-${inscriptionId}-${field}`
-    setSaving(prev => new Set([...prev, cellKey]))
+    setSaving(prev => {
+      const newSaving = new Set(prev)
+      newSaving.add(cellKey)
+      return newSaving
+    })
     
     try {
       const updateData: any = {}

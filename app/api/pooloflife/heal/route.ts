@@ -107,14 +107,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Log summary before returning
-    console.log(`[pooloflife/heal] Summary:`, {
-      totalArmies: armiesWithCaps.length,
-      healedCount,
-      errorsCount: errors.length,
-      walletAddress,
-    })
-    
     // Return success
     if (healedCount > 0) {
       return NextResponse.json({
