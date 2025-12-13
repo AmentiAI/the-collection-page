@@ -105,10 +105,11 @@ export async function GET(request: NextRequest) {
         -- Calculate total score with resurrection penalty and curve for small armies
         -- Formula: (activities - resurrections*3) / (army_count^0.4)
         -- This rewards efficiency and penalizes deaths, helping smaller armies compete
+        -- Ascension circles are worth 0.25 points each
         CASE 
           WHEN army_count > 0 THEN
             (
-              (battles_count + heals_count + crystallization_count + ascension_circle_count - resurrections_count * 3)::numeric
+              (battles_count + heals_count + crystallization_count + (ascension_circle_count * 0.25) - resurrections_count * 3)::numeric
               / POWER(GREATEST(army_count, 1)::numeric, 0.4)
             )::numeric(10, 2)
           ELSE 0
