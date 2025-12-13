@@ -460,31 +460,34 @@ export default function BattlePage() {
           )}
 
           {connected && hasListed && (
-            <div className="rounded-2xl border-2 border-amber-500/70 bg-amber-950/30 p-8 text-center">
-              <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-amber-200 mb-2">
-                Listed Ordinals Detected
-              </h2>
-              <p className="text-gray-400 mb-4">
-                You have ordinals listed on Magic Eden. Please delist them before
-                entering battle.
-              </p>
-              <Button
-                onClick={fetchBattleOrdinals}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                Check Again
-              </Button>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+              <div className="rounded-2xl border-2 border-amber-500/70 bg-amber-950/30 p-8 text-center max-w-md mx-4">
+                <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-amber-200 mb-2">
+                  Listed Ordinals Detected
+                </h2>
+                <p className="text-gray-400 mb-4">
+                  You must delist to continue playing.
+                </p>
+                <Button
+                  onClick={fetchBattleOrdinals}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  Check Again
+                </Button>
+              </div>
             </div>
           )}
 
-          {connected && !hasListed && loading && (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-12 w-12 animate-spin text-red-500" />
-            </div>
-          )}
+          {connected && !hasListed && (
+            <>
+              {loading && (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="h-12 w-12 animate-spin text-red-500" />
+                </div>
+              )}
 
-          {connected && !hasListed && !loading && ordinals.length === 0 && (
+              {!loading && ordinals.length === 0 && (
             <div className="rounded-2xl border-2 border-gray-600/50 bg-gray-900/30 p-8 text-center">
               <Sword className="h-16 w-16 text-gray-500 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-300 mb-2">
@@ -495,10 +498,10 @@ export default function BattlePage() {
                 they are all listed.
               </p>
             </div>
-          )}
+              )}
 
-          {/* Reward Items Section */}
-          {connected && !hasListed && rewardItems.length > 0 && (
+              {/* Reward Items Section */}
+              {rewardItems.length > 0 && (
             <div className="mb-8 rounded-2xl border-2 border-purple-500/70 bg-purple-950/30 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-purple-200 flex items-center gap-2">
@@ -624,10 +627,10 @@ export default function BattlePage() {
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {connected && !hasListed && !loading && ordinals.length > 0 && (
-            <div className="space-y-12">
+              {!loading && ordinals.length > 0 && (
+                <div className="space-y-12">
               {angelicOrdinals.length > 0 && (
                 <section>
                   <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-cyan-400 mb-6 flex items-center gap-3">
@@ -871,7 +874,7 @@ export default function BattlePage() {
               )}
 
               {/* Attack Logs Section */}
-              {connected && !hasListed && attackLogs.length > 0 && (
+              {attackLogs.length > 0 && (
                 <section>
                   <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-yellow-500 mb-6 flex items-center gap-3">
                     <Sword className="h-8 w-8" />
@@ -966,7 +969,9 @@ export default function BattlePage() {
                   </div>
                 </section>
               )}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

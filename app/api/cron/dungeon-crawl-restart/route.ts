@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       // Get detailed information about this crawl
       let timing = await getCrawlTiming(client, crawl.id)
       
-      // Get last failed and completed instances
+      // Get the MOST RECENT instance (failed or completed) - prioritize by date, not status
       const lastInstancesRes = await client.query(
         `SELECT 
           id,
@@ -45,15 +45,33 @@ export async function GET(request: NextRequest) {
          FROM dungeon_crawl_instances
          WHERE crawl_id = $1
            AND status IN ('failed', 'completed')
-         ORDER BY 
-           CASE WHEN status = 'completed' THEN 1 ELSE 2 END,
-           COALESCE(completed_at, updated_at) DESC
-         LIMIT 2`,
+         ORDER BY COALESCE(completed_at, updated_at) DESC
+         LIMIT 1`,
         [crawl.id]
       )
       
-      const lastCompleted = lastInstancesRes.rows.find((r: any) => r.status === 'completed')
-      const lastFailed = lastInstancesRes.rows.find((r: any) => r.status === 'failed')
+      const lastInstance = lastInstancesRes.rows[0] || null
+      
+      // Also get separate instances for reporting
+      const lastCompletedRes = await client.query(
+        `SELECT id, status, completed_at, updated_at, started_at
+         FROM dungeon_crawl_instances
+         WHERE crawl_id = $1 AND status = 'completed'
+         ORDER BY completed_at DESC
+         LIMIT 1`,
+        [crawl.id]
+      )
+      const lastCompleted = lastCompletedRes.rows[0] || null
+      
+      const lastFailedRes = await client.query(
+        `SELECT id, status, completed_at, updated_at, started_at
+         FROM dungeon_crawl_instances
+         WHERE crawl_id = $1 AND status = 'failed'
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [crawl.id]
+      )
+      const lastFailed = lastFailedRes.rows[0] || null
       
       // Check for active instance
       const activeCheck = await client.query(
@@ -65,27 +83,30 @@ export async function GET(request: NextRequest) {
       )
       const hasActiveInstance = activeCheck.rows[0]?.count > 0
       
-      // Calculate expected restart times
+      // Calculate expected restart times based on MOST RECENT instance
       let expectedRestartAt: Date | null = null
       let timeSinceLastInstance: number | null = null
       let lastInstanceType: 'completed' | 'failed' | null = null
       let lastInstanceEndedAt: Date | null = null
       
-      if (lastCompleted) {
-        const completedAt = new Date(lastCompleted.completed_at)
-        lastInstanceType = 'completed'
-        lastInstanceEndedAt = completedAt
-        timeSinceLastInstance = now.getTime() - completedAt.getTime()
-        
-        if (!crawl.never_restart_after_completion) {
-          expectedRestartAt = new Date(completedAt.getTime() + crawl.cooldown_hours * 60 * 60 * 1000)
+      if (lastInstance) {
+        // Use the most recent instance (whether failed or completed)
+        if (lastInstance.status === 'completed') {
+          const completedAt = new Date(lastInstance.completed_at)
+          lastInstanceType = 'completed'
+          lastInstanceEndedAt = completedAt
+          timeSinceLastInstance = now.getTime() - completedAt.getTime()
+          
+          if (!crawl.never_restart_after_completion) {
+            expectedRestartAt = new Date(completedAt.getTime() + crawl.cooldown_hours * 60 * 60 * 1000)
+          }
+        } else if (lastInstance.status === 'failed') {
+          const failedAt = new Date(lastInstance.updated_at)
+          lastInstanceType = 'failed'
+          lastInstanceEndedAt = failedAt
+          timeSinceLastInstance = now.getTime() - failedAt.getTime()
+          expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
         }
-      } else if (lastFailed) {
-        const failedAt = new Date(lastFailed.updated_at)
-        lastInstanceType = 'failed'
-        lastInstanceEndedAt = failedAt
-        timeSinceLastInstance = now.getTime() - failedAt.getTime()
-        expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
       }
       
       // If timing table says 'active' but no actual instance exists, fix the timing table
@@ -93,17 +114,13 @@ export async function GET(request: NextRequest) {
       if (timing?.instanceStatus === 'active' && !hasActiveInstance) {
         console.log(`[cron/dungeon-crawl-restart] ⚠️ Timing table inconsistency detected for crawl ${crawl.id} (${crawl.name}): timing says 'active' but no actual instance exists. Fixing...`)
         
-        // Update timing table to reflect actual state
-        if (lastCompleted) {
+        // Update timing table to reflect actual state using the most recent instance
+        if (lastInstance) {
           await upsertCrawlTiming(client, crawl.id, {
-            instanceStatus: 'completed',
-            instanceEndedAt: new Date(lastCompleted.completed_at),
-            nextInstanceStartsAt: expectedRestartAt || null,
-          })
-        } else if (lastFailed) {
-          await upsertCrawlTiming(client, crawl.id, {
-            instanceStatus: 'failed',
-            instanceEndedAt: new Date(lastFailed.updated_at),
+            instanceStatus: lastInstance.status,
+            instanceEndedAt: lastInstance.status === 'completed' 
+              ? new Date(lastInstance.completed_at)
+              : new Date(lastInstance.updated_at),
             nextInstanceStartsAt: expectedRestartAt || null,
           })
         } else {
@@ -184,13 +201,6 @@ export async function GET(request: NextRequest) {
 
       if (!finalShouldCreate) {
         // Not time yet, skip
-        continue
-      }
-
-      // TEMPORARILY DISABLED: Block instance creation when overdue
-      // TODO: Re-enable after testing
-      if (expectedRestartAt && expectedRestartAt <= now) {
-        console.log(`[cron/dungeon-crawl-restart] 🚫 BLOCKED: Would create instance for overdue crawl ${crawl.id} (${crawl.name}), but creation is temporarily disabled`)
         continue
       }
 
