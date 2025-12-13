@@ -10,7 +10,7 @@ import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
-import { Loader2, Shield, Sword, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Loader2, Shield, Sword, AlertCircle, CheckCircle2, Skull, Trophy } from 'lucide-react'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
@@ -44,6 +44,8 @@ export default function BattlePage() {
   const [applyingReward, setApplyingReward] = useState<string | null>(null)
   const [showRewardModal, setShowRewardModal] = useState<string | null>(null)
   const [selectedOrdinalForItem, setSelectedOrdinalForItem] = useState<Record<string, string | null>>({})
+  const [killingBlows, setKillingBlows] = useState<any[]>([])
+  const [loadingKillingBlows, setLoadingKillingBlows] = useState(false)
 
   const handleHolderVerified = useCallback((holder: boolean) => {
     setIsHolder(holder)
@@ -140,15 +142,42 @@ export default function BattlePage() {
     }
   }, [address])
 
+  const fetchKillingBlows = useCallback(async () => {
+    if (!address) {
+      setKillingBlows([])
+      return
+    }
+
+    setLoadingKillingBlows(true)
+    try {
+      const response = await fetch(
+        `/api/battle/killing-blows?walletAddress=${encodeURIComponent(address)}`,
+        { cache: 'no-store' }
+      )
+      if (!response.ok) throw new Error('Failed to fetch killing blows')
+      const data = await response.json()
+      if (data.success) {
+        setKillingBlows(data.killingBlows || [])
+      }
+    } catch (error) {
+      console.error('Error fetching killing blows:', error)
+      setKillingBlows([])
+    } finally {
+      setLoadingKillingBlows(false)
+    }
+  }, [address])
+
   useEffect(() => {
     if (connected && address && !hasListed) {
       fetchBattleOrdinals()
       fetchAttackLogs()
       fetchRewardItems()
+      fetchKillingBlows()
     } else {
       setOrdinals([])
       setAttackLogs([])
       setRewardItems([])
+      setKillingBlows([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, address, hasListed])
@@ -336,6 +365,56 @@ export default function BattlePage() {
             </p>
           </div>
           
+          {/* Killing Blows Section */}
+          {connected && killingBlows.length > 0 && (
+            <div className="mb-6 rounded-lg border-2 border-red-500/70 bg-red-950/30 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Trophy className="h-8 w-8 text-yellow-400" />
+                <h2 className="text-2xl font-black uppercase tracking-wide text-yellow-400">
+                  Killing Blows
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {killingBlows.map((kill) => (
+                  <div
+                    key={kill.id}
+                    className="relative bg-black/60 border-2 border-yellow-500/50 rounded-lg overflow-hidden hover:border-yellow-400 transition-all"
+                  >
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Skull className="h-5 w-5 text-red-400" />
+                        <span className="text-sm font-bold text-yellow-400 uppercase">
+                          You delivered the killing blow to:
+                        </span>
+                      </div>
+                      {kill.imageUrl ? (
+                        <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden mb-3 border-2 border-yellow-500/30">
+                          <Image
+                            src={kill.imageUrl}
+                            alt={kill.name || kill.prompt}
+                            fill
+                            className="object-cover"
+                            unoptimized={kill.imageUrl.startsWith('data:')}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square bg-gray-900 rounded-lg flex items-center justify-center mb-3 border-2 border-yellow-500/30">
+                          <Skull className="h-16 w-16 text-gray-600" />
+                        </div>
+                      )}
+                      {kill.name && (
+                        <h3 className="text-lg font-bold text-yellow-300 mb-1">{kill.name}</h3>
+                      )}
+                      <p className="text-xs text-gray-400">
+                        Killed: {new Date(kill.killedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Army Bonus Status */}
           {connected && totalReady > 0 && (
             <div className={`mb-6 rounded-lg border-2 p-4 ${

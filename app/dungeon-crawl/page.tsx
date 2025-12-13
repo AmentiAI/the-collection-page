@@ -477,17 +477,23 @@ export default function DungeonCrawlPage() {
         // History is now fetched separately via /api/dungeon-crawls/history when Chronicles tab is clicked
         
         // Preserve selected crawl by ID, not object reference
+        // Priority: ref (user's explicit selection) > current selectedCrawl state
         const currentSelectedCrawlId = selectedCrawlIdRef.current || selectedCrawl?.id
         const preservedCrawl = currentSelectedCrawlId 
           ? newCrawls.find((c: DungeonCrawl) => c.id === currentSelectedCrawlId)
           : null
         
         // Always preserve the selected crawl first, before any instance logic
+        // If user has explicitly selected a crawl (via ref), preserve it even if it has no instances
         if (preservedCrawl) {
           setSelectedCrawl(preservedCrawl)
           selectedCrawlIdRef.current = preservedCrawl.id
+        } else if (selectedCrawlIdRef.current) {
+          // User has selected a crawl via ref, but it's not in newCrawls (shouldn't happen, but preserve the ref anyway)
+          // Don't change selection - keep what user selected
+          // This prevents forcing back to first crawl when user clicks a tab
         } else if (!selectedCrawl && newCrawls.length > 0) {
-          // Only auto-select first crawl if nothing is selected
+          // Only auto-select first crawl if nothing is selected AND no ref is set
           const firstCrawl = newCrawls[0]
           setSelectedCrawl(firstCrawl)
           selectedCrawlIdRef.current = firstCrawl.id
@@ -1482,8 +1488,9 @@ export default function DungeonCrawlPage() {
                     <button
                       key={crawl.id}
                       onClick={() => {
-                        setSelectedCrawl(crawl)
+                        // Set the ref FIRST to ensure it's preserved even if fetchCrawls runs
                         selectedCrawlIdRef.current = crawl.id
+                        setSelectedCrawl(crawl)
                         if (instance) {
                           setSelectedInstance(instance)
                         } else {

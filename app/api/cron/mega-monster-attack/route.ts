@@ -69,6 +69,10 @@ export async function GET(request: NextRequest) {
     console.log(`[mega-monster-attack] Found ${armies.length} armies ready for battle`)
     let attacksProcessed = 0
     let deaths = 0
+    
+    // Track all inscription_ids that participate in battles during this cron run
+    // This will be used to randomly select a killer when a monster dies
+    const participatingInscriptions = new Set<string>()
 
     if (armies.length === 0) {
       console.log('[mega-monster-attack] No armies to attack, returning early')
@@ -204,6 +208,11 @@ export async function GET(request: NextRequest) {
         
         // Attack each target
         for (const army of targetsForThisMonster) {
+          // Track this inscription as participating in the battle
+          if (army.inscription_id) {
+            participatingInscriptions.add(army.inscription_id)
+          }
+          
           // Fetch army trait for leaderboard tracking
           const armyTraitResult = await client.query(
             'SELECT trait FROM battle_ordinals WHERE id = $1',
@@ -345,12 +354,23 @@ export async function GET(request: NextRequest) {
         // Reduce health by 800, but not below 0
         const newHealth = Math.max(0, weakestMonsterHealth - 800)
         
+        // Check if monster was killed (health hit 0) and we have participating inscriptions
+        let killedByInscriptionId: string | null = null
+        if (newHealth === 0 && weakestMonsterHealth > 0 && participatingInscriptions.size > 0) {
+          // Randomly select one of the participating inscriptions as the killer
+          const inscriptionsArray = Array.from(participatingInscriptions)
+          const randomIndex = Math.floor(Math.random() * inscriptionsArray.length)
+          killedByInscriptionId = inscriptionsArray[randomIndex]
+          
+          console.log(`[mega-monster-attack] Monster ${weakestMonsterName || weakestMonsterId} killed by inscription: ${killedByInscriptionId}`)
+        }
+        
         await client.query(
-          'UPDATE mega_monsters SET health = $1, updated_at = NOW() WHERE id = $2',
-          [newHealth, weakestMonsterId]
+          'UPDATE mega_monsters SET health = $1, killed_by = $2, updated_at = NOW() WHERE id = $3',
+          [newHealth, killedByInscriptionId, weakestMonsterId]
         )
         
-        console.log(`[mega-monster-attack] Weakest monster (${weakestMonsterName || weakestMonsterId}) health reduced: ${weakestMonsterHealth} -> ${newHealth}`)
+        console.log(`[mega-monster-attack] Weakest monster (${weakestMonsterName || weakestMonsterId}) health reduced: ${weakestMonsterHealth} -> ${newHealth}${killedByInscriptionId ? ` (killed by ${killedByInscriptionId})` : ''}`)
       }
     }
 
