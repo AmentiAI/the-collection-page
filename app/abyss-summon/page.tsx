@@ -1500,15 +1500,16 @@ export default function AbyssSummonPage() {
                   )}
                 </div>
               </section>
-                    </div>
-                  </div>
-          </>
+          </div>
+        </div>
+        </>
         )}
-          </>
+        </>
         )}
         </main>
 
     </div>
+    </GlobalStartTimeLock>
   )
 }
 
@@ -1952,7 +1953,6 @@ function SummoningCircleGraphic({
         }}
       />
     </div>
-    </GlobalStartTimeLock>
   )
 }
 
