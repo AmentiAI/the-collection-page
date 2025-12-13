@@ -400,8 +400,8 @@ export async function GET(request: NextRequest) {
         weakestMonsterHealth = weakestMonsterResult.rows[0].health != null ? parseInt(weakestMonsterResult.rows[0].health, 10) : 15000
         weakestMonsterName = weakestMonsterResult.rows[0].name
         
-        // Reduce health by 800, but not below 0
-        const newHealth = Math.max(0, weakestMonsterHealth - 800)
+        // Reduce health by 1500, but not below 0
+        const newHealth = Math.max(0, weakestMonsterHealth - 1500)
         
         // Check if monster was killed (health hit 0) and we have participating inscriptions
         let killedByInscriptionId: string | null = null
@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
       deaths,
       weakestMonsterId,
       weakestMonsterHealth,
-      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 800) : null,
+      weakestMonsterNewHealth: weakestMonsterHealth !== null ? Math.max(0, weakestMonsterHealth - 1500) : null,
       timestamp: new Date().toISOString()
     })
 
@@ -447,8 +447,8 @@ export async function GET(request: NextRequest) {
         id: weakestMonsterId,
         name: weakestMonsterName,
         healthBefore: weakestMonsterHealth,
-        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 800),
-        damageTaken: 800
+        healthAfter: Math.max(0, (weakestMonsterHealth || 0) - 1500),
+        damageTaken: 1500
       } : null,
       timestamp: new Date().toISOString(),
     })
