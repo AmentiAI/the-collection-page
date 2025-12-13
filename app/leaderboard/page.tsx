@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Header from '@/components/Header'
 import { Loader2, Trophy, Sword, Shield, Skull, Heart, Medal } from 'lucide-react'
-import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
 
 interface LeaderboardEntry {
   side: 'Angelic' | 'Demonic'
@@ -94,8 +93,7 @@ export default function LeaderboardPage() {
   const winner = leaderboard.length > 0 && leaderboard[0].score > leaderboard[1]?.score ? leaderboard[0] : null
 
   return (
-    <GlobalStartTimeLock>
-      <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white">
         <Header showMusicControls={true} />
       
       <div className="container mx-auto px-4 py-12 max-w-6xl">
@@ -338,7 +336,6 @@ export default function LeaderboardPage() {
         )}
       </div>
       </div>
-    </GlobalStartTimeLock>
   )
 }
 

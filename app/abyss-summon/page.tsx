@@ -956,7 +956,8 @@ export default function AbyssSummonPage() {
   )
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
+    <GlobalStartTimeLock>
+      <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
       {/* Music controls rendered in Header; uses global MusicPlayerProvider */}
 
       <div className="pointer-events-none absolute inset-0 -z-10">
