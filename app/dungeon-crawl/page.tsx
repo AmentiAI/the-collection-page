@@ -535,10 +535,14 @@ export default function DungeonCrawlPage() {
           // Try to find instance in same crawl
           const sameCrawl = newCrawls.find((c: DungeonCrawl) => c.id === prevInstance.crawlId)
           if (sameCrawl) {
-            // Only update crawl if it's different from preserved
+            // Only update crawl if it's different from preserved AND user hasn't explicitly selected something else
+            // Don't override user's explicit selection (via ref)
             if (!preservedCrawl || sameCrawl.id !== preservedCrawl.id) {
-              setSelectedCrawl(sameCrawl)
-              selectedCrawlIdRef.current = sameCrawl.id
+              // Only update if ref doesn't point to a different crawl (user selection takes priority)
+              if (!selectedCrawlIdRef.current || selectedCrawlIdRef.current === sameCrawl.id) {
+                setSelectedCrawl(sameCrawl)
+                selectedCrawlIdRef.current = sameCrawl.id
+              }
             }
             const activeInstances = sameCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
             return activeInstances[0] || null
