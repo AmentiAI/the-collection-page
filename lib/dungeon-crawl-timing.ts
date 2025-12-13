@@ -227,8 +227,22 @@ export async function shouldCreateNewInstance(
   }
   
   // Active instance exists - don't create
+  // But first verify there's actually an active instance in the database
   if (timing.instanceStatus === 'active') {
-    return { shouldCreate: false, reason: 'Active instance exists' }
+    const activeCheck = await client.query(
+      `SELECT COUNT(*)::int as count
+       FROM dungeon_crawl_instances 
+       WHERE crawl_id = $1 
+         AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`,
+      [crawlId]
+    )
+    
+    // If timing table says active but no actual instance exists, treat as if no active instance
+    if (activeCheck.rows[0]?.count === 0) {
+      // Timing table is inconsistent - continue with checks
+    } else {
+      return { shouldCreate: false, reason: 'Active instance exists' }
+    }
   }
   
   // Check if we should wait for next_instance_starts_at

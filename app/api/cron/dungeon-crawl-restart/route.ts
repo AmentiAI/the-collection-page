@@ -88,6 +88,37 @@ export async function GET(request: NextRequest) {
         expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
       }
       
+      // If timing table says 'active' but no actual instance exists, fix the timing table
+      if (timing?.instanceStatus === 'active' && !hasActiveInstance) {
+        console.log(`[cron/dungeon-crawl-restart] ⚠️ Timing table inconsistency detected for crawl ${crawl.id}: timing says 'active' but no actual instance exists. Fixing...`)
+        
+        // Update timing table to reflect actual state
+        if (lastCompleted) {
+          await upsertCrawlTiming(client, crawl.id, {
+            instanceStatus: 'completed',
+            instanceEndedAt: new Date(lastCompleted.completed_at),
+            nextInstanceStartsAt: expectedRestartAt || null,
+          })
+        } else if (lastFailed) {
+          await upsertCrawlTiming(client, crawl.id, {
+            instanceStatus: 'failed',
+            instanceEndedAt: new Date(lastFailed.updated_at),
+            nextInstanceStartsAt: expectedRestartAt || null,
+          })
+        } else {
+          // No previous instance, clear timing
+          await upsertCrawlTiming(client, crawl.id, {
+            instanceStatus: null,
+            instanceEndedAt: null,
+            nextInstanceStartsAt: null,
+          })
+        }
+        
+        // Refresh timing after fix
+        const updatedTiming = await getCrawlTiming(client, crawl.id)
+        timing = updatedTiming
+      }
+      
       // Check timing table to see if we should create a new instance
       const shouldCreate = await shouldCreateNewInstance(
         client,
@@ -97,13 +128,25 @@ export async function GET(request: NextRequest) {
         crawl.never_restart_after_completion
       )
       
+      // Override shouldCreate if no actual instance exists and it's overdue
+      let finalShouldCreate = shouldCreate.shouldCreate
+      let finalReason = shouldCreate.reason
+      
+      if (!hasActiveInstance && !finalShouldCreate) {
+        // Check if it's actually overdue
+        if (expectedRestartAt && expectedRestartAt <= now) {
+          finalShouldCreate = true
+          finalReason = 'OVERDUE - timing table was inconsistent, now fixed'
+        }
+      }
+      
       // Store crawl details for response
       crawlDetails.push({
         id: crawl.id,
         name: crawl.name,
         hasActiveInstance,
-        shouldCreate: shouldCreate.shouldCreate,
-        reason: shouldCreate.reason,
+        shouldCreate: finalShouldCreate,
+        reason: finalReason,
         lastInstanceType,
         lastInstanceEndedAt: lastInstanceEndedAt?.toISOString() || null,
         timeSinceLastInstanceMs: timeSinceLastInstance,
@@ -129,7 +172,7 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      if (!shouldCreate.shouldCreate) {
+      if (!finalShouldCreate) {
         // Not time yet, skip
         continue
       }
