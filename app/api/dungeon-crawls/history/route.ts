@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
         ORDER BY created_at DESC
       `)
 
-      // Get total count of failed/completed instances for pagination
+      // Get total count of completed instances for pagination
       const countRes = await client.query(`
         SELECT COUNT(*)::int as total
         FROM dungeon_crawl_instances
-        WHERE status IN ('failed', 'completed')
+        WHERE status = 'completed'
       `)
       const total = countRes.rows[0]?.total || 0
 
@@ -103,13 +103,13 @@ export async function GET(request: NextRequest) {
           LEFT JOIN dungeon_crawl_participants p ON p.instance_id = i.id AND p.archived_at IS NULL
           LEFT JOIN profiles prof ON LOWER(prof.wallet_address) = LOWER(p.wallet)
           WHERE i.crawl_id = $1
-            AND i.status IN ('failed', 'completed')
+            AND i.status = 'completed'
           GROUP BY 
             i.id, i.status, i.started_at, i.level_1_started_at, i.level_1_completed_at,
             i.level_2_started_at, i.level_2_completed_at, i.level_3_started_at,
             i.level_3_completed_at, i.completed_at, i.expires_at, i.next_restart_at,
             i.created_at, i.updated_at
-          ORDER BY i.started_at DESC
+          ORDER BY COALESCE(i.completed_at, i.level_3_completed_at, i.level_2_completed_at, i.level_1_completed_at, i.started_at) DESC
         `, [crawl.id])
 
         const instances = instancesRes.rows.map((row: any) => {
@@ -169,10 +169,29 @@ export async function GET(request: NextRequest) {
         crawl.instances.map((instance: any) => ({ ...instance, crawlId: crawl.id, crawlName: crawl.name }))
       )
       
-      // Sort all instances by started_at DESC
+      // Sort all instances by completed_at DESC (most recent completed first)
       allInstances.sort((a, b) => {
-        const aTime = new Date(a.startedAt).getTime()
-        const bTime = new Date(b.startedAt).getTime()
+        // Use completed_at if available, otherwise fall back to level completion times or started_at
+        const aTime = a.completedAt 
+          ? new Date(a.completedAt).getTime()
+          : a.level3CompletedAt
+          ? new Date(a.level3CompletedAt).getTime()
+          : a.level2CompletedAt
+          ? new Date(a.level2CompletedAt).getTime()
+          : a.level1CompletedAt
+          ? new Date(a.level1CompletedAt).getTime()
+          : new Date(a.startedAt).getTime()
+        
+        const bTime = b.completedAt 
+          ? new Date(b.completedAt).getTime()
+          : b.level3CompletedAt
+          ? new Date(b.level3CompletedAt).getTime()
+          : b.level2CompletedAt
+          ? new Date(b.level2CompletedAt).getTime()
+          : b.level1CompletedAt
+          ? new Date(b.level1CompletedAt).getTime()
+          : new Date(b.startedAt).getTime()
+        
         return bTime - aTime
       })
 
