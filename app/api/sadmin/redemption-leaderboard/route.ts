@@ -8,7 +8,22 @@ export async function GET(request: NextRequest) {
   try {
     client = await getPool().connect()
 
+    // Ensure linked_wallets table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS linked_wallets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        primary_wallet TEXT NOT NULL,
+        linked_wallet TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        message TEXT NOT NULL,
+        linked_at TIMESTAMPTZ DEFAULT NOW(),
+        is_active BOOLEAN DEFAULT TRUE,
+        CONSTRAINT unique_link UNIQUE(primary_wallet, linked_wallet)
+      )
+    `)
+
     // Aggregate all stats per wallet using subqueries to avoid cartesian products
+    // Also aggregate linked wallets into their primary wallet
     const result = await client.query(`
       WITH base_wallets AS (
         SELECT DISTINCT wallet_address
@@ -26,69 +41,86 @@ export async function GET(request: NextRequest) {
           SELECT DISTINCT LOWER(wallet) as wallet_address FROM summoning_powder_participants WHERE wallet IS NOT NULL
         ) all_wallets
       ),
+      -- Map each wallet to its primary wallet (or itself if primary)
+      wallet_to_primary AS (
+        SELECT DISTINCT
+          bw.wallet_address,
+          COALESCE(
+            (SELECT primary_wallet FROM linked_wallets WHERE LOWER(linked_wallet) = bw.wallet_address AND is_active = TRUE LIMIT 1),
+            bw.wallet_address
+          ) as primary_wallet
+        FROM base_wallets bw
+      ),
+      -- Get all wallets (primary + linked) for each primary wallet, lowercased
+      primary_wallet_groups AS (
+        SELECT 
+          wtp.primary_wallet,
+          ARRAY_AGG(DISTINCT LOWER(wtp.wallet_address)) as all_wallets_lower
+        FROM wallet_to_primary wtp
+        GROUP BY wtp.primary_wallet
+      ),
       wallet_stats AS (
         SELECT 
-          bw.wallet_address,
-          COALESCE(p.username, '') as discord_username,
-          COALESCE(p.avatar_url, '') as discord_avatar_url,
-          -- Army counts
+          pwg.primary_wallet as wallet_address,
+          -- Get profile info from primary wallet
+          COALESCE((SELECT username FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_username,
+          COALESCE((SELECT avatar_url FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_avatar_url,
+          -- Army counts (aggregated across all linked wallets)
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
-            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+            WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.life_force > 0
               AND bo.is_dead = false
           ), 0) as army_count,
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
-            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+            WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.trait = 'Angelic'
           ), 0) as angel_count,
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
-            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+            WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.trait = 'Demonic'
           ), 0) as demon_count,
-          -- Battle count (distinct attacks per wallet)
+          -- Battle count (distinct attacks per wallet group)
           COALESCE((
             SELECT COUNT(DISTINCT al.id)::int
             FROM mega_monster_attack_logs al
-            WHERE LOWER(al.wallet_address) = bw.wallet_address
+            WHERE LOWER(al.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as battles_count,
           -- Heal count (sum of healed_count from heal_history)
           COALESCE((
             SELECT SUM(hh.healed_count)::int
             FROM heal_history hh
-            WHERE LOWER(hh.wallet_address) = bw.wallet_address
+            WHERE LOWER(hh.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as heals_count,
           -- Crystallization count (distinct inscriptions)
           COALESCE((
             SELECT COUNT(DISTINCT cr.inscription_id)::int
             FROM crystallization_records cr
-            WHERE LOWER(cr.wallet_address) = bw.wallet_address
+            WHERE LOWER(cr.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as crystallization_count,
           -- Ascension circles: created + participated (distinct)
           COALESCE((
             SELECT COUNT(DISTINCT ac.id)::int
             FROM summoning_powder_circles ac
-            WHERE LOWER(ac.creator_wallet) = bw.wallet_address
+            WHERE LOWER(ac.creator_wallet) = ANY(pwg.all_wallets_lower)
           ), 0) + COALESCE((
             SELECT COUNT(DISTINCT acp.circle_id)::int
             FROM summoning_powder_participants acp
-            WHERE LOWER(acp.wallet) = bw.wallet_address
+            WHERE LOWER(acp.wallet) = ANY(pwg.all_wallets_lower)
           ), 0) as ascension_circle_count,
           -- Resurrections
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
-            WHERE LOWER(bo.wallet_address) = bw.wallet_address
+            WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.resurrection_time IS NOT NULL
           ), 0) as resurrections_count
-        FROM base_wallets bw
-        LEFT JOIN profiles p ON LOWER(p.wallet_address) = bw.wallet_address
-        LEFT JOIN discord_users du ON du.profile_id = p.id
+        FROM primary_wallet_groups pwg
       )
       SELECT 
         wallet_address,
