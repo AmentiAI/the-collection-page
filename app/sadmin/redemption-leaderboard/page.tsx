@@ -17,6 +17,7 @@ type LeaderboardEntry = {
   crystallization_count: number
   ascension_circle_count: number
   resurrections_count: number
+  killing_blows_count: number
   total_score: number
 }
 
@@ -282,9 +283,15 @@ export default function RedemptionLeaderboardPage() {
                   <td className="px-4 py-3 text-xs text-gray-400">Each ascension circle created or participated in (summoning_powder_circles + summoning_powder_participants)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">BONUS</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Killing Blows</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-yellow-400">+50 per kill</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each mega monster killed (delivered the final blow - mega_monsters.killed_by matches your inscription)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-3 per resurrection</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-10 per resurrection</td>
                   <td className="px-4 py-3 text-xs text-gray-400">Each army that was resurrected (battle_ordinals.resurrection_time IS NOT NULL)</td>
                 </tr>
                 <tr className="bg-red-950/30 border-t-2 border-red-800/50">
@@ -295,13 +302,16 @@ export default function RedemptionLeaderboardPage() {
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
                             <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.25)</span>
+                            {' + '}
+                            <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
-                            <span className="text-red-400">Resurrections × 3</span>
+                            <span className="text-red-400">Resurrections × 10</span>
                           ) ÷ <span className="text-yellow-400">Army Count<sup>0.4</sup></span>
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
                           The efficiency curve (army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
-                          Resurrections are penalized 3x to encourage keeping armies alive.
+                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus! 
+                          Resurrections are penalized 10x to encourage keeping armies alive.
                         </div>
                       </div>
                     </div>
@@ -360,12 +370,15 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Resurrections
                   </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-yellow-200">
+                    Killing Blows
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={14} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -445,10 +458,13 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-right font-mono text-xs text-cyan-300">
                             {entry.resurrections_count.toLocaleString()}
                           </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs font-bold text-yellow-400">
+                            {entry.killing_blows_count.toLocaleString()}
+                          </td>
                         </tr>
                         {isExpanded && (
                           <tr key={`${entry.wallet_address}-details`} className="bg-red-950/30">
-                            <td colSpan={13} className="px-4 py-6">
+                            <td colSpan={14} className="px-4 py-6">
                               {details?.loading ? (
                                 <div className="flex items-center justify-center py-8">
                                   <Loader2 className="h-6 w-6 animate-spin text-red-400" />

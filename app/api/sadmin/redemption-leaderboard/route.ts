@@ -119,7 +119,19 @@ export async function GET(request: NextRequest) {
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.resurrection_time IS NOT NULL
-          ), 0) as resurrections_count
+          ), 0) as resurrections_count,
+          -- Killing blows: count monsters killed by inscriptions owned by this wallet group
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM mega_monsters mm
+            WHERE mm.killed_by IS NOT NULL
+              AND mm.killed_by IN (
+                SELECT bo.inscription_id
+                FROM battle_ordinals bo
+                WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
+                  AND bo.inscription_id IS NOT NULL
+              )
+          ), 0) as killing_blows_count
         FROM primary_wallet_groups pwg
       )
       SELECT 
@@ -134,20 +146,22 @@ export async function GET(request: NextRequest) {
         crystallization_count,
         ascension_circle_count,
         resurrections_count,
+        killing_blows_count,
         -- Calculate total score with resurrection penalty and curve for small armies
-        -- Formula: (activities - resurrections*3) / (army_count^0.4)
+        -- Formula: (activities + killing_blows*50 - resurrections*10) / (army_count^0.4)
         -- This rewards efficiency and penalizes deaths, helping smaller armies compete
         -- Ascension circles are worth 0.25 points each
+        -- Killing blows are worth 50 points each (big bonus!)
         CASE 
           WHEN army_count > 0 THEN
             (
-              (battles_count + heals_count + crystallization_count + (ascension_circle_count * 0.25) - resurrections_count * 3)::numeric
+              (battles_count + heals_count + crystallization_count + (ascension_circle_count * 0.25) + (killing_blows_count * 50) - resurrections_count * 10)::numeric
               / POWER(GREATEST(army_count, 1)::numeric, 0.4)
             )::numeric(10, 2)
           ELSE 0
         END as total_score
       FROM wallet_stats
-      WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0
+      WHERE army_count > 0 OR battles_count > 0 OR heals_count > 0 OR crystallization_count > 0 OR ascension_circle_count > 0 OR resurrections_count > 0 OR killing_blows_count > 0
       ORDER BY 
         total_score DESC,
         wallet_address ASC
@@ -164,6 +178,7 @@ export async function GET(request: NextRequest) {
       crystallization_count: Number(row.crystallization_count) || 0,
       ascension_circle_count: Number(row.ascension_circle_count) || 0,
       resurrections_count: Number(row.resurrections_count) || 0,
+      killing_blows_count: Number(row.killing_blows_count) || 0,
       total_score: Number(row.total_score) || 0,
     }))
 
