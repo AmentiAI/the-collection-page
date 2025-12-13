@@ -401,7 +401,7 @@ export async function POST(
         )
         
         // Update timing table - Level 1 starts now
-        await upsertCrawlTiming(client, crawl.id, {
+        await upsertCrawlTiming(client, instance.crawl_id, {
           instanceId,
           level1StartedAt: now,
           level1Active: true,

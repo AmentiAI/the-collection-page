@@ -170,6 +170,8 @@ export async function POST(request: NextRequest) {
       const crawl = crawlRes.rows[0]
 
       // Create initial instance
+      console.log(`[admin/dungeon-crawls] 🔄 Creating initial instance for new crawl ${crawl.id}`)
+      console.log(`[admin/dungeon-crawls] 📝 EXECUTING INSERT: INSERT INTO dungeon_crawl_instances (crawl_id, status) VALUES ('${crawl.id}', 'open')`)
       const instanceRes = await client.query(
         `
           INSERT INTO dungeon_crawl_instances (crawl_id, status)
@@ -178,6 +180,13 @@ export async function POST(request: NextRequest) {
         `,
         [crawl.id]
       )
+      console.log(`[admin/dungeon-crawls] 📊 INSERT RESULT: rowCount=${instanceRes.rowCount}, rows=${JSON.stringify(instanceRes.rows)}`)
+      if (instanceRes.rows.length > 0) {
+        const instance = instanceRes.rows[0]
+        console.log(`[admin/dungeon-crawls] ✅ INSERTED instance ${instance.id} for crawl ${crawl.id} - status: ${instance.status}, created_at: ${instance.created_at}`)
+      } else {
+        console.log(`[admin/dungeon-crawls] ⚠️ Failed to create initial instance for crawl ${crawl.id} - INSERT returned no rows`)
+      }
 
       await client.query('COMMIT')
 

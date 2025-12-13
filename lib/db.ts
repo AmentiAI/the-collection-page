@@ -34,6 +34,21 @@ export function getPool(): Pool {
       statement_timeout: 30000, // 30 seconds for statements
     })
     
+    // Intercept all queries to log INSERTs into dungeon_crawl_instances
+    const originalQuery = pool.query.bind(pool)
+    pool.query = function(text: any, values?: any) {
+      const queryText = typeof text === 'string' ? text : text.text
+      if (queryText && queryText.toUpperCase().includes('INSERT INTO DUNGEON_CRAWL_INSTANCES')) {
+        const stack = new Error().stack
+        const caller = stack?.split('\n')[2]?.trim() || 'unknown'
+        console.log(`[DB QUERY INTERCEPT] 🔍 INSERT INTO dungeon_crawl_instances detected!`)
+        console.log(`[DB QUERY INTERCEPT] 📝 Query: ${queryText.substring(0, 200)}`)
+        console.log(`[DB QUERY INTERCEPT] 📦 Values: ${JSON.stringify(values)}`)
+        console.log(`[DB QUERY INTERCEPT] 📍 Called from: ${caller}`)
+      }
+      return originalQuery(text, values)
+    }
+    
     // Log pool errors only
     pool.on('error', (err) => {
       console.error('[DB Pool] Unexpected error on idle client:', err)

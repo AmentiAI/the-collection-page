@@ -4,7 +4,7 @@ import { getCrawlTiming, upsertCrawlTiming, shouldCreateNewInstance, calculateLe
 
 export const dynamic = 'force-dynamic'
 
-async function ensureDungeonCrawlInfrastructure(pool: ReturnType<typeof getPool>) {
+export async function ensureDungeonCrawlInfrastructure(pool: ReturnType<typeof getPool>) {
   if (isTableInitialized('dungeon_crawls')) {
     return
   }
@@ -348,6 +348,68 @@ async function cleanupInvalidInstances(client: any) {
   // Mark invalid instances as failed
   let markedCount = 0
   for (const invalid of invalidInstancesRes.rows) {
+    // Determine the reason for failure
+    let failureReason = 'unknown'
+    
+    // Check which condition caused this instance to be invalid
+    const recentFailureCheck = await client.query(
+      `SELECT COUNT(*)::int as count
+       FROM dungeon_crawl_instances failed
+       WHERE failed.crawl_id = $1
+         AND failed.status = 'failed'
+         AND failed.updated_at > NOW() - '5 minutes'::INTERVAL`,
+      [invalid.crawl_id]
+    )
+    
+    if (recentFailureCheck.rows[0]?.count > 0) {
+      failureReason = 'recent failure detected (within last 5 minutes)'
+    } else {
+      const completedCheck = await client.query(
+        `SELECT completed_at
+         FROM dungeon_crawl_instances
+         WHERE crawl_id = $1
+           AND status = 'completed'
+           AND completed_at IS NOT NULL
+         ORDER BY completed_at DESC
+         LIMIT 1`,
+        [invalid.crawl_id]
+      )
+      
+      if (completedCheck.rows.length > 0) {
+        const completedAt = new Date(completedCheck.rows[0].completed_at)
+        const cooldownHours = invalid.cooldown_hours || (invalid.cooldown_days ? invalid.cooldown_days * 24 : 168)
+        const cooldownEnds = new Date(completedAt.getTime() + cooldownHours * 60 * 60 * 1000)
+        const now = new Date()
+        
+        if (now < cooldownEnds) {
+          const minutesRemaining = Math.ceil((cooldownEnds.getTime() - now.getTime()) / (1000 * 60))
+          failureReason = `completed instance still in cooldown (${minutesRemaining} minutes remaining)`
+        }
+      } else {
+        const failedCheck = await client.query(
+          `SELECT updated_at
+           FROM dungeon_crawl_instances
+           WHERE crawl_id = $1
+             AND status = 'failed'
+           ORDER BY updated_at DESC
+           LIMIT 1`,
+          [invalid.crawl_id]
+        )
+        
+        if (failedCheck.rows.length > 0) {
+          const failedAt = new Date(failedCheck.rows[0].updated_at)
+          const restartHours = invalid.restart_after_failure_hours || invalid.restart_interval_hours || 2
+          const restartTime = new Date(failedAt.getTime() + restartHours * 60 * 60 * 1000)
+          const now = new Date()
+          
+          if (now < restartTime) {
+            const minutesRemaining = Math.ceil((restartTime.getTime() - now.getTime()) / (1000 * 60))
+            failureReason = `failed instance still in cooldown (${minutesRemaining} minutes remaining)`
+          }
+        }
+      }
+    }
+    
     // Archive participants
     await client.query(
       `UPDATE dungeon_crawl_participants 
@@ -365,11 +427,12 @@ async function cleanupInvalidInstances(client: any) {
     )
     if (updateResult.rows.length > 0) {
       markedCount++
+      console.log(`[cleanupInvalidInstances] Marked instance ${invalid.id} (crawl ${invalid.crawl_id}) as failed - ${failureReason}`)
     }
   }
-  // Only log if we actually marked instances
+  // Summary log
   if (markedCount > 0) {
-    console.log(`[cleanupInvalidInstances] Marked ${markedCount} instance(s) as failed - created too early (cooldown not expired)`)
+    console.log(`[cleanupInvalidInstances] Summary: Marked ${markedCount} instance(s) as failed`)
   }
   return markedCount
 }
@@ -418,16 +481,22 @@ async function autoRestartOverdueCrawls(client: any) {
     }
 
     // Create new instance
+    console.log(`[autoRestartOverdueCrawls] 🔄 Attempting to create new instance for crawl ${crawl.id}`)
+    console.log(`[autoRestartOverdueCrawls] 📝 EXECUTING INSERT: INSERT INTO dungeon_crawl_instances (crawl_id, status) VALUES ('${crawl.id}', 'open')`)
     const instanceResult = await client.query(
       `INSERT INTO dungeon_crawl_instances (crawl_id, status)
        VALUES ($1, 'open')
-       RETURNING id`,
+       RETURNING id, crawl_id, status, created_at`,
       [crawl.id]
     )
+    console.log(`[autoRestartOverdueCrawls] 📊 INSERT RESULT: rowCount=${instanceResult.rowCount}, rows=${JSON.stringify(instanceResult.rows)}`)
 
     if (instanceResult.rowCount > 0) {
       const instanceId = instanceResult.rows[0].id
+      const instance = instanceResult.rows[0]
       const now = new Date()
+      
+      console.log(`[autoRestartOverdueCrawls] ✅ INSERTED instance ${instanceId} for crawl ${crawl.id} - status: ${instance.status}, created_at: ${instance.created_at}`)
       
       // Create timing record for new instance
       await upsertCrawlTiming(client, crawl.id, {
@@ -440,7 +509,8 @@ async function autoRestartOverdueCrawls(client: any) {
       })
       
       createdCount++
-      console.log(`[autoRestartOverdueCrawls] ✅ Created new instance ${instanceId} for crawl ${crawl.id}`)
+    } else {
+      console.log(`[autoRestartOverdueCrawls] ⚠️ Failed to create instance for crawl ${crawl.id} - INSERT returned no rows`)
     }
   }
   
@@ -575,56 +645,9 @@ export async function GET(request: NextRequest) {
       
       const allActiveCrawlIds = new Set(allActiveCrawlsRes.rows.map(r => r.id))
 
-      // Get failed/completed instances for history
-      const historyRes = await client.query(`
-        SELECT 
-          c.*,
-          i.id as instance_id,
-          i.status as instance_status,
-          i.started_at as instance_started_at,
-          i.level_1_started_at,
-          i.level_1_completed_at,
-          i.level_2_started_at,
-          i.level_2_completed_at,
-          i.level_3_started_at,
-          i.level_3_completed_at,
-          i.completed_at as instance_completed_at,
-          i.expires_at as instance_expires_at,
-          i.next_restart_at,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', p.id,
-                'wallet', p.wallet,
-                'inscriptionId', p.inscription_id,
-                'image', COALESCE(
-                  p.inscription_image,
-                  CONCAT('https://ord-mirror.magiceden.dev/content/', p.inscription_id)
-                ),
-                'trait', p.trait,
-                'joinedAt', p.joined_at,
-                'level1Completed', p.level_1_completed,
-                'level1CompletedAt', p.level_1_completed_at,
-                'level2Completed', p.level_2_completed,
-                'level2CompletedAt', p.level_2_completed_at,
-                'level3Completed', p.level_3_completed,
-                'level3CompletedAt', p.level_3_completed_at,
-                'username', prof.username,
-                'avatarUrl', prof.avatar_url
-              )
-            ) FILTER (WHERE p.id IS NOT NULL),
-            '[]'::json
-          ) AS participants
-        FROM dungeon_crawls c
-        LEFT JOIN dungeon_crawl_instances i ON i.crawl_id = c.id 
-          AND i.status IN ('failed', 'completed', 'expired')
-        LEFT JOIN dungeon_crawl_participants p ON p.instance_id = i.id
-        LEFT JOIN profiles prof ON LOWER(prof.wallet_address) = LOWER(p.wallet)
-        WHERE c.is_active = TRUE
-        GROUP BY c.id, i.id
-        ORDER BY i.updated_at DESC
-        LIMIT 20
-      `)
+      // History is now fetched separately via /api/dungeon-crawls/history
+      // Skip history query here to reduce load
+      const historyRes = { rows: [] }
 
       // Get last completed and last failed timestamps for all crawls (for display purposes)
       const lastInstanceTimestamps = await client.query(`
@@ -771,40 +794,11 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Process history instances
-      for (const row of historyRes.rows) {
-        if (!row.instance_id) continue
-        const crawlId = row.id
-        if (!historyMap.has(crawlId)) {
-          historyMap.set(crawlId, {
-            ...mapCrawlRow(row),
-            instances: [],
-          })
-        }
-        
-        const participants = Array.isArray(row.participants) ? row.participants : []
-        
-        // Get reward count for this wallet in this instance if wallet is provided
-        let rewardCount = 0
-        if (wallet) {
-          const rewardRes = await client.query(
-            `SELECT COUNT(*)::int as count
-             FROM dungeon_crawl_reward_items
-             WHERE instance_id = $1 AND LOWER(wallet) = LOWER($2)`,
-            [row.instance_id, wallet]
-          )
-          rewardCount = rewardRes.rows[0]?.count ?? 0
-        }
-        
-        const instance = mapInstanceRow(row, participants, rewardCount)
-        const crawl = historyMap.get(crawlId)
-        crawl.instances.push(instance)
-      }
+      // History is now fetched separately - skip processing here
 
       const response = NextResponse.json({
         success: true,
         crawls: Array.from(crawlsMap.values()),
-        history: Array.from(historyMap.values()),
       })
       // Prevent caching to ensure fresh data, especially for overdue restarts
       response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')

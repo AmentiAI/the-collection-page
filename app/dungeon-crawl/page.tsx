@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
 import { Loader2, Sword, Shield, Clock, Users, CheckCircle2, XCircle, Gift, Trophy, Skull, ScrollText, Swords, ChevronDown, ChevronUp, RotateCw } from 'lucide-react'
 import GlobalStartTimeLock from '@/components/GlobalStartTimeLock'
+import { checkGlobalStartTime } from '@/lib/utils/global-start-time'
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 interface DungeonCrawl {
@@ -336,9 +338,12 @@ const LevelCard = memo(({
 LevelCard.displayName = 'LevelCard'
 
 export default function DungeonCrawlPage() {
+  const searchParams = useSearchParams()
+  const bypassTimer = searchParams?.get('notime') === '1'
   const { connected, address } = useLaserEyes()
   const toast = useToast()
   const [isWalletConnected, setIsWalletConnected] = useState(connected)
+  const [isGlobalTimerLocked, setIsGlobalTimerLocked] = useState(false)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [battleFormationExpanded, setBattleFormationExpanded] = useState(true) // Default to expanded
@@ -412,13 +417,49 @@ export default function DungeonCrawlPage() {
   )
 
   const fetchCrawlsRef = useRef<() => Promise<void>>()
+  const isFetchingRef = useRef(false)
 
   const fetchCrawls = useCallback(async () => {
-    // Always fetch crawls - they're public data, don't require wallet connection
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      return
+    }
+    
+    // Debounce: don't allow fetches within 1 second of each other
+    const now = Date.now()
+    if (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      return
+    }
+    lastFetchTimeRef.current = now
+    
+    isFetchingRef.current = true
+    
     try {
-      const url = address 
-        ? `/api/dungeon-crawls?wallet=${encodeURIComponent(address)}`
-        : '/api/dungeon-crawls'
+      // Check global start time - don't call API if timer is locked (unless bypassed)
+      if (!bypassTimer) {
+        try {
+          const globalTimeStatus = await checkGlobalStartTime()
+          if (globalTimeStatus.isRestricted && !globalTimeStatus.isStarted) {
+            // Timer is locked - don't make API call
+            setIsGlobalTimerLocked(true)
+            setCrawls([])
+            setHistory([])
+            isFetchingRef.current = false
+            return
+          }
+          setIsGlobalTimerLocked(false)
+        } catch (error) {
+          // If we can't check, allow the API call (fail open)
+          console.error('Error checking global start time:', error)
+          setIsGlobalTimerLocked(false)
+        }
+      } else {
+        setIsGlobalTimerLocked(false)
+      }
+      
+      // Always fetch crawls - they're public data, don't require wallet connection
+      // Don't include wallet in URL - it's not needed for the main crawl list
+      const url = '/api/dungeon-crawls'
       const response = await fetch(url, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
@@ -432,20 +473,26 @@ export default function DungeonCrawlPage() {
       if (data.success) {
         const newCrawls = data.crawls || []
         setCrawls(newCrawls)
-        setHistory(data.history || [])
+        // History is now fetched separately via /api/dungeon-crawls/history when Chronicles tab is clicked
         
+        // Auto-select first crawl if none selected, even if it has no instances
         setSelectedInstance((prevInstance) => {
           if (!prevInstance) {
             if (newCrawls.length > 0) {
               const firstCrawl = newCrawls[0]
-              if (firstCrawl.instances && firstCrawl.instances.length > 0) {
-                setSelectedCrawl(firstCrawl)
-                return firstCrawl.instances[0]
+              setSelectedCrawl(firstCrawl)
+              // Try to find an active instance, but allow selection even without one
+              const activeInstances = firstCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
+              if (activeInstances.length > 0) {
+                return activeInstances[0]
               }
+              // No instance yet, but still select the crawl
+              return null
             }
             return null
           }
           
+          // Try to find matching instance
           const matchingInstance = newCrawls
             .flatMap((c: DungeonCrawl) => c.instances || [])
             .find((i: DungeonCrawlInstance) => i.id === prevInstance.id)
@@ -460,12 +507,21 @@ export default function DungeonCrawlPage() {
             return matchingInstance
           }
           
-          const sameCrawlInstance = newCrawls
-            .find((c: DungeonCrawl) => c.id === prevInstance.crawlId)
-            ?.instances?.[0]
+          // Try to find instance in same crawl
+          const sameCrawl = newCrawls.find((c: DungeonCrawl) => c.id === prevInstance.crawlId)
+          if (sameCrawl) {
+            setSelectedCrawl(sameCrawl)
+            const activeInstances = sameCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
+            return activeInstances[0] || null
+          }
           
-          return sameCrawlInstance || null
+          return null
         })
+        
+        // Ensure selectedCrawl is set even if no instance
+        if (!selectedCrawl && newCrawls.length > 0) {
+          setSelectedCrawl(newCrawls[0])
+        }
       } else {
         console.error('API returned success:false:', data)
       }
@@ -473,12 +529,18 @@ export default function DungeonCrawlPage() {
       console.error('Error fetching crawls:', error)
       setCrawls((prev) => {
         if (prev.length === 0) {
-        toast.error('Failed to load dungeon crawls')
-      }
+          toast.error('Failed to load dungeon crawls')
+        }
         return prev
       })
+    } finally {
+      isFetchingRef.current = false
     }
-  }, [address, toast])
+  }, [address, toast, bypassTimer])
+
+  // Track last fetch time to prevent rapid successive calls
+  const lastFetchTimeRef = useRef<number>(0)
+  const FETCH_DEBOUNCE_MS = 1000 // Don't allow fetches within 1 second of each other
 
   useEffect(() => {
     fetchCrawlsRef.current = fetchCrawls
@@ -499,11 +561,24 @@ export default function DungeonCrawlPage() {
     if (!fetchCrawlsRef.current) return
 
     // Check if any crawl is overdue - use ref to avoid dependency on crawls
-    const checkAndRefresh = () => {
+    const checkAndRefresh = async () => {
       const now = Date.now()
       // Throttle: don't refresh more than once every 5 seconds
       if (now - lastRefreshTimeRef.current < 5000) {
         return
+      }
+      
+      // Check global timer before checking for overdue crawls
+      if (!bypassTimer) {
+        try {
+          const globalTimeStatus = await checkGlobalStartTime()
+          if (globalTimeStatus.isRestricted && !globalTimeStatus.isStarted) {
+            // Timer is locked - don't refresh
+            return
+          }
+        } catch (error) {
+          // If we can't check, allow refresh (fail open)
+        }
       }
       
       const currentCrawls = crawlsRef.current
@@ -530,16 +605,20 @@ export default function DungeonCrawlPage() {
       }
     }
 
-    // Set up interval - check every 5 seconds
-    refreshIntervalRef.current = window.setInterval(checkAndRefresh, 5000)
+    // Set up interval - check every 5 seconds, but don't run immediately
+    // Wait 5 seconds before first check to avoid immediate duplicate calls on mount
+    const timeoutId = window.setTimeout(() => {
+      refreshIntervalRef.current = window.setInterval(checkAndRefresh, 5000)
+    }, 5000)
 
     return () => {
+      clearTimeout(timeoutId)
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current)
         refreshIntervalRef.current = null
       }
     }
-  }, []) // Empty deps - only set up once
+  }, [bypassTimer]) // Include bypassTimer in deps
 
   const fetchBattleOrdinals = useCallback(async () => {
     if (!address) {
@@ -581,13 +660,22 @@ export default function DungeonCrawlPage() {
   }, [connected])
 
   // Always fetch crawls on mount and when connection changes (crawls are public)
+  // Use a ref to track if initial fetch has happened to prevent duplicate calls
+  const hasInitialFetchRef = useRef(false)
   useEffect(() => {
+    // Only fetch once on initial mount, not on every connected/address change
+    if (hasInitialFetchRef.current) {
+      return
+    }
+    
     let isMounted = true
-      setLoading(true)
+    setLoading(true)
     
     const fetchData = async () => {
-      // Always fetch crawls (public data)
-      await fetchCrawlsRef.current?.()
+      // Always fetch crawls (public data) - only once
+      if (fetchCrawlsRef.current && !isFetchingRef.current) {
+        await fetchCrawlsRef.current()
+      }
       // Only fetch ordinals if wallet is connected
       if (connected && address) {
         await fetchBattleOrdinalsRef.current?.()
@@ -599,11 +687,21 @@ export default function DungeonCrawlPage() {
     fetchData().finally(() => {
       if (isMounted) {
         setLoading(false)
+        hasInitialFetchRef.current = true
       }
     })
     
     return () => {
       isMounted = false
+    }
+  }, []) // Empty deps - only run once on mount
+  
+  // Separate effect for ordinals when wallet connects
+  useEffect(() => {
+    if (connected && address && fetchBattleOrdinalsRef.current) {
+      fetchBattleOrdinalsRef.current()
+    } else if (!connected || !address) {
+      setOrdinals([])
     }
   }, [connected, address])
 
@@ -634,7 +732,10 @@ export default function DungeonCrawlPage() {
 
     const cleanup = () => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+        if (typeof intervalRef.current === 'number') {
+          clearTimeout(intervalRef.current)
+          clearInterval(intervalRef.current)
+        }
         intervalRef.current = null
       }
       if (visibilityHandlerRef.current) {
@@ -647,26 +748,93 @@ export default function DungeonCrawlPage() {
     const POLL_INTERVAL = 30_000 // Poll every 30 seconds (reduced from 5 seconds)
     let isMounted = true
 
-    const doPoll = () => {
-      if (isMounted && document.visibilityState === 'visible' && fetchCrawlsRef.current) {
-        fetchCrawlsRef.current()
+    const doPoll = async () => {
+      if (!isMounted || document.visibilityState !== 'visible' || !fetchCrawlsRef.current) return
+      
+      // Check global timer before polling
+      if (!bypassTimer) {
+        try {
+          const globalTimeStatus = await checkGlobalStartTime()
+          if (globalTimeStatus.isRestricted && !globalTimeStatus.isStarted) {
+            // Timer is locked - don't poll
+            return
+          }
+        } catch (error) {
+          // If we can't check, allow polling (fail open)
+        }
       }
+      
+      fetchCrawlsRef.current()
     }
 
-    intervalRef.current = window.setInterval(doPoll, POLL_INTERVAL)
+    // Don't poll immediately - wait for initial fetch to complete
+    // Set up timeout first, then interval
+    const timeoutId = window.setTimeout(() => {
+      intervalRef.current = window.setInterval(doPoll, POLL_INTERVAL)
+    }, POLL_INTERVAL)
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && fetchCrawlsRef.current) {
-        fetchCrawlsRef.current()
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible' || !fetchCrawlsRef.current) return
+      
+      // Don't fetch if already fetching
+      if (isFetchingRef.current) {
+        return
       }
+      
+      // Check global timer before fetching on visibility change
+      if (!bypassTimer) {
+        try {
+          const globalTimeStatus = await checkGlobalStartTime()
+          if (globalTimeStatus.isRestricted && !globalTimeStatus.isStarted) {
+            // Timer is locked - don't fetch
+            return
+          }
+        } catch (error) {
+          // If we can't check, allow fetch (fail open)
+        }
+      }
+      
+      fetchCrawlsRef.current()
     }
 
     visibilityHandlerRef.current = handleVisibilityChange
     document.addEventListener('visibilitychange', handleVisibilityChange)
     isSetupRef.current = true
 
-    return cleanup
-  }, [connected, address])
+    return () => {
+      cleanup()
+      clearTimeout(timeoutId)
+    }
+  }, [connected, address, bypassTimer])
+
+  // Fetch history only when Chronicles tab is clicked
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPagination, setHistoryPagination] = useState<{ total: number; totalPages: number; page: number; limit: number } | null>(null)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [selectedHistoryCrawl, setSelectedHistoryCrawl] = useState<string | null>(null) // Filter by crawl name
+
+  const fetchHistory = useCallback(async (page: number = 1) => {
+    setIsLoadingHistory(true)
+    try {
+      const response = await fetch(`/api/dungeon-crawls/history?page=${page}&limit=20`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setHistory(data.history || [])
+          setHistoryPagination(data.pagination || null)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [])
+
+  // History is only fetched when Chronicles tab is clicked (see button onClick handler)
 
   const handleJoin = async (instanceId: string) => {
     if (!address || !instanceId) return
@@ -879,8 +1047,7 @@ export default function DungeonCrawlPage() {
     return `${seconds}s`
   }, [])
 
-  return (
-    <GlobalStartTimeLock>
+  const content = (
       <div className="min-h-screen text-white relative">
         {/* Background Image */}
         <div 
@@ -965,7 +1132,12 @@ export default function DungeonCrawlPage() {
                 </button>
 
                 <button
-                  onClick={() => setShowHistory(true)}
+                  onClick={() => {
+                    setShowHistory(true)
+                    if (history.length === 0 && !isLoadingHistory) {
+                      fetchHistory(1)
+                    }
+                  }}
                   className={`relative px-4 sm:px-6 md:px-8 py-2 sm:py-2.5 md:py-3 font-bold text-xs sm:text-sm md:text-lg transition-all overflow-hidden group ${
                     showHistory 
                       ? 'text-amber-100' 
@@ -998,14 +1170,53 @@ export default function DungeonCrawlPage() {
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
           ) : showHistory ? (
-            history.length === 0 ? (
+            isLoadingHistory ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                <p className="text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Loading history...</p>
+              </div>
+            ) : history.length === 0 ? (
               <div className="text-center py-20">
                 <p className="text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">No history available</p>
               </div>
             ) : (
               <div className="space-y-6">
-                {history.map((crawl) =>
-                  crawl.instances?.map((instance) => (
+                {/* Dungeon name tabs for filtering */}
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mb-6">
+                  <button
+                    onClick={() => setSelectedHistoryCrawl(null)}
+                    className={`px-4 sm:px-6 py-2 font-bold text-xs sm:text-sm transition-all ${
+                      selectedHistoryCrawl === null
+                        ? 'bg-amber-900/60 border-2 border-amber-500/60 text-amber-100'
+                        : 'bg-stone-900/40 border-2 border-stone-700/40 text-stone-400 hover:text-stone-200'
+                    }`}
+                    style={{ clipPath: 'polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)' }}
+                  >
+                    ALL
+                  </button>
+                  {Array.from(new Set(history.map((c: DungeonCrawl) => c.name))).map((crawlName) => (
+                    <button
+                      key={crawlName}
+                      onClick={() => setSelectedHistoryCrawl(crawlName)}
+                      className={`px-4 sm:px-6 py-2 font-bold text-xs sm:text-sm transition-all ${
+                        selectedHistoryCrawl === crawlName
+                          ? 'bg-amber-900/60 border-2 border-amber-500/60 text-amber-100'
+                          : 'bg-stone-900/40 border-2 border-stone-700/40 text-stone-400 hover:text-stone-200'
+                      }`}
+                      style={{ clipPath: 'polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)' }}
+                    >
+                      {crawlName}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Filtered history list */}
+                {history.flatMap((crawl: DungeonCrawl) => {
+                  // Filter by selected crawl name
+                  if (selectedHistoryCrawl && crawl.name !== selectedHistoryCrawl) {
+                    return []
+                  }
+                  return crawl.instances?.map((instance) => (
                     <div key={instance.id} className="bg-stone-900/80 border-2 border-stone-700/80 rounded-lg p-3 sm:p-4 md:p-6 backdrop-blur-sm shadow-xl">
                       <div className="mb-3 sm:mb-4">
                         <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold mb-2 text-amber-200 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">{crawl.name}</h2>
@@ -1100,20 +1311,69 @@ export default function DungeonCrawlPage() {
                         })}
                       </div>
                     </div>
-                  ))
+                  )) || []
+                })}
+                {historyPagination && historyPagination.totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-4 mt-8">
+                    <button
+                      onClick={() => {
+                        const newPage = historyPage - 1
+                        if (newPage >= 1) {
+                          setHistoryPage(newPage)
+                          fetchHistory(newPage)
+                        }
+                      }}
+                      disabled={historyPage <= 1 || isLoadingHistory}
+                      className="px-4 py-2 bg-stone-800 text-stone-200 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-700"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-stone-300">
+                      Page {historyPage} of {historyPagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => {
+                        const newPage = historyPage + 1
+                        if (newPage <= historyPagination.totalPages) {
+                          setHistoryPage(newPage)
+                          fetchHistory(newPage)
+                        }
+                      }}
+                      disabled={historyPage >= historyPagination.totalPages || isLoadingHistory}
+                      className="px-4 py-2 bg-stone-800 text-stone-200 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-700"
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
               </div>
             )
           ) : crawls.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">No active dungeon crawls available</p>
+              <div className="bg-stone-900/80 border-2 border-stone-700/80 rounded-lg p-8 sm:p-12 backdrop-blur-sm shadow-xl max-w-2xl mx-auto">
+                <Shield className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 text-stone-400" />
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 text-amber-200 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                  No Active Dungeon Crawls
+                </h2>
+                <p className="text-stone-300 text-sm sm:text-base mb-6 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  There are currently no active dungeon crawls. Check back soon for new adventures!
+                </p>
+                {isGlobalTimerLocked && (
+                  <div className="bg-yellow-900/50 border-2 border-yellow-600/60 rounded-lg p-4 mt-4">
+                    <p className="text-yellow-400 text-sm font-bold mb-2">⏰ Global Start Time</p>
+                    <p className="text-stone-300 text-xs sm:text-sm">
+                      Dungeon crawls will be available once the global start time has been reached.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div>
               {/* Tab Navigation */}
               <div className="flex flex-wrap gap-2 mb-6 border-b-2 border-stone-700/60 pb-2">
                 {crawls.map((crawl) => {
-                  const activeInstances = crawl.instances?.filter(i => i.status !== 'failed') || []
+                  const activeInstances = crawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
                   const instance = activeInstances[0]
                   const hasNoInstance = !instance
                   const isActive = selectedCrawl?.id === crawl.id
@@ -2116,6 +2376,7 @@ export default function DungeonCrawlPage() {
         </main>
       </div>
     </div>
-    </GlobalStartTimeLock>
   )
+
+  return bypassTimer ? content : <GlobalStartTimeLock>{content}</GlobalStartTimeLock>
 }

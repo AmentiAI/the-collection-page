@@ -72,15 +72,25 @@ export async function GET(request: NextRequest) {
         }
 
         // Create new instance
-        await client.query(
+        console.log(`[cron/dungeon-crawl-restart] 🔄 Creating new instance for crawl ${crawl.id}`)
+        console.log(`[cron/dungeon-crawl-restart] 📝 EXECUTING INSERT: INSERT INTO dungeon_crawl_instances (crawl_id, status) VALUES ('${crawl.id}', 'open')`)
+        const instanceResult = await client.query(
           `
             INSERT INTO dungeon_crawl_instances (crawl_id, status)
             VALUES ($1, 'open')
+            RETURNING id, crawl_id, status, created_at
           `,
           [crawl.id]
         )
-
-        restarted++
+        console.log(`[cron/dungeon-crawl-restart] 📊 INSERT RESULT: rowCount=${instanceResult.rowCount}, rows=${JSON.stringify(instanceResult.rows)}`)
+        
+        if (instanceResult.rows.length > 0) {
+          const instance = instanceResult.rows[0]
+          console.log(`[cron/dungeon-crawl-restart] ✅ INSERTED instance ${instance.id} for crawl ${crawl.id} - status: ${instance.status}, created_at: ${instance.created_at}`)
+          restarted++
+        } else {
+          console.log(`[cron/dungeon-crawl-restart] ⚠️ Failed to create instance for crawl ${crawl.id} - INSERT returned no rows`)
+        }
       }
 
       // Rewards are now permanent, so no cleanup needed
