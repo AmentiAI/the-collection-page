@@ -494,27 +494,35 @@ export default function RedemptionLeaderboardPage() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-yellow-300">
                             {entry.battles_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.battles_count > 0 ? '+' : ''}{entry.battles_count.toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
                             {entry.heals_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.heals_count > 0 ? '+' : ''}{entry.heals_count.toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.crystallization_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.crystallization_count > 0 ? '+' : ''}{entry.crystallization_count.toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-amber-300">
                             {entry.ascension_circle_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.ascension_circle_count > 0 ? '+' : ''}{(entry.ascension_circle_count * 0.5).toFixed(1)})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-cyan-300">
                             {entry.resurrections_count.toLocaleString()}
+                            <span className="text-red-400 ml-1">({entry.resurrections_count > 0 ? '-' : ''}{(entry.resurrections_count * 10).toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs font-bold text-yellow-400">
                             {entry.killing_blows_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.killing_blows_count > 0 ? '+' : ''}{(entry.killing_blows_count * 50).toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.abyss_burns_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.abyss_burns_count > 0 ? '+' : ''}{entry.abyss_burns_count.toLocaleString()})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
                             {entry.mints_count.toLocaleString()}
+                            <span className="text-green-400 ml-1">({entry.mints_count > 0 ? '+' : ''}{entry.mints_count.toLocaleString()})</span>
                           </td>
                         </tr>
                         {isExpanded && (
