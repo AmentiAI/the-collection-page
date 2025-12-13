@@ -263,23 +263,23 @@ const LevelCard = memo(({
           : 'border-stone-600/60 bg-stone-900/50'
       }`}
     >
-      <div className="flex items-center justify-between mb-2 sm:mb-3">
-        <h3 className={`font-bold text-sm sm:text-base md:text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
-          windowState.isOpen ? 'text-amber-300' : 'text-stone-400'
-        }`}>Level {level}</h3>
+      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <h3 className={`font-bold text-sm sm:text-base md:text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] whitespace-nowrap ${
+            windowState.isOpen ? 'text-amber-300' : 'text-stone-400'
+          }`}>Level {level}</h3>
+          {instance?.status === 'ready' && level === 1 && completedCount === 0 && windowState.isOpen ? (
+            <span className="text-xs sm:text-sm md:text-base text-stone-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Waiting for first completion...</span>
+          ) : (
+            <span className="text-xs sm:text-sm md:text-base text-stone-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+              {completedCount} / {crawl.requiredParticipants} ({Math.round(participationPercent)}%)
+            </span>
+          )}
+        </div>
         {isMyCompleted ? (
-          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-500" />
+          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-500 flex-shrink-0" />
         ) : (
-          <XCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-stone-500" />
-        )}
-      </div>
-      <div className="text-xs sm:text-sm md:text-base text-stone-200 mb-2 sm:mb-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {instance?.status === 'ready' && level === 1 && completedCount === 0 && windowState.isOpen ? (
-          <span>Waiting for first completion to start...</span>
-        ) : (
-          <span>
-            {completedCount} / {crawl.requiredParticipants} completed ({Math.round(participationPercent)}%)
-          </span>
+          <XCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-stone-500 flex-shrink-0" />
         )}
       </div>
       {timeDisplay && participationPercent < 100 && (
@@ -352,6 +352,7 @@ export default function DungeonCrawlPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedCrawl, setSelectedCrawl] = useState<DungeonCrawl | null>(null)
+  const selectedCrawlIdRef = useRef<string | null>(null)
   const [selectedInstance, setSelectedInstance] = useState<DungeonCrawlInstance | null>(null)
   const [ordinals, setOrdinals] = useState<BattleOrdinal[]>([])
   const [selectedOrdinalsByInstance, setSelectedOrdinalsByInstance] = useState<Map<string, Set<string>>>(new Map())
@@ -475,12 +476,31 @@ export default function DungeonCrawlPage() {
         setCrawls(newCrawls)
         // History is now fetched separately via /api/dungeon-crawls/history when Chronicles tab is clicked
         
+        // Preserve selected crawl by ID, not object reference
+        const currentSelectedCrawlId = selectedCrawlIdRef.current || selectedCrawl?.id
+        const preservedCrawl = currentSelectedCrawlId 
+          ? newCrawls.find((c: DungeonCrawl) => c.id === currentSelectedCrawlId)
+          : null
+        
         // Auto-select first crawl if none selected, even if it has no instances
         setSelectedInstance((prevInstance) => {
           if (!prevInstance) {
+            // If we have a preserved crawl, use it
+            if (preservedCrawl) {
+              setSelectedCrawl(preservedCrawl)
+              selectedCrawlIdRef.current = preservedCrawl.id
+              const activeInstances = preservedCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
+              if (activeInstances.length > 0) {
+                return activeInstances[0]
+              }
+              return null
+            }
+            
+            // Otherwise, select first crawl
             if (newCrawls.length > 0) {
               const firstCrawl = newCrawls[0]
               setSelectedCrawl(firstCrawl)
+              selectedCrawlIdRef.current = firstCrawl.id
               // Try to find an active instance, but allow selection even without one
               const activeInstances = firstCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
               if (activeInstances.length > 0) {
@@ -503,6 +523,7 @@ export default function DungeonCrawlPage() {
             )
             if (matchingCrawl) {
               setSelectedCrawl(matchingCrawl)
+              selectedCrawlIdRef.current = matchingCrawl.id
             }
             return matchingInstance
           }
@@ -511,6 +532,7 @@ export default function DungeonCrawlPage() {
           const sameCrawl = newCrawls.find((c: DungeonCrawl) => c.id === prevInstance.crawlId)
           if (sameCrawl) {
             setSelectedCrawl(sameCrawl)
+            selectedCrawlIdRef.current = sameCrawl.id
             const activeInstances = sameCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
             return activeInstances[0] || null
           }
@@ -518,9 +540,14 @@ export default function DungeonCrawlPage() {
           return null
         })
         
-        // Ensure selectedCrawl is set even if no instance
-        if (!selectedCrawl && newCrawls.length > 0) {
-          setSelectedCrawl(newCrawls[0])
+        // Ensure selectedCrawl is set even if no instance, but preserve selection if possible
+        if (preservedCrawl) {
+          setSelectedCrawl(preservedCrawl)
+          selectedCrawlIdRef.current = preservedCrawl.id
+        } else if (!selectedCrawl && newCrawls.length > 0) {
+          const firstCrawl = newCrawls[0]
+          setSelectedCrawl(firstCrawl)
+          selectedCrawlIdRef.current = firstCrawl.id
         }
       } else {
         console.error('API returned success:false:', data)
@@ -1465,6 +1492,7 @@ export default function DungeonCrawlPage() {
                       key={crawl.id}
                       onClick={() => {
                         setSelectedCrawl(crawl)
+                        selectedCrawlIdRef.current = crawl.id
                         if (instance) {
                           setSelectedInstance(instance)
                         } else {
@@ -1655,14 +1683,14 @@ export default function DungeonCrawlPage() {
                     <div className="spinning-orb absolute -left-12 top-1/4 w-24 h-24 opacity-20 group-hover:opacity-40 transition-opacity" />
                     <div className="spinning-orb absolute -right-12 top-3/4 w-24 h-24 opacity-20 group-hover:opacity-40 transition-opacity" style={{ animationDelay: '-10s' }} />
                     
-                    <div className="dungeon-card rounded-lg p-3 sm:p-4 md:p-6 backdrop-blur-sm relative overflow-hidden">
+                    <div className="dungeon-card rounded-lg p-3 sm:p-4 md:p-5 backdrop-blur-sm relative overflow-hidden">
                       {/* Side glow decorations */}
                       <div className="absolute top-1/2 -translate-y-1/2 -left-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all duration-500" />
                       <div className="absolute top-1/2 -translate-y-1/2 -right-20 w-40 h-40 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-all duration-500" />
                       
-                      <div className="mb-3 sm:mb-4 md:mb-6 relative z-10">
+                      <div className="mb-2 sm:mb-3 relative z-10">
                         {/* Crawl name with decorative line */}
-                        <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3 md:mb-4">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2">
                           <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-red-400 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
                           <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-amber-200 to-red-300 tracking-wide">
                             {crawl.name.toUpperCase()}
@@ -1677,14 +1705,14 @@ export default function DungeonCrawlPage() {
                       </div>
                       
                       {/* Game-like stats panel */}
-                      <div className="mb-3 sm:mb-4 md:mb-6 relative">
+                      <div className="mb-2 sm:mb-3 relative">
                         {/* Decorative corner brackets with red */}
                         <div className="absolute top-0 left-0 w-4 h-4 border-t border-l border-red-400/50" />
                         <div className="absolute top-0 right-0 w-4 h-4 border-t border-r border-amber-400/50" />
                         <div className="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-amber-400/50" />
                         <div className="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-red-400/50" />
                         
-                        <div className="p-2 sm:p-3 md:p-4 lg:p-6 bg-black/60 rounded border border-red-900/40 backdrop-blur-sm relative overflow-hidden">
+                        <div className="p-2 sm:p-3 md:p-3 bg-black/60 rounded border border-red-900/40 backdrop-blur-sm relative overflow-hidden">
                           {/* Subtle scan line effect */}
                           <div className="absolute inset-0 bg-gradient-to-b from-red-500/5 via-amber-500/5 to-transparent pointer-events-none animate-pulse" />
                           
@@ -1774,15 +1802,14 @@ export default function DungeonCrawlPage() {
                       </div>
 
                       {/* PROMINENT REWARD BANNER */}
-                      <div className="mb-2 sm:mb-3 md:mb-4 lg:mb-6 relative">
-                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border border-amber-500/60 sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 lg:p-5 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
+                      <div className="mb-2 sm:mb-3 relative">
+                        <div className="bg-gradient-to-r from-amber-900/80 via-yellow-900/80 to-amber-900/80 border border-amber-500/60 sm:border-2 rounded-lg p-2 sm:p-3 md:p-3 shadow-[0_0_30px_rgba(251,191,36,0.3)] relative overflow-hidden">
                           {/* Animated background glow */}
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/10 to-transparent animate-shimmer" />
                           
                           <div className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-3 lg:gap-4">
                             <Shield className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 xl:w-10 xl:h-10 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                             <div className="text-center">
-                              <div className="text-[9px] sm:text-[10px] md:text-xs uppercase tracking-wider text-amber-300/80 mb-0.5">REWARD</div>
                               <div className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl font-black text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                                 +{crawl.rewardValue}
                                 <span className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-amber-200/90">
@@ -1795,7 +1822,7 @@ export default function DungeonCrawlPage() {
                       </div>
 
                       {/* Secondary info bar */}
-                      <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm mb-3 sm:mb-4">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm mb-2 sm:mb-3">
                         {instance && (
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4" />
@@ -1852,7 +1879,7 @@ export default function DungeonCrawlPage() {
                     </div>
 
                     {hasNoInstance ? (
-                      <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border sm:border-2 rounded-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-5 lg:mb-6 backdrop-blur-sm shadow-lg`}>
+                      <div className={`${isOverdue ? 'bg-orange-900/50 border-orange-600' : 'bg-yellow-900/50 border-yellow-600'} border sm:border-2 rounded-lg p-2 sm:p-3 mb-2 sm:mb-3 backdrop-blur-sm shadow-lg`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                         <p className={`${isOverdue ? 'text-orange-400' : 'text-yellow-400'} font-bold text-xs sm:text-sm md:text-base`}>No active dungeon crawl</p>
@@ -1880,13 +1907,13 @@ export default function DungeonCrawlPage() {
                         </div>
                       </div>
                     ) : isFailed ? (
-                      <div className="bg-red-900/50 border-2 border-red-600 rounded-lg p-4 mb-6 backdrop-blur-sm shadow-lg">
+                      <div className="bg-red-900/50 border-2 border-red-600 rounded-lg p-3 mb-2 sm:mb-3 backdrop-blur-sm shadow-lg">
                         <p className="text-red-400 font-bold">This dungeon crawl has failed due to insufficient participation.</p>
                         <p className="text-stone-300 text-sm mt-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">It will be restarted according to the restart schedule.</p>
                       </div>
                     ) : instance ? (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-2 sm:mb-3">
                           {[1, 2, 3].map((level) => {
                             if (!instance) return null
                             

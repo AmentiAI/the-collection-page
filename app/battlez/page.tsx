@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useToast } from '@/components/Toast'
 import Header from '@/components/Header'
@@ -26,6 +27,8 @@ interface BattleOrdinal {
 }
 
 export default function BattlePage() {
+  const searchParams = useSearchParams()
+  const bypassTimer = searchParams.get('notime') === '1'
   const { connected, address } = useLaserEyes()
   const toast = useToast()
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
@@ -312,10 +315,9 @@ export default function BattlePage() {
       : 'Unbalanced'
     : 'No Ready Armies'
 
-  return (
-    <GlobalStartTimeLock>
-      <div className="min-h-screen bg-black text-white">
-        <Header
+  const content = (
+    <div className="min-h-screen bg-black text-white">
+      <Header
           isHolder={isHolder}
           isVerifying={isVerifying}
           connected={connected}
@@ -889,6 +891,16 @@ export default function BattlePage() {
           )}
         </main>
       </div>
+  )
+
+  // Bypass global timer if ?notime=1 is in URL
+  if (bypassTimer) {
+    return content
+  }
+
+  return (
+    <GlobalStartTimeLock>
+      {content}
     </GlobalStartTimeLock>
   )
 }

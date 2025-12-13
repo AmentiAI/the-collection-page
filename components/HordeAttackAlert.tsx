@@ -112,9 +112,10 @@ export default function HordeAttackAlert() {
   }, [addressKey, connected]) // Use stable addressKey and connected boolean
 
   // Fetch next dungeon crawl time
+  const earliestTimeRef = useRef<number | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  
   useEffect(() => {
-    let countdownInterval: NodeJS.Timeout | null = null
-    
     const fetchDungeonCrawlTime = async () => {
       try {
         const response = await fetch('/api/dungeon-crawls', { cache: 'no-store' })
@@ -162,33 +163,36 @@ export default function HordeAttackAlert() {
               .filter((time: number | null): time is number => time !== null && time > now)
             
             if (actualRestartTimes.length > 0) {
-              const earliestTime = Math.min(...actualRestartTimes)
-              const calculateTimeRemaining = () => {
-                const now = Date.now()
-                const remaining = earliestTime - now
-                return remaining > 0 ? remaining : 0
-              }
+              const newEarliestTime = Math.min(...actualRestartTimes)
               
-              const updateCountdown = () => {
-                setDungeonCrawlTimeRemaining(calculateTimeRemaining())
+              // Only update if the time has changed significantly (more than 1 minute difference)
+              // This prevents glitching from minor timestamp differences
+              if (!earliestTimeRef.current || Math.abs(newEarliestTime - earliestTimeRef.current) > 60000) {
+                earliestTimeRef.current = newEarliestTime
               }
-              
-              // Clear existing interval if any
-              if (countdownInterval) {
-                clearInterval(countdownInterval)
-              }
-              
-              updateCountdown()
-              countdownInterval = setInterval(updateCountdown, 1000)
             } else {
+              earliestTimeRef.current = null
               setDungeonCrawlTimeRemaining(null)
             }
           } else {
+            earliestTimeRef.current = null
             setDungeonCrawlTimeRemaining(null)
           }
         }
       } catch (error) {
         console.error('Error fetching dungeon crawl time:', error)
+        earliestTimeRef.current = null
+        setDungeonCrawlTimeRemaining(null)
+      }
+    }
+
+    // Countdown update function that uses the ref
+    const updateCountdown = () => {
+      if (earliestTimeRef.current) {
+        const now = Date.now()
+        const remaining = earliestTimeRef.current - now
+        setDungeonCrawlTimeRemaining(remaining > 0 ? remaining : 0)
+      } else {
         setDungeonCrawlTimeRemaining(null)
       }
     }
@@ -197,10 +201,14 @@ export default function HordeAttackAlert() {
     // Refresh every 60 seconds
     const fetchInterval = setInterval(fetchDungeonCrawlTime, 60000)
     
+    // Start countdown interval
+    updateCountdown()
+    countdownIntervalRef.current = setInterval(updateCountdown, 1000)
+    
     return () => {
       clearInterval(fetchInterval)
-      if (countdownInterval) {
-        clearInterval(countdownInterval)
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
       }
     }
   }, [])
