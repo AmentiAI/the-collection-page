@@ -280,7 +280,7 @@ export default function RedemptionLeaderboardPage() {
                 <tr className="hover:bg-red-900/10">
                   <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
                   <td className="px-4 py-3 text-sm text-gray-200">Heals</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per heal</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per heal</td>
                   <td className="px-4 py-3 text-xs text-gray-400">Each army healed at the Pool of Life (heal_history.healed_count)</td>
                 </tr>
                 <tr className="hover:bg-red-900/10">
@@ -320,7 +320,7 @@ export default function RedemptionLeaderboardPage() {
                       <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
-                            <span className="text-green-400">Battles + Heals + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
+                            <span className="text-green-400">Battles + (Heals × 0.5) + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
                             {' + '}
                             <span className="text-yellow-400">Killing Blows × 50</span>
                             {' - '}
@@ -492,7 +492,7 @@ export default function RedemptionLeaderboardPage() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
                             {entry.heals_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.heals_count > 0 ? '+' : ''}{entry.heals_count.toLocaleString()})</span>
+                            <span className="text-green-400 ml-1">({entry.heals_count > 0 ? '+' : ''}{(entry.heals_count * 0.5).toFixed(1)})</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.crystallization_count.toLocaleString()}

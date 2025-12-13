@@ -173,13 +173,14 @@ export async function GET(request: NextRequest) {
         -- Formula: (activities + killing_blows*50 + burns - resurrections*10) / (army_count^0.4)
         -- This rewards efficiency and penalizes deaths, helping smaller armies compete
         -- Battles are worth 1 point each
+        -- Heals are worth 0.5 points each
         -- Ascension circles are worth 0.5 points each
         -- Killing blows are worth 50 points each (big bonus!)
         -- Burns are worth 1 point each
         CASE 
           WHEN army_count > 0 THEN
             (
-              (battles_count + heals_count + crystallization_count + (ascension_circle_count * 0.5) + (killing_blows_count * 50) + abyss_burns_count - resurrections_count * 10)::numeric
+              (battles_count + (heals_count * 0.5) + crystallization_count + (ascension_circle_count * 0.5) + (killing_blows_count * 50) + abyss_burns_count - resurrections_count * 10)::numeric
               / POWER(GREATEST(army_count, 1)::numeric, 0.4)
             )::numeric(10, 2)
           ELSE 0
