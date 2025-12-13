@@ -240,6 +240,78 @@ export default function RedemptionLeaderboardPage() {
           </div>
         )}
 
+        {/* Points Breakdown Table */}
+        <div className="rounded-xl border border-red-600/40 bg-black/60 overflow-hidden">
+          <div className="bg-red-900/20 px-6 py-4 border-b border-red-800/50">
+            <h2 className="text-lg font-bold text-red-200 uppercase tracking-wide">Points System Breakdown</h2>
+            <p className="text-xs text-gray-400 mt-1">How points are calculated for the Redemption Leaderboard</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full divide-y divide-red-800/50">
+              <thead className="bg-red-900/10">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">Category</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">Action</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">Points</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-900/40">
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Battles</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per battle</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each time your army participates in a horde attack (mega_monster_attack_logs)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Heals</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per heal</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each army healed at the Pool of Life (heal_history.healed_count)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Crystallizations</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per crystallization</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each distinct inscription crystallized (crystallization_records)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Ascension Circles</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per circle</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each ascension circle created or participated in (summoning_powder_circles + summoning_powder_participants)</td>
+                </tr>
+                <tr className="hover:bg-red-900/10">
+                  <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
+                  <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-3 per resurrection</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">Each army that was resurrected (battle_ordinals.resurrection_time IS NOT NULL)</td>
+                </tr>
+                <tr className="bg-red-950/30 border-t-2 border-red-800/50">
+                  <td colSpan={4} className="px-4 py-4">
+                    <div className="space-y-2">
+                      <div className="text-xs font-mono text-red-200 font-semibold uppercase tracking-wide mb-2">Score Calculation Formula:</div>
+                      <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
+                        <div className="mb-2">
+                          <span className="text-red-400">Total Score</span> = (
+                            <span className="text-green-400">Battles + Heals + Crystallizations + Ascension Circles</span>
+                            {' - '}
+                            <span className="text-red-400">Resurrections × 3</span>
+                          ) ÷ <span className="text-yellow-400">Army Count<sup>0.4</sup></span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-2">
+                          The efficiency curve (army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
+                          Resurrections are penalized 3x to encourage keeping armies alive.
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-red-500" />

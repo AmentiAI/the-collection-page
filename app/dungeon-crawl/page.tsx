@@ -844,7 +844,14 @@ export default function DungeonCrawlPage() {
   const fetchHistory = useCallback(async (page: number = 1) => {
     setIsLoadingHistory(true)
     try {
-      const response = await fetch(`/api/dungeon-crawls/history?page=${page}&limit=20`, {
+      const url = new URL('/api/dungeon-crawls/history', window.location.origin)
+      url.searchParams.set('page', page.toString())
+      url.searchParams.set('limit', '20')
+      if (address) {
+        url.searchParams.set('wallet', address)
+      }
+      
+      const response = await fetch(url.toString(), {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
       })
@@ -860,7 +867,7 @@ export default function DungeonCrawlPage() {
     } finally {
       setIsLoadingHistory(false)
     }
-  }, [])
+  }, [address])
 
   // History is only fetched when Chronicles tab is clicked (see button onClick handler)
 

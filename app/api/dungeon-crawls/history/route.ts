@@ -10,11 +10,12 @@ export async function GET(request: NextRequest) {
   try {
     await ensureDungeonCrawlInfrastructure(pool)
     
-    // Get pagination params
+    // Get pagination params and optional wallet address
     const searchParams = request.nextUrl.searchParams
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
     const offset = (page - 1) * limit
+    const walletAddress = searchParams.get('wallet')?.trim() || null
     
     const client = await pool.connect()
     try {
@@ -106,8 +107,33 @@ export async function GET(request: NextRequest) {
           ORDER BY COALESCE(i.completed_at, i.level_3_completed_at, i.level_2_completed_at, i.level_1_completed_at, i.started_at) DESC
         `, [crawl.id])
 
+        // Get reward counts for all instances if wallet is provided
+        const rewardCounts = new Map<string, number>()
+        if (walletAddress) {
+          const instanceIds = instancesRes.rows.map((row: any) => row.id)
+          if (instanceIds.length > 0) {
+            const rewardCountsRes = await client.query(
+              `
+                SELECT 
+                  instance_id,
+                  COUNT(*)::int as reward_count
+                FROM dungeon_crawl_reward_items
+                WHERE instance_id = ANY($1::uuid[])
+                  AND LOWER(wallet) = LOWER($2)
+                GROUP BY instance_id
+              `,
+              [instanceIds, walletAddress]
+            )
+            
+            rewardCountsRes.rows.forEach((row: any) => {
+              rewardCounts.set(row.instance_id, Number(row.reward_count) || 0)
+            })
+          }
+        }
+
         const instances = instancesRes.rows.map((row: any) => {
           const participants = row.participants || []
+          const rewardCount = walletAddress ? (rewardCounts.get(row.id) || 0) : 0
           return {
             id: row.id,
             status: row.status,
@@ -125,7 +151,7 @@ export async function GET(request: NextRequest) {
             updatedAt: row.updated_at,
             participants: participants,
             participantCount: Array.isArray(participants) ? participants.length : 0,
-            myRewardCount: 0,
+            myRewardCount: rewardCount,
           }
         })
 
