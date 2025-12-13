@@ -482,13 +482,22 @@ export default function DungeonCrawlPage() {
           ? newCrawls.find((c: DungeonCrawl) => c.id === currentSelectedCrawlId)
           : null
         
-        // Auto-select first crawl if none selected, even if it has no instances
+        // Always preserve the selected crawl first, before any instance logic
+        if (preservedCrawl) {
+          setSelectedCrawl(preservedCrawl)
+          selectedCrawlIdRef.current = preservedCrawl.id
+        } else if (!selectedCrawl && newCrawls.length > 0) {
+          // Only auto-select first crawl if nothing is selected
+          const firstCrawl = newCrawls[0]
+          setSelectedCrawl(firstCrawl)
+          selectedCrawlIdRef.current = firstCrawl.id
+        }
+        
+        // Now handle instance selection, but don't change the crawl selection
         setSelectedInstance((prevInstance) => {
           if (!prevInstance) {
-            // If we have a preserved crawl, use it
+            // If we have a preserved crawl, try to find an instance for it
             if (preservedCrawl) {
-              setSelectedCrawl(preservedCrawl)
-              selectedCrawlIdRef.current = preservedCrawl.id
               const activeInstances = preservedCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
               if (activeInstances.length > 0) {
                 return activeInstances[0]
@@ -496,18 +505,13 @@ export default function DungeonCrawlPage() {
               return null
             }
             
-            // Otherwise, select first crawl
-            if (newCrawls.length > 0) {
-              const firstCrawl = newCrawls[0]
-              setSelectedCrawl(firstCrawl)
-              selectedCrawlIdRef.current = firstCrawl.id
-              // Try to find an active instance, but allow selection even without one
-              const activeInstances = firstCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
+            // Otherwise, try to find instance for currently selected crawl
+            const currentCrawl = preservedCrawl || selectedCrawl || (newCrawls.length > 0 ? newCrawls[0] : null)
+            if (currentCrawl) {
+              const activeInstances = currentCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
               if (activeInstances.length > 0) {
                 return activeInstances[0]
               }
-              // No instance yet, but still select the crawl
-              return null
             }
             return null
           }
@@ -518,37 +522,24 @@ export default function DungeonCrawlPage() {
             .find((i: DungeonCrawlInstance) => i.id === prevInstance.id)
           
           if (matchingInstance) {
-            const matchingCrawl = newCrawls.find((c: DungeonCrawl) => 
-              c.instances?.some((i: DungeonCrawlInstance) => i.id === matchingInstance.id)
-            )
-            if (matchingCrawl) {
-              setSelectedCrawl(matchingCrawl)
-              selectedCrawlIdRef.current = matchingCrawl.id
-            }
+            // Don't change crawl selection here - it should already be set above
             return matchingInstance
           }
           
           // Try to find instance in same crawl
           const sameCrawl = newCrawls.find((c: DungeonCrawl) => c.id === prevInstance.crawlId)
           if (sameCrawl) {
-            setSelectedCrawl(sameCrawl)
-            selectedCrawlIdRef.current = sameCrawl.id
+            // Only update crawl if it's different from preserved
+            if (!preservedCrawl || sameCrawl.id !== preservedCrawl.id) {
+              setSelectedCrawl(sameCrawl)
+              selectedCrawlIdRef.current = sameCrawl.id
+            }
             const activeInstances = sameCrawl.instances?.filter((i: DungeonCrawlInstance) => i.status !== 'failed') || []
             return activeInstances[0] || null
           }
           
           return null
         })
-        
-        // Ensure selectedCrawl is set even if no instance, but preserve selection if possible
-        if (preservedCrawl) {
-          setSelectedCrawl(preservedCrawl)
-          selectedCrawlIdRef.current = preservedCrawl.id
-        } else if (!selectedCrawl && newCrawls.length > 0) {
-          const firstCrawl = newCrawls[0]
-          setSelectedCrawl(firstCrawl)
-          selectedCrawlIdRef.current = firstCrawl.id
-        }
       } else {
         console.error('API returned success:false:', data)
       }
