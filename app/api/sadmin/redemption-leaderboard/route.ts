@@ -149,11 +149,12 @@ export async function GET(request: NextRequest) {
             FROM heal_history hh
             WHERE LOWER(hh.wallet_address) = ANY(pwg.all_wallets_lower)
           ), 0) as heals_count,
-          -- Crystallization count (distinct inscriptions)
+          -- Crystallization count (count all records where powder has been claimed)
           COALESCE((
-            SELECT COUNT(DISTINCT cr.inscription_id)::int
+            SELECT COUNT(*)::int
             FROM crystallization_records cr
             WHERE LOWER(cr.wallet_address) = ANY(pwg.all_wallets_lower)
+              AND cr.claimed_at IS NOT NULL
           ), 0) as crystallization_count,
           -- Ascension circles: created + participated (distinct)
           COALESCE((
