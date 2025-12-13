@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     for (const crawl of crawlsRes.rows) {
       // Get detailed information about this crawl
-      const timing = await getCrawlTiming(client, crawl.id)
+      let timing = await getCrawlTiming(client, crawl.id)
       
       // Get last failed and completed instances
       const lastInstancesRes = await client.query(
