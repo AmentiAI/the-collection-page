@@ -28,9 +28,34 @@ export async function GET(request: NextRequest) {
 
     let createdCount = 0
     const now = new Date()
+    const crawlDetails: any[] = []
 
     for (const crawl of crawlsRes.rows) {
-      // Final safety check: ensure no active instance exists
+      // Get detailed information about this crawl
+      const timing = await getCrawlTiming(client, crawl.id)
+      
+      // Get last failed and completed instances
+      const lastInstancesRes = await client.query(
+        `SELECT 
+          id,
+          status,
+          completed_at,
+          updated_at,
+          started_at
+         FROM dungeon_crawl_instances
+         WHERE crawl_id = $1
+           AND status IN ('failed', 'completed')
+         ORDER BY 
+           CASE WHEN status = 'completed' THEN 1 ELSE 2 END,
+           COALESCE(completed_at, updated_at) DESC
+         LIMIT 2`,
+        [crawl.id]
+      )
+      
+      const lastCompleted = lastInstancesRes.rows.find((r: any) => r.status === 'completed')
+      const lastFailed = lastInstancesRes.rows.find((r: any) => r.status === 'failed')
+      
+      // Check for active instance
       const activeCheck = await client.query(
         `SELECT COUNT(*)::int as count
          FROM dungeon_crawl_instances 
@@ -38,12 +63,31 @@ export async function GET(request: NextRequest) {
            AND status IN ('open', 'filling', 'ready', 'level_1', 'level_2', 'level_3')`,
         [crawl.id]
       )
-
-      if (activeCheck.rows[0]?.count > 0) {
-        // Active instance exists, skip
-        continue
+      const hasActiveInstance = activeCheck.rows[0]?.count > 0
+      
+      // Calculate expected restart times
+      let expectedRestartAt: Date | null = null
+      let timeSinceLastInstance: number | null = null
+      let lastInstanceType: 'completed' | 'failed' | null = null
+      let lastInstanceEndedAt: Date | null = null
+      
+      if (lastCompleted) {
+        const completedAt = new Date(lastCompleted.completed_at)
+        lastInstanceType = 'completed'
+        lastInstanceEndedAt = completedAt
+        timeSinceLastInstance = now.getTime() - completedAt.getTime()
+        
+        if (!crawl.never_restart_after_completion) {
+          expectedRestartAt = new Date(completedAt.getTime() + crawl.cooldown_hours * 60 * 60 * 1000)
+        }
+      } else if (lastFailed) {
+        const failedAt = new Date(lastFailed.updated_at)
+        lastInstanceType = 'failed'
+        lastInstanceEndedAt = failedAt
+        timeSinceLastInstance = now.getTime() - failedAt.getTime()
+        expectedRestartAt = new Date(failedAt.getTime() + crawl.restart_after_failure_hours * 60 * 60 * 1000)
       }
-
+      
       // Check timing table to see if we should create a new instance
       const shouldCreate = await shouldCreateNewInstance(
         client,
@@ -52,28 +96,43 @@ export async function GET(request: NextRequest) {
         crawl.cooldown_hours,
         crawl.never_restart_after_completion
       )
+      
+      // Store crawl details for response
+      crawlDetails.push({
+        id: crawl.id,
+        name: crawl.name,
+        hasActiveInstance,
+        shouldCreate: shouldCreate.shouldCreate,
+        reason: shouldCreate.reason,
+        lastInstanceType,
+        lastInstanceEndedAt: lastInstanceEndedAt?.toISOString() || null,
+        timeSinceLastInstanceMs: timeSinceLastInstance,
+        timeSinceLastInstanceFormatted: timeSinceLastInstance 
+          ? `${Math.floor(timeSinceLastInstance / (1000 * 60 * 60))}h ${Math.floor((timeSinceLastInstance % (1000 * 60 * 60)) / (1000 * 60))}m`
+          : null,
+        expectedRestartAt: expectedRestartAt?.toISOString() || null,
+        timeUntilRestartMs: expectedRestartAt ? expectedRestartAt.getTime() - now.getTime() : null,
+        timeUntilRestartFormatted: expectedRestartAt && expectedRestartAt > now
+          ? `${Math.floor((expectedRestartAt.getTime() - now.getTime()) / (1000 * 60 * 60))}h ${Math.floor(((expectedRestartAt.getTime() - now.getTime()) % (1000 * 60 * 60)) / (1000 * 60))}m`
+          : expectedRestartAt && expectedRestartAt <= now
+          ? 'OVERDUE'
+          : null,
+        restartAfterFailureHours: crawl.restart_after_failure_hours,
+        cooldownHours: crawl.cooldown_hours,
+        neverRestartAfterCompletion: crawl.never_restart_after_completion,
+        timingTableStatus: timing?.instanceStatus || 'no_timing_record',
+        timingTableNextStart: timing?.nextInstanceStartsAt?.toISOString() || null,
+      })
+
+      if (hasActiveInstance) {
+        // Active instance exists, skip
+        continue
+      }
 
       if (!shouldCreate.shouldCreate) {
         // Not time yet, skip
         continue
       }
-
-      // Get the most recent failed or completed instance to determine restart time
-      const lastInstanceRes = await client.query(
-        `SELECT 
-          id,
-          status,
-          completed_at,
-          updated_at
-         FROM dungeon_crawl_instances
-         WHERE crawl_id = $1
-           AND status IN ('failed', 'completed')
-         ORDER BY 
-           CASE WHEN status = 'completed' THEN 1 ELSE 2 END,
-           COALESCE(completed_at, updated_at) DESC
-         LIMIT 1`,
-        [crawl.id]
-      )
 
       // Create new instance
       console.log(`[cron/dungeon-crawl-restart] 🔄 Creating new instance for crawl ${crawl.id} (${crawl.name})`)
@@ -101,26 +160,14 @@ export async function GET(request: NextRequest) {
           nextInstanceStartsAt: null, // Clear next start time since we just started
         })
         
-        // If there was a previous instance, update its timing record to mark it as ended
-        if (lastInstanceRes.rows.length > 0) {
-          const lastInstance = lastInstanceRes.rows[0]
-          const timing = await getCrawlTiming(client, crawl.id)
-          
-          // If timing record exists and references the old instance, update it
-          if (timing && timing.instanceId === lastInstance.id) {
-            await upsertCrawlTiming(client, crawl.id, {
-              instanceId,
-              instanceStartedAt: new Date(instance.started_at || instance.created_at),
-              instanceStatus: 'active',
-              level1Active: false,
-              level2Active: false,
-              level3Active: false,
-              nextInstanceStartsAt: null,
-            })
-          }
-        }
-        
         createdCount++
+        
+        // Update crawl details to reflect creation
+        const crawlDetail = crawlDetails.find(c => c.id === crawl.id)
+        if (crawlDetail) {
+          crawlDetail.created = true
+          crawlDetail.createdInstanceId = instanceId
+        }
       } else {
         console.log(`[cron/dungeon-crawl-restart] ⚠️ Failed to create instance for crawl ${crawl.id} - INSERT returned no rows`)
       }
@@ -131,6 +178,7 @@ export async function GET(request: NextRequest) {
       message: createdCount > 0 ? `Created ${createdCount} new instance(s)` : 'No instances needed',
       created: createdCount,
       timestamp: now.toISOString(),
+      crawls: crawlDetails,
     })
   } catch (error) {
     console.error('[cron/dungeon-crawl-restart]', error)
