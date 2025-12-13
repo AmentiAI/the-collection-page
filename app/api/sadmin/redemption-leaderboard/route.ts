@@ -22,6 +22,53 @@ export async function GET(request: NextRequest) {
       )
     `)
 
+    // Ensure score config table exists and get config values
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS redemption_score_config (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        category_key TEXT UNIQUE NOT NULL,
+        category_label TEXT NOT NULL,
+        action_label TEXT NOT NULL,
+        points_value NUMERIC(10, 2) NOT NULL,
+        description TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+
+    // Get score config values
+    const configResult = await client.query(`
+      SELECT category_key, points_value
+      FROM redemption_score_config
+      WHERE is_active = TRUE
+    `)
+
+    const configMap: Record<string, number> = {}
+    configResult.rows.forEach((row: any) => {
+      configMap[row.category_key] = Number(row.points_value)
+    })
+
+    // Get efficiency exponent (default to 0.25 if not set)
+    const exponentResult = await client.query(`
+      SELECT points_value
+      FROM redemption_score_config
+      WHERE category_key = 'efficiency_exponent'
+      LIMIT 1
+    `)
+    const efficiencyExponent = exponentResult.rows.length > 0 
+      ? Number(exponentResult.rows[0].points_value) 
+      : 0.25
+
+    // Default values if config doesn't exist yet
+    const battlesPoints = configMap['battles'] ?? 1.0
+    const healsPoints = configMap['heals'] ?? 0.5
+    const crystallizationPoints = configMap['crystallizations'] ?? 1.0
+    const ascensionCirclesPoints = configMap['ascension_circles'] ?? 0.5
+    const killingBlowsPoints = configMap['killing_blows'] ?? 50.0
+    const burnsPoints = configMap['burns'] ?? 1.0
+    const resurrectionsPoints = configMap['resurrections'] ?? -10.0
+
     // Aggregate all stats per wallet using subqueries to avoid cartesian products
     // Also aggregate linked wallets into their primary wallet
     const result = await client.query(`
@@ -169,20 +216,19 @@ export async function GET(request: NextRequest) {
         killing_blows_count,
         abyss_burns_count,
         mints_count,
-        -- Calculate total score with resurrection penalty and curve for small armies
-        -- Formula: (activities + killing_blows*50 + burns - resurrections*10) / (army_count^0.25)
-        -- This rewards efficiency and penalizes deaths, helping smaller armies compete
-        -- The lower exponent (0.25) makes results closer together for all army sizes
-        -- Battles are worth 1 point each
-        -- Heals are worth 0.5 points each
-        -- Ascension circles are worth 0.5 points each
-        -- Killing blows are worth 50 points each (big bonus!)
-        -- Burns are worth 1 point each
+        -- Calculate total score using configurable point values
+        -- Formula uses stored point values from redemption_score_config table
         CASE 
           WHEN army_count > 0 THEN
             (
-              (battles_count + (heals_count * 0.5) + crystallization_count + (ascension_circle_count * 0.5) + (killing_blows_count * 50) + abyss_burns_count - resurrections_count * 10)::numeric
-              / POWER(GREATEST(army_count, 1)::numeric, 0.25)
+              (battles_count * $1 + 
+               heals_count * $2 + 
+               crystallization_count * $3 + 
+               ascension_circle_count * $4 + 
+               killing_blows_count * $5 + 
+               abyss_burns_count * $6 + 
+               resurrections_count * $7)::numeric
+              / POWER(GREATEST(army_count, 1)::numeric, $8)
             )::numeric(10, 2)
           ELSE 0
         END as total_score
@@ -191,7 +237,16 @@ export async function GET(request: NextRequest) {
       ORDER BY 
         total_score DESC,
         wallet_address ASC
-    `)
+    `, [
+      battlesPoints,
+      healsPoints,
+      crystallizationPoints,
+      ascensionCirclesPoints,
+      killingBlowsPoints,
+      burnsPoints,
+      resurrectionsPoints,
+      efficiencyExponent,
+    ])
 
     // Convert numeric fields to numbers (PostgreSQL numeric types come as strings)
     const leaderboard = result.rows.map((row: any) => ({

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Trophy, Loader2, RefreshCw, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
+import { Trophy, Loader2, RefreshCw, ChevronDown, ChevronUp, Copy, Check, Save } from 'lucide-react'
 import Image from 'next/image'
 import Header from '@/components/Header'
 
@@ -38,6 +38,15 @@ type ArmyDetail = {
   updatedAt: string
 }
 
+type ScoreConfig = {
+  categoryKey: string
+  categoryLabel: string
+  actionLabel: string
+  pointsValue: number
+  description: string
+  isActive: boolean
+}
+
 export default function RedemptionLeaderboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +58,11 @@ export default function RedemptionLeaderboardPage() {
   const [editingValue, setEditingValue] = useState<string>('')
   const [saving, setSaving] = useState<Set<string>>(new Set())
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null)
+  const [scoreConfig, setScoreConfig] = useState<ScoreConfig[]>([])
+  const [efficiencyExponent, setEfficiencyExponent] = useState<number>(0.25)
+  const [editingConfig, setEditingConfig] = useState<Record<string, number>>({})
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [showConfigEditor, setShowConfigEditor] = useState(false)
 
   const handleCopyWallet = async (walletAddress: string) => {
     try {
@@ -83,9 +97,63 @@ export default function RedemptionLeaderboardPage() {
     }
   }
 
+  const fetchScoreConfig = async () => {
+    try {
+      const response = await fetch('/api/sadmin/redemption-leaderboard/score-config', {
+        cache: 'no-store',
+      })
+      const result = await response.json()
+      if (result.success) {
+        setScoreConfig(result.config || [])
+        setEfficiencyExponent(result.efficiencyExponent || 0.25)
+        // Initialize editing config with current values
+        const editing: Record<string, number> = {}
+        result.config.forEach((item: ScoreConfig) => {
+          editing[item.categoryKey] = item.pointsValue
+        })
+        setEditingConfig(editing)
+      }
+    } catch (err) {
+      console.error('Error fetching score config:', err)
+    }
+  }
+
   useEffect(() => {
     fetchLeaderboard()
+    fetchScoreConfig()
   }, [])
+
+  const handleSaveConfig = async () => {
+    setSavingConfig(true)
+    try {
+      const response = await fetch('/api/sadmin/redemption-leaderboard/score-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: scoreConfig.map(item => ({
+            categoryKey: item.categoryKey,
+            pointsValue: editingConfig[item.categoryKey] ?? item.pointsValue,
+            description: item.description,
+          })),
+          efficiencyExponent,
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        await fetchScoreConfig()
+        await fetchLeaderboard() // Refresh leaderboard with new scores
+        setShowConfigEditor(false)
+      } else {
+        alert('Failed to save config: ' + (result.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error('Error saving config:', err)
+      alert('Failed to save configuration')
+    } finally {
+      setSavingConfig(false)
+    }
+  }
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -256,9 +324,17 @@ export default function RedemptionLeaderboardPage() {
 
         {/* Points Breakdown Table */}
         <div className="rounded-xl border border-red-600/40 bg-black/60 overflow-hidden">
-          <div className="bg-red-900/20 px-6 py-4 border-b border-red-800/50">
-            <h2 className="text-lg font-bold text-red-200 uppercase tracking-wide">Points System Breakdown</h2>
-            <p className="text-xs text-gray-400 mt-1">How points are calculated for the Redemption Leaderboard</p>
+          <div className="bg-red-900/20 px-6 py-4 border-b border-red-800/50 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-red-200 uppercase tracking-wide">Points System Breakdown</h2>
+              <p className="text-xs text-gray-400 mt-1">How points are calculated for the Redemption Leaderboard</p>
+            </div>
+            <button
+              onClick={() => setShowConfigEditor(!showConfigEditor)}
+              className="px-4 py-2 rounded-lg border border-red-600/40 bg-red-900/20 text-sm font-mono uppercase tracking-wider text-red-200 transition hover:bg-red-900/40"
+            >
+              {showConfigEditor ? 'Hide Editor' : 'Edit Scores'}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full divide-y divide-red-800/50">
@@ -271,48 +347,127 @@ export default function RedemptionLeaderboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-900/40">
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Battles</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per battle</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each time your army participates in a horde attack (mega_monster_attack_logs)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Heals</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per heal</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each army healed at the Pool of Life (heal_history.healed_count)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Crystallizations</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per crystallization</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each distinct inscription crystallized (crystallization_records)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Ascension Circles</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per circle</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each ascension circle created or participated in (summoning_powder_circles + summoning_powder_participants)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">BONUS</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Killing Blows</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-yellow-400">+50 per kill</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each mega monster killed (delivered the final blow - mega_monsters.killed_by matches your inscription)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Burns</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1 per burn</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn&apos;t start with &quot;ascended_&quot; (abyss_burns)</td>
-                </tr>
-                <tr className="hover:bg-red-900/10">
-                  <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
-                  <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-10 per resurrection</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">Each army that was resurrected (battle_ordinals.resurrection_time IS NOT NULL)</td>
-                </tr>
+                {showConfigEditor && (
+                  <tr className="bg-red-950/50 border-b-2 border-red-800/50">
+                    <td colSpan={4} className="px-4 py-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-bold text-red-200 uppercase tracking-wide">Edit Score Values</h3>
+                          <button
+                            onClick={handleSaveConfig}
+                            disabled={savingConfig}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-green-600/40 bg-green-900/20 text-sm font-mono uppercase tracking-wider text-green-200 transition hover:bg-green-900/40 disabled:opacity-50"
+                          >
+                            {savingConfig ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )}
+                            Save & Recalculate
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {scoreConfig.map((item) => (
+                            <div key={item.categoryKey} className="flex items-center gap-3 p-3 rounded border border-red-800/30 bg-black/40">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-mono text-red-200 font-semibold uppercase">{item.actionLabel}</div>
+                                <div className="text-[10px] text-gray-400 mt-1 truncate">{item.description}</div>
+                              </div>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={editingConfig[item.categoryKey] ?? item.pointsValue}
+                                onChange={(e) => setEditingConfig({
+                                  ...editingConfig,
+                                  [item.categoryKey]: parseFloat(e.target.value) || 0,
+                                })}
+                                className="w-24 px-2 py-1 rounded border border-red-600/50 bg-black/60 text-sm font-mono text-right text-white focus:border-red-400 focus:outline-none"
+                              />
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-3 p-3 rounded border border-yellow-800/30 bg-black/40">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-mono text-yellow-200 font-semibold uppercase">Efficiency Exponent</div>
+                              <div className="text-[10px] text-gray-400 mt-1">Army Count exponent (lower = closer scores)</div>
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.1"
+                              max="1"
+                              value={efficiencyExponent}
+                              onChange={(e) => setEfficiencyExponent(parseFloat(e.target.value) || 0.25)}
+                              className="w-24 px-2 py-1 rounded border border-yellow-600/50 bg-black/60 text-sm font-mono text-right text-white focus:border-yellow-400 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {scoreConfig.length > 0 ? scoreConfig.map((item) => {
+                  const pointsValue = editingConfig[item.categoryKey] ?? item.pointsValue
+                  const isPositive = pointsValue > 0
+                  const isNegative = pointsValue < 0
+                  const colorClass = isNegative ? 'text-red-400' : item.categoryLabel === 'BONUS' ? 'text-yellow-400' : 'text-green-400'
+                  const sign = isPositive ? '+' : ''
+                  
+                  return (
+                    <tr key={item.categoryKey} className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">{item.categoryLabel}</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">{item.actionLabel}</td>
+                      <td className={`px-4 py-3 text-right font-mono text-sm font-bold ${colorClass}`}>
+                        {sign}{pointsValue.toFixed(1)} per {item.actionLabel.toLowerCase().slice(0, -1)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-400">{item.description}</td>
+                    </tr>
+                  )
+                }) : (
+                  <>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Battles</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1.0 per battle</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each time your army participates in a horde attack (mega_monster_attack_logs)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Heals</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per heal</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each army healed at the Pool of Life (heal_history.healed_count)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Crystallizations</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1.0 per crystallization</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each distinct inscription crystallized (crystallization_records)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Ascension Circles</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+0.5 per circle</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each ascension circle created or participated in (summoning_powder_circles + summoning_powder_participants)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">BONUS</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Killing Blows</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-yellow-400">+50.0 per kill</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each mega monster killed (delivered the final blow - mega_monsters.killed_by matches your inscription)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-yellow-300 font-semibold">GAIN</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Burns</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-green-400">+1.0 per burn</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each abyss burn where inscription_id doesn&apos;t start with &quot;ascended_&quot; (abyss_burns)</td>
+                    </tr>
+                    <tr className="hover:bg-red-900/10">
+                      <td className="px-4 py-3 font-mono text-xs text-red-300 font-semibold">DEDUCT</td>
+                      <td className="px-4 py-3 text-sm text-gray-200">Resurrections</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-red-400">-10.0 per resurrection</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">Each army that was resurrected (battle_ordinals.resurrection_time IS NOT NULL)</td>
+                    </tr>
+                  </>
+                )}
                 <tr className="bg-red-950/30 border-t-2 border-red-800/50">
                   <td colSpan={4} className="px-4 py-4">
                     <div className="space-y-2">
@@ -320,12 +475,42 @@ export default function RedemptionLeaderboardPage() {
                       <div className="text-sm font-mono text-gray-300 bg-black/40 p-3 rounded border border-red-800/30">
                         <div className="mb-2">
                           <span className="text-red-400">Total Score</span> = (
-                            <span className="text-green-400">Battles + (Heals × 0.5) + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
-                            {' + '}
-                            <span className="text-yellow-400">Killing Blows × 50</span>
-                            {' - '}
-                            <span className="text-red-400">Resurrections × 10</span>
-                          ) ÷ <span className="text-yellow-400">Army Count<sup>0.25</sup></span>
+                            {scoreConfig.length > 0 ? (
+                              <>
+                                {scoreConfig
+                                  .filter(item => item.categoryLabel === 'GAIN')
+                                  .map((item, idx) => {
+                                    const points = editingConfig[item.categoryKey] ?? item.pointsValue
+                                    return (
+                                      <span key={item.categoryKey} className="text-green-400">
+                                        {idx > 0 ? ' + ' : ''}
+                                        {points !== 1 ? `${item.actionLabel} × ${points}` : item.actionLabel}
+                                      </span>
+                                    )
+                                  })}
+                                {scoreConfig.find(c => c.categoryKey === 'killing_blows') && (
+                                  <span className="text-yellow-400">
+                                    {' + '}
+                                    Killing Blows × {editingConfig['killing_blows'] ?? scoreConfig.find(c => c.categoryKey === 'killing_blows')?.pointsValue ?? 50}
+                                  </span>
+                                )}
+                                {scoreConfig.find(c => c.categoryKey === 'resurrections') && (
+                                  <span className="text-red-400">
+                                    {' + '}
+                                    Resurrections × {editingConfig['resurrections'] ?? scoreConfig.find(c => c.categoryKey === 'resurrections')?.pointsValue ?? -10}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-green-400">Battles + (Heals × 0.5) + Crystallizations + (Ascension Circles × 0.5) + Burns</span>
+                                {' + '}
+                                <span className="text-yellow-400">Killing Blows × 50</span>
+                                {' + '}
+                                <span className="text-red-400">Resurrections × -10</span>
+                              </>
+                            )}
+                          ) ÷ <span className="text-yellow-400">Army Count<sup>{efficiencyExponent}</sup></span>
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
                           The efficiency curve (army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
@@ -488,31 +673,66 @@ export default function RedemptionLeaderboardPage() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-yellow-300">
                             {entry.battles_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.battles_count > 0 ? '+' : ''}{entry.battles_count.toLocaleString()})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'battles')
+                              const points = configItem ? (editingConfig['battles'] ?? configItem.pointsValue) : 1.0
+                              const score = entry.battles_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-green-300">
                             {entry.heals_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.heals_count > 0 ? '+' : ''}{(entry.heals_count * 0.5).toFixed(1)})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'heals')
+                              const points = configItem ? (editingConfig['heals'] ?? configItem.pointsValue) : 0.5
+                              const score = entry.heals_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toFixed(1)})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.crystallization_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.crystallization_count > 0 ? '+' : ''}{entry.crystallization_count.toLocaleString()})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'crystallizations')
+                              const points = configItem ? (editingConfig['crystallizations'] ?? configItem.pointsValue) : 1.0
+                              const score = entry.crystallization_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-amber-300">
                             {entry.ascension_circle_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.ascension_circle_count > 0 ? '+' : ''}{(entry.ascension_circle_count * 0.5).toFixed(1)})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'ascension_circles')
+                              const points = configItem ? (editingConfig['ascension_circles'] ?? configItem.pointsValue) : 0.5
+                              const score = entry.ascension_circle_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toFixed(1)})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-cyan-300">
                             {entry.resurrections_count.toLocaleString()}
-                            <span className="text-red-400 ml-1">({entry.resurrections_count > 0 ? '-' : ''}{(entry.resurrections_count * 10).toLocaleString()})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'resurrections')
+                              const points = configItem ? (editingConfig['resurrections'] ?? configItem.pointsValue) : -10.0
+                              const score = entry.resurrections_count * points
+                              return <span className="text-red-400 ml-1">({score < 0 ? '' : score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs font-bold text-yellow-400">
                             {entry.killing_blows_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.killing_blows_count > 0 ? '+' : ''}{(entry.killing_blows_count * 50).toLocaleString()})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'killing_blows')
+                              const points = configItem ? (editingConfig['killing_blows'] ?? configItem.pointsValue) : 50.0
+                              const score = entry.killing_blows_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.abyss_burns_count.toLocaleString()}
-                            <span className="text-green-400 ml-1">({entry.abyss_burns_count > 0 ? '+' : ''}{entry.abyss_burns_count.toLocaleString()})</span>
+                            {(() => {
+                              const configItem = scoreConfig.find(c => c.categoryKey === 'burns')
+                              const points = configItem ? (editingConfig['burns'] ?? configItem.pointsValue) : 1.0
+                              const score = entry.abyss_burns_count * points
+                              return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toLocaleString()})</span>
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">
                             {entry.mints_count.toLocaleString()}
