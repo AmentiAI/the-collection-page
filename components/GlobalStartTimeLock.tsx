@@ -92,7 +92,7 @@ export default function GlobalStartTimeLock({ children }: GlobalStartTimeLockPro
               Access Locked
             </h2>
             <p className="text-lg text-red-300/90 max-w-xl">
-              This page is currently locked until the global start time.
+              The horde has build some kind of machine...it glows with explosive power!
             </p>
             <div className="mt-4 flex flex-col items-center gap-2">
               <p className="text-xs font-mono uppercase tracking-[0.3em] text-red-400/70">
