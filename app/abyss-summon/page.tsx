@@ -1320,7 +1320,9 @@ export default function AbyssSummonPage() {
                     <p className="mt-2 max-w-xl text-[11px] uppercase tracking-[0.3em] text-red-300/70">
                       {IS_DAMNED_POOL_MODE
                         ? 'The pool locks when fifty damned commit.'
-                        : IS_POWDER_MODE || IS_DEAD_DEMONS_MODE
+                        : IS_POWDER_MODE
+                        ? 'The circle locks when eight damned commit.'
+                        : IS_DEAD_DEMONS_MODE
                         ? 'The circle locks when ten damned commit.'
                         : 'The circle locks when eight damned commit.'}
                     </p>
@@ -1768,7 +1770,7 @@ function SummonList({
                       ? totalSlots >= 40
                         ? 'Forty seats must be filled before the ritual locks.'
                         : 'Twenty seats must be filled before the ritual locks.'
-                      : 'Ten seats must be filled before the ritual locks.'}
+                      : `${totalSlots} ${totalSlots === 1 ? 'seat' : 'seats'} must be filled before the ritual locks.`}
                   </div>
                 )}
                 {!isExpired && !isParticipant && ACTIVE_SUMMON_STATUSES.has(summon.status) && (
