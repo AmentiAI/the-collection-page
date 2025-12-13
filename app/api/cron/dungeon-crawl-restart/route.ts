@@ -187,6 +187,13 @@ export async function GET(request: NextRequest) {
         continue
       }
 
+      // TEMPORARILY DISABLED: Block instance creation when overdue
+      // TODO: Re-enable after testing
+      if (expectedRestartAt && expectedRestartAt <= now) {
+        console.log(`[cron/dungeon-crawl-restart] 🚫 BLOCKED: Would create instance for overdue crawl ${crawl.id} (${crawl.name}), but creation is temporarily disabled`)
+        continue
+      }
+
       // Create new instance
       console.log(`[cron/dungeon-crawl-restart] 🔄 Creating new instance for crawl ${crawl.id} (${crawl.name})`)
       const instanceResult = await client.query(
