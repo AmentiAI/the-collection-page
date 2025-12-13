@@ -9,6 +9,7 @@ export default function HordeAttackAlert() {
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [readyCount, setReadyCount] = useState<number | null>(null)
   const [injuredCount, setInjuredCount] = useState<number | null>(null)
+  const [deadCount, setDeadCount] = useState<number | null>(null)
   const [dungeonCrawlTimeRemaining, setDungeonCrawlTimeRemaining] = useState<number | null>(null)
   
   // Use refs to store current values and prevent unnecessary effect re-runs
@@ -62,6 +63,7 @@ export default function HordeAttackAlert() {
     if (!connected || !address) {
       setReadyCount(null)
       setInjuredCount(null)
+      setDeadCount(null)
       return
     }
 
@@ -92,6 +94,12 @@ export default function HordeAttackAlert() {
               (ord: { lifeForce: number }) => ord.lifeForce < 40
             )
             setInjuredCount(injuredArmies.length)
+            
+            // Count dead (is_dead = TRUE)
+            const deadArmies = (data.ordinals || []).filter(
+              (ord: { isDead?: boolean }) => ord.isDead === true
+            )
+            setDeadCount(deadArmies.length)
           }
         }
       } catch (error) {
@@ -236,6 +244,9 @@ export default function HordeAttackAlert() {
           {readyCount !== null && (
             <span className="text-red-50 font-mono mr-2">
               Army: {readyCount}
+              {deadCount !== null && deadCount > 0 && (
+                <span className="text-gray-400"> - Dead: {deadCount}</span>
+              )}
               {injuredCount !== null && injuredCount > 0 && (
                 <span className="text-yellow-300"> (Injured: {injuredCount})</span>
               )}

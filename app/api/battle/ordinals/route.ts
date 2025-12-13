@@ -189,6 +189,7 @@ export async function GET(request: NextRequest) {
     let lifeForceMap: Record<string, number> = {}
     const traitMap: Record<string, 'Angelic' | 'Demonic'> = {}
     const lifeForceCapMap: Record<string, number> = {}
+    const isDeadMap: Record<string, boolean> = {}
 
     if (inscriptionIds.length > 0) {
       // First, check for any battle_ordinals records with these inscription_ids that belong to different wallets
@@ -212,9 +213,9 @@ export async function GET(request: NextRequest) {
         console.log(`[battle/ordinals] Updated ownership for ${transferredIds.length} transferred ordinals`)
       }
 
-      // Now fetch battle statuses, life force, life_force_cap, and trait for current wallet
+      // Now fetch battle statuses, life force, life_force_cap, trait, and is_dead for current wallet
       const statusResult = await client.query(
-        `SELECT inscription_id, status, life_force, life_force_cap, trait
+        `SELECT inscription_id, status, life_force, life_force_cap, trait, is_dead
          FROM battle_ordinals 
          WHERE LOWER(wallet_address) = LOWER($1) AND inscription_id = ANY($2)`,
         [walletAddress, inscriptionIds]
@@ -224,6 +225,7 @@ export async function GET(request: NextRequest) {
         statusMap[row.inscription_id] = row.status
         lifeForceMap[row.inscription_id] = row.life_force ?? 100
         lifeForceCapMap[row.inscription_id] = Number(row.life_force_cap ?? 100)
+        isDeadMap[row.inscription_id] = Boolean(row.is_dead)
         if (row.trait) {
           traitMap[row.inscription_id] = row.trait as 'Angelic' | 'Demonic'
         }
@@ -258,6 +260,7 @@ export async function GET(request: NextRequest) {
       const currentLifeForce = lifeForceMap[ordinal.inscriptionId] ?? 100
       const capIncrease = maxLifeForce - 100 // Calculate bonus for display
       const blockChance = blockChanceMap[ordinal.inscriptionId] ?? 0
+      const isDead = isDeadMap[ordinal.inscriptionId] ?? false
       // Use trait from database if available, otherwise use trait from Magic Eden
       const trait = traitMap[ordinal.inscriptionId] || ordinal.trait
       return {
@@ -268,6 +271,7 @@ export async function GET(request: NextRequest) {
         maxLifeForce,
         blockChance,
         lifeForceCapBonus: capIncrease,
+        isDead,
       }
     })
 
