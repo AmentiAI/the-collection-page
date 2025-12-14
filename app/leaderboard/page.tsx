@@ -47,13 +47,6 @@ export default function LeaderboardPage() {
     fetchLeaderboard()
     fetchIndividualLeaders()
     fetchScoreConfig()
-    // Refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchLeaderboard()
-      fetchIndividualLeaders()
-      fetchScoreConfig()
-    }, 30000)
-    return () => clearInterval(interval)
   }, [])
 
   const fetchLeaderboard = async () => {

@@ -27,8 +27,74 @@ export async function GET(request: NextRequest) {
     `)
 
     let createdCount = 0
+    let completedCount = 0
     const now = new Date()
     const crawlDetails: any[] = []
+
+    // First, check for level 3 instances that should be completed
+    const level3InstancesRes = await client.query(`
+      SELECT 
+        i.id,
+        i.crawl_id,
+        i.level_1_started_at,
+        i.status,
+        c.level_3_window_start_minutes,
+        c.level_3_window_duration_minutes,
+        c.min_participation_percent,
+        c.name as crawl_name
+      FROM dungeon_crawl_instances i
+      JOIN dungeon_crawls c ON c.id = i.crawl_id
+      WHERE i.status = 'level_3'
+        AND i.level_1_started_at IS NOT NULL
+    `)
+
+    for (const instance of level3InstancesRes.rows) {
+      const baseTime = new Date(instance.level_1_started_at)
+      const elapsedMinutes = (now.getTime() - baseTime.getTime()) / (1000 * 60)
+      const windowStart = instance.level_3_window_start_minutes
+      const windowDuration = instance.level_3_window_duration_minutes
+      const windowEnd = windowStart + windowDuration
+
+      // Check if window has closed
+      if (elapsedMinutes > windowEnd) {
+        // Check participation
+        const participantsRes = await client.query(
+          `SELECT COUNT(*)::int AS total, 
+                  SUM(CASE WHEN level_3_completed = TRUE THEN 1 ELSE 0 END)::int AS completed
+           FROM dungeon_crawl_participants
+           WHERE instance_id = $1 AND archived_at IS NULL`,
+          [instance.id]
+        )
+
+        const total = participantsRes.rows[0]?.total ?? 0
+        const completed = participantsRes.rows[0]?.completed ?? 0
+        const participationPercent = total > 0 ? (completed / total) * 100 : 0
+
+        // If participation meets or exceeds minimum, complete the instance
+        if (participationPercent >= instance.min_participation_percent && total > 0) {
+          const completedAt = new Date()
+          await client.query(
+            `UPDATE dungeon_crawl_instances
+             SET status = 'completed',
+                 level_3_completed_at = $1,
+                 completed_at = $1,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [completedAt.toISOString(), instance.id]
+          )
+          
+          // Update timing table
+          await upsertCrawlTiming(client, instance.crawl_id, {
+            instanceStatus: 'completed',
+            instanceEndedAt: completedAt,
+            nextInstanceStartsAt: null, // Will be calculated based on cooldown
+          })
+          
+          console.log(`[cron/dungeon-crawl-restart] ✅ Auto-completed instance ${instance.id} (${instance.crawl_name}) - level 3 window expired, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >=${instance.min_participation_percent}%`)
+          completedCount++
+        }
+      }
+    }
 
     for (const crawl of crawlsRes.rows) {
       // Get detailed information about this crawl
@@ -245,7 +311,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: createdCount > 0 ? `Created ${createdCount} new instance(s)` : 'No instances needed',
+      message: 
+        completedCount > 0 && createdCount > 0 
+          ? `Completed ${completedCount} instance(s) and created ${createdCount} new instance(s)`
+          : completedCount > 0 
+          ? `Completed ${completedCount} instance(s)`
+          : createdCount > 0 
+          ? `Created ${createdCount} new instance(s)` 
+          : 'No instances needed',
+      completed: completedCount,
       created: createdCount,
       timestamp: now.toISOString(),
       crawls: crawlDetails,
