@@ -28,10 +28,136 @@ export async function GET(request: NextRequest) {
 
     let createdCount = 0
     let completedCount = 0
+    let fixedCount = 0
     const now = new Date()
     const crawlDetails: any[] = []
 
-    // First, check for level 3 instances that should be completed
+    // First, check for instances that should have progressed but haven't (fix inconsistencies)
+    const stuckInstancesRes = await client.query(`
+      SELECT 
+        i.id,
+        i.crawl_id,
+        i.status,
+        i.level_1_started_at,
+        i.level_1_completed_at,
+        i.level_2_completed_at,
+        i.level_3_completed_at,
+        c.level_1_window_start_minutes,
+        c.level_1_window_duration_minutes,
+        c.level_2_window_start_minutes,
+        c.level_2_window_duration_minutes,
+        c.level_3_window_start_minutes,
+        c.level_3_window_duration_minutes,
+        c.min_participation_percent,
+        c.name as crawl_name
+      FROM dungeon_crawl_instances i
+      JOIN dungeon_crawls c ON c.id = i.crawl_id
+      WHERE i.status IN ('ready', 'level_1', 'level_2', 'level_3')
+        AND i.level_1_started_at IS NOT NULL
+    `)
+
+    for (const instance of stuckInstancesRes.rows) {
+      const baseTime = new Date(instance.level_1_started_at)
+      const elapsedMinutes = (now.getTime() - baseTime.getTime()) / (1000 * 60)
+      
+      // Check each level to see if it should have been completed
+      const levels = [
+        {
+          level: 1,
+          windowStart: instance.level_1_window_start_minutes,
+          windowDuration: instance.level_1_window_duration_minutes,
+          windowEnd: instance.level_1_window_start_minutes + instance.level_1_window_duration_minutes,
+          completedAt: instance.level_1_completed_at,
+          column: 'level_1_completed',
+          nextStatus: 'level_2',
+          completedAtColumn: 'level_1_completed_at'
+        },
+        {
+          level: 2,
+          windowStart: instance.level_2_window_start_minutes,
+          windowDuration: instance.level_2_window_duration_minutes,
+          windowEnd: instance.level_2_window_start_minutes + instance.level_2_window_duration_minutes,
+          completedAt: instance.level_2_completed_at,
+          column: 'level_2_completed',
+          nextStatus: 'level_3',
+          completedAtColumn: 'level_2_completed_at'
+        },
+        {
+          level: 3,
+          windowStart: instance.level_3_window_start_minutes,
+          windowDuration: instance.level_3_window_duration_minutes,
+          windowEnd: instance.level_3_window_start_minutes + instance.level_3_window_duration_minutes,
+          completedAt: instance.level_3_completed_at,
+          column: 'level_3_completed',
+          nextStatus: 'completed',
+          completedAtColumn: 'level_3_completed_at'
+        }
+      ]
+
+      for (const levelInfo of levels) {
+        // Only check if window has started and closed, and level hasn't been completed
+        if (elapsedMinutes >= levelInfo.windowStart && elapsedMinutes > levelInfo.windowEnd && !levelInfo.completedAt) {
+          // Check participation
+          const participantsRes = await client.query(
+            `SELECT COUNT(*)::int AS total, 
+                    SUM(CASE WHEN ${levelInfo.column} = TRUE THEN 1 ELSE 0 END)::int AS completed
+             FROM dungeon_crawl_participants
+             WHERE instance_id = $1 AND archived_at IS NULL`,
+            [instance.id]
+          )
+
+          const total = participantsRes.rows[0]?.total ?? 0
+          const completed = participantsRes.rows[0]?.completed ?? 0
+          const participationPercent = total > 0 ? (completed / total) * 100 : 0
+
+          // Check if we should advance (participation > minimum)
+          if (participationPercent > instance.min_participation_percent && total > 0) {
+            const completedAt = new Date()
+            
+            if (levelInfo.level === 3) {
+              // Complete the entire instance
+              await client.query(
+                `UPDATE dungeon_crawl_instances
+                 SET status = 'completed',
+                     level_3_completed_at = $1,
+                     completed_at = $1,
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [completedAt.toISOString(), instance.id]
+              )
+              
+              // Update timing table
+              await upsertCrawlTiming(client, instance.crawl_id, {
+                instanceStatus: 'completed',
+                instanceEndedAt: completedAt,
+                nextInstanceStartsAt: null,
+              })
+              
+              console.log(`[cron/dungeon-crawl-restart] 🔧 Fixed instance ${instance.id} (${instance.crawl_name}) - auto-completed level 3, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
+              fixedCount++
+              completedCount++
+              break // Instance is complete, no need to check further levels
+            } else {
+              // Advance to next level
+              await client.query(
+                `UPDATE dungeon_crawl_instances
+                 SET status = $1,
+                     ${levelInfo.completedAtColumn} = $2,
+                     updated_at = NOW()
+                 WHERE id = $3`,
+                [levelInfo.nextStatus, completedAt.toISOString(), instance.id]
+              )
+              
+              console.log(`[cron/dungeon-crawl-restart] 🔧 Fixed instance ${instance.id} (${instance.crawl_name}) - auto-advanced from level ${levelInfo.level} to ${levelInfo.nextStatus}, participation: ${participationPercent.toFixed(1)}% (${completed}/${total}), required: >${instance.min_participation_percent}%`)
+              fixedCount++
+              // Continue to check next level
+            }
+          }
+        }
+      }
+    }
+
+    // Then, check for level 3 instances that should be completed
     const level3InstancesRes = await client.query(`
       SELECT 
         i.id,
@@ -312,13 +438,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 
-        completedCount > 0 && createdCount > 0 
+        fixedCount > 0 && completedCount > 0 && createdCount > 0 
+          ? `Fixed ${fixedCount} instance(s), completed ${completedCount} instance(s), and created ${createdCount} new instance(s)`
+          : fixedCount > 0 && completedCount > 0
+          ? `Fixed ${fixedCount} instance(s) and completed ${completedCount} instance(s)`
+          : fixedCount > 0 && createdCount > 0
+          ? `Fixed ${fixedCount} instance(s) and created ${createdCount} new instance(s)`
+          : completedCount > 0 && createdCount > 0 
           ? `Completed ${completedCount} instance(s) and created ${createdCount} new instance(s)`
+          : fixedCount > 0
+          ? `Fixed ${fixedCount} instance(s)`
           : completedCount > 0 
           ? `Completed ${completedCount} instance(s)`
           : createdCount > 0 
           ? `Created ${createdCount} new instance(s)` 
           : 'No instances needed',
+      fixed: fixedCount,
       completed: completedCount,
       created: createdCount,
       timestamp: now.toISOString(),
