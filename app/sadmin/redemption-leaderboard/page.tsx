@@ -9,6 +9,7 @@ type LeaderboardEntry = {
   wallet_address: string
   discord_username: string
   discord_avatar_url: string
+  recent_ip: string
   army_count: number
   max_army_count: number
   angel_count: number
@@ -571,6 +572,9 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200 min-w-[180px]">
                     Discord
                   </th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-200 min-w-[120px]">
+                    IP
+                  </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Score
                   </th>
@@ -615,7 +619,7 @@ export default function RedemptionLeaderboardPage() {
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={16} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={17} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -686,6 +690,11 @@ export default function RedemptionLeaderboardPage() {
                                 {entry.discord_username || '-'}
                               </span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs text-gray-400">
+                              {entry.recent_ip || '-'}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-sm font-bold text-amber-400">
                             {typeof entry.total_score === 'number' ? entry.total_score.toFixed(2) : Number(entry.total_score || 0).toFixed(2)}

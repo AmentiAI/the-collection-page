@@ -128,6 +128,7 @@ export async function GET(request: NextRequest) {
           -- Get profile info from primary wallet
           COALESCE((SELECT username FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_username,
           COALESCE((SELECT avatar_url FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as discord_avatar_url,
+          COALESCE((SELECT recent_ip FROM profiles WHERE LOWER(wallet_address) = LOWER(pwg.primary_wallet)), '') as recent_ip,
           -- Army counts (aggregated across all linked wallets)
           -- Count all armies regardless of health/death status for consistency
           COALESCE((
@@ -226,6 +227,7 @@ export async function GET(request: NextRequest) {
         wallet_address,
         discord_username,
         discord_avatar_url,
+        recent_ip,
         army_count,
         max_army_count,
         angel_count,

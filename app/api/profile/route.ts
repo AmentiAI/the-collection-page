@@ -3,6 +3,20 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// Helper function to get client IP address
+function getClientIP(request: NextRequest): string | null {
+  const forwardedFor = request.headers.get('x-forwarded-for')
+  if (forwardedFor) {
+    // x-forwarded-for can contain multiple IPs, take the first one
+    return forwardedFor.split(',')[0].trim()
+  }
+  const realIP = request.headers.get('x-real-ip')
+  if (realIP) {
+    return realIP.trim()
+  }
+  return null
+}
+
 // Get or create profile with optional social accounts
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +35,14 @@ export async function GET(request: NextRequest) {
       ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0
     `)
     
+    await pool.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS recent_ip TEXT
+    `)
+    
+    // Get client IP
+    const clientIP = getClientIP(request)
+    
     // Use a timeout for the query
     const queryPromise = pool.query(
       'SELECT * FROM profiles WHERE wallet_address = $1',
@@ -38,20 +60,20 @@ export async function GET(request: NextRequest) {
       let insertResult
       try {
         insertResult = await pool.query(
-          `INSERT INTO profiles (wallet_address, payment_address) 
-           VALUES ($1, $1) 
+          `INSERT INTO profiles (wallet_address, payment_address, recent_ip) 
+           VALUES ($1, $1, $2) 
            RETURNING *`,
-          [walletAddress]
+          [walletAddress, clientIP]
         )
       } catch (error: any) {
         // If payment_address column doesn't exist, create without it
         if (error.message && error.message.includes('payment_address')) {
           console.warn('payment_address column not found, creating profile without it')
           insertResult = await pool.query(
-            `INSERT INTO profiles (wallet_address) 
-             VALUES ($1) 
+            `INSERT INTO profiles (wallet_address, recent_ip) 
+             VALUES ($1, $2) 
              RETURNING *`,
-            [walletAddress]
+            [walletAddress, clientIP]
           )
         } else {
           throw error
@@ -73,6 +95,14 @@ export async function GET(request: NextRequest) {
     }
     
     const profileData = result.rows[0]
+    
+    // Update recent_ip if we have an IP address
+    if (clientIP) {
+      await pool.query(
+        'UPDATE profiles SET recent_ip = $1, updated_at = NOW() WHERE wallet_address = $2',
+        [clientIP, walletAddress]
+      )
+    }
     
     // If includeSocials is true, fetch Discord and Twitter data in parallel
     if (includeSocials) {
@@ -143,6 +173,14 @@ export async function POST(request: NextRequest) {
       ADD COLUMN IF NOT EXISTS ascension_powder INTEGER NOT NULL DEFAULT 0
     `)
     
+    await pool.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS recent_ip TEXT
+    `)
+    
+    // Get client IP
+    const clientIP = getClientIP(request)
+    
     // Check if payment_address column exists
     const columnCheck = await pool.query(`
       SELECT column_name 
@@ -160,10 +198,11 @@ export async function POST(request: NextRequest) {
          SET payment_address = COALESCE($1, payment_address),
              username = COALESCE($2, username), 
              avatar_url = COALESCE($3, avatar_url),
+             recent_ip = COALESCE($4, recent_ip),
              updated_at = NOW()
-         WHERE wallet_address = $4
+         WHERE wallet_address = $5
          RETURNING *`,
-        [paymentAddress || null, username || null, avatarUrl || null, walletAddress]
+        [paymentAddress || null, username || null, avatarUrl || null, clientIP, walletAddress]
       )
     } else {
       // Update without payment_address
@@ -171,10 +210,11 @@ export async function POST(request: NextRequest) {
         `UPDATE profiles 
          SET username = COALESCE($1, username), 
              avatar_url = COALESCE($2, avatar_url),
+             recent_ip = COALESCE($3, recent_ip),
              updated_at = NOW()
-         WHERE wallet_address = $3
+         WHERE wallet_address = $4
          RETURNING *`,
-        [username || null, avatarUrl || null, walletAddress]
+        [username || null, avatarUrl || null, clientIP, walletAddress]
       )
     }
     

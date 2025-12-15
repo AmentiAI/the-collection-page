@@ -3,6 +3,20 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// Helper function to get client IP address
+function getClientIP(request: NextRequest): string | null {
+  const forwardedFor = request.headers.get('x-forwarded-for')
+  if (forwardedFor) {
+    // x-forwarded-for can contain multiple IPs, take the first one
+    return forwardedFor.split(',')[0].trim()
+  }
+  const realIP = request.headers.get('x-real-ip')
+  if (realIP) {
+    return realIP.trim()
+  }
+  return null
+}
+
 // Auto-create profile for wallet address
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +29,15 @@ export async function POST(request: NextRequest) {
     
     const pool = getPool()
     
+    // Ensure recent_ip column exists
+    await pool.query(`
+      ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS recent_ip TEXT
+    `)
+    
+    // Get client IP
+    const clientIP = getClientIP(request)
+    
     // Check if profile exists
     const existing = await pool.query(
       'SELECT * FROM profiles WHERE wallet_address = $1',
@@ -22,14 +45,24 @@ export async function POST(request: NextRequest) {
     )
     
     if (existing.rows.length > 0) {
-      // Update payment_address if provided and different
+      // Update payment_address if provided and different, and update IP
       if (paymentAddress && existing.rows[0].payment_address !== paymentAddress) {
         const updated = await pool.query(
           `UPDATE profiles 
-           SET payment_address = $1, updated_at = NOW()
+           SET payment_address = $1, recent_ip = $2, updated_at = NOW()
+           WHERE wallet_address = $3
+           RETURNING *`,
+          [paymentAddress, clientIP, walletAddress]
+        )
+        return NextResponse.json(updated.rows[0])
+      } else if (clientIP) {
+        // Just update IP if it changed
+        const updated = await pool.query(
+          `UPDATE profiles 
+           SET recent_ip = $1, updated_at = NOW()
            WHERE wallet_address = $2
            RETURNING *`,
-          [paymentAddress, walletAddress]
+          [clientIP, walletAddress]
         )
         return NextResponse.json(updated.rows[0])
       }
@@ -40,25 +73,27 @@ export async function POST(request: NextRequest) {
     let result
     try {
       result = await pool.query(
-        `INSERT INTO profiles (wallet_address, payment_address)
-         VALUES ($1, $2)
+        `INSERT INTO profiles (wallet_address, payment_address, recent_ip)
+         VALUES ($1, $2, $3)
          ON CONFLICT (wallet_address) DO UPDATE
          SET payment_address = EXCLUDED.payment_address,
+             recent_ip = EXCLUDED.recent_ip,
              updated_at = NOW()
          RETURNING *`,
-        [walletAddress, paymentAddress || walletAddress]
+        [walletAddress, paymentAddress || walletAddress, clientIP]
       )
     } catch (error: any) {
       // Fallback if payment_address column is missing
       if (error.message && error.message.includes('payment_address')) {
         console.warn('payment_address column not found, upserting profile without it')
         result = await pool.query(
-          `INSERT INTO profiles (wallet_address)
-           VALUES ($1)
+          `INSERT INTO profiles (wallet_address, recent_ip)
+           VALUES ($1, $2)
            ON CONFLICT (wallet_address) DO UPDATE
-           SET updated_at = NOW()
+           SET recent_ip = EXCLUDED.recent_ip,
+               updated_at = NOW()
            RETURNING *`,
-          [walletAddress]
+          [walletAddress, clientIP]
         )
       } else {
         throw error
