@@ -23,6 +23,7 @@ type LeaderboardEntry = {
   killing_blows_count: number
   abyss_burns_count: number
   mints_count: number
+  balanced_army_bonus: number
   total_score: number
 }
 
@@ -605,6 +606,9 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Demons
                   </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-200" title="Balanced Army Bonus (+10 if all angels, all demons, or equal mix)">
+                    BA Bonus
+                  </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Battles
                   </th>
@@ -637,7 +641,7 @@ export default function RedemptionLeaderboardPage() {
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={18} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={20} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -729,6 +733,13 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-right font-mono text-xs text-red-300">
                             {entry.demon_count.toLocaleString()}
                           </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs">
+                            {entry.balanced_army_bonus > 0 ? (
+                              <span className="text-cyan-400 font-bold">+{entry.balanced_army_bonus}</span>
+                            ) : (
+                              <span className="text-gray-500">0</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-yellow-300">
                             {entry.battles_count.toLocaleString()}
                             {(() => {
@@ -818,7 +829,7 @@ export default function RedemptionLeaderboardPage() {
                         </tr>
                         {isExpanded && (
                           <tr key={`${entry.wallet_address}-details`} className="bg-red-950/30">
-                            <td colSpan={16} className="px-4 py-6">
+                            <td colSpan={20} className="px-4 py-6">
                               {details?.loading ? (
                                 <div className="flex items-center justify-center py-8">
                                   <Loader2 className="h-6 w-6 animate-spin text-red-400" />

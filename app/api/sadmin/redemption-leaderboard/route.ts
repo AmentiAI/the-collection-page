@@ -250,6 +250,14 @@ export async function GET(request: NextRequest) {
         killing_blows_count,
         abyss_burns_count,
         mints_count,
+        -- Calculate balanced army bonus separately for display
+        CASE 
+          WHEN (angel_count > 0 AND demon_count = 0) OR 
+               (demon_count > 0 AND angel_count = 0) OR 
+               (angel_count > 0 AND demon_count > 0 AND angel_count = demon_count)
+          THEN 10::numeric
+          ELSE 0::numeric
+        END as balanced_army_bonus,
         -- Calculate total score using configurable point values
         -- Formula uses stored point values from redemption_score_config table
         -- Killing blows and balanced army bonus are applied AFTER the division (not affected by army count penalty)
@@ -336,6 +344,7 @@ export async function GET(request: NextRequest) {
       killing_blows_count: Number(row.killing_blows_count) || 0,
       abyss_burns_count: Number(row.abyss_burns_count) || 0,
       mints_count: Number(row.mints_count) || 0,
+      balanced_army_bonus: Number(row.balanced_army_bonus) || 0,
       total_score: Number(row.total_score) || 0,
     }))
 
