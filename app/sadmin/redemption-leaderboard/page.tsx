@@ -732,6 +732,9 @@ export default function RedemptionLeaderboardPage() {
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.crystallization_count.toLocaleString()}
                             {(() => {
+                              if (entry.crystallization_count === 0) {
+                                return <span className="text-red-400 ml-1">(-10)</span>
+                              }
                               const configItem = scoreConfig.find(c => c.categoryKey === 'crystallizations')
                               const points = configItem ? (editingConfig['crystallizations'] ?? configItem.pointsValue) : 1.0
                               const score = entry.crystallization_count * points

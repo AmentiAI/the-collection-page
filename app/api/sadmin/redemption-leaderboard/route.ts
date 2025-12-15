@@ -274,6 +274,10 @@ export async function GET(request: NextRequest) {
                   WHEN max_army_count < 5 THEN 5::numeric
                   ELSE 0::numeric
                 END
+              + CASE 
+                  WHEN crystallization_count = 0 THEN -10::numeric
+                  ELSE 0::numeric
+                END
             )::numeric(10, 2)
           ELSE 0
         END as total_score
