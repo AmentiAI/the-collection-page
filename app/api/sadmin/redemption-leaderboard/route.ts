@@ -284,7 +284,7 @@ export async function GET(request: NextRequest) {
                   ELSE 0::numeric
                 END
               + CASE 
-                  WHEN battles_count > 0 AND (heals_count::numeric / battles_count::numeric) < 0.075 THEN -20::numeric
+                  WHEN battles_count > 0 AND (heals_count::numeric / battles_count::numeric) < 0.075 THEN -30::numeric
                   ELSE 0::numeric
                 END
             )::numeric(10, 2)
