@@ -216,6 +216,13 @@ export default function MoralityAdminPage() {
   const [selectedProfileWallet, setSelectedProfileWallet] = useState('')
   const [addParticipantAlignment, setAddParticipantAlignment] = useState<'good' | 'evil'>('good')
   const [addingParticipant, setAddingParticipant] = useState(false)
+  const [endingCycle, setEndingCycle] = useState(false)
+
+  // Edit trial state
+  const [editingTrialId, setEditingTrialId] = useState<string | null>(null)
+  const [editTrialScheduledAt, setEditTrialScheduledAt] = useState('')
+  const [editTrialVoteEndsAt, setEditTrialVoteEndsAt] = useState('')
+  const [savingTrial, setSavingTrial] = useState(false)
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -323,13 +330,9 @@ export default function MoralityAdminPage() {
 
   // Search profiles for adding participants
   const searchProfiles = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
-      setProfileOptions([])
-      return
-    }
     setLoadingProfiles(true)
     try {
-      const response = await fetch(`/api/admin/profiles?search=${encodeURIComponent(query)}&limit=20`)
+      const response = await fetch(`/api/admin/profiles?search=${encodeURIComponent(query || '')}&limit=30`)
       const data = await response.json()
       if (data.success && data.profiles) {
         setProfileOptions(data.profiles.map((p: any) => ({
@@ -353,6 +356,14 @@ export default function MoralityAdminPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [profileSearch, searchProfiles])
+
+  // Load profiles initially when cycle is in alignment or active
+  useEffect(() => {
+    const cycle = cycleData?.cycle
+    if (cycle && (cycle.status === 'alignment' || cycle.status === 'active')) {
+      searchProfiles('')
+    }
+  }, [cycleData, searchProfiles])
 
   const handleAddParticipant = async () => {
     if (!selectedProfileWallet) {
@@ -416,6 +427,34 @@ export default function MoralityAdminPage() {
     }
   }
 
+  const handleEndCycle = async () => {
+    if (!confirm('Are you sure you want to end the current cycle? This will mark it as completed.')) {
+      return
+    }
+    setEndingCycle(true)
+    try {
+      const response = await fetch('/api/duality/cycle', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' })
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        toast.error(data.error || 'Failed to end cycle')
+        return
+      }
+
+      toast.success('Cycle ended successfully')
+      await fetchCycleStatus()
+    } catch (error) {
+      console.error('Failed to end cycle', error)
+      toast.error('Failed to end cycle')
+    } finally {
+      setEndingCycle(false)
+    }
+  }
+
   const handleGeneratePairings = async () => {
     setPairingCycle(true)
     try {
@@ -460,6 +499,51 @@ export default function MoralityAdminPage() {
 
   const handleTrialFieldChange = (field: keyof TrialFormState, value: string) => {
     setTrialForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleEditTrial = (trial: any) => {
+    setEditingTrialId(trial.id)
+    // Convert to local datetime-local format
+    const scheduledDate = new Date(trial.scheduledAt)
+    const endsDate = new Date(trial.voteEndsAt)
+    const toLocalDatetimeString = (d: Date) => {
+      const offset = d.getTimezoneOffset()
+      const local = new Date(d.getTime() - offset * 60000)
+      return local.toISOString().slice(0, 16)
+    }
+    setEditTrialScheduledAt(toLocalDatetimeString(scheduledDate))
+    setEditTrialVoteEndsAt(toLocalDatetimeString(endsDate))
+  }
+
+  const handleSaveTrialEdit = async () => {
+    if (!editingTrialId) return
+    setSavingTrial(true)
+    try {
+      const response = await fetch('/api/duality/trials', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trialId: editingTrialId,
+          scheduledAt: new Date(editTrialScheduledAt).toISOString(),
+          voteEndsAt: new Date(editTrialVoteEndsAt).toISOString()
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        toast.error(data.error || 'Failed to update trial')
+        return
+      }
+
+      toast.success('Trial times updated')
+      setEditingTrialId(null)
+      await fetchCycleStatus()
+    } catch (error) {
+      console.error('Failed to update trial', error)
+      toast.error('Failed to update trial')
+    } finally {
+      setSavingTrial(false)
+    }
   }
 
   const toISOStringLocal = (value: string) => {
@@ -968,12 +1052,21 @@ export default function MoralityAdminPage() {
               </div>
 
               <div className="flex flex-wrap gap-3">
+                {currentCycle.status !== 'completed' && (
+                  <button
+                    onClick={handleEndCycle}
+                    disabled={endingCycle}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs uppercase disabled:opacity-40"
+                  >
+                    {endingCycle ? 'Ending...' : 'End Current Cycle'}
+                  </button>
+                )}
                 <button
                   onClick={handleStartCycle}
                   disabled={startingCycle || currentCycle.status !== 'completed'}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs uppercase disabled:opacity-40"
                 >
-                  {startingCycle ? 'Starting...' : currentCycle.status === 'completed' ? 'Start New Cycle' : 'New Cycle'}
+                  {startingCycle ? 'Starting...' : 'Start New Cycle'}
                 </button>
                 {currentCycle.status === 'alignment' && (
                   <button
@@ -1011,11 +1104,10 @@ export default function MoralityAdminPage() {
                         placeholder="Enter wallet address or username..."
                         className="w-full bg-black/50 border border-green-500/40 rounded px-3 py-2 text-sm font-mono"
                       />
-                      {loadingProfiles && (
-                        <div className="text-xs text-gray-500 font-mono">Searching...</div>
-                      )}
-                      {profileOptions.length > 0 && (
-                        <div className="max-h-40 overflow-auto border border-green-500/20 rounded bg-black/60">
+                      {loadingProfiles ? (
+                        <div className="text-xs text-gray-500 font-mono py-2">Loading profiles...</div>
+                      ) : profileOptions.length > 0 ? (
+                        <div className="max-h-48 overflow-auto border border-green-500/20 rounded bg-black/60">
                           {profileOptions.map((profile) => (
                             <button
                               key={profile.id}
@@ -1023,7 +1115,6 @@ export default function MoralityAdminPage() {
                               onClick={() => {
                                 setSelectedProfileWallet(profile.walletAddress)
                                 setProfileSearch(profile.username || profile.walletAddress.slice(0, 12) + '...')
-                                setProfileOptions([])
                               }}
                               className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-green-900/20 transition border-b border-green-500/10 last:border-b-0 ${
                                 selectedProfileWallet === profile.walletAddress ? 'bg-green-900/30 text-green-300' : 'text-gray-300'
@@ -1049,6 +1140,8 @@ export default function MoralityAdminPage() {
                             </button>
                           ))}
                         </div>
+                      ) : (
+                        <div className="text-xs text-gray-500 font-mono py-2">No profiles found. Try a different search.</div>
                       )}
                       {selectedProfileWallet && (
                         <div className="text-xs text-green-400 font-mono">
@@ -1146,20 +1239,134 @@ export default function MoralityAdminPage() {
                         <tr>
                           <th className="text-left pb-1">Holder</th>
                           <th className="text-left pb-1">Status</th>
+                          <th className="text-left pb-1">Time</th>
                           <th className="text-left pb-1">Verdict</th>
                           <th className="text-left pb-1">Starts</th>
                           <th className="text-left pb-1">Ends</th>
                           <th className="text-right pb-1">Votes</th>
+                          <th className="text-right pb-1">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cycleTrials.map((trial) => (
+                        {cycleTrials.map((trial) => {
+                          const now = Date.now()
+                          const scheduledAt = new Date(trial.scheduledAt).getTime()
+                          const voteEndsAt = new Date(trial.voteEndsAt).getTime()
+                          const diffMs = scheduledAt - now
+                          const diffMins = Math.round(diffMs / 60000)
+                          const endDiffMs = voteEndsAt - now
+                          const endDiffMins = Math.round(endDiffMs / 60000)
+
+                          let timeIndicator = ''
+                          let timeColor = 'text-gray-400'
+
+                          if (trial.status === 'scheduled') {
+                            if (diffMs > 0) {
+                              // Not started yet
+                              if (diffMins < 60) {
+                                timeIndicator = `Starts in ${diffMins}m`
+                              } else {
+                                const hours = Math.floor(diffMins / 60)
+                                const mins = diffMins % 60
+                                timeIndicator = `Starts in ${hours}h ${mins}m`
+                              }
+                              timeColor = 'text-yellow-400'
+                            } else {
+                              // Should have started
+                              const overdueMins = Math.abs(diffMins)
+                              if (overdueMins < 60) {
+                                timeIndicator = `⚠️ OVERDUE ${overdueMins}m ago`
+                              } else {
+                                const hours = Math.floor(overdueMins / 60)
+                                const mins = overdueMins % 60
+                                timeIndicator = `⚠️ OVERDUE ${hours}h ${mins}m ago`
+                              }
+                              timeColor = 'text-red-400 font-bold'
+                            }
+                          } else if (trial.status === 'voting') {
+                            if (endDiffMs > 0) {
+                              if (endDiffMins < 60) {
+                                timeIndicator = `Ends in ${endDiffMins}m`
+                              } else {
+                                const hours = Math.floor(endDiffMins / 60)
+                                const mins = endDiffMins % 60
+                                timeIndicator = `Ends in ${hours}h ${mins}m`
+                              }
+                              timeColor = 'text-green-400'
+                            } else {
+                              const overdueMins = Math.abs(endDiffMins)
+                              timeIndicator = `⚠️ Should finalize (${overdueMins}m ago)`
+                              timeColor = 'text-orange-400'
+                            }
+                          } else if (trial.status === 'resolved') {
+                            timeIndicator = '✓ Complete'
+                            timeColor = 'text-gray-500'
+                          }
+
+                          const isEditing = editingTrialId === trial.id
+
+                          if (isEditing) {
+                            return (
+                              <tr key={trial.id} className="border-t border-yellow-500/30 bg-yellow-900/10">
+                                <td className="py-2 text-gray-200">
+                                  {trial.username || trial.walletAddress || trial.id.slice(0, 6)}
+                                  <span className="text-xs text-gray-500 ml-2">({trial.alignment})</span>
+                                </td>
+                                <td className="py-2 text-gray-300 uppercase">{trial.status}</td>
+                                <td className={`py-2 ${timeColor}`}>
+                                  {timeIndicator}
+                                </td>
+                                <td className="py-2 text-gray-400">
+                                  {trial.verdict ? trial.verdict.toUpperCase() : '—'}
+                                </td>
+                                <td className="py-2">
+                                  <input
+                                    type="datetime-local"
+                                    value={editTrialScheduledAt}
+                                    onChange={(e) => setEditTrialScheduledAt(e.target.value)}
+                                    className="bg-black/60 border border-yellow-500/50 rounded px-2 py-1 text-xs text-yellow-300 font-mono w-44"
+                                  />
+                                </td>
+                                <td className="py-2">
+                                  <input
+                                    type="datetime-local"
+                                    value={editTrialVoteEndsAt}
+                                    onChange={(e) => setEditTrialVoteEndsAt(e.target.value)}
+                                    className="bg-black/60 border border-yellow-500/50 rounded px-2 py-1 text-xs text-yellow-300 font-mono w-44"
+                                  />
+                                </td>
+                                <td className="py-2 text-right text-gray-300">
+                                  {trial.votesAbsolve} ⚪ / {trial.votesCondemn} 🔴
+                                </td>
+                                <td className="py-2 text-right space-x-1">
+                                  <button
+                                    onClick={handleSaveTrialEdit}
+                                    disabled={savingTrial}
+                                    className="px-2 py-1 text-xs bg-green-600/80 hover:bg-green-500 text-white rounded disabled:opacity-50"
+                                  >
+                                    {savingTrial ? '...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingTrialId(null)}
+                                    className="px-2 py-1 text-xs bg-gray-600/80 hover:bg-gray-500 text-white rounded"
+                                  >
+                                    Cancel
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          }
+
+                          return (
                           <tr key={trial.id} className="border-t border-emerald-500/10">
                             <td className="py-2 text-gray-200">
                               {trial.username || trial.walletAddress || trial.id.slice(0, 6)}
                               <span className="text-xs text-gray-500 ml-2">({trial.alignment})</span>
                             </td>
                             <td className="py-2 text-gray-300 uppercase">{trial.status}</td>
+                            <td className={`py-2 ${timeColor}`}>
+                              {timeIndicator}
+                            </td>
                             <td className="py-2 text-gray-400">
                               {trial.verdict ? trial.verdict.toUpperCase() : '—'}
                             </td>
@@ -1172,8 +1379,19 @@ export default function MoralityAdminPage() {
                             <td className="py-2 text-right text-gray-300">
                               {trial.votesAbsolve} ⚪ / {trial.votesCondemn} 🔴
                             </td>
+                            <td className="py-2 text-right">
+                              {trial.status === 'scheduled' && (
+                                <button
+                                  onClick={() => handleEditTrial(trial)}
+                                  className="px-2 py-1 text-xs bg-yellow-600/80 hover:bg-yellow-500 text-white rounded"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1382,7 +1600,7 @@ export default function MoralityAdminPage() {
                 <div className="bg-black/40 border border-purple-500/30 rounded p-4 space-y-4">
                   <div className="text-sm text-purple-300 font-mono uppercase">Schedule Trial</div>
                   <div className="text-xs text-gray-500 font-mono">
-                    Pick an eligible holder and specify start/vote end (UTC). Discord automation will be added later.
+                    Pick a participant and use quick presets to schedule the trial.
                   </div>
                   <div className="space-y-3">
                     <label className="block text-xs text-gray-400 font-mono uppercase">Participant</label>
@@ -1399,31 +1617,87 @@ export default function MoralityAdminPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-xs text-gray-400 font-mono uppercase">Trial Starts</label>
-                    <input
-                      type="datetime-local"
-                      value={trialForm.scheduledAt}
-                      onChange={(e) => handleTrialFieldChange('scheduledAt', e.target.value)}
-                      className="w-full bg-black/50 border border-purple-500/40 rounded px-3 py-2 text-sm font-mono"
-                    />
+                  <div className="space-y-2">
+                    <label className="block text-xs text-gray-400 font-mono uppercase">Quick Start</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: 'Now', minutes: 0 },
+                        { label: 'In 5 min', minutes: 5 },
+                        { label: 'In 1 hour', minutes: 60 },
+                        { label: 'In 24 hours', minutes: 1440 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            const start = new Date(Date.now() + preset.minutes * 60 * 1000)
+                            const formatted = start.toISOString().slice(0, 16)
+                            handleTrialFieldChange('scheduledAt', formatted)
+                          }}
+                          className="px-3 py-1 bg-purple-900/50 hover:bg-purple-800/60 border border-purple-500/40 rounded text-xs font-mono text-purple-200"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    {trialForm.scheduledAt && (
+                      <div className="text-xs text-purple-300 font-mono">
+                        Starts: {new Date(trialForm.scheduledAt).toLocaleString()}
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-xs text-gray-400 font-mono uppercase">Voting Ends</label>
-                    <input
-                      type="datetime-local"
-                      value={trialForm.voteEndsAt}
-                      onChange={(e) => handleTrialFieldChange('voteEndsAt', e.target.value)}
-                      className="w-full bg-black/50 border border-purple-500/40 rounded px-3 py-2 text-sm font-mono"
-                    />
+                  <div className="space-y-2">
+                    <label className="block text-xs text-gray-400 font-mono uppercase">Voting Duration</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: '1 hour', hours: 1 },
+                        { label: '6 hours', hours: 6 },
+                        { label: '12 hours', hours: 12 },
+                        { label: '24 hours', hours: 24 },
+                        { label: '48 hours', hours: 48 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            const startTime = trialForm.scheduledAt 
+                              ? new Date(trialForm.scheduledAt).getTime() 
+                              : Date.now()
+                            const end = new Date(startTime + preset.hours * 60 * 60 * 1000)
+                            const formatted = end.toISOString().slice(0, 16)
+                            handleTrialFieldChange('voteEndsAt', formatted)
+                          }}
+                          className="px-3 py-1 bg-purple-900/50 hover:bg-purple-800/60 border border-purple-500/40 rounded text-xs font-mono text-purple-200"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    {trialForm.voteEndsAt && (
+                      <div className="text-xs text-purple-300 font-mono">
+                        Ends: {new Date(trialForm.voteEndsAt).toLocaleString()}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={handleScheduleTrial}
-                    disabled={schedulingTrial}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs uppercase disabled:opacity-50"
-                  >
-                    {schedulingTrial ? 'Scheduling…' : 'Schedule Trial'}
-                  </button>
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={handleScheduleTrial}
+                      disabled={schedulingTrial || !trialForm.participantId || !trialForm.scheduledAt || !trialForm.voteEndsAt}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs uppercase disabled:opacity-50"
+                    >
+                      {schedulingTrial ? 'Scheduling…' : 'Schedule Trial'}
+                    </button>
+                    {trialForm.scheduledAt && trialForm.voteEndsAt && (
+                      <span className="text-xs text-gray-400 font-mono">
+                        Duration: {(() => {
+                          const start = new Date(trialForm.scheduledAt).getTime()
+                          const end = new Date(trialForm.voteEndsAt).getTime()
+                          const hours = Math.round((end - start) / (1000 * 60 * 60))
+                          return `${hours} hour${hours !== 1 ? 's' : ''}`
+                        })()}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

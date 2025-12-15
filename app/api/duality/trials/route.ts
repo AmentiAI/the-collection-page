@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
 
     const participant = participantRes.rows[0]
 
-    if (participant.cycle_status !== 'trial' && participant.cycle_status !== 'active') {
+    // Allow trials during alignment (for testing), active, or trial phases
+    if (!['alignment', 'active', 'trial'].includes(participant.cycle_status)) {
       return NextResponse.json(
-        { error: 'Trials can only be scheduled during active or trial phases.' },
+        { error: 'Trials can only be scheduled during alignment, active, or trial phases.' },
         { status: 400 }
       )
     }
@@ -83,7 +84,9 @@ export async function PATCH(request: NextRequest) {
       votesAbsolve,
       votesCondemn,
       metadata,
-      karmaAdjustments
+      karmaAdjustments,
+      scheduledAt,
+      voteEndsAt
     } = body
 
     if (!trialId) {
@@ -127,6 +130,14 @@ export async function PATCH(request: NextRequest) {
       if (metadata !== undefined) {
         fields.push(`metadata = $${index++}`)
         values.push(metadata ? JSON.stringify(metadata) : null)
+      }
+      if (scheduledAt) {
+        fields.push(`scheduled_at = $${index++}`)
+        values.push(new Date(scheduledAt))
+      }
+      if (voteEndsAt) {
+        fields.push(`vote_ends_at = $${index++}`)
+        values.push(new Date(voteEndsAt))
       }
 
       if (fields.length > 0) {

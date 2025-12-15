@@ -26,7 +26,7 @@ const HOLDERS_CHANNEL_ID = process.env.HOLDERS_CHANNEL_ID;
 const HOLDER_ROLE_ID = process.env.HOLDER_ROLE_ID;
 const BOT_STATUS_CHANNEL_ID = process.env.BOT_STATUS_CHANNEL_ID;
 const ADMIN_WEBHOOK_URL = process.env.ADMIN_WEBHOOK_URL;
-const DUALITY_TRIAL_CHANNEL_ID = process.env.DUALITY_TRIAL_CHANNEL_ID;
+const DUALITY_TRIAL_CHANNEL_ID = process.env.DUALITY_TRIAL_CHANNEL_ID || '1435901975383507037';
 const DUALITY_EVENTS_CHANNEL_ID = process.env.DUALITY_EVENTS_CHANNEL_ID;
 const DUALITY_PARTICIPANT_ROLE_ID = process.env.DUALITY_PARTICIPANT_ROLE_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
@@ -68,6 +68,118 @@ const DAILY_EVENT_TYPES = ['Blessing', 'Temptation', 'Fate Roll'];
 const trialMessageCache = new Map();
 const PAIRING_WINDOW_MINUTES = Number(process.env.DUALITY_PAIRING_WINDOW_MINUTES || 60);
 const PAIRING_COOLDOWN_MINUTES = Number(process.env.DUALITY_PAIRING_COOLDOWN_MINUTES || 60);
+
+// Damned Rumble Role ID (who can start the game)
+const RUMBLE_ADMIN_ROLE_ID = '1434437623987830894';
+
+// Active rumble games
+const activeRumbles = new Map();
+
+// Lore-based death messages inspired by chat history
+const RUMBLE_DEATH_MESSAGES = [
+  // Horde & Battle themed
+  (killer, victim) => `💀 **${killer}** summoned the Horde upon **${victim}**! They took double digit damage and couldn't recover.`,
+  (killer, victim) => `⚔️ **${victim}** missed the crawl timer and **${killer}** took advantage of the opening!`,
+  (killer, victim) => `🩸 **${killer}** caught **${victim}** during an overdue message popup. Brutal execution!`,
+  (killer, victim) => `💀 **${victim}** was too busy crystallizing when **${killer}** struck from behind!`,
+  (killer, victim) => `⚡ **${killer}** used a 170 power angel with 40% block chance on **${victim}**. No survivors.`,
+  (killer, victim) => `🔥 The resurrection cost was too high for **${victim}** after **${killer}**'s assault!`,
+  (killer, victim) => `💀 **${killer}** stole **${victim}**'s pool of healing! They bled out in the abyss.`,
+  (killer, victim) => `☠️ **${victim}** set a timer but **${killer}** attacked anyway. RIP hogonie.`,
+  (killer, victim) => `⚔️ **${killer}** dropped from 1st to 7th... but took **${victim}** with them!`,
+  (killer, victim) => `💀 **${victim}** was grinding leaderboard points when **${killer}** reminded them this is a battle royale!`,
+  
+  // Community meme themed
+  (killer, victim) => `🧂 **${killer}** threw salt and vinegar chips in **${victim}**'s eyes, then finished them off!`,
+  (killer, victim) => `💀 **${victim}** posted "LFG" but **${killer}** had other plans. L.`,
+  (killer, victim) => `🌀 **${killer}** opened the abyss directly under **${victim}**!`,
+  (killer, victim) => `💀 **${victim}** said "gm" but **${killer}** said "gn" PERMANENTLY.`,
+  (killer, victim) => `⚡ **${killer}** challenged **${victim}** to a trial by combat. The jury voted condemn.`,
+  (killer, victim) => `💀 **${victim}** was checking their powder balance when **${killer}** struck!`,
+  (killer, victim) => `☠️ **${killer}** merged wallets with **${victim}**... by force!`,
+  (killer, victim) => `💀 "The math ain't mathing" said **${victim}** before **${killer}** proved them right.`,
+  (killer, victim) => `🔥 **${killer}** caught **${victim}** during their wifi outage over Western Africa!`,
+  (killer, victim) => `💀 **${victim}** was typing a 10 paragraph analysis when **${killer}** simply attacked.`,
+  
+  // Dramatic lore kills
+  (killer, victim) => `⚔️ **${killer}**'s demon army overwhelmed **${victim}**'s angels. Balance is restored.`,
+  (killer, victim) => `💀 **${victim}** ascended... to the graveyard. Courtesy of **${killer}**.`,
+  (killer, victim) => `☠️ The Horde grows stronger. **${killer}** fed it **${victim}**'s soul.`,
+  (killer, victim) => `💀 **${victim}** missed the buff window. **${killer}** didn't miss their swing.`,
+  (killer, victim) => `⚡ Mr.BRC would be proud... **${killer}** just executed **${victim}** flawlessly!`,
+];
+
+// Survival/miss messages
+const RUMBLE_SURVIVE_MESSAGES = [
+  (player) => `🛡️ **${player}** blocked with 40% chance and SURVIVED!`,
+  (player) => `🍀 **${player}** was AFK eating salt and vinegar chips but somehow lived!`,
+  (player) => `🏃 **${player}** ran to the Pool of Healing just in time!`,
+  (player) => `⚡ **${player}** hid in a summoning circle and avoided all damage!`,
+  (player) => `🙏 **${player}**'s resurrection cost was waived by the gods. They live!`,
+  (player) => `🛡️ **${player}** activated their buff and tanked everything!`,
+  (player) => `🍀 **${player}** set a timer and actually made it back in time!`,
+  (player) => `🏃 **${player}** crystallized their body and became untouchable!`,
+  (player) => `⚡ **${player}** checked in with /duality and gained divine protection!`,
+  (player) => `🙏 The abyss rejected **${player}**'s soul. They crawl back!`,
+];
+
+// Random action messages (doing nothing useful but surviving)
+const RUMBLE_RANDOM_ACTIONS = [
+  (player) => `🤔 **${player}** is busy doing leaderboard math... and somehow survived!`,
+  (player) => `😴 **${player}** fell asleep grinding but the Horde passed them by!`,
+  (player) => `📱 **${player}** was DMing BRC about the algorithm and lived!`,
+  (player) => `🎮 **${player}** was too busy complaining about overdue messages to die!`,
+  (player) => `☕ **${player}** took a piss break but the attackers missed!`,
+  (player) => `📊 **${player}** is still calculating the 28x multiplier... still alive!`,
+  (player) => `🗣️ **${player}** was yelling "@everyone CIRCLES FLOWING" and nobody attacked!`,
+  (player) => `🤷 **${player}** has 100% portfolio conviction. The universe respects that.`,
+  (player) => `🎫 **${player}** made a ticket and is still waiting... Day 3 of hoping for a response.`,
+  (player) => `⏳ **${player}** has PENDING SIGNATURE issues so nobody can kill them!`,
+  (player) => `🦡 **${player}** DMed Mr.BRC but he said "everyone has to wait idk what else to say"`,
+];
+
+// More edgy death messages
+const RUMBLE_DEATH_MESSAGES_EXTENDED = [
+  // Ticket/Support themed
+  (killer, victim) => `🎫 **${victim}** made a ticket. **${killer}** closed it... permanently.`,
+  (killer, victim) => `💀 **${victim}**'s ascension failed and **${killer}** didn't wait for it to come back.`,
+  (killer, victim) => `☠️ **${killer}** graverobbed **${victim}**'s corpse before they could respawn!`,
+  (killer, victim) => `💀 **${victim}** had a PENDING SIGNATURE for 3 days. **${killer}** signed their death certificate instead.`,
+  (killer, victim) => `🦡 **${victim}** was waiting for BRC to answer. **${killer}** answered first. With violence.`,
+  
+  // Dungeon/Wave themed
+  (killer, victim) => `⚔️ The Dungeon 1st wave opened and **${killer}** pushed **${victim}** into the Horde Minions!`,
+  (killer, victim) => `💀 **${victim}** thought the mint button would save them. It didn't. **${killer}** did the opposite.`,
+  (killer, victim) => `☠️ **${killer}** caught **${victim}** stuck in "read the comments" mode. Easy kill.`,
+  
+  // Edgy adult humor
+  (killer, victim) => `💀 **${killer}** told **${victim}** to touch grass. Then buried them under it.`,
+  (killer, victim) => `☠️ **${victim}** said "no stress it'll open" and **${killer}** opened their skull instead.`,
+  (killer, victim) => `💀 **${killer}** speedran **${victim}**'s existence. Any% no resurrection.`,
+  (killer, victim) => `⚰️ **${victim}** picked a burn, and it failed. Then **${killer}** picked them. Also failed... to survive.`,
+  (killer, victim) => `💀 **${killer}** sent **${victim}** to the shadow realm. No ticket support there.`,
+  (killer, victim) => `☠️ **${victim}** was part of a wider issue. The issue was **${killer}**.`,
+  (killer, victim) => `💀 **${killer}** didn't realize **${victim}**'s problem was about to get permanent.`,
+  (killer, victim) => `⚔️ **${victim}** said "Thanks guys." Those were their last words before **${killer}** struck.`,
+  (killer, victim) => `💀 **${killer}** gave **${victim}** the ol' "disabled for everyone" treatment.`,
+  (killer, victim) => `☠️ **${victim}** just needed a lil more time. **${killer}** disagreed.`,
+  (killer, victim) => `💀 **${killer}** treated **${victim}** like a bug report: acknowledged and then ignored to death.`,
+  (killer, victim) => `⚰️ **${victim}**'s demon is still stuck. Unlike them, who is now very much unstuck from life.`,
+];
+
+// Chaos event messages
+const RUMBLE_CHAOS_RESURRECTION = [
+  `# 🌟 THE ABYSS REJECTS ALL SOULS! 🌟\n\n*A blinding light fills the arena...*\n\n**ALL FALLEN WARRIORS HAVE BEEN RESURRECTED!**\n\n💀 → 😤 The dead rise again! LET THE CARNAGE CONTINUE!`,
+  `# ⚡ MR.BRC INTERVENES! ⚡\n\n*"everyone has to wait idk what else to say... so I'm bringing everyone back"*\n\n**ALL PLAYERS RESURRECTED!** The rumble continues!`,
+  `# 🦡 DIVINE INTERVENTION! 🦡\n\n*The graveyard malfunctions and all corpses respawn!*\n\n**RESURRECTION COMPLETE!** Nobody stays dead today!`,
+];
+
+const RUMBLE_CHAOS_MASSACRE = [
+  (survivor) => `# 💀 CATASTROPHIC EVENT! 💀\n\n*The Horde Minions breach the arena!*\n\n**EVERYONE IS SLAUGHTERED** except **${survivor}** who hid in a ticket queue!\n\n🩸 *The massacre is complete...* 🩸`,
+  (survivor) => `# ☠️ THE ABYSS OPENS! ☠️\n\n*A portal to hell consumes the battlefield!*\n\n**ALL WARRIORS FALL** except **${survivor}** who was stuck on "PENDING SIGNATURE"!\n\n💀 *Only one remains...* 💀`,
+  (survivor) => `# 🔥 DUNGEON WAVE: EXTINCTION! 🔥\n\n*The 1st wave was actually the LAST wave!*\n\n**TOTAL ANNIHILATION!** Only **${survivor}** survived by playing dead!\n\n⚰️ *It's over.* ⚰️`,
+  (survivor) => `# 💥 ASCENSION FAILURE: CRITICAL! 💥\n\n*Everyone picked a burn... AND IT FAILED CATASTROPHICALLY!*\n\n**MASS EXTINCTION!** **${survivor}** didn't pick one and lives!\n\n🦡 *Mr.BRC: "just wait for the respawn button to return"* 🦡`,
+];
 
 // Slash command handler
 client.commands = new Collection();
@@ -160,6 +272,11 @@ const powderCommand = {
   description: 'Check your ascension powder balance',
 };
 
+const damnedrumbleCommand = {
+  name: 'damnedrumble',
+  description: 'Start a Damned Rumble battle royale! Last one standing wins.',
+};
+
 // Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -189,7 +306,7 @@ async function registerCommands() {
   try {
     console.log('Started refreshing application (/) commands.');
 
-    const commands = [checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand];
+    const commands = [checkHoldersCommand, checkinCommand, dualityCommand, tipCommand, powderCommand, damnedrumbleCommand];
     if (FLASHNET_COMMANDS_ENABLED) {
       commands.push(priceCommand, infoCommand, tokensCommand);
     }
@@ -268,11 +385,14 @@ async function fetchDualityStatus() {
 }
 
 async function handleDualityWeeklyCycle(client) {
+  console.log('[Duality] Running weekly cycle check...');
   let status = await fetchDualityStatus();
   if (!status || !status.cycle) {
     console.log('[Duality] No active cycle detected.');
     return;
   }
+
+  console.log(`[Duality] Cycle found: status=${status.cycle.status}, trials=${status.trials?.length || 0}, participants=${status.participants?.length || 0}`);
 
   const updated = await managePairingSessions(status, client);
   if (updated) {
@@ -280,9 +400,12 @@ async function handleDualityWeeklyCycle(client) {
   }
 
   const cycle = status.cycle;
-  if (cycle.status === 'trial') {
+  // Process trials during alignment, active, or trial phases (for testing flexibility)
+  if (cycle.status === 'alignment' || cycle.status === 'active' || cycle.status === 'trial') {
+    console.log('[Duality] Processing trials...');
     await processTrials(status, client);
-  } else if (cycle.status === 'active') {
+  }
+  if (cycle.status === 'active') {
     await processDailyEvents(status, client);
   }
 }
@@ -467,7 +590,7 @@ async function startTrialVoting(trial, channel, client, metadata = {}) {
     .setTitle('⚖️ Trial of Karma')
     .setDescription(
       `${mention} has invoked the Jury of Peers.
-React with ⚪️ to absolve or 🔴 to condemn.`
+React with ⚪ to absolve or 🔴 to condemn.`
     )
     .addFields(
       { name: 'Status', value: 'Voting in progress', inline: true },
@@ -484,7 +607,7 @@ Ends: ${new Date(trial.voteEndsAt).toLocaleString()}`,
 
   try {
     const message = await channel.send({ content: mention, embeds: [embed] });
-    await message.react('⚪️');
+    await message.react('⚪');
     await message.react('🔴');
 
     trialMessageCache.set(trial.id, { channelId: channel.id, messageId: message.id });
@@ -516,7 +639,7 @@ Ends: ${new Date(trial.voteEndsAt).toLocaleString()}`,
           `⚖️ **Trial of Karma**
 Voting has begun for your trial.
 Ends at: ${new Date(trial.voteEndsAt).toLocaleString()}
-React in ${channel.toString()} with ⚪️ or 🔴 to rally support.`
+React in ${channel.toString()} with ⚪ or 🔴 to rally support.`
         );
       } catch (dmError) {
         console.warn('[Duality] Unable to DM trial participant:', dmError.message);
@@ -554,7 +677,7 @@ async function finalizeTrialVoting(trial, channel, client, metadata = {}) {
 
   if (message) {
     const reactions = message.reactions.cache;
-    const absolveReaction = reactions.find((r) => r.emoji.name === '⚪️' || r.emoji.name === '⚪');
+    const absolveReaction = reactions.find((r) => r.emoji.name === '⚪');
     const condemnReaction = reactions.find((r) => r.emoji.name === '🔴');
 
     if (absolveReaction) {
@@ -612,7 +735,7 @@ async function finalizeTrialVoting(trial, channel, client, metadata = {}) {
       `${trial.username || trial.walletAddress || trial.id.slice(0, 6)} — ${verdict.toUpperCase()}
 ${verdictText}`
     )
-    .addFields({ name: 'Votes', value: `⚪️ ${votesAbsolve}  |  🔴 ${votesCondemn}` })
+    .addFields({ name: 'Votes', value: `⚪ ${votesAbsolve}  |  🔴 ${votesCondemn}` })
     .setColor(verdict === 'absolve' ? 0x2ecc71 : 0xe74c3c)
     .setTimestamp(new Date());
 
@@ -629,7 +752,7 @@ ${verdictText}`
       await member.send(
         `⚖️ **Trial Resolved**
 Verdict: ${verdict.toUpperCase()}
-Votes — ⚪️ ${votesAbsolve} / 🔴 ${votesCondemn}`
+Votes — ⚪ ${votesAbsolve} / 🔴 ${votesCondemn}`
       );
     } catch (dmError) {
       console.warn('[Duality] Unable to DM verdict to participant:', dmError.message);
@@ -751,10 +874,15 @@ async function processDailyEvents(status, client) {
 }
 
 async function processTrials(status, client) {
-  if (!status || !status.cycle) return;
+  if (!status || !status.cycle) {
+    console.log('[Duality] processTrials: No status or cycle');
+    return;
+  }
   const trials = ensureArray(status.trials);
+  console.log(`[Duality] processTrials: Found ${trials.length} trial(s)`);
   if (!trials.length) return;
 
+  console.log(`[Duality] Trial channel ID: ${DUALITY_TRIAL_CHANNEL_ID || HOLDERS_CHANNEL_ID}`);
   const channel = await getChannel(client, DUALITY_TRIAL_CHANNEL_ID || HOLDERS_CHANNEL_ID);
   if (!channel) {
     console.log('[Duality] Trial channel unavailable.');
@@ -769,17 +897,21 @@ async function processTrials(status, client) {
     const voteEndsAt = new Date(trial.voteEndsAt).getTime();
     const metadata = trial.metadata || {};
 
+    console.log(`[Duality] Trial ${trial.id.slice(0, 8)}: status=${trial.status}, scheduledAt=${new Date(scheduledAt).toISOString()}, now=${new Date(now).toISOString()}, shouldStart=${scheduledAt <= now}`);
+
     if (
       trial.status === 'scheduled' &&
       !Number.isNaN(scheduledAt) &&
       scheduledAt <= now
     ) {
+      console.log(`[Duality] Starting trial voting for ${trial.id}`);
       await startTrialVoting(trial, channel, client, metadata);
     } else if (
       trial.status === 'voting' &&
       !Number.isNaN(voteEndsAt) &&
       voteEndsAt <= now
     ) {
+      console.log(`[Duality] Finalizing trial voting for ${trial.id}`);
       await finalizeTrialVoting(trial, channel, client, metadata);
     }
   }
@@ -2172,7 +2304,232 @@ client.on(Events.InteractionCreate, async interaction => {
     }
     return;
   }
+
+  // Handle damnedrumble command
+  if (interaction.commandName === 'damnedrumble') {
+    // Check if user has the required role
+    const member = interaction.member;
+    if (!member.roles.cache.has(RUMBLE_ADMIN_ROLE_ID)) {
+      await interaction.reply({
+        content: '❌ You do not have permission to start a Damned Rumble!',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Check if there's already an active rumble in this channel
+    if (activeRumbles.has(interaction.channelId)) {
+      await interaction.reply({
+        content: '⚠️ A Damned Rumble is already in progress in this channel!',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Start the rumble
+    await interaction.reply({
+      content: `# ⚔️ DAMNED RUMBLE ⚔️\n\n🔥 A battle royale is about to begin! 🔥\n\nReact with ⚔️ to enter the arena!\n\n⏱️ **60 seconds** until the gates close...`,
+    });
+
+    const message = await interaction.fetchReply();
+    await message.react('⚔️');
+
+    const rumbleData = {
+      messageId: message.id,
+      channelId: interaction.channelId,
+      players: new Set(),
+      startTime: Date.now(),
+    };
+    activeRumbles.set(interaction.channelId, rumbleData);
+
+    // Countdown messages
+    const countdowns = [
+      { delay: 30000, message: '⏱️ **30 seconds** remaining to join the Damned Rumble!' },
+      { delay: 45000, message: '⏱️ **15 seconds** remaining! Last chance to enter!' },
+      { delay: 55000, message: '⏱️ **5 seconds**... 🔥' },
+    ];
+
+    for (const countdown of countdowns) {
+      setTimeout(async () => {
+        if (activeRumbles.has(interaction.channelId)) {
+          await interaction.channel.send(countdown.message);
+        }
+      }, countdown.delay);
+    }
+
+    // Start the game after 60 seconds
+    setTimeout(async () => {
+      await runDamnedRumble(interaction.channel, rumbleData);
+    }, 60000);
+
+    return;
+  }
 });
+
+// Damned Rumble game logic
+async function runDamnedRumble(channel, rumbleData) {
+  try {
+    // Fetch the message to get reactions
+    const message = await channel.messages.fetch(rumbleData.messageId);
+    const reaction = message.reactions.cache.get('⚔️');
+    
+    // Get all users who reacted
+    const users = await reaction.users.fetch();
+    const players = users.filter(u => !u.bot).map(u => ({ id: u.id, name: u.username, alive: true }));
+
+    // Clean up active rumble
+    activeRumbles.delete(channel.id);
+
+    if (players.length < 2) {
+      await channel.send('❌ **RUMBLE CANCELLED**\n\nNot enough warriors entered the arena! Need at least 2 players.');
+      return;
+    }
+
+    // Announce players
+    const playerList = players.map(p => `• <@${p.id}>`).join('\n');
+    await channel.send(`# ⚔️ THE RUMBLE BEGINS! ⚔️\n\n**${players.length} warriors have entered the arena:**\n${playerList}\n\n🩸 *Let the carnage begin...* 🩸`);
+
+    await sleep(3000);
+
+    let round = 1;
+    let alivePlayers = players.filter(p => p.alive);
+
+    // Combine all death messages
+    const allDeathMessages = [...RUMBLE_DEATH_MESSAGES, ...RUMBLE_DEATH_MESSAGES_EXTENDED];
+
+    // Game loop
+    while (alivePlayers.length > 1) {
+      await channel.send(`\n## 💀 ROUND ${round} 💀`);
+      await sleep(2000);
+
+      // 1% chance: CHAOS EVENT - Everyone dies except one random survivor
+      if (Math.random() < 0.01 && alivePlayers.length > 2) {
+        const luckyIndex = Math.floor(Math.random() * alivePlayers.length);
+        const luckySurvivor = alivePlayers[luckyIndex];
+        
+        // Kill everyone except the lucky one
+        for (const player of alivePlayers) {
+          if (player !== luckySurvivor) {
+            player.alive = false;
+          }
+        }
+        
+        const massacreMsg = RUMBLE_CHAOS_MASSACRE[Math.floor(Math.random() * RUMBLE_CHAOS_MASSACRE.length)];
+        await channel.send(massacreMsg(luckySurvivor.name));
+        await sleep(3000);
+        
+        alivePlayers = players.filter(p => p.alive);
+        round++;
+        continue;
+      }
+
+      // 2% chance: CHAOS EVENT - All dead players resurrect!
+      const deadPlayers = players.filter(p => !p.alive);
+      if (Math.random() < 0.02 && deadPlayers.length > 0) {
+        for (const dead of deadPlayers) {
+          dead.alive = true;
+        }
+        
+        const resMsg = RUMBLE_CHAOS_RESURRECTION[Math.floor(Math.random() * RUMBLE_CHAOS_RESURRECTION.length)];
+        await channel.send(resMsg);
+        await sleep(3000);
+        
+        alivePlayers = players.filter(p => p.alive);
+        await channel.send(`\n📊 **${alivePlayers.length} warriors now in the arena!**`);
+        await sleep(2000);
+      }
+
+      const events = [];
+      const roundKills = Math.min(
+        Math.floor(Math.random() * 4) + 2, // 2-5 kills per round
+        alivePlayers.length - 1 // Can't kill everyone
+      );
+
+      // Select random killers and victims
+      const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
+      const killers = shuffled.slice(0, Math.min(roundKills, Math.floor(shuffled.length / 2)));
+      const potentialVictims = shuffled.filter(p => !killers.includes(p));
+
+      let killCount = 0;
+      for (const killer of killers) {
+        if (potentialVictims.length === 0 || killCount >= roundKills) break;
+        if (alivePlayers.filter(p => p.alive).length <= 1) break;
+
+        // 70% chance to successfully kill, 30% chance to miss
+        if (Math.random() < 0.7) {
+          const victimIndex = Math.floor(Math.random() * potentialVictims.length);
+          const victim = potentialVictims[victimIndex];
+          
+          if (victim && victim.alive) {
+            victim.alive = false;
+            potentialVictims.splice(victimIndex, 1);
+            
+            const deathMsg = allDeathMessages[Math.floor(Math.random() * allDeathMessages.length)];
+            events.push(deathMsg(killer.name, victim.name));
+            killCount++;
+          }
+        } else {
+          // Miss message
+          const surviveMsg = RUMBLE_SURVIVE_MESSAGES[Math.floor(Math.random() * RUMBLE_SURVIVE_MESSAGES.length)];
+          const randomAlive = alivePlayers.filter(p => p.alive)[Math.floor(Math.random() * alivePlayers.filter(p => p.alive).length)];
+          if (randomAlive) {
+            events.push(surviveMsg(randomAlive.name));
+          }
+        }
+      }
+
+      // Random survival events for remaining alive players
+      const survivors = alivePlayers.filter(p => p.alive);
+      for (const survivor of survivors) {
+        if (Math.random() < 0.3) { // 30% chance for a random action message
+          const randomAction = RUMBLE_RANDOM_ACTIONS[Math.floor(Math.random() * RUMBLE_RANDOM_ACTIONS.length)];
+          events.push(randomAction(survivor.name));
+        }
+      }
+
+      // Send events in batches
+      for (let i = 0; i < events.length; i++) {
+        await channel.send(events[i]);
+        await sleep(1500);
+      }
+
+      // Update alive players
+      alivePlayers = players.filter(p => p.alive);
+
+      // Round summary
+      if (alivePlayers.length > 1) {
+        await channel.send(`\n📊 **${alivePlayers.length} warriors remain...**`);
+        await sleep(3000);
+      }
+
+      round++;
+
+      // Safety check to prevent infinite loops
+      if (round > 50) {
+        await channel.send('⚠️ The gods have ended this battle prematurely!');
+        break;
+      }
+    }
+
+    // Announce winner
+    const winner = alivePlayers[0];
+    if (winner) {
+      await sleep(2000);
+      await channel.send(`\n# 🏆 VICTORY! 🏆\n\n<@${winner.id}> **${winner.name}** is the last one standing!\n\n👑 *All hail the champion of the Damned Rumble!* 👑\n\n🩸 ${players.length - 1} souls were claimed. 🩸`);
+    } else {
+      await channel.send('\n# 💀 MUTUAL DESTRUCTION 💀\n\nAll warriors have fallen. There is no victor today...');
+    }
+
+  } catch (error) {
+    console.error('[DamnedRumble] Error:', error);
+    activeRumbles.delete(channel.id);
+    await channel.send('❌ An error occurred during the Damned Rumble!');
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Periodic job to check holders and manage roles (runs every hour)
 // Note: Pool sync is now handled by cron job (/api/cron/sync-flashnet-pools) every 5 minutes
