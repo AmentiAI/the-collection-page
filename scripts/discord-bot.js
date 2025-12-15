@@ -35,6 +35,7 @@ const EXECUTIONER_ROLE_ID = process.env.EXECUTIONER_ROLE_ID || '1437820365991837
 const SUMMONER_ROLE_ID = process.env.SUMMONER_ROLE_ID || '1437895763308052601';
 const DEAD_DEMON_ROLE_ID = process.env.DEAD_DEMON_ROLE_ID || '1440686851542352003';
 const GRAVE_ROBBER_ROLE_ID = process.env.GRAVE_ROBBER_ROLE_ID || '1442345905578573987';
+const HORDE_SLAYER_ROLE_ID = process.env.HORDE_SLAYER_ROLE_ID || '1450234372363128973';
 
 const FLASHNET_MNEMONIC = process.env.FLASHNET_MNEMONIC || process.env.SPARK_MNEMONIC;
 const FLASHNET_NETWORK = (process.env.FLASHNET_NETWORK || 'MAINNET').toUpperCase();
@@ -1680,6 +1681,40 @@ async function syncHolderAndSpecialRoles() {
           console.log(`✅ Grave Robber sync complete: Added ${graveRobberAddResult.success} roles, Removed ${graveRobberRemoveResult.success} roles`);
         } catch (error) {
           console.error('Error syncing grave robber roles:', error);
+        }
+      }
+    }
+
+    if (HORDE_SLAYER_ROLE_ID) {
+      const hordeSlayerRole = guild.roles.cache.get(HORDE_SLAYER_ROLE_ID);
+      if (!hordeSlayerRole) {
+        console.warn(`Horde Slayer role with ID ${HORDE_SLAYER_ROLE_ID} not found in guild.`);
+      } else {
+        try {
+          const [hordeSlayerAddResponse, hordeSlayerRemoveResponse] = await Promise.all([
+            fetch(`${baseUrl}/api/discord/roles/list?action=horde-slayer-add`),
+            fetch(`${baseUrl}/api/discord/roles/list?action=horde-slayer-remove`),
+          ]);
+
+          if (!hordeSlayerAddResponse.ok) {
+            console.error('Failed to fetch horde slayer add list:', hordeSlayerAddResponse.status);
+          }
+
+          if (!hordeSlayerRemoveResponse.ok) {
+            console.error('Failed to fetch horde slayer remove list:', hordeSlayerRemoveResponse.status);
+          }
+
+          const hordeSlayerAddData = hordeSlayerAddResponse.ok ? await hordeSlayerAddResponse.json() : { discordIds: [] };
+          const hordeSlayerRemoveData = hordeSlayerRemoveResponse.ok ? await hordeSlayerRemoveResponse.json() : { discordIds: [] };
+
+          const [hordeSlayerAddResult, hordeSlayerRemoveResult] = await Promise.all([
+            batchProcessRoleOperations(guild, hordeSlayerAddData.discordIds, hordeSlayerRole, 'add', 'horde slayer'),
+            batchProcessRoleOperations(guild, hordeSlayerRemoveData.discordIds, hordeSlayerRole, 'remove', 'horde slayer'),
+          ]);
+
+          console.log(`✅ Horde Slayer sync complete: Added ${hordeSlayerAddResult.success} roles, Removed ${hordeSlayerRemoveResult.success} roles`);
+        } catch (error) {
+          console.error('Error syncing horde slayer roles:', error);
         }
       }
     }

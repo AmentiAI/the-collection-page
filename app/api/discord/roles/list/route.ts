@@ -201,10 +201,50 @@ export async function GET(request: Request) {
         discordIds,
         count: discordIds.length,
       })
+    } else if (action === 'horde-slayer-add') {
+      // Get Discord IDs that have killed a mega monster (killed_by contains their inscription_id)
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        INNER JOIN battle_ordinals bo ON LOWER(bo.wallet_address) = LOWER(p.wallet_address)
+        INNER JOIN mega_monsters mm ON mm.killed_by = bo.inscription_id
+        WHERE mm.killed_by IS NOT NULL
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'horde-slayer-add',
+        discordIds,
+        count: discordIds.length,
+      })
+    } else if (action === 'horde-slayer-remove') {
+      // Get Discord IDs that have NOT killed any mega monster
+      const result = await pool.query(`
+        SELECT DISTINCT du.discord_user_id
+        FROM discord_users du
+        INNER JOIN profiles p ON du.profile_id = p.id
+        LEFT JOIN battle_ordinals bo ON LOWER(bo.wallet_address) = LOWER(p.wallet_address)
+        LEFT JOIN mega_monsters mm ON mm.killed_by = bo.inscription_id AND mm.killed_by IS NOT NULL
+        WHERE mm.id IS NULL
+          AND du.discord_user_id IS NOT NULL
+      `)
+
+      const discordIds = result.rows.map((row) => row.discord_user_id).filter((id) => id != null)
+
+      return NextResponse.json({
+        success: true,
+        action: 'horde-slayer-remove',
+        discordIds,
+        count: discordIds.length,
+      })
     } else {
       console.error('[discord/roles/list] Invalid action received:', action)
       return NextResponse.json(
-        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove, grave-robber-add, grave-robber-remove` },
+        { error: `Invalid action: "${action}". Valid actions: remove, add, executioner-add, executioner-remove, summoner-add, summoner-remove, dead-demon-add, dead-demon-remove, grave-robber-add, grave-robber-remove, horde-slayer-add, horde-slayer-remove` },
         { status: 400 }
       )
     }
