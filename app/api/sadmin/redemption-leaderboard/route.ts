@@ -270,6 +270,10 @@ export async function GET(request: NextRequest) {
                   THEN 10::numeric
                   ELSE 0::numeric
                 END
+              + CASE 
+                  WHEN max_army_count < 5 THEN 5::numeric
+                  ELSE 0::numeric
+                END
             )::numeric(10, 2)
           ELSE 0
         END as total_score
