@@ -48,6 +48,22 @@ export default function BattlefieldPage() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
+  // Update IP address when wallet is connected
+  useEffect(() => {
+    if (!connected || !address) {
+      return
+    }
+
+    // Update IP address
+    fetch('/api/update-ip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress: address }),
+    }).catch((err) => {
+      console.error('Error updating IP:', err)
+    })
+  }, [connected, address])
+
   // Check for listed ordinals
   useEffect(() => {
     if (!connected || !address) {
