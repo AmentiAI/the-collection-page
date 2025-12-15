@@ -16,6 +16,7 @@ type LeaderboardEntry = {
   demon_count: number
   battles_count: number
   heals_count: number
+  heal_battle_ratio: number
   crystallization_count: number
   ascension_circle_count: number
   resurrections_count: number
@@ -596,6 +597,9 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Heals
                   </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200" title="Heal/Battle Ratio (must be ≥5% to avoid -20 penalty)">
+                    H/B Ratio
+                  </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Crystal
                   </th>
@@ -619,7 +623,7 @@ export default function RedemptionLeaderboardPage() {
               <tbody className="divide-y divide-red-900/40">
                 {leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={17} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={18} className="px-4 py-8 text-center text-gray-400">
                       No data available
                     </td>
                   </tr>
@@ -729,11 +733,28 @@ export default function RedemptionLeaderboardPage() {
                               return <span className="text-green-400 ml-1">({score > 0 ? '+' : ''}{score.toFixed(1)})</span>
                             })()}
                           </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs">
+                            {(() => {
+                              const ratio = entry.heal_battle_ratio || 0
+                              const ratioPercent = (ratio * 100).toFixed(1)
+                              const isBadRatio = entry.battles_count > 0 && ratio < 0.05
+                              return (
+                                <>
+                                  <span className={isBadRatio ? 'text-red-400' : 'text-gray-300'}>
+                                    {ratioPercent}%
+                                  </span>
+                                  {isBadRatio && (
+                                    <span className="text-red-400 ml-1">(-20)</span>
+                                  )}
+                                </>
+                              )
+                            })()}
+                          </td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-purple-300">
                             {entry.crystallization_count.toLocaleString()}
                             {(() => {
                               if (entry.crystallization_count === 0) {
-                                return <span className="text-red-400 ml-1">(-10)</span>
+                                return <span className="text-red-400 ml-1">(-25)</span>
                               }
                               const configItem = scoreConfig.find(c => c.categoryKey === 'crystallizations')
                               const points = configItem ? (editingConfig['crystallizations'] ?? configItem.pointsValue) : 1.0

@@ -239,6 +239,11 @@ export async function GET(request: NextRequest) {
         demon_count,
         battles_count,
         heals_count,
+        -- Calculate heal/battle ratio (heals / battles, or 0 if no battles)
+        CASE 
+          WHEN battles_count > 0 THEN (heals_count::numeric / battles_count::numeric)
+          ELSE 0::numeric
+        END as heal_battle_ratio,
         crystallization_count,
         ascension_circle_count,
         resurrections_count,
@@ -275,7 +280,11 @@ export async function GET(request: NextRequest) {
                   ELSE 0::numeric
                 END
               + CASE 
-                  WHEN crystallization_count = 0 THEN -10::numeric
+                  WHEN crystallization_count = 0 THEN -25::numeric
+                  ELSE 0::numeric
+                END
+              + CASE 
+                  WHEN battles_count > 0 AND (heals_count::numeric / battles_count::numeric) < 0.05 THEN -20::numeric
                   ELSE 0::numeric
                 END
             )::numeric(10, 2)
@@ -320,6 +329,7 @@ export async function GET(request: NextRequest) {
       demon_count: Number(row.demon_count) || 0,
       battles_count: Number(row.battles_count) || 0,
       heals_count: Number(row.heals_count) || 0,
+      heal_battle_ratio: Number(row.heal_battle_ratio) || 0,
       crystallization_count: Number(row.crystallization_count) || 0,
       ascension_circle_count: Number(row.ascension_circle_count) || 0,
       resurrections_count: Number(row.resurrections_count) || 0,
