@@ -147,17 +147,22 @@ export async function GET(request: NextRequest) {
               )
             )
           ), 0) as max_army_count,
+          -- Count only armies ready for battle (not in sanctuary, not dead)
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.trait = 'Angelic'
+              AND bo.status = 'ready'
+              AND bo.is_dead = false
           ), 0) as angel_count,
           COALESCE((
             SELECT COUNT(*)::int
             FROM battle_ordinals bo
             WHERE LOWER(bo.wallet_address) = ANY(pwg.all_wallets_lower)
               AND bo.trait = 'Demonic'
+              AND bo.status = 'ready'
+              AND bo.is_dead = false
           ), 0) as demon_count,
           -- Battle count (distinct attacks per wallet group)
           COALESCE((
@@ -243,7 +248,7 @@ export async function GET(request: NextRequest) {
         -- Calculate total score using configurable point values
         -- Formula uses stored point values from redemption_score_config table
         -- Killing blows and balanced army bonus are applied AFTER the division (not affected by army count penalty)
-        -- Balanced army: all angels, all demons, or equal amounts of both
+        -- Balanced army: all angels, all demons, or equal amounts of both (only counts armies with status='ready', not in sanctuary)
         -- Uses max_army_count (peak army size) instead of current army_count to prevent manipulation
         CASE 
           WHEN max_army_count > 0 THEN
