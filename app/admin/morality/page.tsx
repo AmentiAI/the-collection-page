@@ -106,6 +106,13 @@ type TrialFormState = {
   voteEndsAt: string
 }
 
+interface ProfileOption {
+  id: string
+  walletAddress: string
+  username: string | null
+  netKarma: number
+}
+
 const PLATFORM_OPTIONS: PlatformOption[] = ['none', 'twitter', 'discord', 'instagram', 'youtube', 'tiktok', 'facebook']
 const GLOBAL_EFFECT_OPTIONS = [
   { value: '', label: 'None (clear effect)' },
@@ -201,6 +208,14 @@ export default function MoralityAdminPage() {
     eventsToday: number
     karma: { good: number; evil: number }
   } | null>(null)
+
+  // Add participant state
+  const [profileSearch, setProfileSearch] = useState('')
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
+  const [loadingProfiles, setLoadingProfiles] = useState(false)
+  const [selectedProfileWallet, setSelectedProfileWallet] = useState('')
+  const [addParticipantAlignment, setAddParticipantAlignment] = useState<'good' | 'evil'>('good')
+  const [addingParticipant, setAddingParticipant] = useState(false)
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -305,6 +320,77 @@ export default function MoralityAdminPage() {
   useEffect(() => {
     fetchSummary()
   }, [fetchSummary])
+
+  // Search profiles for adding participants
+  const searchProfiles = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setProfileOptions([])
+      return
+    }
+    setLoadingProfiles(true)
+    try {
+      const response = await fetch(`/api/admin/profiles?search=${encodeURIComponent(query)}&limit=20`)
+      const data = await response.json()
+      if (data.success && data.profiles) {
+        setProfileOptions(data.profiles.map((p: any) => ({
+          id: p.id,
+          walletAddress: p.walletAddress,
+          username: p.username,
+          netKarma: p.netKarma
+        })))
+      }
+    } catch (error) {
+      console.error('Failed to search profiles:', error)
+    } finally {
+      setLoadingProfiles(false)
+    }
+  }, [])
+
+  // Debounced profile search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchProfiles(profileSearch)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [profileSearch, searchProfiles])
+
+  const handleAddParticipant = async () => {
+    if (!selectedProfileWallet) {
+      toast.warning('Please select a profile first')
+      return
+    }
+    if (!currentCycle) {
+      toast.error('No active cycle to add participant to')
+      return
+    }
+    setAddingParticipant(true)
+    try {
+      const response = await fetch('/api/duality/alignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: selectedProfileWallet,
+          alignment: addParticipantAlignment
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to add participant')
+        return
+      }
+      toast.success(`Added participant as ${addParticipantAlignment}`)
+      setSelectedProfileWallet('')
+      setProfileSearch('')
+      setProfileOptions([])
+      await fetchCycleStatus()
+      await fetchSummary()
+    } catch (error) {
+      console.error('Failed to add participant:', error)
+      toast.error('Failed to add participant')
+    } finally {
+      setAddingParticipant(false)
+    }
+  }
 
   const handleStartCycle = async () => {
     setStartingCycle(true)
@@ -907,6 +993,90 @@ export default function MoralityAdminPage() {
                   </button>
                 )}
               </div>
+
+              {/* Add Participant Section */}
+              {(currentCycle.status === 'alignment' || currentCycle.status === 'active') && (
+                <div className="bg-black/40 border border-green-500/30 rounded p-4 space-y-3">
+                  <div className="text-sm text-green-300 font-mono uppercase">Add Participant</div>
+                  <div className="text-xs text-gray-500 font-mono">
+                    Search for a profile by wallet address or username to add them as a participant.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="block text-xs text-gray-400 font-mono uppercase">Search Profile</label>
+                      <input
+                        type="text"
+                        value={profileSearch}
+                        onChange={(e) => setProfileSearch(e.target.value)}
+                        placeholder="Enter wallet address or username..."
+                        className="w-full bg-black/50 border border-green-500/40 rounded px-3 py-2 text-sm font-mono"
+                      />
+                      {loadingProfiles && (
+                        <div className="text-xs text-gray-500 font-mono">Searching...</div>
+                      )}
+                      {profileOptions.length > 0 && (
+                        <div className="max-h-40 overflow-auto border border-green-500/20 rounded bg-black/60">
+                          {profileOptions.map((profile) => (
+                            <button
+                              key={profile.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedProfileWallet(profile.walletAddress)
+                                setProfileSearch(profile.username || profile.walletAddress.slice(0, 12) + '...')
+                                setProfileOptions([])
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-green-900/20 transition border-b border-green-500/10 last:border-b-0 ${
+                                selectedProfileWallet === profile.walletAddress ? 'bg-green-900/30 text-green-300' : 'text-gray-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>
+                                  {profile.username ? (
+                                    <span className="text-green-200">{profile.username}</span>
+                                  ) : (
+                                    <span className="text-gray-400">{profile.walletAddress.slice(0, 8)}...{profile.walletAddress.slice(-6)}</span>
+                                  )}
+                                </span>
+                                <span className={`text-xs ${profile.netKarma >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {profile.netKarma >= 0 ? '+' : ''}{profile.netKarma} karma
+                                </span>
+                              </div>
+                              {profile.username && (
+                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                  {profile.walletAddress.slice(0, 8)}...{profile.walletAddress.slice(-6)}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {selectedProfileWallet && (
+                        <div className="text-xs text-green-400 font-mono">
+                          Selected: {selectedProfileWallet.slice(0, 12)}...{selectedProfileWallet.slice(-8)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-xs text-gray-400 font-mono uppercase">Alignment</label>
+                      <select
+                        value={addParticipantAlignment}
+                        onChange={(e) => setAddParticipantAlignment(e.target.value as 'good' | 'evil')}
+                        className="w-full bg-black/50 border border-green-500/40 rounded px-3 py-2 text-sm font-mono"
+                      >
+                        <option value="good">Good</option>
+                        <option value="evil">Evil</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleAddParticipant}
+                    disabled={addingParticipant || !selectedProfileWallet}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-xs uppercase disabled:opacity-40"
+                  >
+                    {addingParticipant ? 'Adding...' : 'Add Participant'}
+                  </button>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-black/40 border border-blue-500/30 rounded p-4">

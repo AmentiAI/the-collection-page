@@ -59,12 +59,6 @@ export default function MainNavigationTabs({
         >
           Summoning
         </Link>
-        <Link
-          href="/ascension/leaderboard"
-          className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-600/70 px-4 py-1.5 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)] transition hover:bg-amber-500"
-        >
-          Ascension
-        </Link>
       </div>
     </div>
   )
