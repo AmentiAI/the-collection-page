@@ -76,10 +76,13 @@ export async function GET(request: NextRequest) {
     const activeMonsterCount = monstersResult.rows.length
 
     // Calculate damage multiplier: if monsters are missing, remaining ones do more damage
-    // Example: 10 total, 9 active = 10/9 = 1.111 (11% more damage)
-    const damageMultiplier = totalMonsterCount > 0 && activeMonsterCount > 0 
+    // Base multiplier: 10 total, 9 active = 10/9 = 1.111 (11% more damage)
+    // Then add 15% per dead monster: 1 dead = +15%, 2 dead = +30%, etc.
+    const baseMultiplier = totalMonsterCount > 0 && activeMonsterCount > 0 
       ? totalMonsterCount / activeMonsterCount 
       : 1.0
+    const deadMonsterCount = totalMonsterCount - activeMonsterCount
+    const damageMultiplier = baseMultiplier + (deadMonsterCount * 0.15) // Add 15% per dead monster
 
     if (activeMonsterCount === 0) {
       return NextResponse.json({
@@ -308,7 +311,8 @@ export async function GET(request: NextRequest) {
             // Reduce damage by 30% if balanced army (separate from block chance and multiplier)
             damage = isBalanced ? Math.floor(multipliedDamage * 0.7) : multipliedDamage
             
-            newLifeForce = Math.max(0, Math.min(currentLifeForce - damage, maxLifeForce))
+            // Calculate new life force: subtract damage, don't cap at maxLifeForce (max only applies to healing)
+            newLifeForce = Math.max(0, currentLifeForce - damage)
           } else {
             // Blocked: no damage at all
             damage = 0

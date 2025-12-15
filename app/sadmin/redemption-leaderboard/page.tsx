@@ -95,7 +95,7 @@ export default function RedemptionLeaderboardPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
       if (!isRefresh) {
-        setLeaderboard([])
+      setLeaderboard([])
       }
     } finally {
       setLoading(false)
@@ -508,25 +508,25 @@ export default function RedemptionLeaderboardPage() {
                           ) ÷ <span className="text-yellow-400">Max Army<sup>{efficiencyExponent}</sup></span>
                           {scoreConfig.length > 0 ? (
                             <>
-                              {scoreConfig.find(c => c.categoryKey === 'killing_blows') && (
+                                {scoreConfig.find(c => c.categoryKey === 'killing_blows') && (
                                 <>
-                                  {' + '}
+                                    {' + '}
                                   <span className="text-yellow-400">
                                     Killing Blows × {editingConfig['killing_blows'] ?? scoreConfig.find(c => c.categoryKey === 'killing_blows')?.pointsValue ?? 50}
                                   </span>
                                 </>
-                              )}
-                              {' + '}
+                                )}
+                                    {' + '}
                               <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
-                            </>
-                          ) : (
-                            <>
-                              {' + '}
-                              <span className="text-yellow-400">Killing Blows × 50</span>
-                              {' + '}
+                              </>
+                            ) : (
+                              <>
+                                {' + '}
+                                <span className="text-yellow-400">Killing Blows × 50</span>
+                                {' + '}
                               <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
-                            </>
-                          )}
+                              </>
+                            )}
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
                           The efficiency curve (max_army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 

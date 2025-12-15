@@ -246,13 +246,13 @@ export async function GET(request: NextRequest) {
         CASE 
           WHEN max_army_count > 0 THEN
             (
-              (
-                (battles_count * $1::numeric + 
-                 heals_count * $2::numeric + 
-                 crystallization_count * $3::numeric + 
-                 ascension_circle_count * $4::numeric + 
-                 abyss_burns_count * $6::numeric + 
-                 resurrections_count * $7::numeric)::numeric
+            (
+              (battles_count * $1::numeric + 
+               heals_count * $2::numeric + 
+               crystallization_count * $3::numeric + 
+               ascension_circle_count * $4::numeric + 
+               abyss_burns_count * $6::numeric + 
+               resurrections_count * $7::numeric)::numeric
                 / POWER(GREATEST(max_army_count, 1)::numeric, $8::numeric)
               )::numeric(10, 2)
               + (killing_blows_count * $5::numeric)
