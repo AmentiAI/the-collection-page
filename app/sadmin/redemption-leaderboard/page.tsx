@@ -597,7 +597,7 @@ export default function RedemptionLeaderboardPage() {
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
                     Heals
                   </th>
-                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200" title="Heal/Battle Ratio (must be ≥5% to avoid -20 penalty)">
+                  <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200" title="Heal/Battle Ratio (must be ≥7.5% to avoid -20 penalty)">
                     H/B Ratio
                   </th>
                   <th className="px-4 py-3 text-right text-[10px] font-mono uppercase tracking-[0.3em] text-red-200">
@@ -737,7 +737,7 @@ export default function RedemptionLeaderboardPage() {
                             {(() => {
                               const ratio = entry.heal_battle_ratio || 0
                               const ratioPercent = (ratio * 100).toFixed(1)
-                              const isBadRatio = entry.battles_count > 0 && ratio < 0.05
+                              const isBadRatio = entry.battles_count > 0 && ratio < 0.075
                               return (
                                 <>
                                   <span className={isBadRatio ? 'text-red-400' : 'text-gray-300'}>
