@@ -520,6 +520,12 @@ export default function RedemptionLeaderboardPage() {
                                 )}
                                     {' + '}
                               <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
+                              {' + '}
+                              <span className="text-green-400">Small Army Bonus (+5 if max_army &lt; 5)</span>
+                              {' - '}
+                              <span className="text-red-400">No Crystallizations (-25 if 0)</span>
+                              {' - '}
+                              <span className="text-red-400">Bad Heal Ratio (-30 if H/B &lt; 7.5%)</span>
                               </>
                             ) : (
                               <>
@@ -527,15 +533,23 @@ export default function RedemptionLeaderboardPage() {
                                 <span className="text-yellow-400">Killing Blows × 50</span>
                                 {' + '}
                               <span className="text-cyan-400">Balanced Army Bonus (+10)</span>
+                              {' + '}
+                              <span className="text-green-400">Small Army Bonus (+5 if max_army &lt; 5)</span>
+                              {' - '}
+                              <span className="text-red-400">No Crystallizations (-25 if 0)</span>
+                              {' - '}
+                              <span className="text-red-400">Bad Heal Ratio (-30 if H/B &lt; 7.5%)</span>
                               </>
                             )}
                         </div>
                         <div className="text-xs text-gray-400 mt-2">
-                          The efficiency curve (max_army_count^0.4) rewards smaller armies, allowing them to compete with larger armies. 
+                          The efficiency curve (max_army_count^{efficiencyExponent}) rewards smaller armies, allowing them to compete with larger armies. 
                           Score uses your PEAK army size (max_army_count), not your current army size, to prevent score manipulation by downsizing armies.
-                          Killing blows (delivering the final blow to a mega monster) give a big 50 point bonus added AFTER the division, so they&apos;re not affected by army count! 
+                          Killing blows (delivering the final blow to a mega monster) give a big bonus added AFTER the division, so they&apos;re not affected by army count! 
                           Balanced Army Bonus: +10 points if you have all angels, all demons, or equal amounts of both (added after division).
-                          Resurrections are penalized 10x to encourage keeping armies alive.
+                          Small Army Bonus: +5 points if your max army size is less than 5 (added after division).
+                          Penalties: -25 points for 0 crystallizations, -30 points if heal/battle ratio is less than 7.5% (both applied after division).
+                          Resurrections are penalized to encourage keeping armies alive.
                         </div>
                       </div>
                     </div>
