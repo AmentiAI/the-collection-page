@@ -45,7 +45,7 @@ export default function HordeAttackAlert() {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch ready army count and injured count
+  // Fetch ready army count and injured count - only on page load/navigation, no polling
   // Use stable string keys to prevent unnecessary re-runs
   const addressKey = address ? address.toLowerCase() : ''
   const prevAddressKeyRef = useRef<string>('')
@@ -109,17 +109,15 @@ export default function HordeAttackAlert() {
       }
     }
 
+    // Fetch once on mount/page change - no polling interval
     fetchReadyCount()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchReadyCount, 30000)
     
     return () => {
       isMounted = false
-      clearInterval(interval)
     }
   }, [addressKey, connected]) // Use stable addressKey and connected boolean
 
-  // Fetch next dungeon crawl time
+  // Fetch next dungeon crawl time - ONLY on mount/page navigation, NO polling
   const earliestTimeRef = useRef<number | null>(null)
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -194,7 +192,7 @@ export default function HordeAttackAlert() {
       }
     }
 
-    // Countdown update function that uses the ref
+    // Countdown update function that uses the ref (no API call, just UI update)
     const updateCountdown = () => {
       if (earliestTimeRef.current) {
         const now = Date.now()
@@ -205,16 +203,14 @@ export default function HordeAttackAlert() {
       }
     }
 
+    // Only fetch once on mount/page navigation - NO polling interval
     fetchDungeonCrawlTime()
-    // Refresh every 60 seconds
-    const fetchInterval = setInterval(fetchDungeonCrawlTime, 60000)
     
-    // Start countdown interval
+    // Start countdown interval (this only updates UI, no API calls)
     updateCountdown()
     countdownIntervalRef.current = setInterval(updateCountdown, 1000)
     
     return () => {
-      clearInterval(fetchInterval)
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
       }

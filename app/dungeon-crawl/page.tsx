@@ -633,11 +633,11 @@ export default function DungeonCrawlPage() {
       }
     }
 
-    // Set up interval - check every 5 seconds, but don't run immediately
-    // Wait 5 seconds before first check to avoid immediate duplicate calls on mount
+    // Set up interval - check every 30 seconds (reduced from 5s to save API calls)
+    // Wait 30 seconds before first check to avoid immediate duplicate calls on mount
     const timeoutId = window.setTimeout(() => {
-      refreshIntervalRef.current = window.setInterval(checkAndRefresh, 5000)
-    }, 5000)
+      refreshIntervalRef.current = window.setInterval(checkAndRefresh, 30000)
+    }, 30000)
 
     return () => {
       clearTimeout(timeoutId)
