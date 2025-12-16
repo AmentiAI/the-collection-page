@@ -302,8 +302,8 @@ export async function GET(request: NextRequest) {
           let newLifeForce = currentLifeForce
           
           if (!wasBlocked) {
-            // Random damage between 2-6
-            const baseDamage = Math.floor(Math.random() * 5) + 2 // 2-6
+            // Random damage between 4-12
+            const baseDamage = Math.floor(Math.random() * 9) + 4 // 4-12
             
             // Apply damage multiplier if monsters are missing (to compensate for lost monsters)
             const multipliedDamage = Math.floor(baseDamage * damageMultiplier)
