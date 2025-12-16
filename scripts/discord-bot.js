@@ -1691,28 +1691,18 @@ async function syncHolderAndSpecialRoles() {
         console.warn(`Horde Slayer role with ID ${HORDE_SLAYER_ROLE_ID} not found in guild.`);
       } else {
         try {
-          const [hordeSlayerAddResponse, hordeSlayerRemoveResponse] = await Promise.all([
-            fetch(`${baseUrl}/api/discord/roles/list?action=horde-slayer-add`),
-            fetch(`${baseUrl}/api/discord/roles/list?action=horde-slayer-remove`),
-          ]);
+          // Horde slayer role is permanent - only add, never remove
+          const hordeSlayerAddResponse = await fetch(`${baseUrl}/api/discord/roles/list?action=horde-slayer-add`);
 
           if (!hordeSlayerAddResponse.ok) {
             console.error('Failed to fetch horde slayer add list:', hordeSlayerAddResponse.status);
           }
 
-          if (!hordeSlayerRemoveResponse.ok) {
-            console.error('Failed to fetch horde slayer remove list:', hordeSlayerRemoveResponse.status);
-          }
-
           const hordeSlayerAddData = hordeSlayerAddResponse.ok ? await hordeSlayerAddResponse.json() : { discordIds: [] };
-          const hordeSlayerRemoveData = hordeSlayerRemoveResponse.ok ? await hordeSlayerRemoveResponse.json() : { discordIds: [] };
 
-          const [hordeSlayerAddResult, hordeSlayerRemoveResult] = await Promise.all([
-            batchProcessRoleOperations(guild, hordeSlayerAddData.discordIds, hordeSlayerRole, 'add', 'horde slayer'),
-            batchProcessRoleOperations(guild, hordeSlayerRemoveData.discordIds, hordeSlayerRole, 'remove', 'horde slayer'),
-          ]);
+          const hordeSlayerAddResult = await batchProcessRoleOperations(guild, hordeSlayerAddData.discordIds, hordeSlayerRole, 'add', 'horde slayer');
 
-          console.log(`✅ Horde Slayer sync complete: Added ${hordeSlayerAddResult.success} roles, Removed ${hordeSlayerRemoveResult.success} roles`);
+          console.log(`✅ Horde Slayer sync complete: Added ${hordeSlayerAddResult.success} roles (permanent role - no removals)`);
         } catch (error) {
           console.error('Error syncing horde slayer roles:', error);
         }
