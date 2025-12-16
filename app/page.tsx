@@ -56,11 +56,22 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    fetch('/generated_ordinals.json')
+    fetch('/collection_metadata.json')
       .then(res => res.json())
       .then(data => {
-        setOrdinals(data)
-        setFilteredOrdinals(data)
+        // Transform slim metadata back to Ordinal format for compatibility
+        const ordinalData = data.ordinals.map((item: any) => ({
+          ...item,
+          // Expand traits from slim format { category: "name" } to full format { category: { name: "name" } }
+          traits: Object.fromEntries(
+            Object.entries(item.traits).map(([category, name]) => [
+              category,
+              { name: name as string }
+            ])
+          )
+        }))
+        setOrdinals(ordinalData)
+        setFilteredOrdinals(ordinalData)
         setLoading(false)
       })
       .catch(err => {

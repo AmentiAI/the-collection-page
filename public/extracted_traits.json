@@ -1,0 +1,1056 @@
+{
+  "_meta": {
+    "generatedAt": "2025-12-16T01:43:05.669Z",
+    "sourceFile": "inscription_prompts.json",
+    "totalInscriptions": 1200,
+    "inscriptionsWithTraits": 1200,
+    "totalTraitsParsed": 7200,
+    "uniqueTraitsCount": 206
+  },
+  "categories": {
+    "Head": [
+      {
+        "name": "666 Carved",
+        "description": "the numbers \"666\" carved into the forehead, unhealed and oozing."
+      },
+      {
+        "name": "Alien Mask",
+        "description": "A green plastic alien mask held on with string, is being fully worn over face, there is a corner cracked missing piece to the mask.."
+      },
+      {
+        "name": "Arrow through head",
+        "description": "Large Hunting Arrow going completely through left side of head and sticking out the right side with blood."
+      },
+      {
+        "name": "Black Baseball Cap",
+        "description": "A Black Baseball Cap with red letters \"BK\"  stitched into the center of the hat. The hat is torn at the brim and has dark red blood stains, worms coming through the sweat holes."
+      },
+      {
+        "name": "Cordyceps Head",
+        "description": "Cordyceps growing out of head."
+      },
+      {
+        "name": "Creepy Corn Husk Cowl",
+        "description": "A skull-shaped cowl crafted from overlapping dried corn husks, featuring dangling twisted roots for hair and tiny glowing firefly lights for eyes."
+      },
+      {
+        "name": "Crimson Veil Visor",
+        "description": "A sleek, blood-red cooking visor with yellow letter \"M\" and a short brim, no top,  stitched into the center of the visor."
+      },
+      {
+        "name": "Cryptic Cryptocurrency Circlet",
+        "description": "A silver headband adorned with Bitcoin symbols in neon green, glowing softly in the dark with small LED lights embedded in the band."
+      },
+      {
+        "name": "Cursed Crystal Crown",
+        "description": "A crown fashioned from jagged, dark crystals that seem to pulse with a malevolent energy, the tips adorned with glowing runes that softly illuminate the wearer's forehead."
+      },
+      {
+        "name": "Eerie Vine Encrusted Skull",
+        "description": "A deathly pale skull adorned with twisted, thorny vines in deep shades of decayed green and brown, with tiny blood-red thorns sporadically emerging from the vines."
+      },
+      {
+        "name": "Enchanted Pumpkin Crown",
+        "description": "A crown made of miniature, glowing pumpkins linked together with twisting, vine-like stems, each pumpkin emitting a soft, flickering orange light."
+      },
+      {
+        "name": "Fine PEPE Crown",
+        "description": "A majestic crown adorned with shimmering emerald, ruby, and sapphire gems, atop spiked golden metal,  has engraving that reads: FINE PEPE"
+      },
+      {
+        "name": "football helmet",
+        "description": "a cracked open dirty and bloodied football helmet fully worn on the head."
+      },
+      {
+        "name": "Free mint Tattoo",
+        "description": "forehead tattoo that reads; \"FREE MINT\" in bold black print."
+      },
+      {
+        "name": "Ghastly Phantom Veil",
+        "description": "A transluscent veil of ghostly white fabric, shredded at the edges and floating ominously around the head, with faint silhouettes of twisted faces and skeletal hands subtly visible within the folds."
+      },
+      {
+        "name": "Glowing Ice Crystal Imprint",
+        "description": "A luminescent blue ice crystal engraved on the forehead, emanating a soft, icy glow with intricate frost patterns etched into the skin, giving the impression of a chilling effect."
+      },
+      {
+        "name": "Golden Locks Toupee Topper",
+        "description": "A fluffy toupee made of bright blonde synthetic hair, styled in a neatly combed pompadour with a subtle shimmer, perched atop the head slightly tilted to the right."
+      },
+      {
+        "name": "Haunted Hay Bale Bonnet",
+        "description": "A headpiece made of twisted black thorny branches encircling a withered hay bale in the center, adorned with eerie glowing jack-o'-lantern faces and dried corn husk accents."
+      },
+      {
+        "name": "Haunted Veil of Shadows",
+        "description": "A sheer black veil adorned with shimmering silver spiderweb patterns and tiny faux black widow spiders crawling along the edges, casting eerie shadows over the wearer's face."
+      },
+      {
+        "name": "Hellfire Flaming Bandana",
+        "description": "A tattered black bandana with fiery red and orange flames licking the edges, featuring skull and chain motifs embroidered in silver thread, resembling a biker gang insignia."
+      },
+      {
+        "name": "Kiss Mask",
+        "description": "Kiss Mask"
+      },
+      {
+        "name": "Luminescent Cracked Prism Mask",
+        "description": "A translucent rainbow pearl death mask featuring a network of intricately cracked lines that shimmer with iridescent hues, giving the impression of a fragile yet captivating prism-like surface worn over entire face."
+      },
+      {
+        "name": "Macabre Cursed Crown",
+        "description": "A twisted, thorny crown made of tarnished silver metal, embedded with glowing green gemstones that flicker with an eerie, cursed light, encircling the head with malevolent energy."
+      },
+      {
+        "name": "Make Ordinals Great Again",
+        "description": "A Make Ordinals Great Again  crimson red cap with rips and blood splatter on it with some letters faded"
+      },
+      {
+        "name": "Malevolent Scarecrow Hat",
+        "description": "A tattered straw hat with a crooked brim, wrapped in decaying cloth strips, topped with a sinister grinning scarecrow face and surrounded by a cloud of swirling black crows."
+      },
+      {
+        "name": "Obsidian Serpent Mask",
+        "description": "A sleek porcelain black mask featuring intricate serpentine details emerging from the nostrils, with the snakes' scales glistening in an iridescent black hue in a sinister yet elegant fashion."
+      },
+      {
+        "name": "Opulent Cybernetic Top Hat",
+        "description": "A sleek, metallic top hat adorned with glowing digital circuits in shades of silver, gold, and electric blue, featuring a holographic display of cascading Bitcoin symbols rotating around its brim."
+      },
+      {
+        "name": "Ozzy osborne",
+        "description": "ozzy osborne"
+      },
+      {
+        "name": "P",
+        "description": "Hat - A bright yellow character hat featuring tall pointed ears with black tips, round red cheek spots, and wide anime-style eyes, with blood stains and puke stains"
+      },
+      {
+        "name": "Panda bear hat",
+        "description": "woven panda bear hat with hanging strings, is  dirty and bloody and stains, the left string to the panda bear hat is ripped and missing."
+      },
+      {
+        "name": "Paper Bag",
+        "description": "Old stained and bloody paper bag completely over head with eye holes cut out to see."
+      },
+      {
+        "name": "Phantom Aviator Goggles",
+        "description": "Matte black aviator goggles with iridescent purple lenses, accented with tarnished silver buckles and worn leather straps, worn fully over the eyes and head."
+      },
+      {
+        "name": "Pikachu Hat",
+        "description": "A Pikachu hat with blood stains and puke stains"
+      },
+      {
+        "name": "Rotting Zombie Visage",
+        "description": "A decaying flesh-colored mask with sunken eye sockets, oozing green slime, and exposed teeth, held together with rusty metal staples."
+      },
+      {
+        "name": "Rustic Outlaw Stetson",
+        "description": "A weathered brown wide-brimmed fedora with light beige stitching along the seams, featuring a subtly distressed leather band and a slight tilt backward for a rugged, lone-wanderer vibe."
+      },
+      {
+        "name": "Shadowed Crow Skull Mask",
+        "description": "A mask resembling a crow's skull, black feathers intricately intertwined with silver and purple threads, covering the wearer's face completely with hollow eye sockets and a sharp beak."
+      },
+      {
+        "name": "Shadowy Demon Horns",
+        "description": "Jet-black, glossy demon horns protruding from the temples, spiraling upwards and curling inwards, capped with blood-red tips, emanating an aura of dark magic looming over the head."
+      },
+      {
+        "name": "Shattered Porcelain Doll Mask",
+        "description": "A cracked and chipped white porcelain mask with faded pink blush, missing eyeholes, and sharp porcelain shards jutting out sporadically around the edges."
+      },
+      {
+        "name": "Sinister Ivy Veil",
+        "description": "A veil woven from shadowy black ivy leaves that coil around the wearer's head, each leaf bearing a pale, glowing eye that gazes menacingly in all directions,."
+      },
+      {
+        "name": "Sinister Skull Mask",
+        "description": "A bone-white skull mask with hollow eye sockets and elongated, pointed jawline, intricately etched with dark crimson runic symbols, perched atop the head with tattered black cloth draping down."
+      },
+      {
+        "name": "Sparkling Rocket Topper",
+        "description": "a fourth of july celebration hat stuffed with lit fireworks."
+      },
+      {
+        "name": "Spiderweb Veil of Arachnids",
+        "description": "A black veil covered in intricate silver spiderweb patterns, with lifelike miniature black spiders crawling on the surface and dangling from thin silver threads."
+      },
+      {
+        "name": "Suds Siphoner",
+        "description": "A translucent hat made of  shades of ethereal blue and green, with glowing beer dispenser hat."
+      },
+      {
+        "name": "Tattered Spectral Dunce Cap",
+        "description": "A translucent dunce cap with ethereal wisps seemingly floating above it, adorned with faded runes along its brim, giving it a ghostly appearance."
+      },
+      {
+        "name": "Toilet Head",
+        "description": "Entire Toilethead with head half in the toilet bowl. dirty cracked bowl with yellow and brown stains, overflowing down face."
+      },
+      {
+        "name": "Venomous Spider Nest",
+        "description": "A hairpiece adorned with lifelike black spiders of varying sizes, crawling on a web of shimmering silver threads, creating a chilling illusion of movement on top of the head."
+      },
+      {
+        "name": "Visceral Flesh Mask",
+        "description": "A grotesque mask made of stitched-together human flesh, with bulging eyeballs protruding from the sockets, veiny and pallid in color, dripping with blood."
+      },
+      {
+        "name": "Witch's Hat of Wickedness",
+        "description": "A tall, pointed hat in deep purple velvet, embellished with twisted silver buckles, a writhing black snake slithering around the brim, and a cluster of dried mandrake roots hanging from a crooked tip."
+      }
+    ],
+    "Body Skin": [
+      {
+        "name": "astronaut suit",
+        "description": "Decaying astronaut suit skin with rips and holes"
+      },
+      {
+        "name": "Black Elemental",
+        "description": "Black translucent elemental smokey skin made of swirling black smoke forming a body skin."
+      },
+      {
+        "name": "Bruised Midnight Epidermis",
+        "description": "Skin resembling a deep bruise, with a mottled pattern of inky black and sapphire blue hues, creating an unsettling effect as if the skin is marked by shadows of unknown origins."
+      },
+      {
+        "name": "Bruised Pink Epidermis",
+        "description": "Skin resembling a hot Pink , with a mottled pattern of inky black and diamond Pink hues, creating an unsettling effect as if the skin is marked by shadows of unknown origins."
+      },
+      {
+        "name": "Cracked Stone Skin",
+        "description": "Gray skin with intricate cracks resembling weathered stone, adorned with faint moss patches and glowing runes along the edges."
+      },
+      {
+        "name": "Crawling Beetle Cluster",
+        "description": "A layer of skin covered with a multitude of iridescent scarab beetles, their glossy shells reflecting a sickly green and purple sheen as they scuttle across the surface."
+      },
+      {
+        "name": "Crawling Bug Cluster",
+        "description": "A layer of skin covered with a multitude of iridescent various bugs, their glossy shells reflecting a sickly green and purple sheen as they squirm across the surface."
+      },
+      {
+        "name": "Creepy Stitched Flesh",
+        "description": "Gray skin stretched tautly, with visible black stitches running along the seams, resembling a patched-up Frankenstein monster."
+      },
+      {
+        "name": "Decaying Fungal Infestation",
+        "description": "Mottled green and black patches covering the skin, resembling fungal growths with pus-filled sacs, giving off a faint musty odor."
+      },
+      {
+        "name": "Dripping Blood Veins",
+        "description": "Crimson red skin with pulsating, wriggling veins that seem to ooze blood, creating a gory and unsettling visual effect."
+      },
+      {
+        "name": "Ethereal Feathered Epidermis",
+        "description": "Skin resembling soft, pearlescent feathers in varying shades of opalescent blues and greens, intricately layered across the body with a shimmering, almost translucent quality."
+      },
+      {
+        "name": "Festering Bubbling Blister",
+        "description": "A large, oozing blister on the skin with pus-filled pockets that appear as if they are continuously bubbling and ready to burst, creating a revolting visual effect."
+      },
+      {
+        "name": "Ghastly Translucent Epidermis",
+        "description": "The skin appears as if it has been turned inside out, revealing a ghostly, almost ethereal layer with faint, shimmering iridescence against a backdrop of deep indigo-blue veins and sinewy textures."
+      },
+      {
+        "name": "Ghostly Translucent Skin",
+        "description": "Transparent skin with a faint ethereal glow, revealing faint spectral outlines underneath, resembling the appearance of a haunting ghost."
+      },
+      {
+        "name": "Gilded Veined Flesh",
+        "description": "A layer of skin infused shining gleaming gold plates, crisscrossed with white veins resembling cracked marble white power."
+      },
+      {
+        "name": "Hundreds of needles",
+        "description": "Hundreds of old  syringe needles in skin that it looks like a porcupine of syringe  needles"
+      },
+      {
+        "name": "Iridescent Pearl Veil",
+        "description": "A translucent pearl mask stretching over the skin, reflecting a rainbow of colors in a thin veil-like layer with a faint shimmery sheen."
+      },
+      {
+        "name": "Killer clown",
+        "description": "Killer Clown outfit, evil."
+      },
+      {
+        "name": "Luminescent Prism Flesh",
+        "description": "Skin resembling iridescent rainbow prisms, each reflecting a different color, creating a shifting, shimmering effect as light dances across the surface."
+      },
+      {
+        "name": "Malevolent Cybernetic Nodes",
+        "description": "Translucent, iridescent skin littered with pulsating, pulsing nodes of green and purple LED lights, their glow casting an eerie, shifting pattern of shadows on the surrounding surfaces, giving the impression of a sinister, artificial life form."
+      },
+      {
+        "name": "Metallic Insect Carapace",
+        "description": "Shiny, iridescent skin resembling a beetle's carapace, with segmented ridges and small, twitching antennae protruding from various points."
+      },
+      {
+        "name": "Oozing Shadow Veins",
+        "description": "Black skin covered in pulsating, glowing purple veins that seem to shift and ooze dark energy with every heartbeat."
+      },
+      {
+        "name": "Poop Skin",
+        "description": "Stacked smelly poop skin."
+      },
+      {
+        "name": "Presidential Blood Spatter Coat",
+        "description": "Thick, wrinkled skin resembling a tattered, blood-spattered suit coat with deep red streaks and bulging, uneven textures reminiscent of worn, weathered leather."
+      },
+      {
+        "name": "Rotting Corpse Skin",
+        "description": "Pale greenish skin texture with dark, decaying patches and a few exposed bones peeking through, giving the appearance of a decomposing zombie."
+      },
+      {
+        "name": "Rotting Vines Creep",
+        "description": "Twisted, vine-like tendrils emerging from beneath the skin's surface, coiling and snaking around the body, with small blooming flowers in sickly shades of purple and gray."
+      },
+      {
+        "name": "Shadowy Crystalline Scales",
+        "description": "The body skin is covered in iridescent, jagged black scales that glimmer with a faint purple sheen, resembling overlapping crystals, giving a sleek and reflective appearance."
+      },
+      {
+        "name": "Sinister Cryptocurrency Scales",
+        "description": "Dark, glossy black skin resembling obsidian etched with intricate, glowing red circuit patterns reminiscent of circuit boards, with thin, raised scales that catch and reflect light like precious gems."
+      },
+      {
+        "name": "Sparking Circuitry Mesh",
+        "description": "Skin covered in a network of glowing blue circuit patterns, pulsating with electric energy, resembling a mesh of crackling lightning bolts across the body."
+      },
+      {
+        "name": "Wife Beater Damned",
+        "description": "a sleeveless white shirt referred to as a wife beater, with the words \"The Damned\" written on it."
+      },
+      {
+        "name": "Witch's Warty Skin",
+        "description": "Olive-toned skin covered in raised, dark green warts of various sizes, giving the impression of a witch's magical and unsightly complexion."
+      }
+    ],
+    "Eyes": [
+      {
+        "name": "Arachnid Iris Glow",
+        "description": "One single eye crafted with emerald green veins radiating from a central obsidian pupil, encased in a glossy, web-like membrane shimmering with iridescent hues."
+      },
+      {
+        "name": "Bone",
+        "description": "chilling Stare - A pair of skeletal eye sockets in deep black, adorned with shimmering silver frost and icy blue tears frozen mid-drip."
+      },
+      {
+        "name": "Crimson Cascade Pupils",
+        "description": "Eyes with blood-red irises, each surrounded by a continuous stream of glistening, lifelike blood drips flowing down the eyeballs, gradually fading into a dark, ominous black sclera."
+      },
+      {
+        "name": "Cryptic Vision",
+        "description": "A pair of eyes made of shimmering holographic layers, reflecting shifting patterns of binary codes and cryptographic symbols, floating in a mist of neon green fog."
+      },
+      {
+        "name": "Cyclops",
+        "description": "One single eye crafted with emerald green veins radiating from a central obsidian pupil, encased in a glossy, web-like membrane shimmering with iridescent hues."
+      },
+      {
+        "name": "Dripping Darkness Gaze",
+        "description": "Deep-set, pitch-black eyes with a top layer of thick, textured blood dripping down like viscous tar, creating a stark contrast against the stark, glossy darkness of the eyeballs."
+      },
+      {
+        "name": "Eyeless Snake",
+        "description": "Eyeless with snake  going in one of the eyes coming out of the other eye."
+      },
+      {
+        "name": "Fiery Demon Pupils",
+        "description": "Two hellish red eyes, resembling molten lava with faint orange cracks, set in a twisted, gnarled pumpkin face, emitting a sinister, flickering glow from their depths."
+      },
+      {
+        "name": "Ghastly Gaze",
+        "description": "A pair of ghostly white eyes with blood-red irises, surrounded by wispy, ethereal tendrils that seem to be reaching out."
+      },
+      {
+        "name": "Harrowing Shadow Pupils",
+        "description": "Eyes set in pitch-black, liquid-like orbs, constantly shifting and pulsating with eerie tendrils of darkness that seem to reach out towards the viewer."
+      },
+      {
+        "name": "Iridescent Opal Vision",
+        "description": "A single eye resembling a luminescent opal with a translucent, shimmering rainbow sheen, set within a dark, elongated almond-shaped socket."
+      },
+      {
+        "name": "Jack",
+        "description": "O'-Lantern Glare - Eyes carved into grinning pumpkin faces, glowing with a flickering orange light that casts eerie shadows on their surroundings."
+      },
+      {
+        "name": "Malevolent Cybernetic Stare",
+        "description": "A pair of glowing red robotic eyes embedded in a dark, metallic mask, with thin slits for pupils that emit a sinister, flickering digital light."
+      },
+      {
+        "name": "Misty Hollow Pupils",
+        "description": "Hollow, foggy eyes emanating a chilling mist, swirling with glimpses of ghostly figures and twisted trees in the background."
+      },
+      {
+        "name": "Molten Gold Sclera",
+        "description": "The entire eyeball is covered in a shimmering, liquid gold texture, resembling molten metal flowing over the spherical surface, reflecting light in intricate patterns as it moves."
+      },
+      {
+        "name": "Nebula Spectrum Eyes",
+        "description": "Eyes with swirling irises in deep cosmic hues, blending shades of indigo, violet, and sapphire with faint flickers of glowing stardust."
+      },
+      {
+        "name": "Ominous Crimson Iris",
+        "description": "Blood-red eyes with jagged, pulsating black veins spreading outwards, casting an unsettling crimson hue around them."
+      },
+      {
+        "name": "Phantom Gaze",
+        "description": "Translucent eyes hovering in the air, flickering between a ghastly pale blue and a haunting green, with wisps of ethereal smoke curling around them like restless spirits."
+      },
+      {
+        "name": "Purple Demon Pupils",
+        "description": "Two hellish purple eyes, resembling molten purple lava with faint orange cracks,  emitting a sinister, flickering glow from their depths."
+      },
+      {
+        "name": "Rotting Zombie Gaze",
+        "description": "Eyes with decaying flesh-like texture, oozing trails of green slime, surrounded by swarms of tiny, buzzing black flies."
+      },
+      {
+        "name": "Shadowed Orb Sockets",
+        "description": "Deep-set eyes covered in a velvety black material, emitting an eerie, faint purple glow from within."
+      },
+      {
+        "name": "Shadowed Sight",
+        "description": "Dark, shadowy eyes with glowing red irises, framed by twisted, thorned vines that pulsate with an eerie, pulsing heartbeat rhythm."
+      },
+      {
+        "name": "Sinister Crystal Gaze",
+        "description": "A pair of purple eyes embedded in dark, glassy crystals with sharp, jagged edges, emitting a faint ethereal glow from within the translucent depths."
+      },
+      {
+        "name": "Spectral Glimpse",
+        "description": "Two ghostly white eyes peering out from a tangle of dark, wispy cobwebs, surrounded by tiny glowing spiders crawling along the edges."
+      },
+      {
+        "name": "Spiderweb Veiled Eyes",
+        "description": "Eyes obscured by delicate, glistening silver spiderwebs with tiny dewdrops, giving a distorted view of a moonlit cemetery."
+      },
+      {
+        "name": "Witch's Brew Vision",
+        "description": "Eyes resembling bubbling cauldrons, filled with swirling shades of green, purple, and black, giving off a faint eerie glow."
+      }
+    ],
+    "Mouth": [
+      {
+        "name": "Blood Moon Bite",
+        "description": "A crescent-shaped mouth filled with shimmering crimson teeth, framed by a thin, iridescent silver outline mimicking the phases of the moon."
+      },
+      {
+        "name": "Bristled Bloodthirsty Jaws",
+        "description": "A pair of sinister, oversized, blood-red jaws covered in sharp, black bristles, dripping with viscous, glistening saliva, positioned at a tilted angle with a row of jagged, uneven teeth."
+      },
+      {
+        "name": "Crimson",
+        "description": "Stained Cigar - A charred, blood-red thin cigar with sinister wisps of smoke curling around a jagged, blackened tip, emanating an eerie glow as if ablaze."
+      },
+      {
+        "name": "Cursed Crystal Vortex",
+        "description": "A mouth lined with sharp, translucent crystal shards, each radiating a different neon color, swirling in a spiraling vortex pattern around a pitch-dark center."
+      },
+      {
+        "name": "Enchanted Ember Grin",
+        "description": "An eerie, glowing grin formed by jagged edges of fiery orange embers, pulsating with a faint, smoky haze that swirls around a pitch-black void."
+      },
+      {
+        "name": "Fungal Crevice",
+        "description": "A twisted, contorted maw overgrown with sickly yellow and brown fungal growths, spores floating in the air around sharp, irregular teeth enveloped in a foul, musty stench."
+      },
+      {
+        "name": "Ghastly Gaping Void",
+        "description": "A black, swirling abyss as a mouth, bordered by sharp, silver teeth that seem to disappear into darkness within a ghostly, transparent face."
+      },
+      {
+        "name": "Ghoulish Gilded Grin",
+        "description": "A metallic silver mouthpiece adorned with shimmering gold teeth and intricate spiderweb engravings, emitting a faint eerie glow."
+      },
+      {
+        "name": "Gilded Malevolent Maw",
+        "description": "A menacing, golden-hued mouth adorned with intricate, etched patterns of swirling vines and thorns, radiating a faint, ghostly glow, with a set of razor-sharp, metallic teeth peeking through the shadows."
+      },
+      {
+        "name": "Grimacing Gash",
+        "description": "A twisted, jagged mouth resembling a deep, blood-red wound, lined with sharp, uneven teeth and blackened gums, oozing a viscous, inky substance."
+      },
+      {
+        "name": "Jack",
+        "description": "o'-Lantern Laceration - A jagged smile carved into a grinning pumpkin's skin, with flickering candlelight casting eerie shadows inside, surrounded by wilted, withered vine tendrils."
+      },
+      {
+        "name": "Maggot Maw",
+        "description": "A cavernous, gaping mouth infested with squirming white maggots, their writhing forms contrasting against the dark, decaying gums and slimy, discolored tongue high res."
+      },
+      {
+        "name": "Missing Bottom Jaw",
+        "description": "Missing bottom jaw."
+      },
+      {
+        "name": "Monstrous Mandible Extension",
+        "description": "metallic duel fang extending under the chin from both teeth, razor sharp."
+      },
+      {
+        "name": "Mummified Maw",
+        "description": "A  desiccated mouth wrapped in ancient, yellowed bandages, with small patches of dried blood seeping through the tattered linen, set against a dusty tomb background."
+      },
+      {
+        "name": "Rotting Veil",
+        "description": "A festering, gray-green shroud of decomposing flesh draped over jagged, misshapen teeth, oozing putrid black droplets onto a cracked and peeling lower lip."
+      },
+      {
+        "name": "Rustic Outlaw Wrap",
+        "description": "A weathered, dark brown bandana tightly covering the lower face, featuring frayed edges and traditional white paisley patterns, tied securely at the back with visible knots giving a rugged \"bandit\" vibe."
+      },
+      {
+        "name": "Serpentine Splitter",
+        "description": "A mouth with a split tongue resembling two serpentine coils, each coated in iridescent scales that shimmer with a rainbow sheen, extending and retracting with a hissing sound."
+      },
+      {
+        "name": "Shadowed Fangs",
+        "description": "A set of elongated obsidian black teeth peeking out from a cavernous, veiny black mouth, surrounded by small glowing red runes."
+      },
+      {
+        "name": "Spectral Scream Socket",
+        "description": "A neon green, disembodied mouth floating mid-air, emitting vibrant ethereal wails, outlined with crackling lightning bolts and misty tendrils."
+      },
+      {
+        "name": "Spider Fangs",
+        "description": "A slimy, hairy mouth infested with crawling black spiders, each with glowing red eyes and sharp, venomous fangs peeking out between the arachnid legs."
+      },
+      {
+        "name": "Wicked Grin",
+        "description": "A black mouth with razor-sharp teeth dripping with blood, outlined in neon green against a dark purple backdrop."
+      },
+      {
+        "name": "Witch's Brew Bristle",
+        "description": "A twisted, wooden mouth with gnarled, uneven teeth, stained with bubbling potion drips and adorned with tiny, glowing mushrooms and spiderwebs."
+      }
+    ],
+    "Hands": [
+      {
+        "name": "Bitcoin Puppet",
+        "description": "A small brown plush with a lighter tan front, round half circle ears with darker brown furry edges, and a sideways drooling smile that gives it a goofy, lovable charm. Its soft, squishy body and wearing street clothes —like a snapback hat and gold chain, shorts,, shirt, and holding a hot dog, make it feel like a mix between a plush buddy and a collectible mascot in the right hand. Always only right hand. It has pins in it similar to a voodoo doll."
+      },
+      {
+        "name": "Bloodstained Raven",
+        "description": "bloody eyed, red eyed,, black raven pet held in the one right hand always. Right hand only. Right side."
+      },
+      {
+        "name": "Bloody Toilet Paper Roll",
+        "description": "A Bloody Toilet Paper Roll protruding from the bony fingers in the right hand. Right side."
+      },
+      {
+        "name": "Blow up doll",
+        "description": "A worn blow up doll with circular open mouth hole, held with right hand. Right side."
+      },
+      {
+        "name": "Bowling Pin",
+        "description": "Reversed dirty bowling pin with bloody cracked bottom, held in the right hand only. Always the right hand nothing else. Right side."
+      },
+      {
+        "name": "Breast Milk Skull Goblet",
+        "description": "break milk pump connected to chest is pumping blood through tube into the milk bottle in right hand. Always right hand only."
+      },
+      {
+        "name": "Choking Chicken",
+        "description": "Grabbing yellow rubber chicken throat with right hand. Chicken eyes are X's and tongue is hanging out. Always only right hand"
+      },
+      {
+        "name": "Creepy Clown's Grasp",
+        "description": "A colorful, oversized, cartoonish right hand with mismatched painted nails, wearing a striped glove and holding a balloon dog, in the right hand only."
+      },
+      {
+        "name": "Crimson Eye Skull Cane",
+        "description": "A black wooden cane topped with a detailed human skull, the eye sockets glowing a sinister red, decorated, held in only the right hand always. Right side."
+      },
+      {
+        "name": "Cursed Bone Saber Grip",
+        "description": "A skeletal hand-shaped hilt made of ancient bones, wrapped in tattered dark fabric, with crimson gemstone eyes that seem to flicker with a life of their own."
+      },
+      {
+        "name": "Cursed Crystal Ball Clutch",
+        "description": "A twisted obsidian hand encasing a glowing crystal ball within its palm, radiating an ominous purple light that casts distorted shadows of mystic symbols on the surrounding surfaces."
+      },
+      {
+        "name": "Cursed Voodoo Doll Hand",
+        "description": "A small, weathered cloth hand with tiny stitched symbols, holding onto a miniature voodoo doll with button eyes held in right hand. Right side."
+      },
+      {
+        "name": "Dead Ordinals Pickett Sign",
+        "description": "Picket sign with stick in right hand reads: \"Ordinals are dead!\""
+      },
+      {
+        "name": "Death Note",
+        "description": "a death note signed in blood \"death note\", held in just the right hand."
+      },
+      {
+        "name": "Decaying Zombie Handled Scythe",
+        "description": "A weathered scythe with a blade resembling bone, a tattered black cloth grip wrapped around a skeletal hand clutching the handle tightly, greenish moss creeping along the rusted metal surface."
+      },
+      {
+        "name": "Demon Skull Scepter",
+        "description": "A menacing scepter with a large demon skull at the top, crimson glowing eyes, blackened bone horns, and a blood-red gem embedded in its forehead, intricately engraved with intricate demonic runes along the shaft, held in the right hand. Right side."
+      },
+      {
+        "name": "Enchanted Witch's Brew Touch",
+        "description": "A crystal hand-shaped goblet filled with bubbling purple liquid, resting on a bed of dried herbs and silver pentagram charms."
+      },
+      {
+        "name": "Ethereal Crystal Wand",
+        "description": "A slender wand made of shimmering iridescent crystal, refracting light in rainbow hues with faint glowing runes etched along its length."
+      },
+      {
+        "name": "Fiery Jack",
+        "description": "o'-Lantern Fist - A menacing black glove covered in flickering orange LED lights, topped with a grinning plastic jack-o'-lantern that emits small bursts of fog."
+      },
+      {
+        "name": "Ghastly Ghoul's Embered Satchel",
+        "description": "A tattered leather sack bulging with assorted candies, emanating a faint ghostly glow, stitched with spectral threads that shimmer in the darkness. held in the right hand."
+      },
+      {
+        "name": "Gore",
+        "description": "soaked Chainsaw Gauntlet - A blood-drenched chainsaw seamlessly integrated into a metal gauntlet, rivulets of red running down the serrated blade held in the right hand."
+      },
+      {
+        "name": "Gory Zombie Grasp",
+        "description": "A decayed, greenish-gray skeletal hand covered in oozing, clotted blood splatters, the bony fingers elongated and tipped with sharp, broken nails."
+      },
+      {
+        "name": "Haunted Lantern Handpiece",
+        "description": "A tarnished brass lantern with intricate carvings depicting ghostly figures, emitting an eerie, flickering purple glow that casts haunting shadows."
+      },
+      {
+        "name": "Hellfire Phone",
+        "description": "A cell phone owned by a hellish demon with BTC $1m on screen, held in right hand only."
+      },
+      {
+        "name": "Infernal Skull Scepter",
+        "description": "An obsidian scepter adorned with twisting flames of red and orange, a sinister grinning skull cradled at the top with glowing ruby eyes and sharp, pointed teeth."
+      },
+      {
+        "name": "Large Alien Eye Relic",
+        "description": "A over-sized green alien mask with 2 eyes held in the right hand,  intricate circuit patterns etched in silver on the surface, right hand only. Always right hand."
+      },
+      {
+        "name": "Luminescent Alien Eye Relic",
+        "description": "A large ugly green alien mask held in the right hand,  intricate circuit patterns etched in silver on the surface."
+      },
+      {
+        "name": "Maggot",
+        "description": "Infested Severed Arm - A severed human arm, oozing with blood and crawling with maggots, the skin pale and mottled, tendons and muscles exposed, nails dirty and broken held in right hand."
+      },
+      {
+        "name": "Maleficent Enchanted Hourglass",
+        "description": "An hourglass filled with shimmering black sand, encased in twisted iron vines with emerald green gems set at each intersection, the sands flowing upwards instead of down."
+      },
+      {
+        "name": "Malevolent Doll's Grip",
+        "description": "A porcelain doll hand painted in cracked, peeling black and white stripes, fingers tipped with sinisterly sharp metallic claws, holding a miniature blood-stained dagger. Right side."
+      },
+      {
+        "name": "Mallet",
+        "description": "Large bloody and worn mallet swung in the right hand raised to strike."
+      },
+      {
+        "name": "Monstrous Skull Mace",
+        "description": "A large mace made of twisted metal, featuring a grotesque skull with sinister glowing eyes as its head, sharp fangs protruding from its jaw, and intricate carvings of cursed symbols along the handle."
+      },
+      {
+        "name": "Mutated Arachnid Talisman",
+        "description": "A grotesque spider-shaped talisman, with a mutated mouth filled with jagged teeth and glowing red eyes, its body covered in iridescent green and purple shimmering scales, held in the Right Hand with delicate silver chains attached to the spider's legs for an eerie effect."
+      },
+      {
+        "name": "Necrotic Pitch Fork",
+        "description": "A sinister pitch fork  with a curved blade made of weathered bone,  rats impaled on the blades, and a handle held in the right hand, emitting a faint blueish glow. Right side."
+      },
+      {
+        "name": "Protest Sign",
+        "description": "A tarnished protestor sign that reads: \"FREE MINT!\" Held my the right hand only. Always right side."
+      },
+      {
+        "name": "Putrid Pufferfish Slice",
+        "description": "A triangular pizza slice covered in slimy green algae, topped with a bloated and decayed pufferfish oozing foul-smelling pus, held in the right hand."
+      },
+      {
+        "name": "Rabid Bat",
+        "description": "Crazy rabid bat pet in right hand."
+      },
+      {
+        "name": "Rose",
+        "description": "A infectious burning rose with a worm in the petals, held in the right hand only. Always right side, always on fire."
+      },
+      {
+        "name": "Rotted Cloth Swaddle",
+        "description": "A grimy, yellowed cloth diaper with frayed edges and dark stains, crumpled and bunched up in the right hand as if hastily discarded."
+      },
+      {
+        "name": "Shadowed Crystal Talon",
+        "description": "A sleek obsidian talon-shaped scepter with intricate silver filigree details wrapping around a deep purple crystal orb at the tip, casting an eerie shadow thanks to the dim, almost pulsating, violet light that emanates from within."
+      },
+      {
+        "name": "Shadowed Elixir Vial",
+        "description": "A sinister black glass bottle with silver intricate filigree, containing a shimmering purple liquid that seems to glow faintly in the darkness."
+      },
+      {
+        "name": "Shadowed Raven Feather Quill",
+        "description": "A dark obsidian quill with iridescent raven feathers wrapped around the base, silver glyphs etched along the length shimmering in the light held with right hand."
+      },
+      {
+        "name": "Sinister Crimson Skull Goblet",
+        "description": "A goblet crafted from dark, polished bone with crimson red accents, featuring a grinning skull carved into the base with ruby eyes, it is held in the right hand only."
+      },
+      {
+        "name": "Skeletal Reaper Grasp",
+        "description": "A long bony hand protruding from a tattered black cloak, adorned with ancient-looking silver rings on each finger and a scythe-shaped cuff."
+      },
+      {
+        "name": "Spectral Phantom Hourglass",
+        "description": "A translucent hourglass filled with swirling ethereal mist, silver sand cascading in reverse with glowing purple symbols etched on the glass."
+      },
+      {
+        "name": "Tampon",
+        "description": "Blood Tampon hanging on a string being pinched by 2 fingers on the right hand."
+      },
+      {
+        "name": "Troy Book",
+        "description": "Large leather bound book that  read: \"In Troy We Trust\""
+      },
+      {
+        "name": "Twisted Entrails Grasp",
+        "description": "A grotesque, pulsating mass of tangled intestines and squirming worms, wrapped around the hand with sickly green and brown hues, emitting a faint putrid odor held in right hand only."
+      },
+      {
+        "name": "Veined Crystal Skull Grasp",
+        "description": "A crystal skull with intricate etched veins, glowing softly from within, held in the right hand with a grip that seems to pulse with an otherworldly energy."
+      },
+      {
+        "name": "Witches' Brew Crystal Phial",
+        "description": "A delicate crystal vial filled with bubbling green liquid, adorned with intricate silver filigree and capped by a cork sealed with a spiderweb pattern."
+      },
+      {
+        "name": "Your Dad",
+        "description": "a old polaroid picture with torn corner, pinched in the right hand fingers of a large man in bikini and on the bottom white part says \"Your Dad\" held in Right Hand."
+      },
+      {
+        "name": "Your Mom",
+        "description": "a old polaroid picture with torn corner, pinched in the right hand fingers of a large women in bikini and on the bottom white part says \"Your Mom\" held in Right Hand."
+      }
+    ],
+    "Background": [
+      {
+        "name": "Bat Colony Swirl",
+        "description": "A swirling vortex of bats in flight, their leathery wings outstretched, set against a deep, velvety night sky filled with twinkling stars, invoking a sense of eerie motion and darkness."
+      },
+      {
+        "name": "Blood Moon Eclipse Glow",
+        "description": "A massive crimson moon, cracked and bleeding, hangs low in the sky, emitting a sickly red glow that bathes the surroundings in an ominous light."
+      },
+      {
+        "name": "Bullet Whizz Fade",
+        "description": "A sleek, metallic bullet with a silver finish, streaking diagonally from the top left corner to the bottom right corner of the frame, leaving a subtle trail of blurred motion behind it."
+      },
+      {
+        "name": "Cryptic Circuit Matrix",
+        "description": "A complex network of glowing neon green circuit lines intricately crisscrossing against a matte black background, forming intricate geometric patterns reminiscent of interwoven digital pathways."
+      },
+      {
+        "name": "Cryptic Fog Enshroud",
+        "description": "A dense mist of ethereal green fog swirling around ancient tombstones covered in eerie runes, creating an otherworldly aura in a dimly lit graveyard setting."
+      },
+      {
+        "name": "Cursed Relic Chamber",
+        "description": "A chamber filled with aged, cracked mirrors reflecting twisted, distorted images of a cobweb-covered sarcophagus adorned with intricate, ominous carvings, radiating a foreboding energy."
+      },
+      {
+        "name": "Ghostly Mist Drift",
+        "description": "Wispy, ethereal mist swirling in opaque, ghostly tendrils across the background, creating an unsettling, foggy atmosphere."
+      },
+      {
+        "name": "Glitchy Crypto Matrix",
+        "description": "An array of pixelated, neon green and purple blockchain codes swirling around a black digital void, with occasional glitch effects distorting the letters and numbers."
+      },
+      {
+        "name": "Haunted Forest Silhouette",
+        "description": "A dark, looming forest backdrop with twisted, gnarled trees silhouetted against a moonlit sky, casting eerie shadows. Onlys trees and grass and darkness seen."
+      },
+      {
+        "name": "Haunted Mansion Shudder",
+        "description": "A grand, decrepit mansion looms ominously in the distance, its windows glowing with an eerie green light, as twisted vines and thorny branches claw at its weathered walls."
+      },
+      {
+        "name": "Hellfire Cauldron Blaze",
+        "description": "A massive rusted iron cauldron overflowing with molten lava, emitting flickering flames that cast a sinister red-orange glow on the surrounding stone walls."
+      },
+      {
+        "name": "Iron Bars Cast Shadows",
+        "description": "Sturdy rusted iron bars crisscross the background, casting ominous elongated shadows along the dimly lit tunnel walls of the underground old jail."
+      },
+      {
+        "name": "Jack",
+        "description": "O'-Lantern Grin Cascade - Rows of mischievously grinning jack-o'-lanterns, their carved faces glowing in various shades of orange and yellow, cascading down the background in a haunting display."
+      },
+      {
+        "name": "Macabre Graveyard Mist",
+        "description": "A misty haze enshrouds a desolate graveyard, tombstones capped with flickering blue flames, skulls and bones scattered haphazardly among the decaying earth."
+      },
+      {
+        "name": "Malevolent Fog Whispers",
+        "description": "Serpentine tendrils of dense fog slither across the ground, swirling with phantom faces and claw-like formations, whispering chilling secrets to those who dare to listen."
+      },
+      {
+        "name": "Malevolent Puppeteer's Lair",
+        "description": "A cluster of marionette dolls with cracked porcelain faces and frayed strings dangling chaotically in a moonlit attic, their painted eyes seeming to follow your every move with a haunting gaze."
+      },
+      {
+        "name": "Mossy Root Tangle",
+        "description": "A dense network of twisted, moss-covered roots intertwining across the background, creating a labyrinthine pattern of earthy greens and browns."
+      },
+      {
+        "name": "nuclear fallout",
+        "description": "nuclear fallout, poison barrels, mushroom cloud."
+      },
+      {
+        "name": "Ominous Tombstone Shadows",
+        "description": "Dark, elongated shadows cast by weathered tombstones with intricate carvings, creating a haunting and eerie atmosphere across the desolate graveyard."
+      },
+      {
+        "name": "Phantom Mist Mirage",
+        "description": "A wispy, ethereal mist hovering just above the surface of the lake, reflecting the moonlight with a faint, ghostly shimmer."
+      },
+      {
+        "name": "Shadowed Ghoul Gaze",
+        "description": "An oversized twisted tree silhouette with glowing red eyes scattered among skeletal branches, casting long, menacing shadows on a blood-red moonlit backdrop."
+      },
+      {
+        "name": "Sinister Shadows Crawl",
+        "description": "Jagged silhouettes of twisted trees cast in dark, murky shades, creeping across the ground like elongated fingers of darkness."
+      },
+      {
+        "name": "Sinister Soul Siphon",
+        "description": "A collection of tattered, ghostly cloths draped over rusted iron hooks, fluttering ominously in a cold breeze amidst flickering candlelight, evoking a sense of trapped spirits."
+      },
+      {
+        "name": "Spiderweb Lattice Veil",
+        "description": "Intricate, glistening spiderwebs forming a dense lattice veil, adorned with dewdrops that shimmer in the moonlight, covering the scene with a creepy, sticky sheen."
+      },
+      {
+        "name": "Subterranean Crystal Cluster",
+        "description": "A large cluster of iridescent crystals of varying sizes and shapes, emanating a soft, eerie glow amidst the dark, rough stone walls of the cave background."
+      },
+      {
+        "name": "Underworld Portal",
+        "description": "Dark, elongated shadows cast by the glowing underworld portal."
+      }
+    ]
+  },
+  "lookup": {
+    "Head|Hellfire Flaming Bandana": "A tattered black bandana with fiery red and orange flames licking the edges, featuring skull and chain motifs embroidered in silver thread, resembling a biker gang insignia.",
+    "Body Skin|Dripping Blood Veins": "Crimson red skin with pulsating, wriggling veins that seem to ooze blood, creating a gory and unsettling visual effect.",
+    "Eyes|Ominous Crimson Iris": "Blood-red eyes with jagged, pulsating black veins spreading outwards, casting an unsettling crimson hue around them.",
+    "Mouth|Spectral Scream Socket": "A neon green, disembodied mouth floating mid-air, emitting vibrant ethereal wails, outlined with crackling lightning bolts and misty tendrils.",
+    "Hands|Crimson Eye Skull Cane": "A black wooden cane topped with a detailed human skull, the eye sockets glowing a sinister red, decorated, held in only the right hand always. Right side.",
+    "Background|Malevolent Puppeteer's Lair": "A cluster of marionette dolls with cracked porcelain faces and frayed strings dangling chaotically in a moonlit attic, their painted eyes seeming to follow your every move with a haunting gaze.",
+    "Head|Rustic Outlaw Stetson": "A weathered brown wide-brimmed fedora with light beige stitching along the seams, featuring a subtly distressed leather band and a slight tilt backward for a rugged, lone-wanderer vibe.",
+    "Body Skin|Decaying Fungal Infestation": "Mottled green and black patches covering the skin, resembling fungal growths with pus-filled sacs, giving off a faint musty odor.",
+    "Eyes|Bone": "chilling Stare - A pair of skeletal eye sockets in deep black, adorned with shimmering silver frost and icy blue tears frozen mid-drip.",
+    "Mouth|Rustic Outlaw Wrap": "A weathered, dark brown bandana tightly covering the lower face, featuring frayed edges and traditional white paisley patterns, tied securely at the back with visible knots giving a rugged \"bandit\" vibe.",
+    "Hands|Rotted Cloth Swaddle": "A grimy, yellowed cloth diaper with frayed edges and dark stains, crumpled and bunched up in the right hand as if hastily discarded.",
+    "Background|Ghostly Mist Drift": "Wispy, ethereal mist swirling in opaque, ghostly tendrils across the background, creating an unsettling, foggy atmosphere.",
+    "Head|Cryptic Cryptocurrency Circlet": "A silver headband adorned with Bitcoin symbols in neon green, glowing softly in the dark with small LED lights embedded in the band.",
+    "Body Skin|Metallic Insect Carapace": "Shiny, iridescent skin resembling a beetle's carapace, with segmented ridges and small, twitching antennae protruding from various points.",
+    "Eyes|Eyeless Snake": "Eyeless with snake  going in one of the eyes coming out of the other eye.",
+    "Mouth|Serpentine Splitter": "A mouth with a split tongue resembling two serpentine coils, each coated in iridescent scales that shimmer with a rainbow sheen, extending and retracting with a hissing sound.",
+    "Background|Phantom Mist Mirage": "A wispy, ethereal mist hovering just above the surface of the lake, reflecting the moonlight with a faint, ghostly shimmer.",
+    "Head|Luminescent Cracked Prism Mask": "A translucent rainbow pearl death mask featuring a network of intricately cracked lines that shimmer with iridescent hues, giving the impression of a fragile yet captivating prism-like surface worn over entire face.",
+    "Body Skin|Cracked Stone Skin": "Gray skin with intricate cracks resembling weathered stone, adorned with faint moss patches and glowing runes along the edges.",
+    "Eyes|Iridescent Opal Vision": "A single eye resembling a luminescent opal with a translucent, shimmering rainbow sheen, set within a dark, elongated almond-shaped socket.",
+    "Mouth|Fungal Crevice": "A twisted, contorted maw overgrown with sickly yellow and brown fungal growths, spores floating in the air around sharp, irregular teeth enveloped in a foul, musty stench.",
+    "Hands|Death Note": "a death note signed in blood \"death note\", held in just the right hand.",
+    "Background|Hellfire Cauldron Blaze": "A massive rusted iron cauldron overflowing with molten lava, emitting flickering flames that cast a sinister red-orange glow on the surrounding stone walls.",
+    "Head|Glowing Ice Crystal Imprint": "A luminescent blue ice crystal engraved on the forehead, emanating a soft, icy glow with intricate frost patterns etched into the skin, giving the impression of a chilling effect.",
+    "Eyes|Shadowed Sight": "Dark, shadowy eyes with glowing red irises, framed by twisted, thorned vines that pulsate with an eerie, pulsing heartbeat rhythm.",
+    "Background|Iron Bars Cast Shadows": "Sturdy rusted iron bars crisscross the background, casting ominous elongated shadows along the dimly lit tunnel walls of the underground old jail.",
+    "Head|Shattered Porcelain Doll Mask": "A cracked and chipped white porcelain mask with faded pink blush, missing eyeholes, and sharp porcelain shards jutting out sporadically around the edges.",
+    "Body Skin|Gilded Veined Flesh": "A layer of skin infused shining gleaming gold plates, crisscrossed with white veins resembling cracked marble white power.",
+    "Eyes|Malevolent Cybernetic Stare": "A pair of glowing red robotic eyes embedded in a dark, metallic mask, with thin slits for pupils that emit a sinister, flickering digital light.",
+    "Mouth|Crimson": "Stained Cigar - A charred, blood-red thin cigar with sinister wisps of smoke curling around a jagged, blackened tip, emanating an eerie glow as if ablaze.",
+    "Hands|Choking Chicken": "Grabbing yellow rubber chicken throat with right hand. Chicken eyes are X's and tongue is hanging out. Always only right hand",
+    "Background|Sinister Shadows Crawl": "Jagged silhouettes of twisted trees cast in dark, murky shades, creeping across the ground like elongated fingers of darkness.",
+    "Head|Sinister Skull Mask": "A bone-white skull mask with hollow eye sockets and elongated, pointed jawline, intricately etched with dark crimson runic symbols, perched atop the head with tattered black cloth draping down.",
+    "Body Skin|Crawling Bug Cluster": "A layer of skin covered with a multitude of iridescent various bugs, their glossy shells reflecting a sickly green and purple sheen as they squirm across the surface.",
+    "Eyes|Misty Hollow Pupils": "Hollow, foggy eyes emanating a chilling mist, swirling with glimpses of ghostly figures and twisted trees in the background.",
+    "Mouth|Spider Fangs": "A slimy, hairy mouth infested with crawling black spiders, each with glowing red eyes and sharp, venomous fangs peeking out between the arachnid legs.",
+    "Head|Sparkling Rocket Topper": "a fourth of july celebration hat stuffed with lit fireworks.",
+    "Body Skin|Ghastly Translucent Epidermis": "The skin appears as if it has been turned inside out, revealing a ghostly, almost ethereal layer with faint, shimmering iridescence against a backdrop of deep indigo-blue veins and sinewy textures.",
+    "Eyes|Crimson Cascade Pupils": "Eyes with blood-red irises, each surrounded by a continuous stream of glistening, lifelike blood drips flowing down the eyeballs, gradually fading into a dark, ominous black sclera.",
+    "Mouth|Mummified Maw": "A  desiccated mouth wrapped in ancient, yellowed bandages, with small patches of dried blood seeping through the tattered linen, set against a dusty tomb background.",
+    "Hands|Mutated Arachnid Talisman": "A grotesque spider-shaped talisman, with a mutated mouth filled with jagged teeth and glowing red eyes, its body covered in iridescent green and purple shimmering scales, held in the Right Hand with delicate silver chains attached to the spider's legs for an eerie effect.",
+    "Background|Bat Colony Swirl": "A swirling vortex of bats in flight, their leathery wings outstretched, set against a deep, velvety night sky filled with twinkling stars, invoking a sense of eerie motion and darkness.",
+    "Body Skin|Sinister Cryptocurrency Scales": "Dark, glossy black skin resembling obsidian etched with intricate, glowing red circuit patterns reminiscent of circuit boards, with thin, raised scales that catch and reflect light like precious gems.",
+    "Eyes|Sinister Crystal Gaze": "A pair of purple eyes embedded in dark, glassy crystals with sharp, jagged edges, emitting a faint ethereal glow from within the translucent depths.",
+    "Mouth|Enchanted Ember Grin": "An eerie, glowing grin formed by jagged edges of fiery orange embers, pulsating with a faint, smoky haze that swirls around a pitch-black void.",
+    "Hands|Twisted Entrails Grasp": "A grotesque, pulsating mass of tangled intestines and squirming worms, wrapped around the hand with sickly green and brown hues, emitting a faint putrid odor held in right hand only.",
+    "Background|Sinister Soul Siphon": "A collection of tattered, ghostly cloths draped over rusted iron hooks, fluttering ominously in a cold breeze amidst flickering candlelight, evoking a sense of trapped spirits.",
+    "Body Skin|Killer clown": "Killer Clown outfit, evil.",
+    "Eyes|Cryptic Vision": "A pair of eyes made of shimmering holographic layers, reflecting shifting patterns of binary codes and cryptographic symbols, floating in a mist of neon green fog.",
+    "Mouth|Rotting Veil": "A festering, gray-green shroud of decomposing flesh draped over jagged, misshapen teeth, oozing putrid black droplets onto a cracked and peeling lower lip.",
+    "Hands|Protest Sign": "A tarnished protestor sign that reads: \"FREE MINT!\" Held my the right hand only. Always right side.",
+    "Background|Haunted Forest Silhouette": "A dark, looming forest backdrop with twisted, gnarled trees silhouetted against a moonlit sky, casting eerie shadows. Onlys trees and grass and darkness seen.",
+    "Head|Ozzy osborne": "ozzy osborne",
+    "Body Skin|Witch's Warty Skin": "Olive-toned skin covered in raised, dark green warts of various sizes, giving the impression of a witch's magical and unsightly complexion.",
+    "Eyes|Dripping Darkness Gaze": "Deep-set, pitch-black eyes with a top layer of thick, textured blood dripping down like viscous tar, creating a stark contrast against the stark, glossy darkness of the eyeballs.",
+    "Mouth|Jack": "o'-Lantern Laceration - A jagged smile carved into a grinning pumpkin's skin, with flickering candlelight casting eerie shadows inside, surrounded by wilted, withered vine tendrils.",
+    "Background|Cursed Relic Chamber": "A chamber filled with aged, cracked mirrors reflecting twisted, distorted images of a cobweb-covered sarcophagus adorned with intricate, ominous carvings, radiating a foreboding energy.",
+    "Head|Opulent Cybernetic Top Hat": "A sleek, metallic top hat adorned with glowing digital circuits in shades of silver, gold, and electric blue, featuring a holographic display of cascading Bitcoin symbols rotating around its brim.",
+    "Body Skin|Presidential Blood Spatter Coat": "Thick, wrinkled skin resembling a tattered, blood-spattered suit coat with deep red streaks and bulging, uneven textures reminiscent of worn, weathered leather.",
+    "Mouth|Maggot Maw": "A cavernous, gaping mouth infested with squirming white maggots, their writhing forms contrasting against the dark, decaying gums and slimy, discolored tongue high res.",
+    "Hands|Cursed Voodoo Doll Hand": "A small, weathered cloth hand with tiny stitched symbols, holding onto a miniature voodoo doll with button eyes held in right hand. Right side.",
+    "Background|Shadowed Ghoul Gaze": "An oversized twisted tree silhouette with glowing red eyes scattered among skeletal branches, casting long, menacing shadows on a blood-red moonlit backdrop.",
+    "Head|666 Carved": "the numbers \"666\" carved into the forehead, unhealed and oozing.",
+    "Eyes|Molten Gold Sclera": "The entire eyeball is covered in a shimmering, liquid gold texture, resembling molten metal flowing over the spherical surface, reflecting light in intricate patterns as it moves.",
+    "Hands|Dead Ordinals Pickett Sign": "Picket sign with stick in right hand reads: \"Ordinals are dead!\"",
+    "Eyes|Nebula Spectrum Eyes": "Eyes with swirling irises in deep cosmic hues, blending shades of indigo, violet, and sapphire with faint flickers of glowing stardust.",
+    "Mouth|Monstrous Mandible Extension": "metallic duel fang extending under the chin from both teeth, razor sharp.",
+    "Hands|Large Alien Eye Relic": "A over-sized green alien mask with 2 eyes held in the right hand,  intricate circuit patterns etched in silver on the surface, right hand only. Always right hand.",
+    "Background|Haunted Mansion Shudder": "A grand, decrepit mansion looms ominously in the distance, its windows glowing with an eerie green light, as twisted vines and thorny branches claw at its weathered walls.",
+    "Head|Phantom Aviator Goggles": "Matte black aviator goggles with iridescent purple lenses, accented with tarnished silver buckles and worn leather straps, worn fully over the eyes and head.",
+    "Body Skin|Bruised Pink Epidermis": "Skin resembling a hot Pink , with a mottled pattern of inky black and diamond Pink hues, creating an unsettling effect as if the skin is marked by shadows of unknown origins.",
+    "Hands|Sinister Crimson Skull Goblet": "A goblet crafted from dark, polished bone with crimson red accents, featuring a grinning skull carved into the base with ruby eyes, it is held in the right hand only.",
+    "Background|Blood Moon Eclipse Glow": "A massive crimson moon, cracked and bleeding, hangs low in the sky, emitting a sickly red glow that bathes the surroundings in an ominous light.",
+    "Head|Tattered Spectral Dunce Cap": "A translucent dunce cap with ethereal wisps seemingly floating above it, adorned with faded runes along its brim, giving it a ghostly appearance.",
+    "Mouth|Shadowed Fangs": "A set of elongated obsidian black teeth peeking out from a cavernous, veiny black mouth, surrounded by small glowing red runes.",
+    "Hands|Rose": "A infectious burning rose with a worm in the petals, held in the right hand only. Always right side, always on fire.",
+    "Body Skin|Oozing Shadow Veins": "Black skin covered in pulsating, glowing purple veins that seem to shift and ooze dark energy with every heartbeat.",
+    "Hands|Malevolent Doll's Grip": "A porcelain doll hand painted in cracked, peeling black and white stripes, fingers tipped with sinisterly sharp metallic claws, holding a miniature blood-stained dagger. Right side.",
+    "Background|Subterranean Crystal Cluster": "A large cluster of iridescent crystals of varying sizes and shapes, emanating a soft, eerie glow amidst the dark, rough stone walls of the cave background.",
+    "Head|Obsidian Serpent Mask": "A sleek porcelain black mask featuring intricate serpentine details emerging from the nostrils, with the snakes' scales glistening in an iridescent black hue in a sinister yet elegant fashion.",
+    "Body Skin|Wife Beater Damned": "a sleeveless white shirt referred to as a wife beater, with the words \"The Damned\" written on it.",
+    "Background|Glitchy Crypto Matrix": "An array of pixelated, neon green and purple blockchain codes swirling around a black digital void, with occasional glitch effects distorting the letters and numbers.",
+    "Head|Paper Bag": "Old stained and bloody paper bag completely over head with eye holes cut out to see.",
+    "Eyes|Arachnid Iris Glow": "One single eye crafted with emerald green veins radiating from a central obsidian pupil, encased in a glossy, web-like membrane shimmering with iridescent hues.",
+    "Mouth|Wicked Grin": "A black mouth with razor-sharp teeth dripping with blood, outlined in neon green against a dark purple backdrop.",
+    "Background|Underworld Portal": "Dark, elongated shadows cast by the glowing underworld portal.",
+    "Head|Venomous Spider Nest": "A hairpiece adorned with lifelike black spiders of varying sizes, crawling on a web of shimmering silver threads, creating a chilling illusion of movement on top of the head.",
+    "Body Skin|Hundreds of needles": "Hundreds of old  syringe needles in skin that it looks like a porcupine of syringe  needles",
+    "Head|Rotting Zombie Visage": "A decaying flesh-colored mask with sunken eye sockets, oozing green slime, and exposed teeth, held together with rusty metal staples.",
+    "Body Skin|Festering Bubbling Blister": "A large, oozing blister on the skin with pus-filled pockets that appear as if they are continuously bubbling and ready to burst, creating a revolting visual effect.",
+    "Body Skin|Luminescent Prism Flesh": "Skin resembling iridescent rainbow prisms, each reflecting a different color, creating a shifting, shimmering effect as light dances across the surface.",
+    "Head|Fine PEPE Crown": "A majestic crown adorned with shimmering emerald, ruby, and sapphire gems, atop spiked golden metal,  has engraving that reads: FINE PEPE",
+    "Body Skin|astronaut suit": "Decaying astronaut suit skin with rips and holes",
+    "Hands|Ghastly Ghoul's Embered Satchel": "A tattered leather sack bulging with assorted candies, emanating a faint ghostly glow, stitched with spectral threads that shimmer in the darkness. held in the right hand.",
+    "Hands|Fiery Jack": "o'-Lantern Fist - A menacing black glove covered in flickering orange LED lights, topped with a grinning plastic jack-o'-lantern that emits small bursts of fog.",
+    "Hands|Creepy Clown's Grasp": "A colorful, oversized, cartoonish right hand with mismatched painted nails, wearing a striped glove and holding a balloon dog, in the right hand only.",
+    "Hands|Hellfire Phone": "A cell phone owned by a hellish demon with BTC $1m on screen, held in right hand only.",
+    "Background|Cryptic Fog Enshroud": "A dense mist of ethereal green fog swirling around ancient tombstones covered in eerie runes, creating an otherworldly aura in a dimly lit graveyard setting.",
+    "Head|Macabre Cursed Crown": "A twisted, thorny crown made of tarnished silver metal, embedded with glowing green gemstones that flicker with an eerie, cursed light, encircling the head with malevolent energy.",
+    "Eyes|Spiderweb Veiled Eyes": "Eyes obscured by delicate, glistening silver spiderwebs with tiny dewdrops, giving a distorted view of a moonlit cemetery.",
+    "Eyes|Rotting Zombie Gaze": "Eyes with decaying flesh-like texture, oozing trails of green slime, surrounded by swarms of tiny, buzzing black flies.",
+    "Head|Haunted Hay Bale Bonnet": "A headpiece made of twisted black thorny branches encircling a withered hay bale in the center, adorned with eerie glowing jack-o'-lantern faces and dried corn husk accents.",
+    "Mouth|Bristled Bloodthirsty Jaws": "A pair of sinister, oversized, blood-red jaws covered in sharp, black bristles, dripping with viscous, glistening saliva, positioned at a tilted angle with a row of jagged, uneven teeth.",
+    "Hands|Bitcoin Puppet": "A small brown plush with a lighter tan front, round half circle ears with darker brown furry edges, and a sideways drooling smile that gives it a goofy, lovable charm. Its soft, squishy body and wearing street clothes —like a snapback hat and gold chain, shorts,, shirt, and holding a hot dog, make it feel like a mix between a plush buddy and a collectible mascot in the right hand. Always only right hand. It has pins in it similar to a voodoo doll.",
+    "Body Skin|Rotting Vines Creep": "Twisted, vine-like tendrils emerging from beneath the skin's surface, coiling and snaking around the body, with small blooming flowers in sickly shades of purple and gray.",
+    "Eyes|Ghastly Gaze": "A pair of ghostly white eyes with blood-red irises, surrounded by wispy, ethereal tendrils that seem to be reaching out.",
+    "Head|Sinister Ivy Veil": "A veil woven from shadowy black ivy leaves that coil around the wearer's head, each leaf bearing a pale, glowing eye that gazes menacingly in all directions,.",
+    "Eyes|Cyclops": "One single eye crafted with emerald green veins radiating from a central obsidian pupil, encased in a glossy, web-like membrane shimmering with iridescent hues.",
+    "Hands|Bowling Pin": "Reversed dirty bowling pin with bloody cracked bottom, held in the right hand only. Always the right hand nothing else. Right side.",
+    "Background|Mossy Root Tangle": "A dense network of twisted, moss-covered roots intertwining across the background, creating a labyrinthine pattern of earthy greens and browns.",
+    "Body Skin|Malevolent Cybernetic Nodes": "Translucent, iridescent skin littered with pulsating, pulsing nodes of green and purple LED lights, their glow casting an eerie, shifting pattern of shadows on the surrounding surfaces, giving the impression of a sinister, artificial life form.",
+    "Body Skin|Ghostly Translucent Skin": "Transparent skin with a faint ethereal glow, revealing faint spectral outlines underneath, resembling the appearance of a haunting ghost.",
+    "Hands|Bloody Toilet Paper Roll": "A Bloody Toilet Paper Roll protruding from the bony fingers in the right hand. Right side.",
+    "Body Skin|Creepy Stitched Flesh": "Gray skin stretched tautly, with visible black stitches running along the seams, resembling a patched-up Frankenstein monster.",
+    "Head|Panda bear hat": "woven panda bear hat with hanging strings, is  dirty and bloody and stains, the left string to the panda bear hat is ripped and missing.",
+    "Eyes|Purple Demon Pupils": "Two hellish purple eyes, resembling molten purple lava with faint orange cracks,  emitting a sinister, flickering glow from their depths.",
+    "Head|Cursed Crystal Crown": "A crown fashioned from jagged, dark crystals that seem to pulse with a malevolent energy, the tips adorned with glowing runes that softly illuminate the wearer's forehead.",
+    "Head|Spiderweb Veil of Arachnids": "A black veil covered in intricate silver spiderweb patterns, with lifelike miniature black spiders crawling on the surface and dangling from thin silver threads.",
+    "Hands|Your Mom": "a old polaroid picture with torn corner, pinched in the right hand fingers of a large women in bikini and on the bottom white part says \"Your Mom\" held in Right Hand.",
+    "Background|Jack": "O'-Lantern Grin Cascade - Rows of mischievously grinning jack-o'-lanterns, their carved faces glowing in various shades of orange and yellow, cascading down the background in a haunting display.",
+    "Hands|Shadowed Elixir Vial": "A sinister black glass bottle with silver intricate filigree, containing a shimmering purple liquid that seems to glow faintly in the darkness.",
+    "Body Skin|Shadowy Crystalline Scales": "The body skin is covered in iridescent, jagged black scales that glimmer with a faint purple sheen, resembling overlapping crystals, giving a sleek and reflective appearance.",
+    "Hands|Cursed Bone Saber Grip": "A skeletal hand-shaped hilt made of ancient bones, wrapped in tattered dark fabric, with crimson gemstone eyes that seem to flicker with a life of their own.",
+    "Body Skin|Ethereal Feathered Epidermis": "Skin resembling soft, pearlescent feathers in varying shades of opalescent blues and greens, intricately layered across the body with a shimmering, almost translucent quality.",
+    "Hands|Gore": "soaked Chainsaw Gauntlet - A blood-drenched chainsaw seamlessly integrated into a metal gauntlet, rivulets of red running down the serrated blade held in the right hand.",
+    "Head|Witch's Hat of Wickedness": "A tall, pointed hat in deep purple velvet, embellished with twisted silver buckles, a writhing black snake slithering around the brim, and a cluster of dried mandrake roots hanging from a crooked tip.",
+    "Mouth|Gilded Malevolent Maw": "A menacing, golden-hued mouth adorned with intricate, etched patterns of swirling vines and thorns, radiating a faint, ghostly glow, with a set of razor-sharp, metallic teeth peeking through the shadows.",
+    "Hands|Putrid Pufferfish Slice": "A triangular pizza slice covered in slimy green algae, topped with a bloated and decayed pufferfish oozing foul-smelling pus, held in the right hand.",
+    "Body Skin|Black Elemental": "Black translucent elemental smokey skin made of swirling black smoke forming a body skin.",
+    "Eyes|Shadowed Orb Sockets": "Deep-set eyes covered in a velvety black material, emitting an eerie, faint purple glow from within.",
+    "Head|Black Baseball Cap": "A Black Baseball Cap with red letters \"BK\"  stitched into the center of the hat. The hat is torn at the brim and has dark red blood stains, worms coming through the sweat holes.",
+    "Background|nuclear fallout": "nuclear fallout, poison barrels, mushroom cloud.",
+    "Body Skin|Bruised Midnight Epidermis": "Skin resembling a deep bruise, with a mottled pattern of inky black and sapphire blue hues, creating an unsettling effect as if the skin is marked by shadows of unknown origins.",
+    "Hands|Bloodstained Raven": "bloody eyed, red eyed,, black raven pet held in the one right hand always. Right hand only. Right side.",
+    "Body Skin|Iridescent Pearl Veil": "A translucent pearl mask stretching over the skin, reflecting a rainbow of colors in a thin veil-like layer with a faint shimmery sheen.",
+    "Mouth|Missing Bottom Jaw": "Missing bottom jaw.",
+    "Eyes|Witch's Brew Vision": "Eyes resembling bubbling cauldrons, filled with swirling shades of green, purple, and black, giving off a faint eerie glow.",
+    "Mouth|Ghastly Gaping Void": "A black, swirling abyss as a mouth, bordered by sharp, silver teeth that seem to disappear into darkness within a ghostly, transparent face.",
+    "Head|Malevolent Scarecrow Hat": "A tattered straw hat with a crooked brim, wrapped in decaying cloth strips, topped with a sinister grinning scarecrow face and surrounded by a cloud of swirling black crows.",
+    "Body Skin|Sparking Circuitry Mesh": "Skin covered in a network of glowing blue circuit patterns, pulsating with electric energy, resembling a mesh of crackling lightning bolts across the body.",
+    "Head|Ghastly Phantom Veil": "A transluscent veil of ghostly white fabric, shredded at the edges and floating ominously around the head, with faint silhouettes of twisted faces and skeletal hands subtly visible within the folds.",
+    "Head|Creepy Corn Husk Cowl": "A skull-shaped cowl crafted from overlapping dried corn husks, featuring dangling twisted roots for hair and tiny glowing firefly lights for eyes.",
+    "Eyes|Spectral Glimpse": "Two ghostly white eyes peering out from a tangle of dark, wispy cobwebs, surrounded by tiny glowing spiders crawling along the edges.",
+    "Hands|Gory Zombie Grasp": "A decayed, greenish-gray skeletal hand covered in oozing, clotted blood splatters, the bony fingers elongated and tipped with sharp, broken nails.",
+    "Head|Arrow through head": "Large Hunting Arrow going completely through left side of head and sticking out the right side with blood.",
+    "Hands|Maggot": "Infested Severed Arm - A severed human arm, oozing with blood and crawling with maggots, the skin pale and mottled, tendons and muscles exposed, nails dirty and broken held in right hand.",
+    "Hands|Your Dad": "a old polaroid picture with torn corner, pinched in the right hand fingers of a large man in bikini and on the bottom white part says \"Your Dad\" held in Right Hand.",
+    "Head|Toilet Head": "Entire Toilethead with head half in the toilet bowl. dirty cracked bowl with yellow and brown stains, overflowing down face.",
+    "Mouth|Cursed Crystal Vortex": "A mouth lined with sharp, translucent crystal shards, each radiating a different neon color, swirling in a spiraling vortex pattern around a pitch-dark center.",
+    "Hands|Veined Crystal Skull Grasp": "A crystal skull with intricate etched veins, glowing softly from within, held in the right hand with a grip that seems to pulse with an otherworldly energy.",
+    "Head|Shadowed Crow Skull Mask": "A mask resembling a crow's skull, black feathers intricately intertwined with silver and purple threads, covering the wearer's face completely with hollow eye sockets and a sharp beak.",
+    "Body Skin|Poop Skin": "Stacked smelly poop skin.",
+    "Hands|Demon Skull Scepter": "A menacing scepter with a large demon skull at the top, crimson glowing eyes, blackened bone horns, and a blood-red gem embedded in its forehead, intricately engraved with intricate demonic runes along the shaft, held in the right hand. Right side.",
+    "Head|Alien Mask": "A green plastic alien mask held on with string, is being fully worn over face, there is a corner cracked missing piece to the mask..",
+    "Hands|Infernal Skull Scepter": "An obsidian scepter adorned with twisting flames of red and orange, a sinister grinning skull cradled at the top with glowing ruby eyes and sharp, pointed teeth.",
+    "Mouth|Grimacing Gash": "A twisted, jagged mouth resembling a deep, blood-red wound, lined with sharp, uneven teeth and blackened gums, oozing a viscous, inky substance.",
+    "Head|P": "Hat - A bright yellow character hat featuring tall pointed ears with black tips, round red cheek spots, and wide anime-style eyes, with blood stains and puke stains",
+    "Hands|Tampon": "Blood Tampon hanging on a string being pinched by 2 fingers on the right hand.",
+    "Head|Free mint Tattoo": "forehead tattoo that reads; \"FREE MINT\" in bold black print.",
+    "Head|Visceral Flesh Mask": "A grotesque mask made of stitched-together human flesh, with bulging eyeballs protruding from the sockets, veiny and pallid in color, dripping with blood.",
+    "Head|Cordyceps Head": "Cordyceps growing out of head.",
+    "Hands|Rabid Bat": "Crazy rabid bat pet in right hand.",
+    "Hands|Breast Milk Skull Goblet": "break milk pump connected to chest is pumping blood through tube into the milk bottle in right hand. Always right hand only.",
+    "Head|Kiss Mask": "Kiss Mask",
+    "Hands|Shadowed Raven Feather Quill": "A dark obsidian quill with iridescent raven feathers wrapped around the base, silver glyphs etched along the length shimmering in the light held with right hand.",
+    "Body Skin|Rotting Corpse Skin": "Pale greenish skin texture with dark, decaying patches and a few exposed bones peeking through, giving the appearance of a decomposing zombie.",
+    "Head|Eerie Vine Encrusted Skull": "A deathly pale skull adorned with twisted, thorny vines in deep shades of decayed green and brown, with tiny blood-red thorns sporadically emerging from the vines.",
+    "Head|Enchanted Pumpkin Crown": "A crown made of miniature, glowing pumpkins linked together with twisting, vine-like stems, each pumpkin emitting a soft, flickering orange light.",
+    "Background|Ominous Tombstone Shadows": "Dark, elongated shadows cast by weathered tombstones with intricate carvings, creating a haunting and eerie atmosphere across the desolate graveyard.",
+    "Body Skin|Crawling Beetle Cluster": "A layer of skin covered with a multitude of iridescent scarab beetles, their glossy shells reflecting a sickly green and purple sheen as they scuttle across the surface.",
+    "Hands|Decaying Zombie Handled Scythe": "A weathered scythe with a blade resembling bone, a tattered black cloth grip wrapped around a skeletal hand clutching the handle tightly, greenish moss creeping along the rusted metal surface.",
+    "Background|Cryptic Circuit Matrix": "A complex network of glowing neon green circuit lines intricately crisscrossing against a matte black background, forming intricate geometric patterns reminiscent of interwoven digital pathways.",
+    "Hands|Blow up doll": "A worn blow up doll with circular open mouth hole, held with right hand. Right side.",
+    "Eyes|Fiery Demon Pupils": "Two hellish red eyes, resembling molten lava with faint orange cracks, set in a twisted, gnarled pumpkin face, emitting a sinister, flickering glow from their depths.",
+    "Head|Haunted Veil of Shadows": "A sheer black veil adorned with shimmering silver spiderweb patterns and tiny faux black widow spiders crawling along the edges, casting eerie shadows over the wearer's face.",
+    "Mouth|Blood Moon Bite": "A crescent-shaped mouth filled with shimmering crimson teeth, framed by a thin, iridescent silver outline mimicking the phases of the moon.",
+    "Background|Macabre Graveyard Mist": "A misty haze enshrouds a desolate graveyard, tombstones capped with flickering blue flames, skulls and bones scattered haphazardly among the decaying earth.",
+    "Head|Pikachu Hat": "A Pikachu hat with blood stains and puke stains",
+    "Mouth|Witch's Brew Bristle": "A twisted, wooden mouth with gnarled, uneven teeth, stained with bubbling potion drips and adorned with tiny, glowing mushrooms and spiderwebs.",
+    "Hands|Enchanted Witch's Brew Touch": "A crystal hand-shaped goblet filled with bubbling purple liquid, resting on a bed of dried herbs and silver pentagram charms.",
+    "Background|Spiderweb Lattice Veil": "Intricate, glistening spiderwebs forming a dense lattice veil, adorned with dewdrops that shimmer in the moonlight, covering the scene with a creepy, sticky sheen.",
+    "Head|football helmet": "a cracked open dirty and bloodied football helmet fully worn on the head.",
+    "Eyes|Harrowing Shadow Pupils": "Eyes set in pitch-black, liquid-like orbs, constantly shifting and pulsating with eerie tendrils of darkness that seem to reach out towards the viewer.",
+    "Hands|Mallet": "Large bloody and worn mallet swung in the right hand raised to strike.",
+    "Head|Crimson Veil Visor": "A sleek, blood-red cooking visor with yellow letter \"M\" and a short brim, no top,  stitched into the center of the visor.",
+    "Head|Make Ordinals Great Again": "A Make Ordinals Great Again  crimson red cap with rips and blood splatter on it with some letters faded",
+    "Hands|Ethereal Crystal Wand": "A slender wand made of shimmering iridescent crystal, refracting light in rainbow hues with faint glowing runes etched along its length.",
+    "Hands|Witches' Brew Crystal Phial": "A delicate crystal vial filled with bubbling green liquid, adorned with intricate silver filigree and capped by a cork sealed with a spiderweb pattern.",
+    "Hands|Shadowed Crystal Talon": "A sleek obsidian talon-shaped scepter with intricate silver filigree details wrapping around a deep purple crystal orb at the tip, casting an eerie shadow thanks to the dim, almost pulsating, violet light that emanates from within.",
+    "Hands|Haunted Lantern Handpiece": "A tarnished brass lantern with intricate carvings depicting ghostly figures, emitting an eerie, flickering purple glow that casts haunting shadows.",
+    "Hands|Skeletal Reaper Grasp": "A long bony hand protruding from a tattered black cloak, adorned with ancient-looking silver rings on each finger and a scythe-shaped cuff.",
+    "Background|Bullet Whizz Fade": "A sleek, metallic bullet with a silver finish, streaking diagonally from the top left corner to the bottom right corner of the frame, leaving a subtle trail of blurred motion behind it.",
+    "Eyes|Jack": "O'-Lantern Glare - Eyes carved into grinning pumpkin faces, glowing with a flickering orange light that casts eerie shadows on their surroundings.",
+    "Head|Golden Locks Toupee Topper": "A fluffy toupee made of bright blonde synthetic hair, styled in a neatly combed pompadour with a subtle shimmer, perched atop the head slightly tilted to the right.",
+    "Hands|Troy Book": "Large leather bound book that  read: \"In Troy We Trust\"",
+    "Mouth|Ghoulish Gilded Grin": "A metallic silver mouthpiece adorned with shimmering gold teeth and intricate spiderweb engravings, emitting a faint eerie glow.",
+    "Hands|Maleficent Enchanted Hourglass": "An hourglass filled with shimmering black sand, encased in twisted iron vines with emerald green gems set at each intersection, the sands flowing upwards instead of down.",
+    "Head|Suds Siphoner": "A translucent hat made of  shades of ethereal blue and green, with glowing beer dispenser hat.",
+    "Hands|Necrotic Pitch Fork": "A sinister pitch fork  with a curved blade made of weathered bone,  rats impaled on the blades, and a handle held in the right hand, emitting a faint blueish glow. Right side.",
+    "Hands|Luminescent Alien Eye Relic": "A large ugly green alien mask held in the right hand,  intricate circuit patterns etched in silver on the surface.",
+    "Background|Malevolent Fog Whispers": "Serpentine tendrils of dense fog slither across the ground, swirling with phantom faces and claw-like formations, whispering chilling secrets to those who dare to listen.",
+    "Eyes|Phantom Gaze": "Translucent eyes hovering in the air, flickering between a ghastly pale blue and a haunting green, with wisps of ethereal smoke curling around them like restless spirits.",
+    "Hands|Spectral Phantom Hourglass": "A translucent hourglass filled with swirling ethereal mist, silver sand cascading in reverse with glowing purple symbols etched on the glass.",
+    "Head|Shadowy Demon Horns": "Jet-black, glossy demon horns protruding from the temples, spiraling upwards and curling inwards, capped with blood-red tips, emanating an aura of dark magic looming over the head.",
+    "Hands|Monstrous Skull Mace": "A large mace made of twisted metal, featuring a grotesque skull with sinister glowing eyes as its head, sharp fangs protruding from its jaw, and intricate carvings of cursed symbols along the handle.",
+    "Hands|Cursed Crystal Ball Clutch": "A twisted obsidian hand encasing a glowing crystal ball within its palm, radiating an ominous purple light that casts distorted shadows of mystic symbols on the surrounding surfaces."
+  }
+}
