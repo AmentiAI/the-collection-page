@@ -77,12 +77,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate damage multiplier: if monsters are missing, remaining ones do more damage
     // Base multiplier: 10 total, 9 active = 10/9 = 1.111 (11% more damage)
-    // Then add 15% per dead monster: 1 dead = +15%, 2 dead = +30%, etc.
+    // Then add 15% per dead monster: 1 dead = +10%, 2 dead = +30%, etc.
     const baseMultiplier = totalMonsterCount > 0 && activeMonsterCount > 0 
       ? totalMonsterCount / activeMonsterCount 
       : 1.0
     const deadMonsterCount = totalMonsterCount - activeMonsterCount
-    const damageMultiplier = baseMultiplier + (deadMonsterCount * 0.15) // Add 15% per dead monster
+    const damageMultiplier = baseMultiplier + (deadMonsterCount * 0.10) // Add 15% per dead monster
 
     if (activeMonsterCount === 0) {
       return NextResponse.json({
