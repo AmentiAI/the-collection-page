@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
+import { rateLimit, getClientIdentifier } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,12 +112,26 @@ async function expireOverdueSummons(pool: Pool) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting: 120 requests per 60 seconds per IP/wallet
+    const searchParams = request.nextUrl.searchParams
+    const walletParam = searchParams.get('wallet')?.trim()
+    const clientId = getClientIdentifier(request, walletParam)
+    const rateLimitResult = rateLimit(clientId, 120, 60_000)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Rate limit exceeded. Please try again later.',
+          resetAt: rateLimitResult.resetAt
+        },
+        { status: 429 }
+      )
+    }
+
     const pool = getPool()
     await ensureSummonInfrastructure(pool)
     await expireOverdueSummons(pool)
-
-    const searchParams = request.nextUrl.searchParams
-    const walletParam = searchParams.get('wallet')?.trim()
     const statusFilter = searchParams.get('status')?.trim()
     const limitParam = Number.parseInt(searchParams.get('limit') ?? '25', 10)
     const limit = Number.isNaN(limitParam) ? 25 : Math.min(Math.max(limitParam, 1), 200)

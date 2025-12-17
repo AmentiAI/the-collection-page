@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
+import { rateLimit, getClientIdentifier } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -187,6 +188,21 @@ export async function POST(
 
   if (!wallet) {
     return NextResponse.json({ success: false, error: 'wallet is required' }, { status: 400 })
+  }
+
+  // Rate limiting: 10 complete requests per 60 seconds per IP/wallet
+  const clientId = getClientIdentifier(request, wallet)
+  const rateLimitResult = rateLimit(clientId, 10, 60_000)
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too many completion attempts. Please try again later.',
+        resetAt: rateLimitResult.resetAt
+      },
+      { status: 429 }
+    )
   }
 
   const client = await pool.connect()

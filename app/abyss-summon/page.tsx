@@ -366,12 +366,12 @@ export default function AbyssSummonPage() {
         const query = params.toString()
         const endpoint = `${SUMMON_API_BASE}${query ? `?${query}` : ''}`
         
-        // Check cache (3 second TTL)
+        // Check cache (30 second TTL to reduce API load)
         const cacheKey = `${endpoint}-${currentMode}`
         const now = Date.now()
-        if (circlesCacheRef.current && 
-            circlesCacheRef.current.key === cacheKey && 
-            now - circlesCacheRef.current.timestamp < 5000) {
+        if (circlesCacheRef.current &&
+            circlesCacheRef.current.key === cacheKey &&
+            now - circlesCacheRef.current.timestamp < 30000) {
           // Use cached data
           const data = circlesCacheRef.current.data
           const openSummons = Array.isArray(data?.summons) ? (data.summons as SummonRecord[]) : []
@@ -692,7 +692,7 @@ export default function AbyssSummonPage() {
     if (!ordinalAddress) return
     
     // Poll every 10 seconds to keep circles up-to-date
-    const POLL_INTERVAL = 15_000
+    const POLL_INTERVAL = 30_000 // Poll every 30 seconds to reduce API load
     
     const doPoll = () => {
       // Only poll if the page is visible (tab is active)
