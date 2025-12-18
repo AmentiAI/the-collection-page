@@ -9,22 +9,25 @@ export async function GET() {
     client = await getPool().connect()
 
     // Get all mega monsters with images, ordered by total fights (most active first)
+    // Join with profiles to get the killer's username
     const result = await client.query(`
       SELECT
-        id,
-        name,
-        prompt,
-        image_blob_url,
-        image_data,
-        full_body_image_blob_url,
-        COALESCE(total_fights, 0) as total_fights,
-        health,
-        killed_by,
-        created_at,
-        updated_at
-      FROM mega_monsters
-      WHERE image_blob_url IS NOT NULL OR image_data IS NOT NULL
-      ORDER BY COALESCE(total_fights, 0) DESC, created_at DESC
+        mm.id,
+        mm.name,
+        mm.prompt,
+        mm.image_blob_url,
+        mm.image_data,
+        mm.full_body_image_blob_url,
+        COALESCE(mm.total_fights, 0) as total_fights,
+        mm.health,
+        mm.killed_by,
+        p.username as killer_username,
+        mm.created_at,
+        mm.updated_at
+      FROM mega_monsters mm
+      LEFT JOIN profiles p ON mm.killed_by IS NOT NULL AND p.inscription_ids @> ARRAY[mm.killed_by]::text[]
+      WHERE mm.image_blob_url IS NOT NULL OR mm.image_data IS NOT NULL
+      ORDER BY COALESCE(mm.total_fights, 0) DESC, mm.created_at DESC
     `)
 
     // For now, we'll use a simple count - each monster participates in every attack
@@ -48,6 +51,7 @@ export async function GET() {
         totalFights: parseInt(monster.total_fights || '0', 10),
         health: monster.health != null ? parseInt(monster.health, 10) : 15000,
         killedBy: monster.killed_by || null,
+        killerUsername: monster.killer_username || null,
       }
     })
 

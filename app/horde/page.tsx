@@ -16,6 +16,7 @@ interface MegaMonster {
   totalFights: number
   health: number
   killedBy: string | null
+  killerUsername: string | null
 }
 
 export default function HordePage() {
@@ -137,14 +138,9 @@ export default function HordePage() {
                     {monster.health === 0 && monster.killedBy && (
                       <div className="mt-2 p-2 bg-red-950/50 border border-red-500/30 rounded">
                         <p className="text-xs text-red-300 font-semibold mb-1">SLAIN BY:</p>
-                        <a
-                          href={`https://magiceden.io/ordinals/item-details/${monster.killedBy}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-red-400 hover:text-red-300 underline break-all"
-                        >
-                          {monster.killedBy}
-                        </a>
+                        <p className="text-sm text-red-400 font-bold">
+                          {monster.killerUsername || monster.killedBy}
+                        </p>
                       </div>
                     )}
                   </div>
