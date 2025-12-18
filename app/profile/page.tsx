@@ -365,8 +365,7 @@ function ProfileContent() {
           )}
         </section>
 
-        <SummoningOverviewCard />
-
+     
         {/* Abyss Stats Card */}
         <section className="rounded-3xl border border-red-600/40 bg-black/70 p-6 shadow-[0_0_25px_rgba(220,38,38,0.3)] backdrop-blur">
           <h2 className="text-lg font-semibold uppercase tracking-[0.35em] text-red-200">Abyss</h2>
