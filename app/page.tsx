@@ -147,13 +147,14 @@ export default function Home() {
             />
             {/* YouTube Video Player with Custom Controls */}
             <div className="w-full relative z-10">
-              <YouTubeVideoPlayer 
-                videoId="wWkwbofYung" 
+              <YouTubeVideoPlayer
+                videoId="wWkwbofYung"
                 onPlayingChange={setIsVideoPlaying}
               />
             </div>
-            <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">   
-              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">                                                               
+            {/* Ordinal collection hidden - just showing video */}
+            {/* <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
+              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
                 <aside className="order-2 lg:order-1">
                   <Filters
                     ordinals={ordinals}
@@ -170,7 +171,7 @@ export default function Home() {
                   />
                 </main>
               </div>
-            </div>
+            </div> */}
           </main>
           {selectedOrdinal && (
             <Modal ordinal={selectedOrdinal} onClose={() => setSelectedOrdinal(null)} />
