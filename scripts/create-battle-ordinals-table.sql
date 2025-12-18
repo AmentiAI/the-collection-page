@@ -37,3 +37,4 @@ CREATE TRIGGER battle_ordinals_updated_at
 
 
 
+
