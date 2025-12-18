@@ -9,3 +9,4 @@ CREATE INDEX IF NOT EXISTS idx_battle_ordinals_life_force ON battle_ordinals(lif
 
 
 
+

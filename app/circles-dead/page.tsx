@@ -53,11 +53,11 @@ export default function AbyssSummonPage() {
   const IS_DEAD_DEMONS_MODE = mode === 'dead_demons'
   const SUMMON_REQUIRED_PARTICIPANTS = IS_DAMNED_POOL_MODE ? 40 : IS_POWDER_MODE ? 8 : IS_DEAD_DEMONS_MODE ? 10 : 8
   const SUMMON_API_BASE = IS_DAMNED_POOL_MODE
-    ? '/api/damned-pool/circles'
+    ? '/api/damned-pool/damned-circles'
     : IS_POWDER_MODE
-    ? '/api/ascension/circles'
+    ? '/api/ascension/ascension-circles'
     : IS_DEAD_DEMONS_MODE
-    ? '/api/dead-demons/circles'
+    ? '/api/dead-demons/dead-circles'
     : '/api/abyss/summons'
   const SUMMON_LEADERBOARD_ENABLED = !IS_POWDER_MODE && !IS_DAMNED_POOL_MODE && !IS_DEAD_DEMONS_MODE
   const SUMMON_DURATION_MS = IS_DAMNED_POOL_MODE ? 30 * 60 * 1000 : IS_POWDER_MODE ? 10 * 60 * 1000 : IS_DEAD_DEMONS_MODE ? 10 * 60 * 1000 : 10 * 60 * 1000
