@@ -12,6 +12,7 @@ import Gallery from '@/components/Gallery'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
 import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer'
+import HordeKillsTicker from '@/components/HordeKillsTicker'
 import { Ordinal, Trait } from '@/types'
 
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
@@ -152,6 +153,8 @@ export default function Home() {
                 onPlayingChange={setIsVideoPlaying}
               />
             </div>
+            {/* Horde Kills Ticker */}
+            <HordeKillsTicker />
             {/* Ordinal collection hidden - just showing video */}
             {/* <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6 lg:gap-8">
