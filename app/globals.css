@@ -739,16 +739,17 @@ html {
 }
 /* Infinite scrolling animation for horde kills ticker */
 @keyframes scroll-infinite {
-  0% {
+  from {
     transform: translateX(0);
   }
-  100% {
+  to {
     transform: translateX(-50%);
   }
 }
 
 .animate-scroll-infinite {
   animation: scroll-infinite 60s linear infinite;
+  will-change: transform;
 }
 
 .animate-scroll-infinite:hover {

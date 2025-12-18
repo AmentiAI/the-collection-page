@@ -5,7 +5,7 @@ import dynamicImport from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useMusicPlayer } from '@/providers/MusicPlayerProvider'
-import HordeAttackAlert from '@/components/HordeAttackAlert'
+import HordeKillsTicker from '@/components/HordeKillsTicker'
 
 // Lazy load WalletConnect to prevent LaserEyes from loading immediately
 const WalletConnect = dynamicImport(() => import('./WalletConnect'), {
@@ -366,7 +366,7 @@ export default function Header({
         )}
       </div>
     </header>
-    <HordeAttackAlert />
+    <HordeKillsTicker />
     </>
   )
 }
