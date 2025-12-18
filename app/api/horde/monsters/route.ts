@@ -9,7 +9,7 @@ export async function GET() {
     client = await getPool().connect()
 
     // Get all mega monsters with images, ordered by total fights (most active first)
-    // Join with profiles to get the killer's username
+    // Join with battle_ordinals to get the killer's wallet, then profiles to get username
     const result = await client.query(`
       SELECT
         mm.id,
@@ -25,7 +25,8 @@ export async function GET() {
         mm.created_at,
         mm.updated_at
       FROM mega_monsters mm
-      LEFT JOIN profiles p ON mm.killed_by IS NOT NULL AND p.inscription_ids @> ARRAY[mm.killed_by]::text[]
+      LEFT JOIN battle_ordinals bo ON mm.killed_by = bo.inscription_id
+      LEFT JOIN profiles p ON bo.wallet_address = p.wallet_address
       WHERE mm.image_blob_url IS NOT NULL OR mm.image_data IS NOT NULL
       ORDER BY COALESCE(mm.total_fights, 0) DESC, mm.created_at DESC
     `)
