@@ -28,7 +28,7 @@ export async function GET() {
       LEFT JOIN battle_ordinals bo ON mm.killed_by = bo.inscription_id
       LEFT JOIN profiles p ON bo.wallet_address = p.wallet_address
       WHERE mm.image_blob_url IS NOT NULL OR mm.image_data IS NOT NULL
-      ORDER BY COALESCE(mm.total_fights, 0) DESC, mm.created_at DESC
+      ORDER BY COALESCE(mm.health, 0) DESC, mm.created_at DESC
     `)
 
     // For now, we'll use a simple count - each monster participates in every attack
