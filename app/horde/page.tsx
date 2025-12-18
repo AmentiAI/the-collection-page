@@ -15,6 +15,7 @@ interface MegaMonster {
   updatedAt: string
   totalFights: number
   health: number
+  killedBy: string | null
 }
 
 export default function HordePage() {
@@ -123,16 +124,29 @@ export default function HordePage() {
                       </span>
                     </div>
                     <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
-                      <div 
+                      <div
                         className="h-full bg-gradient-to-r from-red-600 via-red-500 to-red-400 transition-all duration-300"
-                        style={{ 
-                          width: `${Math.min(100, (monster.health / 15000) * 100)}%` 
+                        style={{
+                          width: `${Math.min(100, (monster.health / 15000) * 100)}%`
                         }}
                       />
                     </div>
                     <div className="text-xs text-gray-500 mt-1 text-right">
                       {Math.round((monster.health / 15000) * 100)}%
                     </div>
+                    {monster.health === 0 && monster.killedBy && (
+                      <div className="mt-2 p-2 bg-red-950/50 border border-red-500/30 rounded">
+                        <p className="text-xs text-red-300 font-semibold mb-1">SLAIN BY:</p>
+                        <a
+                          href={`https://magiceden.io/ordinals/item-details/${monster.killedBy}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-red-400 hover:text-red-300 underline break-all"
+                        >
+                          {monster.killedBy}
+                        </a>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-2 mb-2">

@@ -10,7 +10,7 @@ export async function GET() {
 
     // Get all mega monsters with images, ordered by total fights (most active first)
     const result = await client.query(`
-      SELECT 
+      SELECT
         id,
         name,
         prompt,
@@ -19,6 +19,7 @@ export async function GET() {
         full_body_image_blob_url,
         COALESCE(total_fights, 0) as total_fights,
         health,
+        killed_by,
         created_at,
         updated_at
       FROM mega_monsters
@@ -33,9 +34,9 @@ export async function GET() {
     
     const monsters = result.rows.map((monster: any) => {
       // Get image URL (prefer blob URL, fallback to data URL)
-      const imageUrl = monster.image_blob_url || 
+      const imageUrl = monster.image_blob_url ||
         (monster.image_data ? `data:image/png;base64,${monster.image_data}` : null)
-      
+
       return {
         id: monster.id,
         name: monster.name,
@@ -46,6 +47,7 @@ export async function GET() {
         updatedAt: monster.updated_at,
         totalFights: parseInt(monster.total_fights || '0', 10),
         health: monster.health != null ? parseInt(monster.health, 10) : 15000,
+        killedBy: monster.killed_by || null,
       }
     })
 
