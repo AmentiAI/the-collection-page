@@ -360,28 +360,7 @@ function ProfileContent() {
               >
                 <BookOpen className="h-4 w-4" /> Docs
               </Link>
-              {isHolder === true && inventory.listedCount === 0 && (
-                <>
-                  <Link
-                    href="/graveyard"
-                    className="inline-flex items-center gap-2 rounded-full border border-amber-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-amber-200 transition hover:bg-amber-500/20"
-                  >
-                    <Skull className="h-4 w-4" /> Graveyard
-                  </Link>
-                  <Link
-                    href="/abyss-summon"
-                    className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
-                  >
-                    Summoning Circles
-                  </Link>
-              <Link
-                href="/abyss"
-                className="inline-flex items-center gap-2 rounded-full border border-red-500/60 bg-black/40 px-4 py-2 text-[11px] font-mono uppercase tracking-[0.3em] text-red-200 transition hover:bg-red-500/20"
-              >
-                <Flame className="h-4 w-4" /> Abyss
-              </Link>
-                </>
-              )}
+          
             </div>
           )}
         </section>
