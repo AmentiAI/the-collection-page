@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       ? totalMonsterCount / activeMonsterCount 
       : 1.0
     const deadMonsterCount = totalMonsterCount - activeMonsterCount
-    const damageMultiplier = baseMultiplier + (deadMonsterCount * 0.10) // Add 15% per dead monster
+    const damageMultiplier = baseMultiplier + (deadMonsterCount * 0.08) // Add 15% per dead monster
 
     if (activeMonsterCount === 0) {
       return NextResponse.json({
