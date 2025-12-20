@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Loader2, Trash2, ChevronLeft, ChevronRight, Edit2, X, Save, Sparkles, Plus, Zap, Upload } from 'lucide-react'
+import { MegaMonsterMintButton } from '@/components/MegaMonsterMintButton'
 
 type MegaMonster = {
   id: string
@@ -678,6 +679,31 @@ export default function MegaMonstersAdminPage() {
                                 {new Date(monster.created_at).toLocaleString()}
                               </span>
                             </div>
+                            
+                            {/* Mint Button - Show if image exists and not minted yet */}
+                            {!isEditing && (monster.image_blob_url || monster.image_data) && !monster.inscription_id && (
+                              <div className="mt-4 pt-4 border-t border-cyan-500/20">
+                                <MegaMonsterMintButton
+                                  megaMonsterId={monster.id}
+                                  imageUrl={monster.image_blob_url || monster.image_data || ''}
+                                  isCompressed={false}
+                                  existingMint={{
+                                    commitTxId: monster.commit_txid || undefined,
+                                    revealTxId: monster.broadcast_txid || undefined,
+                                    inscriptionId: monster.inscription_id || undefined,
+                                    status: monster.inscription_id ? 'completed' : 
+                                            monster.broadcast_txid ? 'reveal_broadcast' :
+                                            monster.commit_txid ? 'commit_broadcast' : undefined
+                                  }}
+                                  onMintComplete={() => {
+                                    loadMonsters(currentPage)
+                                  }}
+                                  onMintStart={() => {
+                                    // Refresh to show updated status
+                                  }}
+                                />
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
