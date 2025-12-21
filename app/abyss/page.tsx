@@ -687,8 +687,8 @@ function AbyssContent() {
         const ascendedTraitForMetadata = normalizedAttributes.find(
           (attr) => attr.trait_type === 'Ascended' && (attr.value === 'Angelic' || attr.value === 'Demonic')
         )
-        const isDemonic = ascendedTraitForMetadata?.value === 'Demonic' ?? false
-        const isAngelic = ascendedTraitForMetadata?.value === 'Angelic' ?? false
+        const isDemonic = ascendedTraitForMetadata?.value === 'Demonic'
+        const isAngelic = ascendedTraitForMetadata?.value === 'Angelic'
         
         // Filter out special traits from regular attributes (keep all others for display)
         const regularAttributes = normalizedAttributes.filter(
