@@ -13,7 +13,7 @@ import { useSearchParams } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { useWallet } from '@/lib/wallet/compatibility'
 import type { BaseUtxo, InscriptionUtxo } from '@/lib/sandshrew'
-import { Loader2, CheckCircle, Flame, Gift, Hammer, Trophy } from 'lucide-react'
+import { Loader2, CheckCircle, Flame, Gift, Hammer, Trophy, ChevronDown, ChevronUp } from 'lucide-react'
 
 type Walker = {
   key: string
@@ -51,6 +51,11 @@ type DamnedOption = InscriptionUtxo & {
   name?: string
   image?: string
   confirmed: boolean
+  metadata?: {
+    isDemonic?: boolean
+    isAngelic?: boolean
+    attributes?: Array<{ trait_type: string; value: string }>
+  }
 }
 
 type PendingBurnRecord = {
@@ -380,6 +385,7 @@ function AbyssContent() {
   >([])
   const [capDriftTimestamp, setCapDriftTimestamp] = useState(() => Date.now())
   const [bonusAllowance, setBonusAllowance] = useState(0)
+  const [expandedTraits, setExpandedTraits] = useState<Set<string>>(new Set())
 
   const summarizeOrdinal = useCallback((address: string) => {
     if (!address) return '—'
@@ -658,15 +664,36 @@ function AbyssContent() {
           attributes = token.attributes
         }
 
-        const hasAscendedTrait = attributes.some(
-          (attr) =>
-            (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
-            (attr.value === 'Angelic' || attr.value === 'Demonic')
+        // Normalize attributes
+        const normalizedAttributes = attributes
+          .filter(attr => attr.trait_type || attr.traitType)
+          .map(attr => ({
+            trait_type: attr.trait_type || attr.traitType || '',
+            value: attr.value || '',
+          }))
+          .filter(attr => attr.trait_type && attr.value)
+
+        // Check for Ascended trait
+        const ascendedTrait = normalizedAttributes.find(
+          (attr) => attr.trait_type === 'Ascended' && (attr.value === 'Angelic' || attr.value === 'Demonic')
         )
 
-        if (hasAscendedTrait) {
+        if (ascendedTrait) {
           continue // Skip ordinals with Ascended trait
         }
+
+        // Extract metadata - check for any traits that might indicate demonic/angelic
+        // (though regular damned ordinals typically won't have Ascended trait)
+        const ascendedTraitForMetadata = normalizedAttributes.find(
+          (attr) => attr.trait_type === 'Ascended' && (attr.value === 'Angelic' || attr.value === 'Demonic')
+        )
+        const isDemonic = ascendedTraitForMetadata?.value === 'Demonic' ?? false
+        const isAngelic = ascendedTraitForMetadata?.value === 'Angelic' ?? false
+        
+        // Filter out special traits from regular attributes (keep all others for display)
+        const regularAttributes = normalizedAttributes.filter(
+          attr => attr.trait_type !== 'Ascended' && attr.trait_type !== 'Silver' && attr.trait_type !== 'Glow'
+        )
 
         const blockHeight = Number(token?.locationBlockHeight ?? token?.genesisTransactionBlockHeight ?? 0)
 
@@ -706,6 +733,11 @@ function AbyssContent() {
           name: token?.meta?.name ?? token?.displayName ?? undefined,
           image: imageUrl,
           confirmed: false,
+          metadata: {
+            isDemonic,
+            isAngelic,
+            attributes: regularAttributes.length > 0 ? regularAttributes : undefined,
+          },
         })
       }
 
@@ -1848,55 +1880,119 @@ function AbyssContent() {
                   {damnedOptions.map((option) => {
                     const isActive = selectedInscriptionId === option.inscriptionId
                     const isDisabled = !option.confirmed || userCapReached
+                    const isExpanded = expandedTraits.has(option.inscriptionId)
+                    const hasTraits = option.metadata?.attributes && option.metadata.attributes.length > 0
+                    const isDemonic = option.metadata?.isDemonic ?? false
+                    const isAngelic = option.metadata?.isAngelic ?? false
+                    
                     const buttonClass = [
-                      'flex items-center gap-4 rounded-lg border px-4 py-3 text-left transition',
+                      'flex flex-col gap-3 rounded-lg border px-4 py-3 text-left transition',
                       isDisabled
                         ? 'cursor-not-allowed border-red-900/60 bg-black/25 opacity-50'
                         : isActive
                         ? 'border-red-500 bg-red-900/30 shadow-[0_0_20px_rgba(220,38,38,0.25)]'
                         : 'border-red-800/40 bg-black/25 hover:border-red-500/70',
                     ].join(' ')
+                    
                     return (
-                    <button
-                      key={option.outpoint}
-                      type="button"
-                      onClick={() => {
-                        if (!option.confirmed || userCapReached) return
-                        setSelectedInscriptionId(option.inscriptionId)
-                        setSelectorOpen(false)
-                      }}
-                      className={buttonClass}
-                      disabled={isDisabled}
-                      aria-disabled={isDisabled}
-                    >
-                      <div className="relative h-16 w-16 overflow-hidden rounded border border-red-700/60 bg-black/40">
-                        {option.image ? (
-                          <Image src={option.image} alt={option.name ?? 'Damned'} fill sizes="64px" className="object-cover" />
-                        ) : (
-                          <span className="flex h-full w-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-300">
-                            NO IMG
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-1 text-sm font-mono text-red-100">
-                        <div className="text-xs uppercase tracking-[0.3em]">
-                          {option.name ?? option.inscriptionId.slice(0, 12)}
+                    <div key={option.outpoint} className={buttonClass}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!option.confirmed || userCapReached) return
+                          setSelectedInscriptionId(option.inscriptionId)
+                          setSelectorOpen(false)
+                        }}
+                        disabled={isDisabled}
+                        aria-disabled={isDisabled}
+                        className="flex items-center gap-4 w-full"
+                      >
+                        <div className="relative h-16 w-16 overflow-hidden rounded border border-red-700/60 bg-black/40 flex-shrink-0">
+                          {option.image ? (
+                            <Image src={option.image} alt={option.name ?? 'Damned'} fill sizes="64px" className="object-cover" />
+                          ) : (
+                            <span className="flex h-full w-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.3em] text-red-300">
+                              NO IMG
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[10px] tracking-[0.3em] text-red-300/80">
-                          {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                        <div className="flex-1 space-y-1 text-sm font-mono text-red-100">
+                          <div className="text-xs uppercase tracking-[0.3em]">
+                            {option.name ?? option.inscriptionId.slice(0, 12)}
+                          </div>
+                          <div className="text-[10px] tracking-[0.3em] text-red-300/80">
+                            {option.inscriptionId.slice(0, 8)}…{option.inscriptionId.slice(-8)}
+                          </div>
+                          <div className="text-[10px] tracking-[0.3em] text-red-300/80">
+                            {option.value.toLocaleString()} sats · {option.outpoint.slice(0, 12)}…
+                          </div>
+                          <div
+                            className={`text-[10px] tracking-[0.3em] ${
+                              option.confirmed ? 'text-green-400' : 'text-amber-400'
+                            }`}
+                          >
+                            {option.confirmed ? 'Confirmed' : 'Pending'}
+                          </div>
                         </div>
-                        <div className="text-[10px] tracking-[0.3em] text-red-300/80">
-                          {option.value.toLocaleString()} sats · {option.outpoint.slice(0, 12)}…
+                      </button>
+                      
+                      {/* Demonic/Angelic Label */}
+                      {(isDemonic || isAngelic) && (
+                        <div className={`text-xs font-mono uppercase tracking-[0.3em] px-2 py-1 rounded ${
+                          isDemonic 
+                            ? 'bg-red-900/40 border border-red-700/60 text-red-300' 
+                            : 'bg-blue-900/40 border border-blue-700/60 text-blue-300'
+                        }`}>
+                          {isDemonic ? '🔥 Demonic' : '✨ Angelic'}
                         </div>
-                        <div
-                          className={`text-[10px] tracking-[0.3em] ${
-                            option.confirmed ? 'text-green-400' : 'text-amber-400'
-                          }`}
-                        >
-                          {option.confirmed ? 'Confirmed' : 'Pending'}
+                      )}
+                      
+                      {/* Expandable Traits */}
+                      {hasTraits && (
+                        <div className="border-t border-red-700/30 pt-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpandedTraits(prev => {
+                                const next = new Set(prev)
+                                if (next.has(option.inscriptionId)) {
+                                  next.delete(option.inscriptionId)
+                                } else {
+                                  next.add(option.inscriptionId)
+                                }
+                                return next
+                              })
+                            }}
+                            className="flex items-center justify-between w-full text-left text-[10px] font-mono uppercase tracking-[0.3em] text-red-300/80 hover:text-red-200 transition-colors"
+                          >
+                            <span>Traits ({option.metadata?.attributes?.length || 0})</span>
+                            {isExpanded ? (
+                              <ChevronUp className="h-3 w-3" />
+                            ) : (
+                              <ChevronDown className="h-3 w-3" />
+                            )}
+                          </button>
+                          {isExpanded && option.metadata?.attributes && (
+                            <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                              {option.metadata.attributes.map((attr, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between text-[10px] font-mono px-2 py-1 rounded bg-black/40 border border-red-800/30"
+                                >
+                                  <span className="text-red-300/70 uppercase tracking-[0.2em]">
+                                    {attr.trait_type}:
+                                  </span>
+                                  <span className="text-red-200 ml-2">
+                                    {attr.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    </button>
+                      )}
+                    </div>
                     )
                   })}
                 </div>
