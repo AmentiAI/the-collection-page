@@ -179,8 +179,77 @@ export async function GET() {
       }
     })
 
-    // Combine original metadata with minted metadata
-    const allMetadata = [...metadata, ...mintedMetadata]
+    // Get mega monsters with inscription IDs from mega_monsters table
+    const megaMonstersResult = await pool.query(`
+      SELECT 
+        inscription_id,
+        name,
+        prompt
+      FROM mega_monsters
+      WHERE inscription_id IS NOT NULL
+        AND inscription_id != ''
+      ORDER BY created_at ASC
+    `)
+
+    console.log(`[admin/meta][GET] Found ${megaMonstersResult.rows.length} mega monsters to add to metadata`)
+
+    // Add mega monsters to metadata
+    const megaMonsterMetadata: MetadataItem[] = megaMonstersResult.rows.map((row) => {
+      // Parse traits from prompt (same as ascended images)
+      const attributes = parseTraitsFromPrompt(row.prompt || '')
+      
+      // Add inscription_id as an attribute
+      if (row.inscription_id) {
+        attributes.push({
+          trait_type: 'inscription_id',
+          value: row.inscription_id
+        })
+      }
+      
+      // Add name from DB if it exists, otherwise try to extract from attributes
+      let monsterName = row.name
+      if (!monsterName) {
+        // Try to find name in attributes
+        const nameAttr = attributes.find(attr => 
+          attr.trait_type.toLowerCase() === 'name' || 
+          attr.trait_type.toLowerCase() === 'title'
+        )
+        if (nameAttr) {
+          monsterName = nameAttr.value
+        }
+      }
+      
+      // If we found a name in attributes, add it as a separate attribute
+      if (monsterName) {
+        // Check if name already exists in attributes
+        const existingNameAttr = attributes.find(attr => 
+          attr.trait_type.toLowerCase() === 'name'
+        )
+        if (!existingNameAttr) {
+          attributes.push({
+            trait_type: 'name',
+            value: monsterName
+          })
+        }
+      }
+      
+      // Add Ascension: Horde trait
+      attributes.push({
+        trait_type: 'Ascension',
+        value: 'Horde'
+      })
+
+      return {
+        id: row.inscription_id,
+        meta: {
+          name: monsterName || `Mega Monster ${row.inscription_id.slice(0, 8)}`,
+          attributes
+        }
+      }
+    })
+
+    // Combine original metadata with minted metadata and mega monsters
+    const allMetadata = [...metadata, ...mintedMetadata, ...megaMonsterMetadata]
 
     // Post-process: 
     // 1. Remove FORBIDDEN traits
@@ -204,6 +273,7 @@ export async function GET() {
       totalBurned: burnedInscriptionIds.size,
       totalUnburned: unburnedPrompts.length,
       totalMinted: mintedResult.rows.length,
+      totalMegaMonsters: megaMonstersResult.rows.length,
       metadata: allMetadata
     })
   } catch (error) {
