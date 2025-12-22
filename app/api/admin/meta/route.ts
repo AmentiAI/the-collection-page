@@ -198,14 +198,6 @@ export async function GET() {
       // Parse traits from prompt (same as ascended images)
       const attributes = parseTraitsFromPrompt(row.prompt || '')
       
-      // Add inscription_id as an attribute
-      if (row.inscription_id) {
-        attributes.push({
-          trait_type: 'inscription_id',
-          value: row.inscription_id
-        })
-      }
-      
       // Add name from DB if it exists, otherwise try to extract from attributes
       let monsterName = row.name
       if (!monsterName) {
@@ -235,7 +227,7 @@ export async function GET() {
       
       // Add Ascension: Horde trait
       attributes.push({
-        trait_type: 'Ascension',
+        trait_type: 'Ascended',
         value: 'Horde'
       })
 
