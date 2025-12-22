@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword, Flame, Ghost, Trophy } from 'lucide-react'
+import { Shield, Skull, FileText, Users, AlertTriangle, TrendingUp, Image, Settings, Sparkles, Coins, Zap, Sword, Flame, Ghost, Trophy, Database } from 'lucide-react'
 
 type AdminLink = {
   href: string
@@ -116,6 +116,13 @@ const adminLinks: AdminLink[] = [
     description: 'Comprehensive leaderboard with wallet stats, battles, heals, crystallizations, and more',
     icon: <Trophy className="h-8 w-8" />,
     color: 'red',
+  },
+  {
+    href: '/admin/launchpad',
+    title: 'Launchpad Collections',
+    description: 'phpMyAdmin-style editor for flashnet_pools (collections) table',
+    icon: <Database className="h-8 w-8" />,
+    color: 'cyan',
   },
 ]
 
