@@ -35,61 +35,34 @@ async function ensureHordeChamberTable(pool: ReturnType<typeof getPool>) {
 }
 
 // Check if ordinal is original damned (not ascended, not horde)
+// Check in abyss_burns table like graveyard does
 async function isOriginalDamned(inscriptionId: string, walletAddress: string): Promise<boolean> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-    const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(walletAddress)}&showAll=true`
+    const pool = getPool()
     
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-        'Authorization': `Bearer ${apiKey}`
-      }
-    })
-
-    if (!response.ok) {
-      return false
-    }
-
-    const data = await response.json()
-    const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
-    
-    const token = tokens.find((t: any) => (t.id || t.inscriptionId) === inscriptionId)
-    if (!token) {
-      return false
-    }
-
-    // Get attributes
-    let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
-    if (token.meta?.attributes) attributes = token.meta.attributes
-    else if (token.metadata?.attributes) attributes = token.metadata.attributes
-    else if (token.attributes) attributes = token.attributes
-
-    // Check for Ascended trait (Angelic or Demonic) - exclude if found
-    const ascendedTrait = attributes.find(
-      (attr) =>
-        (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
-        (attr.value === 'Angelic' || attr.value === 'Demonic')
+    // Check if ordinal exists in abyss_burns for this wallet
+    // Original damned ordinals have inscription_id that does NOT start with 'ascended_'
+    const result = await pool.query(
+      `SELECT inscription_id, status, hidden
+       FROM abyss_burns
+       WHERE LOWER(ordinal_wallet) = LOWER($1)
+         AND inscription_id = $2
+         AND hidden = FALSE
+         AND status = 'confirmed'`,
+      [walletAddress, inscriptionId]
     )
 
-    if (ascendedTrait) {
-      return false // Has ascended trait, not original
+    if (result.rows.length === 0) {
+      return false // Not found in abyss_burns
     }
 
-    // Check for Horde trait - exclude if found
-    const hordeTrait = attributes.find(
-      (attr) =>
-        (attr.trait_type === 'Ascension' || attr.traitType === 'Ascension') &&
-        attr.value === 'Horde'
-    )
-
-    if (hordeTrait) {
-      return false // Has horde trait, not original
+    // Check if it's ascended (inscription_id starts with 'ascended_')
+    if (inscriptionId.toLowerCase().startsWith('ascended_')) {
+      return false // Ascended, not original
     }
 
-    return true // Original damned
+    // If it's in abyss_burns and doesn't start with 'ascended_', it's original damned
+    return true
   } catch (error) {
     console.error('Error checking ordinal type:', error)
     return false

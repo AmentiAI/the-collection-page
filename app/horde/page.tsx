@@ -162,56 +162,45 @@ function HordeChamberContent() {
 
     setLoadingOrdinals(true)
     try {
-      const response = await fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(ordinalAddress)}&collectionSymbol=the-damned&fetchAll=true`, {
+      // Load from abyss_burns like graveyard does
+      const params = new URLSearchParams()
+      params.set('includeGraveyard', 'true')
+      params.set('ordinalWallet', ordinalAddress)
+      params.set('graveyardLimit', '1000') // Get all available
+
+      const response = await fetch(`/api/abyss/burns?${params.toString()}`, {
         headers: { 'Cache-Control': 'no-store' },
       })
-      const data = await response.json().catch(() => ({ tokens: [] }))
-      const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
+      const payload = await response.json().catch(() => null)
 
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error ?? 'Failed to load available ordinals')
+      }
+
+      const recordsRaw = Array.isArray(payload?.graveyard) ? payload.graveyard : []
+      
       // Filter for original damned (not ascended, not horde)
+      // Original damned ordinals in abyss_burns have inscription_id that:
+      // - Does NOT start with 'ascended_' (not ascended)
+      // - Is confirmed status
+      // - Is not hidden
       const originalOrdinals: DamnedOption[] = []
 
-      for (const token of tokens as Array<Record<string, any>>) {
-        const inscriptionId = (token?.id || token?.inscriptionId)?.toString().trim()
+      for (const item of recordsRaw as Array<Record<string, unknown>>) {
+        const inscriptionId = (item?.inscriptionId ?? item?.inscription_id ?? '').toString().trim()
         if (!inscriptionId || chamberInscriptionIds.has(inscriptionId)) continue
 
-        // Check if listed - skip listed ordinals
-        if (token.listed === true) continue
+        // Skip ascended ordinals (inscription_id starts with 'ascended_')
+        if (inscriptionId.toLowerCase().startsWith('ascended_')) continue
 
-        // Get attributes
-        let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
-        if (token?.meta?.attributes && Array.isArray(token.meta.attributes)) {
-          attributes = token.meta.attributes
-        } else if (token?.metadata?.attributes && Array.isArray(token.metadata.attributes)) {
-          attributes = token.metadata.attributes
-        } else if (token?.attributes && Array.isArray(token.attributes)) {
-          attributes = token.attributes
-        }
+        // Get image URL
+        const imageBlobUrl = (item?.imageBlobUrl ?? item?.image_blob_url ?? null) as string | null | undefined
+        const imageUrl = imageBlobUrl || `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`
 
-        // Check for Ascended trait (Angelic or Demonic) - exclude
-        const ascendedTrait = attributes.find(
-          (attr) =>
-            (attr.trait_type === 'Ascended' || attr.traitType === 'Ascended') &&
-            (attr.value === 'Angelic' || attr.value === 'Demonic')
-        )
-
-        if (ascendedTrait) continue
-
-        // Check for Horde trait - exclude
-        const hordeTrait = attributes.find(
-          (attr) =>
-            (attr.trait_type === 'Ascension' || attr.traitType === 'Ascension') &&
-            attr.value === 'Horde'
-        )
-
-        if (hordeTrait) continue
-
-        // Original damned - add to list
-        const imageUrl = token.contentURI || token.imageURI || `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`
         originalOrdinals.push({
           inscriptionId,
           imageUrl,
-          listed: token.listed === true,
+          listed: false, // abyss_burns entries are not listed
         })
       }
 
