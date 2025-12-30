@@ -37,7 +37,6 @@ function HordeChamberContent() {
   const wallet = useWallet()
   const toast = useToast()
 
-  const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [entries, setEntries] = useState<ChamberEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +52,7 @@ function HordeChamberContent() {
   const [ascensionReached, setAscensionReached] = useState<string | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
+  const isWalletConnected = wallet.isConnected || false
 
   // Check holder status
   useEffect(() => {
@@ -93,7 +93,6 @@ function HordeChamberContent() {
   }, [ordinalAddress])
 
   const handleConnectedChange = useCallback((connected: boolean) => {
-    setIsWalletConnected(connected)
     if (!connected) {
       setEntries([])
       setProfile(null)
@@ -157,7 +156,7 @@ function HordeChamberContent() {
     }
   }, [ordinalAddress, toast])
 
-  const loadAvailableOrdinals = useCallback(async () => {
+  const loadAvailableOrdinals = useCallback(async (chamberInscriptionIds: Set<string> = new Set()) => {
     if (!ordinalAddress) return
 
     setLoadingOrdinals(true)
@@ -170,7 +169,6 @@ function HordeChamberContent() {
 
       // Filter for original damned (not ascended, not horde)
       const originalOrdinals: DamnedOption[] = []
-      const chamberInscriptionIds = new Set(entries.map(e => e.inscriptionId))
 
       for (const token of tokens as Array<Record<string, any>>) {
         const inscriptionId = (token?.id || token?.inscriptionId)?.toString().trim()
@@ -222,22 +220,28 @@ function HordeChamberContent() {
     } finally {
       setLoadingOrdinals(false)
     }
-  }, [ordinalAddress, entries])
+  }, [ordinalAddress])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
       void loadChamber()
-      void loadAvailableOrdinals()
     }
-  }, [isWalletConnected, ordinalAddress, loadChamber, loadAvailableOrdinals])
+  }, [isWalletConnected, ordinalAddress, loadChamber])
+
+  // Load available ordinals after chamber loads, using current entries
+  useEffect(() => {
+    if (isWalletConnected && ordinalAddress && entries.length >= 0) {
+      const chamberInscriptionIds = new Set(entries.map(e => e.inscriptionId))
+      void loadAvailableOrdinals(chamberInscriptionIds)
+    }
+  }, [isWalletConnected, ordinalAddress, entries.length, loadAvailableOrdinals])
 
   const handleRefresh = useCallback(() => {
     if (!ordinalAddress) {
       return
     }
     void loadChamber()
-    void loadAvailableOrdinals()
-  }, [ordinalAddress, loadChamber, loadAvailableOrdinals])
+  }, [ordinalAddress, loadChamber])
 
   const powderAvailable = Math.max(0, Math.round(profile?.ascension_powder ?? 0))
   const hasPowder = powderAvailable > 0
@@ -268,7 +272,6 @@ function HordeChamberContent() {
         }
 
         await loadChamber()
-        await loadAvailableOrdinals()
         toast.success('Ordinal entered the chamber.')
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to enter chamber.'
@@ -389,7 +392,6 @@ function HordeChamberContent() {
         )
 
         await loadChamber()
-        await loadAvailableOrdinals()
         toast.success(payload.message || 'Ordinal destroyed and powder returned.')
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to destroy ordinal.'
@@ -427,7 +429,6 @@ function HordeChamberContent() {
         }
 
         await loadChamber()
-        await loadAvailableOrdinals()
         toast.success('Ordinal exited the chamber.')
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to exit chamber.'
