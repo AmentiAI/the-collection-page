@@ -313,10 +313,40 @@ function HordeChamberContent() {
 
     setLoadingRarity(true)
     try {
+      // First, fetch traits for all items
+      const traitsPromises = inscriptionIds.map(async (id) => {
+        try {
+          const traitsResponse = await fetch(`/api/abyss/burns/${encodeURIComponent(id)}/traits`, {
+            headers: { 'Cache-Control': 'no-store' },
+          })
+          const traitsData = await traitsResponse.json().catch(() => null)
+          
+          if (traitsResponse.ok && traitsData?.success && traitsData.traits?.attributes) {
+            return {
+              inscriptionId: id,
+              attributes: traitsData.traits.attributes,
+            }
+          }
+          return null
+        } catch (err) {
+          console.error(`Error fetching traits for ${id}:`, err)
+          return null
+        }
+      })
+
+      const traitsResults = await Promise.all(traitsPromises)
+      const validTraits = traitsResults.filter((t): t is { inscriptionId: string; attributes: Array<{ trait_type: string; value: string }> } => t !== null)
+
+      if (validTraits.length === 0) {
+        setLoadingRarity(false)
+        return
+      }
+
+      // Now calculate rarity based on traits
       const response = await fetch('/api/collection/rarity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inscriptionIds }),
+        body: JSON.stringify({ traits: validTraits }),
       })
 
       const payload = await response.json().catch(() => null)
@@ -326,7 +356,7 @@ function HordeChamberContent() {
         setAllGraveyardItems((prev) => {
           const updated = prev.map((item) => {
             const rarityData = payload.results.find((r: any) => r.inscriptionId === item.inscriptionId)
-            if (rarityData && rarityData.found) {
+            if (rarityData && rarityData.rank !== null) {
               return {
                 ...item,
                 rarityScore: rarityData.rarityScore,

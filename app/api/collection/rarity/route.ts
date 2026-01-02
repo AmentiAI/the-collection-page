@@ -170,15 +170,96 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Helper function to normalize trait values for comparison
+function normalizeTraitValue(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+// Helper function to match traits - finds the best matching ordinal in collection
+function findMatchingOrdinal(
+  targetAttributes: Array<{ trait_type: string; value: string }>,
+  collection: CollectionItem[],
+): CollectionItem | null {
+  // Normalize target attributes
+  const targetNormalized = targetAttributes.map(attr => ({
+    trait_type: attr.trait_type.trim(),
+    value: normalizeTraitValue(attr.value),
+  })).filter(attr => 
+    attr.trait_type && 
+    attr.value && 
+    !['Ascended', 'Silver', 'Glow', 'Horde'].includes(attr.trait_type)
+  )
+
+  if (targetNormalized.length === 0) {
+    return null
+  }
+
+  let bestMatch: CollectionItem | null = null
+  let bestMatchScore = 0
+
+  // Try to find exact match first
+  for (const item of collection) {
+    const itemAttributes = (item.meta?.attributes || []).map(attr => ({
+      trait_type: attr.trait_type.trim(),
+      value: normalizeTraitValue(attr.value),
+    })).filter(attr => 
+      attr.trait_type && 
+      attr.value && 
+      !['Ascended', 'Silver', 'Glow', 'Horde'].includes(attr.trait_type)
+    )
+
+    if (itemAttributes.length === 0) continue
+
+    // Count matching traits
+    let matchCount = 0
+    for (const targetAttr of targetNormalized) {
+      const found = itemAttributes.find(
+        itemAttr => 
+          itemAttr.trait_type === targetAttr.trait_type && 
+          itemAttr.value === targetAttr.value
+      )
+      if (found) matchCount++
+    }
+
+    // Calculate match score (percentage of traits that match)
+    const matchScore = matchCount / Math.max(targetNormalized.length, itemAttributes.length)
+
+    // Exact match (all traits match)
+    if (matchScore === 1 && matchCount === targetNormalized.length && matchCount === itemAttributes.length) {
+      return item
+    }
+
+    // Track best partial match
+    if (matchScore > bestMatchScore) {
+      bestMatchScore = matchScore
+      bestMatch = item
+    }
+  }
+
+  // Return best match if it's a good match (at least 80% of traits match)
+  return bestMatchScore >= 0.8 ? bestMatch : null
+}
+
 // POST endpoint to calculate rarity for multiple inscriptions at once
+// Can accept either inscriptionIds (to look up in collection) or traits directly
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { inscriptionIds } = body
+    const { inscriptionIds, traits } = body
 
-    if (!Array.isArray(inscriptionIds)) {
+    // Support two modes:
+    // 1. inscriptionIds array - look up in collection.json
+    // 2. traits array - array of { inscriptionId, attributes } objects
+    if (inscriptionIds && !Array.isArray(inscriptionIds)) {
       return NextResponse.json(
         { success: false, error: 'inscriptionIds must be an array' },
+        { status: 400 },
+      )
+    }
+
+    if (traits && !Array.isArray(traits)) {
+      return NextResponse.json(
+        { success: false, error: 'traits must be an array' },
         { status: 400 },
       )
     }
@@ -186,7 +267,7 @@ export async function POST(request: NextRequest) {
     const traitRarity = calculateTraitRarity()
     const collection = loadCollection()
 
-    // Calculate scores for all items
+    // Calculate scores for all items in collection
     const allScores = collection
       .map((i) => ({
         id: i.id,
@@ -194,24 +275,80 @@ export async function POST(request: NextRequest) {
       }))
       .sort((a, b) => b.score - a.score) // Sort descending
 
-    // Get results for requested inscriptions
-    const results = inscriptionIds.map((id: string) => {
-      const item = collection.find((i) => i.id === id)
-      if (!item) {
-        return { inscriptionId: id, rarityScore: 0, rank: null, found: false }
-      }
+    const results: Array<{
+      inscriptionId: string
+      rarityScore: number
+      rank: number | null
+      found: boolean
+      matchedInscriptionId?: string
+    }> = []
 
-      const attributes = item.meta?.attributes || []
-      const rarityScore = calculateRarityScore(attributes, traitRarity)
-      const rank = allScores.findIndex((s) => s.id === id) + 1
+    if (traits) {
+      // Mode 2: Calculate rarity based on provided traits
+      for (const traitData of traits as Array<{ inscriptionId: string; attributes: Array<{ trait_type: string; value: string }> }>) {
+        const { inscriptionId, attributes } = traitData
 
-      return {
-        inscriptionId: id,
-        rarityScore: Math.round(rarityScore * 100) / 100,
-        rank,
-        found: true,
+        if (!attributes || attributes.length === 0) {
+          results.push({ inscriptionId, rarityScore: 0, rank: null, found: false })
+          continue
+        }
+
+        // Find matching ordinal in collection based on traits
+        const matchedItem = findMatchingOrdinal(attributes, collection)
+
+        if (matchedItem) {
+          const rarityScore = calculateRarityScore(attributes, traitRarity)
+          const rank = allScores.findIndex((s) => s.id === matchedItem.id) + 1
+
+          results.push({
+            inscriptionId,
+            rarityScore: Math.round(rarityScore * 100) / 100,
+            rank,
+            found: true,
+            matchedInscriptionId: matchedItem.id,
+          })
+        } else {
+          // Still calculate rarity score even if not found in collection
+          const rarityScore = calculateRarityScore(attributes, traitRarity)
+          
+          // Estimate rank by comparing score to all scores
+          const estimatedRank = allScores.findIndex((s) => s.score < rarityScore) + 1
+          const rank = estimatedRank > 0 ? estimatedRank : allScores.length + 1
+
+          results.push({
+            inscriptionId,
+            rarityScore: Math.round(rarityScore * 100) / 100,
+            rank,
+            found: false, // Not found in collection, but rank estimated
+          })
+        }
       }
-    })
+    } else if (inscriptionIds) {
+      // Mode 1: Look up by inscription IDs in collection
+      for (const id of inscriptionIds as string[]) {
+        const item = collection.find((i) => i.id === id)
+        if (!item) {
+          results.push({ inscriptionId: id, rarityScore: 0, rank: null, found: false })
+          continue
+        }
+
+        const attributes = item.meta?.attributes || []
+        const rarityScore = calculateRarityScore(attributes, traitRarity)
+        const rank = allScores.findIndex((s) => s.id === id) + 1
+
+        results.push({
+          inscriptionId: id,
+          rarityScore: Math.round(rarityScore * 100) / 100,
+          rank,
+          found: true,
+        })
+      }
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Either inscriptionIds or traits must be provided' },
+        { status: 400 },
+      )
+    }
 
     return NextResponse.json({
       success: true,
