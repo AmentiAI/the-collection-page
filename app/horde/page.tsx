@@ -59,6 +59,16 @@ function HordeChamberContent() {
   }>>([])
   const [loadingAllGraveyard, setLoadingAllGraveyard] = useState(false)
   const [destroyingForPowder, setDestroyingForPowder] = useState<string | null>(null)
+  const [traitsData, setTraitsData] = useState<Record<string, {
+    attributes: Array<{ trait_type: string; value: string }>
+    isAngelic?: boolean
+    isDemonic?: boolean
+    hasSilver?: boolean
+    hasGlow?: boolean
+    allAttributes: Array<{ trait_type: string; value: string }>
+  }>>({})
+  const [loadingTraits, setLoadingTraits] = useState<string | null>(null)
+  const [expandedTraits, setExpandedTraits] = useState<Set<string>>(new Set())
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
   const isWalletConnected = wallet.isConnected || false
@@ -352,6 +362,51 @@ function HordeChamberContent() {
       }
     },
     [ordinalAddress, toast, destroyingForPowder, allGraveyardItems],
+  )
+
+  const handleFetchTraits = useCallback(
+    async (inscriptionId: string) => {
+      if (loadingTraits === inscriptionId || traitsData[inscriptionId]) {
+        // Toggle expansion if already loaded
+        setExpandedTraits((prev) => {
+          const next = new Set(prev)
+          if (next.has(inscriptionId)) {
+            next.delete(inscriptionId)
+          } else {
+            next.add(inscriptionId)
+          }
+          return next
+        })
+        return
+      }
+
+      setLoadingTraits(inscriptionId)
+      try {
+        const response = await fetch(`/api/abyss/burns/${encodeURIComponent(inscriptionId)}/traits`, {
+          headers: { 'Cache-Control': 'no-store' },
+        })
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to fetch traits.')
+        }
+
+        setTraitsData((prev) => ({
+          ...prev,
+          [inscriptionId]: payload.traits,
+        }))
+        setExpandedTraits((prev) => new Set(prev).add(inscriptionId))
+
+        toast.success('Traits loaded from Magic Eden')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch traits.'
+        toast.error(message)
+      } finally {
+        setLoadingTraits(null)
+      }
+    },
+    [loadingTraits, traitsData, toast],
   )
 
   const handleRefresh = useCallback(() => {
@@ -895,7 +950,77 @@ function HordeChamberContent() {
                             'Destroy for Powder'
                           )}
                         </Button>
+                        <Button
+                          type="button"
+                          disabled={loadingTraits === item.inscriptionId}
+                          onClick={() => handleFetchTraits(item.inscriptionId)}
+                          className="flex w-full items-center justify-center gap-2 rounded-full border border-purple-500/60 bg-purple-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-purple-100 transition hover:bg-purple-600/45 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingTraits === item.inscriptionId ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Loading...
+                            </>
+                          ) : traitsData[item.inscriptionId] ? (
+                            expandedTraits.has(item.inscriptionId) ? 'Hide Traits' : 'Show Traits'
+                          ) : (
+                            'Extend Traits'
+                          )}
+                        </Button>
                       </div>
+                      {traitsData[item.inscriptionId] && expandedTraits.has(item.inscriptionId) && (
+                        <div className="border-t border-purple-500/20 bg-black/80 px-3 py-3 space-y-2">
+                          <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-purple-200/80 mb-2">
+                            Magic Eden Traits
+                          </div>
+                          {traitsData[item.inscriptionId].isAngelic && (
+                            <div className="flex items-center gap-2 rounded-md bg-blue-500/20 border border-blue-400/40 px-2 py-1 text-[8px] font-mono uppercase tracking-wider text-blue-300">
+                              <span>Angelic</span>
+                            </div>
+                          )}
+                          {traitsData[item.inscriptionId].isDemonic && (
+                            <div className="flex items-center gap-2 rounded-md bg-red-500/20 border border-red-400/40 px-2 py-1 text-[8px] font-mono uppercase tracking-wider text-red-300">
+                              <span>Demonic</span>
+                            </div>
+                          )}
+                          {traitsData[item.inscriptionId].hasSilver && (
+                            <div className="flex items-center gap-2 rounded-md bg-slate-500/20 border border-slate-400/40 px-2 py-1 text-[8px] font-mono uppercase tracking-wider text-slate-300">
+                              <span>Silver</span>
+                            </div>
+                          )}
+                          {traitsData[item.inscriptionId].hasGlow && (
+                            <div className="flex items-center gap-2 rounded-md bg-amber-500/20 border border-amber-400/40 px-2 py-1 text-[8px] font-mono uppercase tracking-wider text-amber-300">
+                              <span>Glow</span>
+                            </div>
+                          )}
+                          {traitsData[item.inscriptionId].attributes.length > 0 && (
+                            <div className="space-y-1">
+                              {traitsData[item.inscriptionId].attributes.map((attr, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between rounded-md bg-purple-500/10 border border-purple-500/30 px-2 py-1 text-[8px]"
+                                >
+                                  <span className="font-mono uppercase tracking-wider text-purple-200/70">
+                                    {attr.trait_type}
+                                  </span>
+                                  <span className="font-mono text-purple-100">
+                                    {attr.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {traitsData[item.inscriptionId].attributes.length === 0 && 
+                           !traitsData[item.inscriptionId].isAngelic && 
+                           !traitsData[item.inscriptionId].isDemonic && 
+                           !traitsData[item.inscriptionId].hasSilver && 
+                           !traitsData[item.inscriptionId].hasGlow && (
+                            <div className="text-[8px] text-purple-200/60 italic">
+                              No traits found
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
