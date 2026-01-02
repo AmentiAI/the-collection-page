@@ -654,6 +654,11 @@ function AbyssContent() {
         const inscriptionId = (token?.id || token?.inscriptionId)?.toString().trim()
         if (!inscriptionId) continue
 
+        // Skip ascended ordinals (inscription_id starts with 'ascended_')
+        if (inscriptionId.toLowerCase().startsWith('ascended_')) {
+          continue
+        }
+
         // Check if ordinal has "Ascended" trait - exclude it if it does
         let attributes: Array<{ trait_type?: string; traitType?: string; value?: string }> = []
         if (token?.meta?.attributes && Array.isArray(token.meta.attributes)) {
@@ -673,13 +678,30 @@ function AbyssContent() {
           }))
           .filter(attr => attr.trait_type && attr.value)
 
-        // Check for Ascended trait
+        // Check for Ascended trait - skip if found
         const ascendedTrait = normalizedAttributes.find(
-          (attr) => attr.trait_type === 'Ascended' && (attr.value === 'Angelic' || attr.value === 'Demonic')
+          (attr) => {
+            const traitType = (attr.trait_type || '').toLowerCase()
+            const value = (attr.value || '').toLowerCase()
+            return traitType === 'ascended' && (value === 'angelic' || value === 'demonic')
+          }
         )
 
         if (ascendedTrait) {
           continue // Skip ordinals with Ascended trait
+        }
+
+        // Check for Horde trait - skip if found
+        const hordeTrait = normalizedAttributes.find(
+          (attr) => {
+            const traitType = (attr.trait_type || '').toLowerCase()
+            const value = (attr.value || '').toLowerCase()
+            return traitType === 'horde' || value === 'horde'
+          }
+        )
+
+        if (hordeTrait) {
+          continue // Skip ordinals with Horde trait
         }
 
         // Extract metadata - check for any traits that might indicate demonic/angelic
