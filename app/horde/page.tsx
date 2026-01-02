@@ -923,7 +923,7 @@ function HordeChamberContent() {
                   <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
                     {entries.length > 0 
                       ? 'Chamber is full. Exit or destroy your current ordinal to add another.'
-                      : 'No available original Damned ordinals. Only original ordinals from your graveyard (abyss_burns with hidden=false, not ascended) can enter the chamber.'}
+                      : 'No available original Damned ordinals. Only original ordinals from your graveyard can enter the chamber.'}
                   </p>
                 </div>
               ) : (
