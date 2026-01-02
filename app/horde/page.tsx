@@ -494,7 +494,7 @@ function HordeChamberContent() {
             </p>
           )}
           <p className="mx-auto max-w-2xl text-[11px] uppercase tracking-[0.3em] text-red-200/60">
-            Place original Damned ordinals in the chamber. Use 25,000 ascension powder to reach ascension.
+            Place 1 original Damned ordinal in the chamber. Use 25,000 ascension powder to reach ascension.
           </p>
         </div>
 
@@ -519,8 +519,8 @@ function HordeChamberContent() {
 
               <div className="flex flex-col gap-3 rounded-3xl border border-red-600/40 bg-black/80 px-5 py-4 shadow-[0_0_35px_rgba(220,38,38,0.35)] md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.35em] text-red-200/80">Ordinals in chamber</p>
-                  <p className="mt-1 text-3xl font-black uppercase tracking-[0.35em] text-red-100">{entries.length}</p>
+                  <p className="text-sm uppercase tracking-[0.35em] text-red-200/80">Ordinal in chamber</p>
+                  <p className="mt-1 text-3xl font-black uppercase tracking-[0.35em] text-red-100">{entries.length} / 1</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -546,7 +546,7 @@ function HordeChamberContent() {
                 <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                   <Skull className="h-10 w-10 text-red-400" />
                   <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
-                    No ordinals in the chamber yet. Select an original Damned ordinal to enter.
+                    No ordinal in the chamber yet. Select 1 original Damned ordinal from your graveyard to enter.
                   </p>
                 </div>
               ) : (
@@ -684,44 +684,50 @@ function HordeChamberContent() {
               ) : availableOrdinals.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                   <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
-                    No available original Damned ordinals. Only original ordinals (not ascended demons/angels, not horde) can enter the chamber.
+                    {entries.length > 0 
+                      ? 'Chamber is full. Exit or destroy your current ordinal to add another.'
+                      : 'No available original Damned ordinals. Only original ordinals from your graveyard (abyss_burns with hidden=false, not ascended) can enter the chamber.'}
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {availableOrdinals.map((ordinal) => (
-                    <article
-                      key={ordinal.inscriptionId}
-                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-amber-500/40 bg-black/70 shadow-[0_0_25px_rgba(251,191,36,0.35)] transition"
-                    >
-                      <div className="relative aspect-square">
-                        <Image
-                          src={ordinal.imageUrl}
-                          alt={ordinal.inscriptionId}
-                          fill
-                          sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
-                          className="object-cover transition duration-500 ease-out group-hover:scale-105"
-                        />
-                      </div>
-                      <div className="border-t border-amber-500/20 bg-black/60 px-3 py-3">
-                        <Button
-                          type="button"
-                          disabled={enteringChamber === ordinal.inscriptionId}
-                          onClick={() => handleEnterChamber(ordinal.inscriptionId)}
-                          className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {enteringChamber === ordinal.inscriptionId ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Entering...
-                            </>
-                          ) : (
-                            'Enter Chamber'
-                          )}
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
+                  {availableOrdinals.map((ordinal) => {
+                    const isDisabled = entries.length > 0 || enteringChamber === ordinal.inscriptionId
+                    return (
+                      <article
+                        key={ordinal.inscriptionId}
+                        className="group relative flex flex-col overflow-hidden rounded-2xl border border-amber-500/40 bg-black/70 shadow-[0_0_25px_rgba(251,191,36,0.35)] transition"
+                      >
+                        <div className="relative aspect-square">
+                          <Image
+                            src={ordinal.imageUrl}
+                            alt={ordinal.inscriptionId}
+                            fill
+                            sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
+                            className="object-cover transition duration-500 ease-out group-hover:scale-105"
+                          />
+                        </div>
+                        <div className="border-t border-amber-500/20 bg-black/60 px-3 py-3">
+                          <Button
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => handleEnterChamber(ordinal.inscriptionId)}
+                            className="flex w-full items-center justify-center gap-2 rounded-full border border-amber-500/60 bg-amber-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-600/45 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={entries.length > 0 ? 'Chamber can only hold 1 ordinal. Exit or destroy your current ordinal first.' : ''}
+                          >
+                            {enteringChamber === ordinal.inscriptionId ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Entering...
+                              </>
+                            ) : (
+                              'Enter Chamber'
+                            )}
+                          </Button>
+                        </div>
+                      </article>
+                    )
+                  })}
                 </div>
               )}
             </section>

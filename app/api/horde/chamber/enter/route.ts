@@ -114,6 +114,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if wallet already has an active entry in the chamber (limit to 1)
+    const existingActiveCheck = await client.query(
+      `SELECT id, inscription_id FROM horde_chamber_records
+       WHERE LOWER(wallet_address) = LOWER($1)
+         AND status = 'active'
+       LIMIT 1`,
+      [walletAddress]
+    )
+
+    if (existingActiveCheck.rows.length > 0) {
+      await client.query('ROLLBACK')
+      return NextResponse.json(
+        { error: 'The chamber can only hold 1 ordinal at a time. Please exit or destroy your current ordinal first.' },
+        { status: 400 }
+      )
+    }
+
     // Insert chamber record
     const result = await client.query(
       `INSERT INTO horde_chamber_records (wallet_address, inscription_id, entered_at, ascension_powder_used, status)
