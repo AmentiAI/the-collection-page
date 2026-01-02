@@ -3,7 +3,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ASCENSION_TARGET = 25000
+const ASCENSION_TARGET = 50000
 
 async function ensureHordeChamberTable(pool: ReturnType<typeof getPool>) {
   // DDL operations - tables must exist in production

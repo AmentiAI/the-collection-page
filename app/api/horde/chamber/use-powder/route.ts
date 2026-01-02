@@ -3,7 +3,7 @@ import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ASCENSION_TARGET = 25000
+const ASCENSION_TARGET = 50000
 const MAX_POWDER_PER_USE = 20
 
 async function ensureHordeChamberTable(pool: ReturnType<typeof getPool>) {

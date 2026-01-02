@@ -31,7 +31,7 @@ type DamnedOption = {
   listed: boolean
 }
 
-const ASCENSION_TARGET = 25000
+const ASCENSION_TARGET = 50000
 const MAX_POWDER_PER_USE = 20
 
 function HordeChamberContent() {
@@ -51,6 +51,14 @@ function HordeChamberContent() {
   const [exitingChamber, setExitingChamber] = useState<string | null>(null)
   const [destroying, setDestroying] = useState<string | null>(null)
   const [ascensionReached, setAscensionReached] = useState<string | null>(null)
+  const [allGraveyardItems, setAllGraveyardItems] = useState<Array<{
+    inscriptionId: string
+    imageUrl: string
+    ascensionPowder: number
+    isAscended: boolean
+  }>>([])
+  const [loadingAllGraveyard, setLoadingAllGraveyard] = useState(false)
+  const [destroyingForPowder, setDestroyingForPowder] = useState<string | null>(null)
 
   const ordinalAddress = wallet.currentAddress?.trim() || ''
   const isWalletConnected = wallet.isConnected || false
@@ -225,6 +233,126 @@ function HordeChamberContent() {
       void loadAvailableOrdinals(chamberInscriptionIds)
     }
   }, [isWalletConnected, ordinalAddress, entries.length, loadAvailableOrdinals])
+
+  const loadAllGraveyardItems = useCallback(async () => {
+    if (!ordinalAddress) return
+
+    setLoadingAllGraveyard(true)
+    try {
+      // Load ALL graveyard items (including ascended) from abyss_burns
+      const params = new URLSearchParams()
+      params.set('includeGraveyard', 'true')
+      params.set('ordinalWallet', ordinalAddress)
+      params.set('graveyardLimit', '1000') // Get all available
+
+      const response = await fetch(`/api/abyss/burns?${params.toString()}`, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error ?? 'Failed to load graveyard items')
+      }
+
+      const recordsRaw = Array.isArray(payload?.graveyard) ? payload.graveyard : []
+      
+      const allItems: Array<{
+        inscriptionId: string
+        imageUrl: string
+        ascensionPowder: number
+        isAscended: boolean
+      }> = []
+
+      for (const item of recordsRaw as Array<Record<string, unknown>>) {
+        const inscriptionId = (item?.inscriptionId ?? item?.inscription_id ?? '').toString().trim()
+        if (!inscriptionId) continue
+
+        const isAscended = inscriptionId.toLowerCase().startsWith('ascended_')
+        const ascensionPowder = Number(item?.ascensionPowder ?? item?.ascension_powder ?? 0)
+
+        // Get image URL
+        const imageBlobUrl = (item?.imageBlobUrl ?? item?.image_blob_url ?? null) as string | null | undefined
+        const imageUrl = imageBlobUrl || `https://ord-mirror.magiceden.dev/content/${encodeURIComponent(inscriptionId)}`
+
+        allItems.push({
+          inscriptionId,
+          imageUrl,
+          ascensionPowder,
+          isAscended,
+        })
+      }
+
+      setAllGraveyardItems(allItems)
+    } catch (err) {
+      console.error('Error loading all graveyard items:', err)
+    } finally {
+      setLoadingAllGraveyard(false)
+    }
+  }, [ordinalAddress])
+
+  useEffect(() => {
+    if (isWalletConnected && ordinalAddress) {
+      void loadAllGraveyardItems()
+    } else {
+      setAllGraveyardItems([])
+    }
+  }, [isWalletConnected, ordinalAddress, loadAllGraveyardItems])
+
+  const handleDestroyForPowder = useCallback(
+    async (inscriptionId: string) => {
+      if (!ordinalAddress) {
+        toast.error('Connect your wallet to destroy ordinals.')
+        return
+      }
+
+      if (destroyingForPowder === inscriptionId) {
+        return
+      }
+
+      const item = allGraveyardItems.find(i => i.inscriptionId === inscriptionId)
+      if (!item) {
+        toast.error('Item not found')
+        return
+      }
+
+      if (!confirm(`Destroy this ordinal to receive ${item.ascensionPowder} ascension powder? This action cannot be undone.`)) {
+        return
+      }
+
+      setDestroyingForPowder(inscriptionId)
+      try {
+        const response = await fetch(`/api/abyss/burns/${encodeURIComponent(inscriptionId)}/destroy-for-powder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress: ordinalAddress }),
+        })
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error ?? 'Failed to destroy ordinal.')
+        }
+
+        // Update profile powder
+        if (payload.newBalance !== undefined) {
+          setProfile((prev) =>
+            prev ? { ...prev, ascension_powder: payload.newBalance } : prev,
+          )
+        }
+
+        // Remove from list
+        setAllGraveyardItems((prev) => prev.filter((i) => i.inscriptionId !== inscriptionId))
+
+        toast.success(`Destroyed! Received ${payload.powderGranted} ascension powder.`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to destroy ordinal.'
+        toast.error(message)
+      } finally {
+        setDestroyingForPowder(null)
+      }
+    },
+    [ordinalAddress, toast, destroyingForPowder, allGraveyardItems],
+  )
 
   const handleRefresh = useCallback(() => {
     if (!ordinalAddress) {
@@ -494,7 +622,7 @@ function HordeChamberContent() {
             </p>
           )}
           <p className="mx-auto max-w-2xl text-[11px] uppercase tracking-[0.3em] text-red-200/60">
-            Place 1 original Damned ordinal in the chamber. Use 25,000 ascension powder to reach ascension.
+            Place 1 original Damned ordinal in the chamber. Use 50,000 ascension powder to reach ascension.
           </p>
         </div>
 
@@ -623,45 +751,17 @@ function HordeChamberContent() {
                                 </div>
                               </div>
                             ) : (
-                              <>
-                                <Button
-                                  type="button"
-                                  disabled={!hasPowder || powderSpending === entry.inscriptionId}
-                                  onClick={() => handleUsePowder(entry)}
-                                  className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
-                                >
-                                  {powderSpending === entry.inscriptionId && (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  )}
-                                  Use Powder
-                                </Button>
-                                <div className="flex gap-2">
-                                  <Button
-                                    type="button"
-                                    disabled={destroying === entry.inscriptionId}
-                                    onClick={() => handleDestroy(entry)}
-                                    className="flex-1 items-center justify-center rounded-full border border-red-500/60 bg-red-700/40 px-2 py-1.5 text-[9px] font-mono uppercase tracking-[0.3em] text-red-100 transition hover:bg-red-700/60 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {destroying === entry.inscriptionId ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      'Destroy'
-                                    )}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    disabled={exitingChamber === entry.inscriptionId}
-                                    onClick={() => handleExitChamber(entry)}
-                                    className="flex-1 items-center justify-center rounded-full border border-gray-500/60 bg-gray-700/40 px-2 py-1.5 text-[9px] font-mono uppercase tracking-[0.3em] text-gray-100 transition hover:bg-gray-700/60 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {exitingChamber === entry.inscriptionId ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      'Exit'
-                                    )}
-                                  </Button>
-                                </div>
-                              </>
+                              <Button
+                                type="button"
+                                disabled={!hasPowder || powderSpending === entry.inscriptionId}
+                                onClick={() => handleUsePowder(entry)}
+                                className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:border-red-500/30 disabled:bg-black/40 disabled:text-red-200/40"
+                              >
+                                {powderSpending === entry.inscriptionId && (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                )}
+                                Use Powder
+                              </Button>
                             )}
                           </div>
                         </article>
@@ -731,6 +831,76 @@ function HordeChamberContent() {
                 </div>
               )}
             </section>
+
+            {/* All Graveyard Items Section - Destroy for Powder */}
+            <section className="flex flex-col gap-5">
+              <h2 className="text-xl font-mono uppercase tracking-[0.4em] text-red-300">
+                All Graveyard Items - Destroy for Powder
+              </h2>
+              <p className="text-xs uppercase tracking-[0.3em] text-red-200/60">
+                Destroy any graveyard item to receive its ascension powder value. This sets the item to hidden and can only be done once.
+              </p>
+              {loadingAllGraveyard ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-red-400" />
+                </div>
+              ) : allGraveyardItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
+                  <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
+                    No graveyard items available to destroy.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {allGraveyardItems.map((item) => (
+                    <article
+                      key={item.inscriptionId}
+                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-purple-500/40 bg-black/70 shadow-[0_0_25px_rgba(168,85,247,0.35)] transition"
+                    >
+                      <div className="relative aspect-square">
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.inscriptionId}
+                          fill
+                          sizes="(min-width: 1280px) 220px, (min-width: 768px) 25vw, 50vw"
+                          className="object-cover transition duration-500 ease-out group-hover:scale-105"
+                        />
+                        {item.isAscended && (
+                          <div className="absolute top-2 right-2 rounded-md bg-emerald-500/80 px-2 py-1 text-[8px] font-mono uppercase tracking-[0.2em] text-emerald-100">
+                            Ascended
+                          </div>
+                        )}
+                      </div>
+                      <div className="border-t border-purple-500/20 bg-black/60 px-3 py-3 space-y-2">
+                        <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-purple-200/80">
+                          <span className="flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 text-amber-400" /> Powder
+                          </span>
+                          <span className="font-mono text-[10px] text-amber-100">
+                            {item.ascensionPowder.toLocaleString()}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          disabled={destroyingForPowder === item.inscriptionId}
+                          onClick={() => handleDestroyForPowder(item.inscriptionId)}
+                          className="flex w-full items-center justify-center gap-2 rounded-full border border-red-500/60 bg-red-600/30 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.35em] text-red-100 transition hover:bg-red-600/45 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {destroyingForPowder === item.inscriptionId ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Destroying...
+                            </>
+                          ) : (
+                            'Destroy for Powder'
+                          )}
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
 
@@ -744,7 +914,7 @@ function HordeChamberContent() {
                   ASCENSION TARGET REACHED!
                 </h2>
                 <p className="mb-6 text-sm leading-relaxed text-emerald-200/80">
-                  You have reached 25,000 ascension powder on this ordinal. The ascension process is ready to begin.
+                  You have reached 50,000 ascension powder on this ordinal. The ascension process is ready to begin.
                 </p>
                 <p className="text-xs text-emerald-300/60">
                   (This is a placeholder alert. Full ascension functionality coming soon.)
