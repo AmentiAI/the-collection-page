@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Pool } from 'pg'
+import fs from 'fs'
+import path from 'path'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 
@@ -580,6 +582,7 @@ export async function GET(request: NextRequest) {
                    source,
                    ascension_powder,
                    image_blob_url,
+                   generation_prompt,
                    created_at,
                    confirmed_at,
                    updated_at
@@ -742,6 +745,23 @@ export async function POST(request: NextRequest) {
     const pool = getPool()
     await ensureAbyssBurnsTable(pool)
 
+    // Try to fetch and save the prompt from inscription_prompts.json
+    let generationPrompt: string | null = null
+    try {
+      const promptsPath = path.join(process.cwd(), 'public', 'inscription_prompts.json')
+      if (fs.existsSync(promptsPath)) {
+        const promptsData = fs.readFileSync(promptsPath, 'utf-8')
+        const allPrompts: Array<{ inscription_id: string; prompt: string }> = JSON.parse(promptsData)
+        const foundPrompt = allPrompts.find((p) => p.inscription_id === inscriptionId)
+        if (foundPrompt?.prompt) {
+          generationPrompt = foundPrompt.prompt
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to load prompt for ${inscriptionId}:`, error)
+      // Continue without prompt - it's optional
+    }
+
     const preSummaryResult = await pool.query(
       `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'confirmed')::int AS confirmed FROM abyss_burns`,
     )
@@ -771,8 +791,8 @@ export async function POST(request: NextRequest) {
     try {
     await pool.query(
       `
-        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+        INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, generation_prompt, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, NOW(), NOW())
         ON CONFLICT (inscription_id) DO UPDATE
           SET tx_id = EXCLUDED.tx_id,
               ordinal_wallet = EXCLUDED.ordinal_wallet,
@@ -780,19 +800,20 @@ export async function POST(request: NextRequest) {
               status = 'pending',
               source = EXCLUDED.source,
               summon_id = EXCLUDED.summon_id,
+              generation_prompt = COALESCE(EXCLUDED.generation_prompt, abyss_burns.generation_prompt),
               updated_at = NOW(),
               confirmed_at = NULL,
               last_checked_at = NULL
       `,
-      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+      [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId, generationPrompt],
     )
     } catch (err: any) {
       // Unique violation can happen on tx_id when the same tx is retried with a different inscription_id string casing
       if (err && err.code === '23505') {
         await pool.query(
           `
-            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'pending', $5, $6, NOW(), NOW())
+            INSERT INTO abyss_burns (inscription_id, tx_id, ordinal_wallet, payment_wallet, status, source, summon_id, generation_prompt, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, NOW(), NOW())
             ON CONFLICT (tx_id) DO UPDATE
               SET inscription_id = EXCLUDED.inscription_id,
                   ordinal_wallet = EXCLUDED.ordinal_wallet,
@@ -800,11 +821,12 @@ export async function POST(request: NextRequest) {
                   status = 'pending',
                   source = EXCLUDED.source,
                   summon_id = EXCLUDED.summon_id,
+                  generation_prompt = COALESCE(EXCLUDED.generation_prompt, abyss_burns.generation_prompt),
                   updated_at = NOW(),
                   confirmed_at = NULL,
                   last_checked_at = NULL
           `,
-          [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId],
+          [inscriptionId, txId, ordinalWallet, paymentWallet, burnSource, summonId, generationPrompt],
         )
       } else {
         throw err

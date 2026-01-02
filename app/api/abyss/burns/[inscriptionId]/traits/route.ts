@@ -1,6 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+
+// Parse traits from prompt text (same function as admin/meta route)
+function parseTraitsFromPrompt(prompt: string): Array<{ trait_type: string; value: string }> {
+  const attributes: Array<{ trait_type: string; value: string }> = []
+  
+  // Find the ASSIGNED TRAITS section
+  const traitsMatch = prompt.match(/ASSIGNED TRAITS:\n([\s\S]*?)(?:\n\nTRAIT RENDERING|$)/i)
+  if (!traitsMatch) return attributes
+  
+  const traitsSection = traitsMatch[1]
+  
+  // Parse each trait line (format: "Type: Name - Description")
+  const traitLines = traitsSection.split('\n').filter(line => line.trim())
+  
+  // Traits to exclude from metadata
+  const excludedTraits = new Set([
+    'CUSTOM RULES',
+    'BORDER',
+    'QUALITY',
+    'TRAIT RENDERING'
+  ])
+  
+  for (const line of traitLines) {
+    // Match pattern: "Type: Name - Description"
+    const match = line.match(/^([^:]+):\s*([^-]+)\s*-/)
+    if (match) {
+      let traitType = match[1].trim()
+      const traitValue = match[2].trim()
+      
+      // Skip excluded traits
+      if (excludedTraits.has(traitType)) {
+        continue
+      }
+      
+      // Normalize trait type names
+      if (traitType.toLowerCase().includes('hand')) {
+        traitType = 'Hands'
+      } else if (traitType.toLowerCase() === 'body skin') {
+        traitType = 'Body Skin'
+      }
+      
+      attributes.push({
+        trait_type: traitType,
+        value: traitValue
+      })
+    }
+  }
+  
+  return attributes
+}
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +67,42 @@ export async function GET(
       )
     }
 
+    const pool = getPool()
+
+    // First, try to get the saved prompt from abyss_burns
+    const burnResult = await pool.query(
+      `SELECT generation_prompt FROM abyss_burns WHERE inscription_id = $1 LIMIT 1`,
+      [inscriptionId],
+    )
+
+    if (burnResult.rows.length > 0 && burnResult.rows[0].generation_prompt) {
+      // Parse traits from saved prompt
+      const prompt = burnResult.rows[0].generation_prompt
+      const attributes = parseTraitsFromPrompt(prompt)
+
+      // Detect special traits from prompt content
+      const isAngelic = prompt.toLowerCase().includes('angelic')
+      const isDemonic = prompt.toLowerCase().includes('demonic')
+      const hasSilver = prompt.toLowerCase().includes('silver plated') || prompt.toLowerCase().includes('silver border')
+      const hasGlow = prompt.toLowerCase().includes('glow')
+
+      return NextResponse.json({
+        success: true,
+        traits: {
+          attributes,
+          isAngelic,
+          isDemonic,
+          hasSilver,
+          hasGlow,
+          allAttributes: attributes, // Include all for display
+        },
+        source: 'saved_prompt',
+      })
+    }
+
+    // Fallback: Try Magic Eden if no saved prompt
     const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
     
-    // Try to fetch the token directly by inscription ID
     const tokenUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens/${encodeURIComponent(inscriptionId)}`
     
     const response = await fetch(tokenUrl, {
@@ -34,7 +118,7 @@ export async function GET(
 
     if (!response.ok) {
       return NextResponse.json(
-        { success: false, error: `Magic Eden API returned ${response.status}` },
+        { success: false, error: `No saved prompt found and Magic Eden API returned ${response.status}` },
         { status: response.status },
       )
     }
@@ -93,9 +177,10 @@ export async function GET(
         hasGlow: glowTrait !== undefined,
         allAttributes: normalizedAttributes, // Include all for display
       },
+      source: 'magic_eden',
     })
   } catch (error) {
-    console.error(`Error fetching traits from Magic Eden for ${params.inscriptionId}:`, error)
+    console.error(`Error fetching traits for ${params.inscriptionId}:`, error)
     return NextResponse.json(
       {
         success: false,
@@ -106,4 +191,3 @@ export async function GET(
     )
   }
 }
-

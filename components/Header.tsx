@@ -38,8 +38,8 @@ export default function Header({
   const [shake, setShake] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   
-  // Always show music controls on admin/sadmin pages
-  const shouldShowMusicControls = showMusicControls || pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin')
+  // Always show music controls on admin/sadmin/horde pages
+  const shouldShowMusicControls = showMusicControls || pathname?.startsWith('/admin') || pathname?.startsWith('/sadmin') || pathname?.startsWith('/horde')
   const title = 'THE DAMNED'
   const socialLinks = [
     {
