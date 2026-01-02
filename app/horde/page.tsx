@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, X, AlertCircle, Sword } from 'lucide-react'
+import { Loader2, Skull, AlertTriangle, Sparkles, FlaskConical, X, AlertCircle, Sword, Trophy } from 'lucide-react'
 
 import Header from '@/components/Header'
 import { Button } from '@/components/ui/button'
@@ -56,9 +56,12 @@ function HordeChamberContent() {
     imageUrl: string
     ascensionPowder: number
     isAscended: boolean
+    rarityScore?: number
+    rank?: number
   }>>([])
   const [loadingAllGraveyard, setLoadingAllGraveyard] = useState(false)
   const [destroyingForPowder, setDestroyingForPowder] = useState<string | null>(null)
+  const [loadingRarity, setLoadingRarity] = useState(false)
   const [traitsData, setTraitsData] = useState<Record<string, {
     attributes: Array<{ trait_type: string; value: string }>
     isAngelic?: boolean
@@ -293,12 +296,61 @@ function HordeChamberContent() {
       }
 
       setAllGraveyardItems(allItems)
+
+      // Fetch rarity data for all items
+      if (allItems.length > 0) {
+        void loadRarityData(allItems.map(item => item.inscriptionId))
+      }
     } catch (err) {
       console.error('Error loading all graveyard items:', err)
     } finally {
       setLoadingAllGraveyard(false)
     }
   }, [ordinalAddress])
+
+  const loadRarityData = useCallback(async (inscriptionIds: string[]) => {
+    if (inscriptionIds.length === 0) return
+
+    setLoadingRarity(true)
+    try {
+      const response = await fetch('/api/collection/rarity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inscriptionIds }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (response.ok && payload?.success && Array.isArray(payload.results)) {
+        // Update items with rarity data
+        setAllGraveyardItems((prev) => {
+          const updated = prev.map((item) => {
+            const rarityData = payload.results.find((r: any) => r.inscriptionId === item.inscriptionId)
+            if (rarityData && rarityData.found) {
+              return {
+                ...item,
+                rarityScore: rarityData.rarityScore,
+                rank: rarityData.rank,
+              }
+            }
+            return item
+          })
+
+          // Sort by rank (lower rank = rarer = better)
+          return updated.sort((a, b) => {
+            if (a.rank === undefined && b.rank === undefined) return 0
+            if (a.rank === undefined) return 1
+            if (b.rank === undefined) return -1
+            return a.rank - b.rank
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Error loading rarity data:', err)
+    } finally {
+      setLoadingRarity(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (isWalletConnected && ordinalAddress) {
@@ -617,7 +669,7 @@ function HordeChamberContent() {
   if (checkingHolder) {
     return (
       <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
-        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
+        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={true} />
         <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center justify-center px-4 py-20">
           <Loader2 className="h-8 w-8 animate-spin text-red-400" />
         </main>
@@ -628,7 +680,7 @@ function HordeChamberContent() {
   if (isHolder === false) {
     return (
       <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
-        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
+        <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={true} />
         <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-6 rounded-3xl border border-red-500/40 bg-red-950/20 p-10 text-center px-4 py-20">
           <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-900/30 px-4 py-1 text-[11px] font-mono uppercase tracking-[0.4em] text-red-200">
             <AlertTriangle className="h-3.5 w-3.5 text-emerald-400" />
@@ -645,7 +697,7 @@ function HordeChamberContent() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black text-red-100">
-      <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={false} />
+      <Header connected={isWalletConnected} onConnectedChange={handleConnectedChange} showMusicControls={true} />
 
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.15),_transparent_55%)]" />
 
@@ -899,6 +951,11 @@ function HordeChamberContent() {
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-8 w-8 animate-spin text-red-400" />
                 </div>
+              ) : loadingRarity ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+                  <p className="text-xs text-purple-200/60">Calculating rarity...</p>
+                </div>
               ) : allGraveyardItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-red-500/40 bg-black/85 px-6 py-16 text-center shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                   <p className="max-w-sm text-xs uppercase tracking-[0.35em] text-red-200/70">
@@ -927,6 +984,26 @@ function HordeChamberContent() {
                         )}
                       </div>
                       <div className="border-t border-purple-500/20 bg-black/60 px-3 py-3 space-y-2">
+                        {item.rank !== undefined && (
+                          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-purple-200/80 mb-1">
+                            <span className="flex items-center gap-1">
+                              <Trophy className="h-3 w-3 text-yellow-400" /> Rank
+                            </span>
+                            <span className="font-mono text-[10px] text-yellow-100">
+                              #{item.rank.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        {item.rarityScore !== undefined && (
+                          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-purple-200/80 mb-1">
+                            <span className="flex items-center gap-1">
+                              <Sparkles className="h-3 w-3 text-purple-400" /> Rarity
+                            </span>
+                            <span className="font-mono text-[10px] text-purple-100">
+                              {item.rarityScore.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-purple-200/80">
                           <span className="flex items-center gap-1">
                             <Sparkles className="h-3 w-3 text-amber-400" /> Powder
