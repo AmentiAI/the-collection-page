@@ -100,8 +100,12 @@ export default function AscensionLeaderboardPage() {
     }
 
     fetchLeaderboard()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchLeaderboard, 30000)
+    // Refresh every 2 minutes - optimized to reduce database compute
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchLeaderboard()
+      }
+    }, 120000) // 120 seconds (2 minutes)
     return () => clearInterval(interval)
   }, [])
 

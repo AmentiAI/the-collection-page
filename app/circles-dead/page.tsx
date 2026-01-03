@@ -691,8 +691,8 @@ export default function AbyssSummonPage() {
   useEffect(() => {
     if (!ordinalAddress) return
     
-    // Poll every 10 seconds to keep circles up-to-date
-    const POLL_INTERVAL = 30_000 // Poll every 30 seconds to reduce API load
+    // Poll every 2 minutes to keep circles up-to-date - optimized to reduce database compute
+    const POLL_INTERVAL = 120_000 // Poll every 120 seconds (2 minutes)
     
     const doPoll = () => {
       // Only poll if the page is visible (tab is active)

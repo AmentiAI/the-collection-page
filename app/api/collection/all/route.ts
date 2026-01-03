@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 3600 // Cache for 1 hour (collection.json rarely changes)
 
 interface CollectionItem {
   id: string

@@ -186,7 +186,7 @@ export default function TreeOfAscensionPage() {
         }
       }
       
-      refreshIntervalRef.current = window.setInterval(doPoll, 20000) // Refresh every 20 seconds
+      refreshIntervalRef.current = window.setInterval(doPoll, 120000) // Refresh every 120 seconds (2 minutes) - optimized to reduce database compute
 
       // Also refresh when page becomes visible
       const handleVisibilityChange = () => {

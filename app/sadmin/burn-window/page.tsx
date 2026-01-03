@@ -59,7 +59,12 @@ export default function BurnWindowPage() {
 
   useEffect(() => {
     fetchCurrentWindow()
-    const interval = setInterval(fetchCurrentWindow, 10000) // Refresh every 10 seconds
+    // Poll every 2 minutes - optimized to reduce database compute
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchCurrentWindow()
+      }
+    }, 120000) // 120 seconds (2 minutes)
     return () => clearInterval(interval)
   }, [])
 

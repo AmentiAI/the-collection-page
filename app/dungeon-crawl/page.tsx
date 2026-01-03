@@ -633,11 +633,15 @@ export default function DungeonCrawlPage() {
       }
     }
 
-    // Set up interval - check every 30 seconds (reduced from 5s to save API calls)
-    // Wait 30 seconds before first check to avoid immediate duplicate calls on mount
+    // Set up interval - check every 2 minutes - optimized to reduce database compute
+    // Wait 2 minutes before first check to avoid immediate duplicate calls on mount
     const timeoutId = window.setTimeout(() => {
-      refreshIntervalRef.current = window.setInterval(checkAndRefresh, 30000)
-    }, 30000)
+      refreshIntervalRef.current = window.setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          checkAndRefresh()
+        }
+      }, 120000) // 120 seconds (2 minutes)
+    }, 120000) // 120 seconds (2 minutes)
 
     return () => {
       clearTimeout(timeoutId)
@@ -773,7 +777,7 @@ export default function DungeonCrawlPage() {
       isSetupRef.current = false
     }
 
-    const POLL_INTERVAL = 30_000 // Poll every 30 seconds (reduced from 5 seconds)
+    const POLL_INTERVAL = 120_000 // Poll every 120 seconds (2 minutes) - optimized to reduce database compute
     let isMounted = true
 
     const doPoll = async () => {

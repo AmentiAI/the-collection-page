@@ -130,8 +130,12 @@ export default function GatesOfTheDamnedPage() {
 
     fetchRatio()
     
-    // Poll every 10 seconds to update the ratio
-    const intervalId = window.setInterval(fetchRatio, 10000)
+    // Poll every 2 minutes to update the ratio - optimized to reduce database compute
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchRatio()
+      }
+    }, 120000) // 120 seconds (2 minutes)
     return () => window.clearInterval(intervalId)
   }, [])
 

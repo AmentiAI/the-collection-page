@@ -339,7 +339,12 @@ function AbyssContent() {
       }
     }
     checkBurnWindow()
-    const interval = setInterval(checkBurnWindow, 10000) // Check every 10 seconds
+    // Poll every 2 minutes - optimized to reduce database compute
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        checkBurnWindow()
+      }
+    }, 120000) // 120 seconds (2 minutes)
     return () => clearInterval(interval)
   }, [])
   

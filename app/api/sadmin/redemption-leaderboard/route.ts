@@ -2,8 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 600 // Cache for 10 minutes (600 seconds)
+
+// In-memory cache for leaderboard results
+let leaderboardCache: {
+  data: any
+  timestamp: number
+} | null = null
+const CACHE_DURATION = 600000 // 10 minutes in milliseconds
 
 export async function GET(request: NextRequest) {
+  // Check cache first
+  const now = Date.now()
+  if (leaderboardCache && (now - leaderboardCache.timestamp) < CACHE_DURATION) {
+    return NextResponse.json({
+      success: true,
+      leaderboard: leaderboardCache.data,
+      cached: true,
+    })
+  }
+
   let client
   try {
     client = await getPool().connect()
@@ -348,9 +366,16 @@ export async function GET(request: NextRequest) {
       total_score: Number(row.total_score) || 0,
     }))
 
+    // Cache the result
+    leaderboardCache = {
+      data: leaderboard,
+      timestamp: Date.now(),
+    }
+
     return NextResponse.json({
       success: true,
       leaderboard,
+      cached: false,
     })
   } catch (error) {
     console.error('Error fetching redemption leaderboard:', error)

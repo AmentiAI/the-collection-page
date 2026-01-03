@@ -151,13 +151,16 @@ export default function CrystallizationPage() {
     }
   }, [connected, address, fetchOrdinals, fetchCrystallizations, fetchHistory])
 
-  // Update timers every 30 seconds
+  // Update timers every 2 minutes - optimized to reduce database compute
   useEffect(() => {
     if (!connected || !address || crystallizations.length === 0) return
 
     const interval = setInterval(() => {
-      fetchCrystallizations()
-    }, 30000) // Update every 30 seconds
+      // Only poll when page is visible
+      if (document.visibilityState === 'visible') {
+        fetchCrystallizations()
+      }
+    }, 120000) // Update every 120 seconds (2 minutes)
 
     return () => clearInterval(interval)
   }, [connected, address, crystallizations.length, fetchCrystallizations])

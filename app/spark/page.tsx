@@ -101,18 +101,12 @@ export default function SparkPage() {
   const isFavorite = (lpPublicKey: string) => favorites.has(lpPublicKey)
 
   // Fetch pools when page, sorting, or filter changes (server-side pagination/filtering/sorting)
+  // NO POLLING - only fetch on user interaction or filter changes
   useEffect(() => {
     fetchPools()
     fetchBtcPrice()
-    // Refresh every 15 seconds when page is visible (for trading data freshness)
-    // Only poll when tab is active to save resources
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchPools()
-        fetchBtcPrice()
-      }
-    }, 15000) // 15 seconds - faster updates for trading data
-    return () => clearInterval(interval)
+    // Removed polling to reduce database compute usage
+    // Users can manually refresh if needed
   }, [page, sortColumn, sortDirection, hideLowCap, hideOldPools]) // Refetch when these change
 
   // Reset to page 0 when sorting or filter changes
