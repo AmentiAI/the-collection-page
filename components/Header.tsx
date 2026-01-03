@@ -233,20 +233,6 @@ export default function Header({
               onVerifyingStart={onVerifyingStart}
               onConnectedChange={onConnectedChange}
             />
-            {connected && (isVerifying || isHolder !== undefined) && (
-              <div className="text-sm font-bold text-center">
-                {isVerifying ? (
-                  <span className="text-[#ff6b6b] animate-pulse">Verifying...</span>
-                ) : isHolder ? (
-                  <span className="text-[#00ff00]">✓ The Damned Holder</span>
-                ) : (
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-[#ff6b6b]">Not A Holder</span>
-                    <span className="text-xs text-[#ff6b6b] opacity-80">Buy a The Damned Ordinal To Get Verified</span>
-                  </div>
-                )}
-              </div>
-            )}
             {shouldShowMusicControls && (
               <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
                 <button
@@ -299,20 +285,6 @@ export default function Header({
           onVerifyingStart={onVerifyingStart}
           onConnectedChange={onConnectedChange}
         />
-        {connected && (isVerifying || isHolder !== undefined) && (
-          <div className="text-sm font-bold">
-            {isVerifying ? (
-              <span className="text-[#ff6b6b] animate-pulse">Verifying...</span>
-            ) : isHolder ? (
-              <span className="text-[#00ff00]">✓ The Damned Holder</span>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[#ff6b6b]">Not A Holder</span>
-                <span className="text-xs text-[#ff6b6b] opacity-80">Buy a The Damned Ordinal To Get Verified</span>
-              </div>
-            )}
-          </div>
-        )}
         {/* Music Volume Control */}
         {shouldShowMusicControls && (
           <div className="flex items-center gap-2 bg-black/60 rounded-lg px-3 py-1 border border-[#8B0000]/50 relative z-50 pointer-events-auto">
