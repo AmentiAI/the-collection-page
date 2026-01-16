@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest) {
        WHERE id = $1`,
       [recordResult.rows[0].id]
     )
+
+    // Invalidate cache when crystallization status changes
+    invalidateCache(`crystallization-status:${walletAddress.toLowerCase()}`)
 
     return NextResponse.json({
       success: true,

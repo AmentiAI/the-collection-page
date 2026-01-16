@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -216,6 +217,9 @@ export async function POST(
       }
 
       await client.query('COMMIT')
+
+      // Invalidate cache when summon is completed
+      invalidateCache('abyss-summons')
 
       const refreshed = await client.query(
         `

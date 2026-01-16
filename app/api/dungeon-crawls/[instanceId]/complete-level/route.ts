@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
 import { getCrawlTiming, upsertCrawlTiming } from '@/lib/dungeon-crawl-timing'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -575,9 +576,12 @@ export async function POST(
         }
       }
 
-      await client.query('COMMIT')
+          await client.query('COMMIT')
 
-      return NextResponse.json({
+          // Invalidate cache when level is completed
+          invalidateCache('dungeon-crawls')
+
+          return NextResponse.json({
         success: true,
         message: `Level ${levelNum} completion recorded`,
         levelCompleted,

@@ -11,6 +11,7 @@ import {
   normalizePool,
   type FlashnetPoolRecord,
 } from '@/lib/flashnet'
+import { getCachedQuery, CACHE_TTLS } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,40 +72,47 @@ export async function GET(request: NextRequest) {
 
     await ensureFlashnetTables()
 
-    if (search) {
-      const rawPools = await searchFlashnetPools(search, limit)
-      const pools = await attachStoredMetadataToPools(rawPools)
-      return NextResponse.json({
-        success: true,
-        pools,
-        count: pools.length,
-        total: pools.length,
-      })
-    }
+    // Create cache key based on query parameters
+    const cacheKey = `flashnet-pools:${search || 'all'}:${sortBy || 'default'}:${sortDirection}:${filterParam || 'none'}:${pageParam || offsetParam || '0'}:${limit}`
 
-    // Fetch BTC price if we need to filter by market cap
-    let btcPrice: number | null = null
-    if (minMarketCap) {
-      try {
-        const btcResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', {
-          next: { revalidate: 60 } // Cache for 60 seconds
-        })
-        if (btcResponse.ok) {
-          const btcData = await btcResponse.json()
-          btcPrice = btcData.bitcoin?.usd ?? null
+    // Use cached query - pools are updated by cron every 15 minutes, safe to cache for 60 seconds
+    const result = await getCachedQuery(
+      cacheKey,
+      async () => {
+        if (search) {
+          const rawPools = await searchFlashnetPools(search, limit)
+          const pools = await attachStoredMetadataToPools(rawPools)
+          return {
+            success: true,
+            pools,
+            count: pools.length,
+            total: pools.length,
+          }
         }
-      } catch (error) {
-        console.warn('[Flashnet Pools API] Failed to fetch BTC price:', error)
-      }
-    }
 
-    // Get all pools (we need to filter by market cap, so fetch all first)
-    // Filter out BTC/TOKEN pools and apply market cap filter if needed
-    const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
-    let allPools = await listFlashnetPools({ limit: 500, offset: 0, sortBy: sortBy || undefined, sortDirection })
-    
-    // Attach metadata to pools
-    allPools = await attachStoredMetadataToPools(allPools)
+        // Fetch BTC price if we need to filter by market cap
+        let btcPrice: number | null = null
+        if (minMarketCap) {
+          try {
+            const btcResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', {
+              next: { revalidate: 60 } // Cache for 60 seconds
+            })
+            if (btcResponse.ok) {
+              const btcData = await btcResponse.json()
+              btcPrice = btcData.bitcoin?.usd ?? null
+            }
+          } catch (error) {
+            console.warn('[Flashnet Pools API] Failed to fetch BTC price:', error)
+          }
+        }
+
+        // Get all pools (we need to filter by market cap, so fetch all first)
+        // Filter out BTC/TOKEN pools and apply market cap filter if needed
+        const BTC_PUBKEY = "020202020202020202020202020202020202020202020202020202020202020202"
+        let allPools = await listFlashnetPools({ limit: 500, offset: 0, sortBy: sortBy || undefined, sortDirection })
+        
+        // Attach metadata to pools
+        allPools = await attachStoredMetadataToPools(allPools)
     
     // Filter out BTC/TOKEN pools (where Asset A is Bitcoin)
     let filteredPools = allPools.filter(pool => {

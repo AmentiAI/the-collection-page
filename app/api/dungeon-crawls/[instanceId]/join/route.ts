@@ -416,6 +416,9 @@ export async function POST(
 
       await client.query('COMMIT')
 
+      // Invalidate cache when user joins
+      invalidateCache('dungeon-crawls')
+
       const message = actuallyInserted === inscriptionIds.length
         ? `Joined dungeon crawl with ${actuallyInserted} inscription(s)`
         : `Joined dungeon crawl with ${actuallyInserted} of ${inscriptionIds.length} inscription(s) (some were already in the crawl)`
