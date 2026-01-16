@@ -8,6 +8,7 @@ import {
   type FlashnetPoolRecord,
 } from '@/lib/flashnet'
 import { getPool } from '@/lib/db'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -352,6 +353,9 @@ export async function GET(request: NextRequest) {
 
     const duration = Date.now() - startTime
     console.log(`[Flashnet Sync] Sync completed in ${duration}ms`)
+
+    // Invalidate cache when pools are synced
+    invalidateCache('flashnet-pools')
 
     return NextResponse.json({
       success: true,

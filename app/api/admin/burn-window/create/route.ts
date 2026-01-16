@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,9 @@ export async function POST(request: NextRequest) {
       `,
       [circleId, expiresAt.toISOString(), creditsOnly],
     )
+
+    // Invalidate cache when burn window is created
+    invalidateCache('abyss-burn-window')
 
     return NextResponse.json({
       success: true,

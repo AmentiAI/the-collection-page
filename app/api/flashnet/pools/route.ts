@@ -11,7 +11,7 @@ import {
   normalizePool,
   type FlashnetPoolRecord,
 } from '@/lib/flashnet'
-import { getCachedQuery, CACHE_TTLS } from '@/lib/db-cache'
+import { getCachedQuery, CACHE_TTLS, invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,75 +114,80 @@ export async function GET(request: NextRequest) {
         // Attach metadata to pools
         allPools = await attachStoredMetadataToPools(allPools)
     
-    // Filter out BTC/TOKEN pools (where Asset A is Bitcoin)
-    let filteredPools = allPools.filter(pool => {
-      const assetA = pool.asset_a_address?.toLowerCase()
-      return assetA !== BTC_PUBKEY.toLowerCase() && assetA !== null
-    })
-    
-    // Filter by market cap if needed
-    if (minMarketCap && btcPrice) {
-      filteredPools = filteredPools.filter(pool => {
-        // Calculate market cap
-        const decimalsA = pool.asset_a_decimals ?? 8
-        const decimalsB = pool.asset_b_decimals ?? 8
+        // Filter out BTC/TOKEN pools (where Asset A is Bitcoin)
+        let filteredPools = allPools.filter(pool => {
+          const assetA = pool.asset_a_address?.toLowerCase()
+          return assetA !== BTC_PUBKEY.toLowerCase() && assetA !== null
+        })
         
-        // Get supply from metadata
-        const metadata = (pool as any).asset_a_metadata
-        const maxSupply = metadata?.max_supply 
-          ? parseFloat(metadata.max_supply) 
-          : null
-        
-        // Default to 1B if no supply
-        const supply = maxSupply ? maxSupply / Math.pow(10, decimalsA) : 1_000_000_000
-        
-        // Calculate price in USD
-        // If Asset B is BTC, price = (reserve_B * BTC_price) / reserve_A
-        if (pool.asset_b_address?.toLowerCase() === BTC_PUBKEY.toLowerCase() && 
-            pool.asset_a_reserve && pool.asset_b_reserve && pool.asset_a_reserve > 0) {
-          const adjustedReserveA = pool.asset_a_reserve / Math.pow(10, decimalsA)
-          const adjustedReserveB = pool.asset_b_reserve / Math.pow(10, decimalsB)
-          const priceInUSD = (adjustedReserveB * btcPrice) / adjustedReserveA
-          
-          const marketCap = supply * priceInUSD
-          return marketCap >= minMarketCap
+        // Filter by market cap if needed
+        if (minMarketCap && btcPrice) {
+          filteredPools = filteredPools.filter(pool => {
+            // Calculate market cap
+            const decimalsA = pool.asset_a_decimals ?? 8
+            const decimalsB = pool.asset_b_decimals ?? 8
+            
+            // Get supply from metadata
+            const metadata = (pool as any).asset_a_metadata
+            const maxSupply = metadata?.max_supply 
+              ? parseFloat(metadata.max_supply) 
+              : null
+            
+            // Default to 1B if no supply
+            const supply = maxSupply ? maxSupply / Math.pow(10, decimalsA) : 1_000_000_000
+            
+            // Calculate price in USD
+            // If Asset B is BTC, price = (reserve_B * BTC_price) / reserve_A
+            if (pool.asset_b_address?.toLowerCase() === BTC_PUBKEY.toLowerCase() && 
+                pool.asset_a_reserve && pool.asset_b_reserve && pool.asset_a_reserve > 0) {
+              const adjustedReserveA = pool.asset_a_reserve / Math.pow(10, decimalsA)
+              const adjustedReserveB = pool.asset_b_reserve / Math.pow(10, decimalsB)
+              const priceInUSD = (adjustedReserveB * btcPrice) / adjustedReserveA
+              
+              const marketCap = supply * priceInUSD
+              return marketCap >= minMarketCap
+            }
+            
+            return false // Can't calculate market cap, exclude
+          })
         }
         
-        return false // Can't calculate market cap, exclude
-      })
-    }
-    
-    // Filter out old pools (created > 4 hours ago) if needed
-    if (hideOldPools) {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours in milliseconds
-      filteredPools = filteredPools.filter(pool => {
-        if (!pool.created_at) {
-          return false // Exclude pools without creation date
+        // Filter out old pools (created > 4 hours ago) if needed
+        if (hideOldPools) {
+          const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours in milliseconds
+          filteredPools = filteredPools.filter(pool => {
+            if (!pool.created_at) {
+              return false // Exclude pools without creation date
+            }
+            const createdAt = new Date(pool.created_at)
+            return createdAt >= fourHoursAgo // Only include pools created within last 4 hours
+          })
         }
-        const createdAt = new Date(pool.created_at)
-        return createdAt >= fourHoursAgo // Only include pools created within last 4 hours
-      })
-    }
-    
-    // Apply sorting if not already sorted (for client-sortable columns, we sort here)
-    // Server-sortable columns are already sorted by listFlashnetPools
-    if (sortBy && !['tvl', 'volume', 'price_change', 'lp_fee', 'host_fee', 'created_at'].includes(sortBy)) {
-      // Client-sortable columns - sort here
-      // This shouldn't happen with current implementation, but handle it
-    }
-    
-    // Get total count (before pagination)
-    const filteredTotal = filteredPools.length
-    
-    // Apply pagination
-    const paginatedPools = filteredPools.slice(finalOffset, finalOffset + finalLimit)
+        
+        // Apply sorting if not already sorted (for client-sortable columns, we sort here)
+        // Server-sortable columns are already sorted by listFlashnetPools
+        if (sortBy && !['tvl', 'volume', 'price_change', 'lp_fee', 'host_fee', 'created_at'].includes(sortBy)) {
+          // Client-sortable columns - sort here
+          // This shouldn't happen with current implementation, but handle it
+        }
+        
+        // Get total count (before pagination)
+        const filteredTotal = filteredPools.length
+        
+        // Apply pagination
+        const paginatedPools = filteredPools.slice(finalOffset, finalOffset + finalLimit)
 
-    return NextResponse.json({
-      success: true,
-      pools: paginatedPools,
-      count: paginatedPools.length,
-      total: filteredTotal, // Return filtered total, not dbTotal
-    })
+        return {
+          success: true,
+          pools: paginatedPools,
+          count: paginatedPools.length,
+          total: filteredTotal, // Return filtered total, not dbTotal
+        }
+      },
+      CACHE_TTLS.FLASHNET_POOLS
+    )
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Flashnet pools GET error:', error)
     return NextResponse.json(
@@ -223,6 +228,9 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.warn('[Flashnet] Metadata enrichment skipped:', (error as Error).message ?? error)
     }
+
+    // Invalidate cache when pools are updated
+    invalidateCache('flashnet-pools')
 
     return NextResponse.json({
       success: true,
