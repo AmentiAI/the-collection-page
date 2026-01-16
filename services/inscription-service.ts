@@ -17,7 +17,7 @@ export class InscriptionService {
     }
     return response.json()
   }
-
+ 
   static async fetchPlatformFeeSettings() {
     const response = await fetch('/api/settings/public')
     if (!response.ok) {
