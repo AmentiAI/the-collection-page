@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
 import { upsertCrawlTiming } from '@/lib/dungeon-crawl-timing'
+import { invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 

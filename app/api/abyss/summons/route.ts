@@ -3,6 +3,7 @@ import type { Pool } from 'pg'
 
 import { getPool, isTableInitialized, markTableInitialized } from '@/lib/db'
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit'
+import { getCachedQuery, CACHE_TTLS, invalidateCache } from '@/lib/db-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,125 +137,145 @@ export async function GET(request: NextRequest) {
     const limitParam = Number.parseInt(searchParams.get('limit') ?? '25', 10)
     const limit = Number.isNaN(limitParam) ? 25 : Math.min(Math.max(limitParam, 1), 200)
 
-    const values: unknown[] = [limit]
-    const filters: string[] = []
-    if (statusFilter) {
-      values.push(statusFilter)
-      filters.push(`s.status = $${values.length}`)
-    }
+    // Create cache key based on query parameters
+    const cacheKey = `abyss-summons:${statusFilter || 'all'}:${limit}:${walletParam || 'none'}`
 
-    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+    // Use cached query to reduce database load
+    const result = await getCachedQuery(
+      cacheKey,
+      async () => {
+        const values: unknown[] = [limit]
+        const filters: string[] = []
+        if (statusFilter) {
+          values.push(statusFilter)
+          filters.push(`s.status = $${values.length}`)
+        }
 
-    const baseResult = await pool.query(
-      `
-        SELECT
-          s.*,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', sp.id,
-                'wallet', sp.wallet,
-                'inscriptionId', sp.inscription_id,
-                'image', sp.inscription_image,
-                'role', sp.role,
-                'joinedAt', sp.joined_at,
-                'username', pr.username,
-                'avatarUrl', pr.avatar_url
-              )
-            ) FILTER (WHERE sp.id IS NOT NULL),
-            '[]'::json
-          ) AS participants
-        FROM abyss_summons s
-        LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
-        LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
-        ${whereClause}
-        GROUP BY s.id
-        ORDER BY s.created_at DESC
-        LIMIT $1
-      `,
-      values,
+        const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+
+        const baseResult = await pool.query(
+          `
+            SELECT
+              s.*,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', sp.id,
+                    'wallet', sp.wallet,
+                    'inscriptionId', sp.inscription_id,
+                    'image', sp.inscription_image,
+                    'role', sp.role,
+                    'joinedAt', sp.joined_at,
+                    'username', pr.username,
+                    'avatarUrl', pr.avatar_url
+                  )
+                ) FILTER (WHERE sp.id IS NOT NULL),
+                '[]'::json
+              ) AS participants
+            FROM abyss_summons s
+            LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+            LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
+            ${whereClause}
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+            LIMIT $1
+          `,
+          values,
+        )
+
+        const summons = baseResult.rows.map(mapSummonRow)
+
+        let createdSummons: any[] = []
+        let joinedSummons: any[] = []
+        let bonusAllowance: number | null = null
+
+        if (walletParam) {
+          const [createdRes, joinedRes, allowanceRes] = await Promise.all([
+            pool.query(
+              `
+                SELECT
+                  s.*,
+                  COALESCE(
+                    json_agg(
+                      json_build_object(
+                        'id', sp.id,
+                        'wallet', sp.wallet,
+                        'inscriptionId', sp.inscription_id,
+                        'image', sp.inscription_image,
+                        'role', sp.role,
+                        'joinedAt', sp.joined_at,
+                        'username', pr.username,
+                        'avatarUrl', pr.avatar_url,
+                        'discordUserId', du.discord_user_id
+                      )
+                    ) FILTER (WHERE sp.id IS NOT NULL),
+                    '[]'::json
+                  ) AS participants
+                FROM abyss_summons s
+                LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+                LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
+                LEFT JOIN discord_users du ON du.profile_id = pr.id
+                WHERE LOWER(s.creator_wallet) = LOWER($1)
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+                LIMIT 25
+              `,
+              [walletParam],
+            ),
+            pool.query(
+              `
+                SELECT
+                  s.*,
+                  COALESCE(
+                    json_agg(
+                      json_build_object(
+                        'id', sp.id,
+                        'wallet', sp.wallet,
+                        'inscriptionId', sp.inscription_id,
+                        'image', sp.inscription_image,
+                        'role', sp.role,
+                        'joinedAt', sp.joined_at,
+                        'username', pr.username,
+                        'avatarUrl', pr.avatar_url,
+                        'discordUserId', du.discord_user_id
+                      )
+                    ) FILTER (WHERE sp.id IS NOT NULL),
+                    '[]'::json
+                  ) AS participants
+                FROM abyss_summons s
+                INNER JOIN abyss_summon_participants target
+                  ON target.summon_id = s.id AND LOWER(target.wallet) = LOWER($1)
+                LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
+                LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
+                LEFT JOIN discord_users du ON du.profile_id = pr.id
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+                LIMIT 25
+              `,
+              [walletParam],
+            ),
+            pool.query(
+              `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
+              [walletParam],
+            ),
+          ])
+
+          createdSummons = createdRes.rows.map(mapSummonRow)
+          joinedSummons = joinedRes.rows.map(mapSummonRow)
+          bonusAllowance = allowanceRes.rows[0]?.available ?? 0
+        }
+
+        return {
+          summons,
+          createdSummons,
+          joinedSummons,
+          bonusAllowance,
+        }
+      },
+      CACHE_TTLS.SUMMONS
     )
 
-    const summons = baseResult.rows.map(mapSummonRow)
-
-    let createdSummons: any[] = []
-    let joinedSummons: any[] = []
-    let bonusAllowance: number | null = null
-
-    if (walletParam) {
-      const createdRes = await pool.query(
-        `
-          SELECT
-            s.*,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'id', sp.id,
-                  'wallet', sp.wallet,
-                  'inscriptionId', sp.inscription_id,
-                  'image', sp.inscription_image,
-                  'role', sp.role,
-                  'joinedAt', sp.joined_at,
-                  'username', pr.username,
-                  'avatarUrl', pr.avatar_url,
-                  'discordUserId', du.discord_user_id
-                )
-              ) FILTER (WHERE sp.id IS NOT NULL),
-              '[]'::json
-            ) AS participants
-          FROM abyss_summons s
-          LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
-          LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
-          LEFT JOIN discord_users du ON du.profile_id = pr.id
-          WHERE LOWER(s.creator_wallet) = LOWER($1)
-          GROUP BY s.id
-          ORDER BY s.created_at DESC
-          LIMIT 25
-        `,
-        [walletParam],
-      )
-      createdSummons = createdRes.rows.map(mapSummonRow)
-
-      const joinedRes = await pool.query(
-        `
-          SELECT
-            s.*,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'id', sp.id,
-                  'wallet', sp.wallet,
-                  'inscriptionId', sp.inscription_id,
-                  'image', sp.inscription_image,
-                  'role', sp.role,
-                  'joinedAt', sp.joined_at,
-                  'username', pr.username,
-                  'avatarUrl', pr.avatar_url,
-                  'discordUserId', du.discord_user_id
-                )
-              ) FILTER (WHERE sp.id IS NOT NULL),
-              '[]'::json
-            ) AS participants
-          FROM abyss_summons s
-          INNER JOIN abyss_summon_participants target
-            ON target.summon_id = s.id AND LOWER(target.wallet) = LOWER($1)
-          LEFT JOIN abyss_summon_participants sp ON sp.summon_id = s.id
-          LEFT JOIN profiles pr ON LOWER(pr.wallet_address) = LOWER(sp.wallet)
-          LEFT JOIN discord_users du ON du.profile_id = pr.id
-          GROUP BY s.id
-          ORDER BY s.created_at DESC
-          LIMIT 25
-        `,
-        [walletParam],
-      )
-      joinedSummons = joinedRes.rows.map(mapSummonRow)
-
-      const allowanceRes = await pool.query(
-        `SELECT available FROM abyss_bonus_allowances WHERE LOWER(wallet) = LOWER($1)`,
-        [walletParam],
-      )
-      bonusAllowance = allowanceRes.rows[0]?.available ?? 0
-    }
+    const { summons, createdSummons, joinedSummons, bonusAllowance } = result
 
     return NextResponse.json(
       {
@@ -391,6 +412,9 @@ export async function POST(request: NextRequest) {
     )
 
     await client.query('COMMIT')
+
+    // Invalidate cache when new summon is created
+    invalidateCache('abyss-summons')
 
     const refreshed = await pool.query(
       `

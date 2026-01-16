@@ -530,8 +530,15 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const wallet = searchParams.get('wallet')
     
-    const client = await pool.connect()
-    try {
+    // Use cached query - dungeon crawls update periodically but are polled frequently
+    const { getCachedQuery, CACHE_TTLS } = await import('@/lib/db-cache')
+    const cacheKey = `dungeon-crawls:${wallet || 'all'}`
+    
+    const result = await getCachedQuery(
+      cacheKey,
+      async () => {
+        const client = await pool.connect()
+        try {
       // Cleanup invalid instances (created too early, before cooldown expired)
       await cleanupInvalidInstances(client)
       
@@ -751,20 +758,23 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // History is now fetched separately - skip processing here
+          // History is now fetched separately - skip processing here
 
-      const response = NextResponse.json({
-        success: true,
-        crawls: Array.from(crawlsMap.values()),
-      })
-      // Prevent caching to ensure fresh data, especially for overdue restarts
-      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-      response.headers.set('Pragma', 'no-cache')
-      response.headers.set('Expires', '0')
-      return response
-    } finally {
-      client.release()
-    }
+          return {
+            success: true,
+            crawls: Array.from(crawlsMap.values()),
+          }
+        } finally {
+          client.release()
+        }
+      },
+      CACHE_TTLS.DUNGEON_CRAWLS
+    )
+
+    const response = NextResponse.json(result)
+    // Set cache headers for client-side caching (short TTL)
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60')
+    return response
   } catch (error) {
     console.error('[dungeon-crawls][GET]', error)
     return NextResponse.json(
