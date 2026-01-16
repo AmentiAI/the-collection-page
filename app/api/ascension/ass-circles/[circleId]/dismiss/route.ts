@@ -123,19 +123,20 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'wallet is required' }, { status: 400 })
   }
 
+  const client = await pool.connect()
   try {
-    await pool.query('BEGIN')
+    await client.query('BEGIN')
 
-    const circleRes = await pool.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
+    const circleRes = await client.query('SELECT * FROM summoning_powder_circles WHERE id = $1 FOR UPDATE', [circleId])
     if (circleRes.rows.length === 0) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json({ success: false, error: 'Circle not found' }, { status: 404 })
     }
 
     const circle = circleRes.rows[0]
 
     if (circle.creator_wallet.toLowerCase() !== wallet.toLowerCase()) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'Only the creator can dismiss this ascension circle.' },
         { status: 403 },
@@ -143,14 +144,14 @@ export async function POST(
     }
 
     if (['completed', 'expired'].includes(circle.status)) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       return NextResponse.json(
         { success: false, error: 'This ascension circle can no longer be dismissed.' },
         { status: 409 },
       )
     }
 
-    await pool.query(
+    await client.query(
       `
         UPDATE summoning_powder_circles
         SET status = 'dismissed',
@@ -160,7 +161,7 @@ export async function POST(
       [circleId],
     )
 
-    await pool.query('COMMIT')
+    await client.query('COMMIT')
 
     const refreshed = await pool.query(buildCircleSelect('WHERE c.id = $1', [circleId]))
 
@@ -169,11 +170,13 @@ export async function POST(
       summon: mapCircleRow(refreshed.rows[0]),
     })
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {})
+    await client.query('ROLLBACK').catch(() => {})
     console.error('[ascension/circles/dismiss][POST]', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to dismiss ascension circle.' },
       { status: 500 },
     )
+  } finally {
+    client.release()
   }
 }

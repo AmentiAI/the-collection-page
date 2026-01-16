@@ -88,11 +88,12 @@ export async function GET(request: NextRequest) {
       markTableInitialized('afk_reward_tables')
     }
 
-    await pool.query('BEGIN')
-
+    const client = await pool.connect()
     try {
+      await client.query('BEGIN')
+
       // Get all participants from the AFK circle
-      const participantsRes = await pool.query(`
+      const participantsRes = await client.query(`
         SELECT wallet, inscription_id
         FROM afk_circle_participants
         WHERE circle_id = $1
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
         const wallet = participant.wallet
 
         // Ensure profile exists
-        await pool.query(
+        await client.query(
           `
             INSERT INTO profiles (wallet_address, ascension_powder)
             VALUES ($1, 0)
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
         )
 
         // Grant +2 ascension powder
-        await pool.query(
+        await client.query(
           `
             UPDATE profiles
             SET ascension_powder = COALESCE(ascension_powder, 0) + 2,
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
         )
 
         // Update last_reward_at
-        await pool.query(
+        await client.query(
           `
             UPDATE afk_circle_participants
             SET last_reward_at = NOW()
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
         granted++
       }
 
-      await pool.query('COMMIT')
+      await client.query('COMMIT')
 
       return NextResponse.json({
         success: true,
@@ -149,8 +150,10 @@ export async function GET(request: NextRequest) {
         errors,
       })
     } catch (error) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       throw error
+    } finally {
+      client.release()
     }
   } catch (error) {
     console.error('[afk-circle/reward][GET]', error)

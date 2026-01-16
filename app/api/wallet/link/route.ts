@@ -116,31 +116,32 @@ export async function POST(request: NextRequest) {
     const pool = getPool()
     await ensureLinkedWalletsInfrastructure(pool)
     
-    await pool.query('BEGIN')
-    
+    const client = await pool.connect()
     try {
+      await client.query('BEGIN')
+      
       // Ensure primary wallet has a profile
-      let profileResult = await pool.query(
+      let profileResult = await client.query(
         'SELECT id FROM profiles WHERE LOWER(wallet_address) = LOWER($1)',
         [primaryWallet]
       )
       
       if (profileResult.rows.length === 0) {
         // Create profile if it doesn't exist
-        await pool.query(
+        await client.query(
           'INSERT INTO profiles (wallet_address, payment_address) VALUES ($1, $1)',
           [primaryWallet]
         )
       }
       
       // Check if linked wallet is already linked to another profile
-      const existingLink = await pool.query(
+      const existingLink = await client.query(
         'SELECT primary_wallet FROM linked_wallets WHERE LOWER(linked_wallet) = LOWER($1) AND is_active = TRUE',
         [linkedWallet]
       )
       
       if (existingLink.rows.length > 0) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { 
             success: false, 
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Check if this exact link already exists
-      const existingExactLink = await pool.query(
+      const existingExactLink = await client.query(
         `SELECT id, is_active FROM linked_wallets 
          WHERE LOWER(primary_wallet) = LOWER($1) AND LOWER(linked_wallet) = LOWER($2)`,
         [primaryWallet, linkedWallet]
@@ -159,14 +160,14 @@ export async function POST(request: NextRequest) {
       
       if (existingExactLink.rows.length > 0) {
         if (existingExactLink.rows[0].is_active) {
-          await pool.query('ROLLBACK')
+          await client.query('ROLLBACK')
           return NextResponse.json(
             { success: false, error: 'This wallet is already linked to your profile' },
             { status: 409 }
           )
         } else {
           // Reactivate the link
-          await pool.query(
+          await client.query(
             `UPDATE linked_wallets 
              SET is_active = TRUE, signature = $1, message = $2, linked_at = NOW()
              WHERE LOWER(primary_wallet) = LOWER($3) AND LOWER(linked_wallet) = LOWER($4)`,
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // Create the link
-        await pool.query(
+        await client.query(
           `INSERT INTO linked_wallets (primary_wallet, linked_wallet, signature, message)
            VALUES ($1, $2, $3, $4)`,
           [primaryWallet, linkedWallet, signature, message]
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
       console.log(`[wallet/link] Consolidating records from ${linkedWallet} to ${primaryWallet}`)
       
       // Update abyss_burns: Change ordinal_wallet from linked wallet to primary wallet
-      const burnsUpdateResult = await pool.query(
+      const burnsUpdateResult = await client.query(
         `UPDATE abyss_burns 
          SET ordinal_wallet = $1, updated_at = NOW()
          WHERE LOWER(ordinal_wallet) = LOWER($2)`,
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
       console.log(`[wallet/link] Updated ${burnsUpdated} abyss_burns records`)
       
       // Update ascended_images_mint_queue: Change wallet_address from linked wallet to primary wallet
-      const mintQueueUpdateResult = await pool.query(
+      const mintQueueUpdateResult = await client.query(
         `UPDATE ascended_images_mint_queue 
          SET wallet_address = $1
          WHERE LOWER(wallet_address) = LOWER($2)`,
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
       
       // Consolidate ascension_powder: Transfer from linked wallet to primary wallet
       // First, ensure both wallets have profile records
-      await pool.query(
+      await client.query(
         `INSERT INTO profiles (wallet_address, ascension_powder)
          VALUES ($1, 0), ($2, 0)
          ON CONFLICT (wallet_address) DO NOTHING`,
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
       )
       
       // Get current powder amounts
-      const powderResult = await pool.query(
+      const powderResult = await client.query(
         `SELECT 
            (SELECT COALESCE(ascension_powder, 0) FROM profiles WHERE LOWER(wallet_address) = LOWER($1)) as primary_powder,
            (SELECT COALESCE(ascension_powder, 0) FROM profiles WHERE LOWER(wallet_address) = LOWER($2)) as linked_powder`,
@@ -232,7 +233,7 @@ export async function POST(request: NextRequest) {
       console.log(`  Total after consolidation: ${totalPowderAfter} powder`)
       
       // Update primary wallet with combined powder
-      await pool.query(
+      await client.query(
         `UPDATE profiles 
          SET ascension_powder = $1, updated_at = NOW()
          WHERE LOWER(wallet_address) = LOWER($2)`,
@@ -240,14 +241,14 @@ export async function POST(request: NextRequest) {
       )
       
       // Zero out linked wallet's powder
-      await pool.query(
+      await client.query(
         `UPDATE profiles 
          SET ascension_powder = 0, updated_at = NOW()
          WHERE LOWER(wallet_address) = LOWER($1)`,
         [linkedWallet]
       )
       
-      await pool.query('COMMIT')
+      await client.query('COMMIT')
 
       // Consume the link token so it can't be reused
       if (linkToken) {
@@ -275,8 +276,10 @@ export async function POST(request: NextRequest) {
         }
       })
     } catch (error) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       throw error
+    } finally {
+      client.release()
     }
   } catch (error) {
     console.error('[wallet/link][POST]', error)

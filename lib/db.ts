@@ -26,7 +26,7 @@ export function getPool(): Pool {
       ssl: {
         rejectUnauthorized: false // Neon requires SSL, but we don't need certificate validation
       },
-      max: 10, // Increased due to high concurrent traffic
+      max: 5, // Reduced from 10 to prevent too many leaked connections until all leaks are fixed
       min: 0, // Don't maintain idle connections
       idleTimeoutMillis: 10000, // Release idle connections faster (10 seconds)
       connectionTimeoutMillis: 10000, // 10 seconds timeout for acquiring connection

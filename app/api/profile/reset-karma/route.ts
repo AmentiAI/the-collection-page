@@ -26,56 +26,59 @@ export async function POST(request: NextRequest) {
     const pool = getPool()
     
     // Use transaction to ensure atomicity
-    await pool.query('BEGIN')
-    
+    const client = await pool.connect()
     let profileId: number | null = null
     
     try {
-    // Get profile
-    const profileResult = await pool.query(`
-      SELECT id
-      FROM profiles
-      WHERE wallet_address = $1
-        FOR UPDATE
-    `, [walletAddress])
-    
-    if (profileResult.rows.length === 0) {
-        await pool.query('ROLLBACK')
-      return NextResponse.json(
-        { error: 'Profile not found' },
-        { status: 404 }
-      )
-    }
-    
+      await client.query('BEGIN')
+      
+      // Get profile
+      const profileResult = await client.query(`
+        SELECT id
+        FROM profiles
+        WHERE wallet_address = $1
+          FOR UPDATE
+      `, [walletAddress])
+      
+      if (profileResult.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return NextResponse.json(
+          { error: 'Profile not found' },
+          { status: 404 }
+        )
+      }
+      
       profileId = profileResult.rows[0].id
-    
+      
       // FIRST: Delete all karma points for this profile (wipes existing karma records)
       // This ensures any karma that somehow exists without a chosen side gets cleaned up
-    await pool.query(`
-      DELETE FROM karma_points
-      WHERE profile_id = $1
-    `, [profileId])
-    
+      await client.query(`
+        DELETE FROM karma_points
+        WHERE profile_id = $1
+      `, [profileId])
+      
       // Also delete user task completions (they'll need to redo tasks)
-      await pool.query(`
+      await client.query(`
         DELETE FROM user_task_completions
         WHERE profile_id = $1
       `, [profileId])
       
       // THEN: Reset karma totals and update chosen_side
-    await pool.query(`
-      UPDATE profiles
-      SET total_good_karma = 0,
-          total_bad_karma = 0,
-          chosen_side = $1,
-          updated_at = NOW()
-      WHERE wallet_address = $2
-    `, [chosenSide, walletAddress])
-    
-      await pool.query('COMMIT')
+      await client.query(`
+        UPDATE profiles
+        SET total_good_karma = 0,
+            total_bad_karma = 0,
+            chosen_side = $1,
+            updated_at = NOW()
+        WHERE wallet_address = $2
+      `, [chosenSide, walletAddress])
+      
+      await client.query('COMMIT')
     } catch (error) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       throw error
+    } finally {
+      client.release()
     }
     
     console.log(`✅ Reset karma and set side to ${chosenSide} for ${walletAddress}`)

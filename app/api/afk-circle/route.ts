@@ -258,17 +258,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await pool.query('BEGIN')
-
+    const client = await pool.connect()
     try {
+      await client.query('BEGIN')
+
       // Lock the AFK circle row to prevent race conditions
-      await pool.query(
+      await client.query(
         `SELECT * FROM afk_circles WHERE id = $1 FOR UPDATE`,
         [AFK_CIRCLE_ID]
       )
 
       // Check if AFK circle is full (now protected by row lock)
-      const countRes = await pool.query(`
+      const countRes = await client.query(`
         SELECT COUNT(*)::int AS total
         FROM afk_circle_participants
         WHERE circle_id = $1
@@ -276,7 +277,7 @@ export async function POST(request: NextRequest) {
       const currentCount = Number(countRes.rows[0]?.total ?? 0)
       
       if (currentCount >= MAX_AFK_PARTICIPANTS) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: `AFK circle is full (${MAX_AFK_PARTICIPANTS} participants).` },
           { status: 409 },
@@ -284,7 +285,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if this inscription is already in the AFK circle
-      const existingRes = await pool.query(
+      const existingRes = await client.query(
         `
           SELECT id FROM afk_circle_participants
           WHERE circle_id = $1 AND inscription_id = $2
@@ -293,7 +294,7 @@ export async function POST(request: NextRequest) {
       )
 
       if (existingRes.rows.length > 0) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: 'This ordinal is already in the AFK circle.' },
           { status: 409 },
@@ -301,7 +302,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if this inscription is in any active circle (powder, damned_pool, dead_demons)
-      const activeCircleRes = await pool.query(
+      const activeCircleRes = await client.query(
         `
           SELECT 'powder' as type FROM summoning_powder_participants
           WHERE inscription_id = $1
@@ -329,7 +330,7 @@ export async function POST(request: NextRequest) {
       )
 
       if (activeCircleRes.rows.length > 0) {
-        await pool.query('ROLLBACK')
+        await client.query('ROLLBACK')
         return NextResponse.json(
           { success: false, error: 'This ordinal is already pledged to an active summoning circle.' },
           { status: 409 },
@@ -337,7 +338,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Add to AFK circle (the single default circle)
-      await pool.query(
+      await client.query(
         `
           INSERT INTO afk_circle_participants (circle_id, wallet, inscription_id, inscription_image)
           VALUES ($1, $2, $3, $4)
@@ -345,15 +346,17 @@ export async function POST(request: NextRequest) {
         [AFK_CIRCLE_ID, wallet, inscriptionId, inscriptionImage],
       )
 
-      await pool.query('COMMIT')
+      await client.query('COMMIT')
 
       return NextResponse.json({
         success: true,
         message: 'Ordinal added to AFK circle.',
       })
     } catch (error) {
-      await pool.query('ROLLBACK')
+      await client.query('ROLLBACK')
       throw error
+    } finally {
+      client.release()
     }
   } catch (error) {
     console.error('[afk-circle][POST]', error)
