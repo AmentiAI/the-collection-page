@@ -1868,6 +1868,8 @@ function SpendableTab({
   sorting = 'desc',
   colorize = false,
   selectable = true,
+  inscriptionMetadata,
+  onPreview,
 }: {
   spendable: CategorisedWalletAssets['spendable']
   selectedMap: Record<string, SelectedAsset>
@@ -1875,6 +1877,8 @@ function SpendableTab({
   sorting?: 'asc' | 'desc'
   colorize?: boolean
   selectable?: boolean
+  inscriptionMetadata?: Record<string, MagicEdenMetadata>
+  onPreview?: (id: string) => void
 }) {
   if (spendable.length === 0) {
     return (
@@ -1903,53 +1907,138 @@ function SpendableTab({
     return 'border-emerald-200/60 bg-emerald-600/25'
   }
 
+  // Separate UTXOs with inscriptions from regular spendable UTXOs
+  const utxosWithInscriptions = sorted.filter(utxo => 
+    utxo.inscriptions && Array.isArray(utxo.inscriptions) && utxo.inscriptions.length > 0
+  )
+  const regularSpendable = sorted.filter(utxo => 
+    !utxo.inscriptions || !Array.isArray(utxo.inscriptions) || utxo.inscriptions.length === 0
+  )
+
   return (
-    <div className="space-y-4">
-      {sorted.map((utxo) => {
-        const checked = Boolean(selectedMap[utxo.outpoint])
-        const rowClass = getRowClass(utxo.value)
-        const handleToggle = onToggle ? () => onToggle(utxo) : undefined
-        return (
-          <AssetRow
-            key={utxo.outpoint}
-            checked={checked}
-            onToggle={handleToggle}
-            className={rowClass}
-            selectable={selectable && Boolean(handleToggle)}
-          >
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
-                <span>{truncateMiddle(utxo.outpoint, 28)}</span>
-                <span>{formatSats(utxo.value)}</span>
-                <span>{formatBtc(utxo.value)}</span>
-                <span>Height {utxo.height ?? '—'}</span>
-                <span>Vout {utxo.vout}</span>
-              </div>
-              {/* Show inscription links for small UTXOs (< 2000 sats) that have inscriptions */}
-              {utxo.value < 2000 && utxo.inscriptions && Array.isArray(utxo.inscriptions) && utxo.inscriptions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-amber-400/80">⚠️ Has {utxo.inscriptions.length} inscription{utxo.inscriptions.length > 1 ? 's' : ''}:</span>
-                  {utxo.inscriptions.slice(0, 3).map((inscriptionId: string) => (
-                    <a
-                      key={inscriptionId}
-                      href={`https://ordinals.com/inscription/${encodeURIComponent(inscriptionId)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-300 hover:text-amber-200 underline font-mono text-[10px]"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {inscriptionId.substring(0, 12)}...
-                    </a>
-                  ))}
-                  {utxo.inscriptions.length > 3 && (
-                    <span className="text-amber-400/60 text-[10px]">+{utxo.inscriptions.length - 3} more</span>
+    <div className="space-y-6">
+      {/* Display UTXOs with inscriptions as table rows (like inscription modal) */}
+      {utxosWithInscriptions.length > 0 && (
+        <div className="space-y-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-amber-400/80">
+            UTXOs with Inscriptions ({utxosWithInscriptions.length})
+          </div>
+          {utxosWithInscriptions.map((utxo) => {
+            const checked = Boolean(selectedMap[utxo.outpoint])
+            const rowClass = getRowClass(utxo.value)
+            const handleToggle = onToggle ? () => onToggle(utxo) : undefined
+            const primaryInscriptionId = utxo.inscriptions?.[0]
+            const meta = primaryInscriptionId && inscriptionMetadata ? inscriptionMetadata[primaryInscriptionId] : undefined
+            
+            return (
+              <AssetRow
+                key={utxo.outpoint}
+                checked={checked}
+                onToggle={handleToggle}
+                className={rowClass}
+                selectable={selectable && Boolean(handleToggle)}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Inscription preview (like inscription modal) */}
+                  {primaryInscriptionId && (
+                    <div className="flex-shrink-0">
+                      {onPreview ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onPreview(primaryInscriptionId)
+                          }}
+                          className="cursor-pointer transition-opacity hover:opacity-80"
+                        >
+                          <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={80} interactive={false} />
+                        </button>
+                      ) : (
+                        <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={80} interactive={false} />
+                      )}
+                    </div>
                   )}
+                  
+                  {/* UTXO details */}
+                  <div className="flex flex-1 flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                      <span>{truncateMiddle(utxo.outpoint, 28)}</span>
+                      <span>{formatSats(utxo.value)}</span>
+                      <span>{formatBtc(utxo.value)}</span>
+                      <span>Height {utxo.height ?? '—'}</span>
+                      <span>Vout {utxo.vout}</span>
+                    </div>
+                    
+                    {/* Inscription metadata */}
+                    {meta && (
+                      <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200/80">
+                        {meta.name && <div className="truncate">{meta.name}</div>}
+                        {meta.collectionName && (
+                          <div className="truncate text-amber-100/60">
+                            {meta.collectionSymbol ? `${meta.collectionSymbol}` : meta.collectionName}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* All inscription IDs */}
+                    {utxo.inscriptions && utxo.inscriptions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-amber-400/80">Inscriptions ({utxo.inscriptions.length}):</span>
+                        {utxo.inscriptions.map((inscriptionId: string) => (
+                          <a
+                            key={inscriptionId}
+                            href={`https://ordinals.com/inscription/${encodeURIComponent(inscriptionId)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-300 hover:text-amber-200 underline font-mono text-[10px]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {inscriptionId.substring(0, 12)}...
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+              </AssetRow>
+            )
+          })}
+        </div>
+      )}
+      
+      {/* Regular spendable UTXOs (no inscriptions) */}
+      {regularSpendable.length > 0 && (
+        <div className="space-y-4">
+          {utxosWithInscriptions.length > 0 && (
+            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-red-200/70">
+              Regular Spendable UTXOs ({regularSpendable.length})
             </div>
-          </AssetRow>
-        )
-      })}
+          )}
+          {regularSpendable.map((utxo) => {
+            const checked = Boolean(selectedMap[utxo.outpoint])
+            const rowClass = getRowClass(utxo.value)
+            const handleToggle = onToggle ? () => onToggle(utxo) : undefined
+            return (
+              <AssetRow
+                key={utxo.outpoint}
+                checked={checked}
+                onToggle={handleToggle}
+                className={rowClass}
+                selectable={selectable && Boolean(handleToggle)}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  <span>{truncateMiddle(utxo.outpoint, 28)}</span>
+                  <span>{formatSats(utxo.value)}</span>
+                  <span>{formatBtc(utxo.value)}</span>
+                  <span>Height {utxo.height ?? '—'}</span>
+                  <span>Vout {utxo.vout}</span>
+                </div>
+              </AssetRow>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -2175,6 +2264,8 @@ function AssetPickerModal({
               colorize
               selectable={Boolean(onToggleSpendable)}
               onToggle={onToggleSpendable}
+              inscriptionMetadata={inscriptionMetadata}
+              onPreview={onPreview}
             />
           )}
         </div>

@@ -839,7 +839,9 @@ return results`
     } else if (hasInscriptions || hasRunes) {
       // For small UTXOs (< 2000 sats), include them in spendable too (with inscription data for display)
       // This allows users to see and potentially spend small UTXOs with inscriptions
+      // NOTE: Inscriptions are verified via ord_output calls (Lua multicall) - not just assumed
       if (value < 2000 && (hasInscriptions || hasRunes)) {
+        console.log(`✅ Small UTXO with ordinals: ${outpoint} (${value} sats, ${inscriptions.length} inscriptions)`)
         // Add to both spendable (with inscription data) and assets
         spendable.push({
           ...utxoEntry,
