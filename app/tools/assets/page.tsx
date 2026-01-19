@@ -1958,6 +1958,36 @@ function SpendableTab({
 
   const sorted = [...spendable].sort((a, b) => (sorting === 'asc' ? a.value - b.value : b.value - a.value))
 
+  // Automatically check small UTXOs (< 2000 sats) for inscriptions when component mounts or spendable list changes
+  useEffect(() => {
+    const smallUtxos = sorted.filter(utxo => utxo.value < 2000)
+    
+    // Only check UTXOs that haven't been checked yet and aren't already loading
+    const toCheck = smallUtxos.filter(utxo => {
+      const checked = checkedUtxos[utxo.outpoint]
+      return !checked || (!checked.loading && !checked.hasInscriptions && !checked.isPending)
+    })
+
+    if (toCheck.length === 0) return
+
+    // Batch check UTXOs with a small delay between batches to avoid overwhelming the API
+    const batchSize = 5
+    let currentIndex = 0
+
+    const checkBatch = async () => {
+      const batch = toCheck.slice(currentIndex, currentIndex + batchSize)
+      await Promise.all(batch.map(utxo => checkUtxoInscriptions(utxo.outpoint)))
+      currentIndex += batchSize
+
+      if (currentIndex < toCheck.length) {
+        // Small delay between batches
+        setTimeout(checkBatch, 500)
+      }
+    }
+
+    checkBatch()
+  }, [sorted, checkUtxoInscriptions, checkedUtxos])
+
   const getRowClass = (value: number) => {
     if (!colorize) return ''
     if (value <= 600) {
