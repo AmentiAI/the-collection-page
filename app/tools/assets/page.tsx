@@ -836,12 +836,28 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       outputs: Array<{ address: string; amount: number }>,
       feeRateValue: number,
     ): { plan?: TransactionPlan; error?: string } => {
-      if (!outputs.length) {
-        return { error: 'Provide at least one valid output (address and sats).' }
-      }
-
       if (!Number.isFinite(feeRateValue) || feeRateValue <= 0) {
         return { error: 'Enter a valid sat/vB fee rate.' }
+      }
+
+      // If no outputs provided, create placeholder outputs for gas calculation
+      // This allows gas UTXO calculation before all destination addresses are entered
+      const effectiveOutputs = outputs.length > 0 
+        ? outputs 
+        : inputs
+            .filter(input => input.category !== 'spendable')
+            .map(input => ({ address: '', amount: input.value }))
+      
+      if (!effectiveOutputs.length) {
+        // If we have no outputs and no non-spendable inputs, we can't calculate
+        // But if we have spendable inputs, we can still estimate
+        if (inputs.every(input => input.category === 'spendable')) {
+          // For spendable-only, use a minimal output for estimation
+          const totalValue = inputs.reduce((sum, input) => sum + input.value, 0)
+          effectiveOutputs.push({ address: '', amount: totalValue })
+        } else {
+          return { error: 'Provide at least one valid output (address and sats).' }
+        }
       }
 
       const paymentSpendable = spendableSorted
@@ -858,7 +874,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       let changeOutput: { address: string; amount: number } | undefined
       let finalVsize = 0
       let finalFee = 0
-      const destinationTotal = outputs.reduce((sum, output) => sum + output.amount, 0)
+      const destinationTotal = effectiveOutputs.reduce((sum, output) => sum + output.amount, 0)
 
       const convertSpendableToSelected = (
         utxo: CategorisedWalletAssets['spendable'][number],
@@ -874,7 +890,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       })
 
       while (true) {
-        const outputCount = outputs.length + (changeOutput ? 1 : 0)
+        const outputCount = effectiveOutputs.length + (changeOutput ? 1 : 0)
         finalVsize = estimateVsize(candidateInputs.length, outputCount)
         finalFee = Math.ceil(finalVsize * feeRateValue)
         const remaining = totalInputValue - destinationTotal - finalFee
@@ -910,7 +926,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       const paymentInputs = candidateInputs.filter((input) => input.category === 'spendable')
       const plan: TransactionPlan = {
         inputs: candidateInputs,
-        outputs: outputs.map((output) => ({ ...output })),
+        outputs: effectiveOutputs.map((output) => ({ ...output })),
         changeOutput,
         feeRate: feeRateValue,
         fee: finalFee,
@@ -928,18 +944,20 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       return { status: 'info', message: 'Select assets to preview funding.' as const }
     }
 
-    if (!parsedOutputDrafts.length) {
-      return { status: 'info', message: 'Enter destination addresses to prepare funding.' as const }
-    }
-
     const feeRateValue = Number.parseFloat(feeRate)
     if (!Number.isFinite(feeRateValue) || feeRateValue <= 0) {
       return { status: 'info', message: 'Enter a valid sat/vB fee rate.' as const }
     }
 
+    // Calculate plan even without all destination addresses to show gas UTXOs
+    // computePlan will handle empty outputs by creating placeholder outputs for estimation
     const normalizedInputs = selectedAssets.map((input) => ({ ...input, autoPayment: input.autoPayment ?? false }))
     const result = computePlan(normalizedInputs, parsedOutputDrafts, feeRateValue)
     if (result.error || !result.plan) {
+      // If we have no outputs and plan fails, show info message instead of error
+      if (parsedOutputDrafts.length === 0 && result.error?.includes('output')) {
+        return { status: 'info', message: 'Enter destination addresses to prepare funding.' as const }
+      }
       return { status: 'error', message: result.error ?? 'Unable to prepare funding plan.' as const }
     }
 
@@ -1518,7 +1536,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                         >
                           <div className="space-y-3">
                             <div className="flex gap-3">
-                              {isInscriptionAsset && primaryInscriptionId ? (
+                              {primaryInscriptionId ? (
                                 <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={96} interactive={false} />
                               ) : null}
                               <div className="flex-1 space-y-2">
@@ -1540,7 +1558,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                                     Remove
                                   </button>
                                 </div>
-                                {isInscriptionAsset && inscriptionMeta && (
+                                {primaryInscriptionId && inscriptionMeta && (
                                   <div className="space-y-1 text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
                                     {inscriptionMeta.name && <div className="truncate text-amber-100">{inscriptionMeta.name}</div>}
                                     {(inscriptionMeta.collectionName || inscriptionMeta.collectionSymbol) && (
