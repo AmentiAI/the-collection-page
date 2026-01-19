@@ -1948,18 +1948,12 @@ function SpendableTab({
     }
   }, [checkedUtxos])
 
-  if (spendable.length === 0) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
-        No cardinal UTXOs available. Once fresh sats arrive, they will populate here for fee padding and change management.
-      </div>
-    )
-  }
-
   const sorted = [...spendable].sort((a, b) => (sorting === 'asc' ? a.value - b.value : b.value - a.value))
 
   // Automatically check small UTXOs (< 2000 sats) for inscriptions when component mounts or spendable list changes
   useEffect(() => {
+    if (spendable.length === 0) return
+    
     const smallUtxos = sorted.filter(utxo => utxo.value < 2000)
     
     // Only check UTXOs that haven't been checked yet and aren't already loading
@@ -1986,7 +1980,15 @@ function SpendableTab({
     }
 
     checkBatch()
-  }, [sorted, checkUtxoInscriptions, checkedUtxos])
+  }, [sorted, checkUtxoInscriptions, checkedUtxos, spendable.length])
+
+  if (spendable.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
+        No cardinal UTXOs available. Once fresh sats arrive, they will populate here for fee padding and change management.
+      </div>
+    )
+  }
 
   const getRowClass = (value: number) => {
     if (!colorize) return ''
