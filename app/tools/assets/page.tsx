@@ -80,7 +80,7 @@ const AVERAGE_OUTPUT_VBYTES = 43
 const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
 const MAX_INSCRIPTION_SELECTION = 20
-const MIN_PAYMENT_INPUT_SATS = 600
+const MIN_PAYMENT_INPUT_SATS = 1201
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -424,9 +424,9 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         delete next[asset.outpoint]
       } else {
         // Allow small UTXOs with inscriptions to be selected (they're shown in the modal for a reason)
-        // Only block regular small spendable UTXOs (without inscriptions)
-        if (asset.category === 'spendable' && asset.value <= MIN_PAYMENT_INPUT_SATS && (!asset.inscriptions || asset.inscriptions.length === 0)) {
-          toast.error('Payment inputs must be larger than 600 sats. Pick a bigger UTXO.')
+        // Only block regular small spendable UTXOs (without inscriptions) - require 330+ sats
+        if (asset.category === 'spendable' && asset.value <= 330 && (!asset.inscriptions || asset.inscriptions.length === 0)) {
+          toast.error('Payment inputs must be larger than 330 sats. Pick a bigger UTXO.')
           return current
         }
         if (asset.category === 'inscriptions') {
