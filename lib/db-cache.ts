@@ -87,7 +87,7 @@ export function invalidateCache(keyPattern?: string) {
   }
 
   const keysToDelete: string[] = []
-  for (const key of cache.keys()) {
+  for (const key of Array.from(cache.keys())) {
     if (key.includes(keyPattern)) {
       keysToDelete.push(key)
     }
