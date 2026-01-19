@@ -1898,6 +1898,52 @@ function SpendableTab({
   inscriptionMetadata?: Record<string, MagicEdenMetadata>
   onPreview?: (id: string) => void
 }) {
+  const [checkedUtxos, setCheckedUtxos] = useState<Record<string, {
+    loading: boolean
+    inscriptions: string[]
+    hasInscriptions: boolean
+    hasRunes: boolean
+  }>>({})
+
+  const checkUtxoInscriptions = useCallback(async (outpoint: string) => {
+    if (checkedUtxos[outpoint]?.loading) return // Already checking
+    
+    setCheckedUtxos(prev => ({
+      ...prev,
+      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false }
+    }))
+
+    try {
+      const response = await fetch('/api/wallet/check-utxo-inscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outpoint }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to check UTXO')
+      }
+
+      setCheckedUtxos(prev => ({
+        ...prev,
+        [outpoint]: {
+          loading: false,
+          inscriptions: data.inscriptions || [],
+          hasInscriptions: data.hasInscriptions || false,
+          hasRunes: data.hasRunes || false,
+        }
+      }))
+    } catch (error) {
+      console.error('Failed to check UTXO inscriptions:', error)
+      setCheckedUtxos(prev => ({
+        ...prev,
+        [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false }
+      }))
+    }
+  }, [checkedUtxos])
+
   if (spendable.length === 0) {
     return (
       <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
@@ -2111,22 +2157,91 @@ function SpendableTab({
                   </div>
                 </div>
                 
-                {/* Image/Preview - empty for regular spendable */}
+                {/* Image/Preview - show inscription preview if checked and found */}
                 <div className="flex-shrink-0">
-                  <div className="flex h-[60px] w-[60px] items-center justify-center rounded-xl border border-red-500/30 bg-black/50 text-[8px] uppercase tracking-[0.3em] text-red-200/50">
-                    {mightHaveInscriptions ? 'Check' : '—'}
-                  </div>
+                  {(() => {
+                    const checked = checkedUtxos[utxo.outpoint]
+                    const hasChecked = checked && !checked.loading
+                    const primaryInscriptionId = hasChecked && checked.hasInscriptions && checked.inscriptions.length > 0
+                      ? checked.inscriptions[0]
+                      : null
+                    
+                    if (primaryInscriptionId) {
+                      return onPreview ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onPreview(primaryInscriptionId)
+                          }}
+                          className="cursor-pointer transition-opacity hover:opacity-80"
+                        >
+                          <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={60} interactive={false} />
+                        </button>
+                      ) : (
+                        <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={60} interactive={false} />
+                      )
+                    }
+                    
+                    return (
+                      <div className="flex h-[60px] w-[60px] items-center justify-center rounded-xl border border-red-500/30 bg-black/50 text-[8px] uppercase tracking-[0.3em] text-red-200/50">
+                        —
+                      </div>
+                    )
+                  })()}
                 </div>
                 
-                {/* Outpoint */}
+                {/* Outpoint and Check button */}
                 <div className="flex flex-col gap-1 min-w-0">
                   <span className="text-xs font-mono uppercase tracking-[0.3em] text-red-100 truncate" title={utxo.outpoint}>
                     {truncateMiddle(utxo.outpoint, 28)}
                   </span>
                   {mightHaveInscriptions && (
-                    <span className="text-[9px] text-amber-400/60 font-mono">
-                      Small UTXO - may have inscriptions
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const checked = checkedUtxos[utxo.outpoint]
+                        const isLoading = checked?.loading
+                        const hasChecked = checked && !checked.loading
+                        const hasInscriptions = hasChecked && checked.hasInscriptions
+                        
+                        if (isLoading) {
+                          return (
+                            <span className="text-[9px] text-amber-400/80 font-mono">
+                              Checking...
+                            </span>
+                          )
+                        }
+                        
+                        if (hasChecked) {
+                          if (hasInscriptions) {
+                            return (
+                              <span className="text-[9px] text-amber-300 font-mono">
+                                ✓ {checked.inscriptions.length} inscription{checked.inscriptions.length !== 1 ? 's' : ''}
+                              </span>
+                            )
+                          } else {
+                            return (
+                              <span className="text-[9px] text-red-300/60 font-mono">
+                                ✓ No inscriptions
+                              </span>
+                            )
+                          }
+                        }
+                        
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              checkUtxoInscriptions(utxo.outpoint)
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-900/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-amber-200 transition hover:bg-amber-900/50"
+                          >
+                            Check
+                          </button>
+                        )
+                      })()}
+                    </div>
                   )}
                 </div>
                 
