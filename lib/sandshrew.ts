@@ -100,6 +100,8 @@ export interface BaseUtxo {
   vout: number
   value: number
   height: number | null
+  inscriptions?: string[] | null  // Optional: for small UTXOs (< 2000 sats) that have inscriptions
+  runes?: SandshrewRuneBalance[] | null  // Optional: for small UTXOs that have runes
 }
 
 export interface InscriptionUtxo extends BaseUtxo {
@@ -183,13 +185,23 @@ function normaliseBaseUtxo(entry: SandshrewSpendableUtxo): BaseUtxo {
   const height = toNumber(entry.height)
   const { txid, vout } = parseOutpoint(entry.outpoint)
 
-  return {
+  const base: BaseUtxo = {
     outpoint: entry.outpoint,
     txid,
     vout,
     value,
     height,
   }
+
+  // Preserve inscriptions and runes for small UTXOs
+  if (entry.inscriptions) {
+    base.inscriptions = Array.isArray(entry.inscriptions) ? entry.inscriptions : null
+  }
+  if (entry.runes) {
+    base.runes = entry.runes
+  }
+
+  return base
 }
 
 function normaliseInscriptions(value: string[] | null | undefined): string[] {
