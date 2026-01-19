@@ -1935,11 +1935,21 @@ function SpendableTab({
 
   return (
     <div className="space-y-6">
-      {/* Display UTXOs with inscriptions as table rows (like inscription modal) */}
+      {/* Display UTXOs with inscriptions as table rows with columns */}
       {utxosWithInscriptions.length > 0 && (
         <div className="space-y-4">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-amber-400/80">
             UTXOs with Inscriptions ({utxosWithInscriptions.length})
+          </div>
+          {/* Table header for UTXOs with inscriptions */}
+          <div className="grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 border-b border-white/10 pb-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-red-200/60">
+            <div></div>
+            <div>Image</div>
+            <div>Inscription ID</div>
+            <div>SATS</div>
+            <div>BTC</div>
+            <div>Height</div>
+            <div>Vout</div>
           </div>
           {utxosWithInscriptions.map((utxo) => {
             const checked = Boolean(selectedMap[utxo.outpoint])
@@ -1949,77 +1959,97 @@ function SpendableTab({
             const meta = primaryInscriptionId && inscriptionMetadata ? inscriptionMetadata[primaryInscriptionId] : undefined
             
             return (
-              <AssetRow
+              <div
                 key={utxo.outpoint}
-                checked={checked}
-                onToggle={handleToggle}
-                className={rowClass}
-                selectable={selectable && Boolean(handleToggle)}
+                className={`grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 items-center rounded-lg border p-3 transition ${
+                  checked ? 'border-red-400/70 bg-red-900/20' : rowClass || 'border-white/10 bg-black/30'
+                } ${selectable && handleToggle ? 'cursor-pointer hover:bg-black/50' : ''}`}
+                onClick={selectable && handleToggle ? handleToggle : undefined}
               >
-                <div className="flex items-center gap-4">
-                  {/* Inscription preview (like inscription modal) */}
-                  {primaryInscriptionId && (
-                    <div className="flex-shrink-0">
-                      {onPreview ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onPreview(primaryInscriptionId)
-                          }}
-                          className="cursor-pointer transition-opacity hover:opacity-80"
-                        >
-                          <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={80} interactive={false} />
-                        </button>
-                      ) : (
-                        <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={80} interactive={false} />
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* UTXO details */}
-                  <div className="flex flex-1 flex-col gap-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
-                      <span>{truncateMiddle(utxo.outpoint, 28)}</span>
-                      <span>{formatSats(utxo.value)}</span>
-                      <span>{formatBtc(utxo.value)}</span>
-                      <span>Height {utxo.height ?? '—'}</span>
-                      <span>Vout {utxo.vout}</span>
-                    </div>
-                    
-                    {/* Inscription metadata */}
-                    {meta && (
-                      <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-amber-200/80">
-                        {meta.name && <div className="truncate">{meta.name}</div>}
-                        {meta.collectionName && (
-                          <div className="truncate text-amber-100/60">
-                            {meta.collectionSymbol ? `${meta.collectionSymbol}` : meta.collectionName}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* All inscription IDs */}
-                    {utxo.inscriptions && utxo.inscriptions.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-amber-400/80">Inscriptions ({utxo.inscriptions.length}):</span>
-                        {utxo.inscriptions.map((inscriptionId: string) => (
-                          <a
-                            key={inscriptionId}
-                            href={`https://ordinals.com/inscription/${encodeURIComponent(inscriptionId)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-amber-300 hover:text-amber-200 underline font-mono text-[10px]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {inscriptionId.substring(0, 12)}...
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                {/* Checkbox */}
+                <div className="flex items-center">
+                  <div className="h-4 w-4 rounded border border-red-400/30 bg-black/50 flex items-center justify-center">
+                    {checked && <div className="h-2.5 w-2.5 rounded-full bg-red-400" />}
                   </div>
                 </div>
-              </AssetRow>
+                
+                {/* Image/Preview */}
+                <div className="flex-shrink-0">
+                  {primaryInscriptionId ? (
+                    onPreview ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onPreview(primaryInscriptionId)
+                        }}
+                        className="cursor-pointer transition-opacity hover:opacity-80"
+                      >
+                        <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={60} interactive={false} />
+                      </button>
+                    ) : (
+                      <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={60} interactive={false} />
+                    )
+                  ) : (
+                    <div className="flex h-[60px] w-[60px] items-center justify-center rounded-xl border border-amber-500/30 bg-black/50 text-[8px] uppercase tracking-[0.3em] text-amber-100">
+                      No preview
+                    </div>
+                  )}
+                </div>
+                
+                {/* Inscription ID(s) */}
+                <div className="flex flex-col gap-1 min-w-0">
+                  {utxo.inscriptions && utxo.inscriptions.length > 0 ? (
+                    <>
+                      {utxo.inscriptions.slice(0, 2).map((inscriptionId: string, idx: number) => (
+                        <a
+                          key={inscriptionId}
+                          href={`https://ordinals.com/inscription/${encodeURIComponent(inscriptionId)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-amber-300 hover:text-amber-200 underline font-mono text-[10px] truncate"
+                          onClick={(e) => e.stopPropagation()}
+                          title={inscriptionId}
+                        >
+                          {inscriptionId.substring(0, 16)}...
+                        </a>
+                      ))}
+                      {utxo.inscriptions.length > 2 && (
+                        <span className="text-amber-400/60 text-[9px] font-mono">
+                          +{utxo.inscriptions.length - 2} more
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-red-200/50 text-[10px] font-mono">—</span>
+                  )}
+                  {meta && (
+                    <div className="text-[9px] text-amber-200/70 truncate" title={meta.name || ''}>
+                      {meta.name || meta.collectionName || ''}
+                    </div>
+                  )}
+                </div>
+                
+                {/* SATS */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {formatSats(utxo.value)}
+                </div>
+                
+                {/* BTC */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {formatBtc(utxo.value)}
+                </div>
+                
+                {/* Height */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {utxo.height ?? '—'}
+                </div>
+                
+                {/* Vout */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {utxo.vout}
+                </div>
+              </div>
             )
           })}
         </div>
