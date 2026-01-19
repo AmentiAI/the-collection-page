@@ -866,27 +866,32 @@ return results`
         runes: hasRunes ? runes : null,
       })
     } else if (hasInscriptions || hasRunes) {
-      // For small UTXOs (< 2000 sats), include them in spendable too (with inscription data for display)
+      // CRITICAL: UTXOs with inscriptions/runes MUST be in assets array
+      // This is what categoriseWalletAssets uses to populate the inscriptions array
+      
+      // Asset UTXO (has inscriptions/runes) - ALWAYS add to assets first
+      assets.push({
+        ...utxoEntry,
+        inscriptions: hasInscriptions ? inscriptions : null,
+        runes: hasRunes ? runes : null,
+      })
+      
+      // For small UTXOs (< 2000 sats), ALSO include them in spendable (with inscription data for display)
       // This allows users to see and potentially spend small UTXOs with inscriptions
       // NOTE: Inscriptions are verified via ord_output calls (Lua multicall) - not just assumed
       if (value < 2000 && (hasInscriptions || hasRunes)) {
-        console.log(`✅ Small UTXO with ordinals: ${outpoint} (${value} sats, ${inscriptions.length} inscriptions)`)
+        console.log(`✅ Small UTXO with ordinals: ${outpoint} (${value} sats, ${inscriptions.length} inscriptions) - added to both assets and spendable`)
         // Add to both spendable (with inscription data) and assets
         spendable.push({
           ...utxoEntry,
           inscriptions: hasInscriptions ? inscriptions : null,
           runes: hasRunes ? runes : null,
         })
+      } else {
+        console.log(`✅ UTXO with ordinals: ${outpoint} (${value} sats, ${inscriptions.length} inscriptions) - added to assets only`)
       }
-      
-      // Asset UTXO (has inscriptions/runes) - always add to assets
-      assets.push({
-        ...utxoEntry,
-        inscriptions: hasInscriptions ? inscriptions : null,
-        runes: hasRunes ? runes : null,
-      })
     } else {
-      // Spendable UTXO (clean, confirmed)
+      // Spendable UTXO (clean, confirmed, no inscriptions/runes)
       spendable.push(utxoEntry)
     }
   }
