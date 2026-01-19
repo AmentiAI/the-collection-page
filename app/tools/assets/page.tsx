@@ -427,28 +427,44 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         // For inscriptions/assets: allow 330+ sats (minimum for transfer)
         // For payment UTXOs: require 1201+ sats (minimum for paying gas)
         // Exception: if a spendable UTXO has inscriptions, treat it as an inscription (allow 330+)
-        const hasInscriptions = asset.inscriptions && asset.inscriptions.length > 0
+        const hasInscriptions = asset.inscriptions && Array.isArray(asset.inscriptions) && asset.inscriptions.length > 0
         
-        if (asset.category === 'spendable' && !hasInscriptions && asset.value <= MIN_PAYMENT_INPUT_SATS) {
-          toast.error(`Payment inputs must be larger than ${MIN_PAYMENT_INPUT_SATS} sats. Pick a bigger UTXO.`)
-          return current
-        }
-        
-        // For inscriptions/assets or spendable UTXOs with inscriptions: check minimum transfer amount
-        if ((asset.category === 'inscriptions' || asset.category === 'runes' || asset.category === 'alkanes' || 
-             (asset.category === 'spendable' && hasInscriptions)) && asset.value < MIN_TRANSFER_SATS) {
-          toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
-          return current
-        }
-        
-        if (asset.category === 'inscriptions') {
-          const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
-          if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
-            toast.error(`Limit ${MAX_INSCRIPTION_SELECTION} inscriptions per transfer. Remove one before adding another.`)
+        // If it's a spendable UTXO with inscriptions, treat it as an inscription for transfer purposes
+        // (user is transferring the inscription, not using it as payment)
+        if (asset.category === 'spendable' && hasInscriptions) {
+          // Treat as inscription - allow 330+ sats
+          if (asset.value < MIN_TRANSFER_SATS) {
+            toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
             return current
           }
+          // Change category to inscriptions for proper handling
+          next[asset.outpoint] = {
+            ...asset,
+            category: 'inscriptions' as AssetTabKey,
+          }
+        } else if (asset.category === 'spendable' && !hasInscriptions) {
+          // Pure payment UTXO (no inscriptions) - require 1201+ sats for gas
+          if (asset.value <= MIN_PAYMENT_INPUT_SATS) {
+            toast.error(`Payment inputs must be larger than ${MIN_PAYMENT_INPUT_SATS} sats. Pick a bigger UTXO.`)
+            return current
+          }
+          next[asset.outpoint] = asset
+        } else {
+          // Inscriptions/runes/alkanes - allow 330+ sats
+          if (asset.value < MIN_TRANSFER_SATS) {
+            toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
+            return current
+          }
+          
+          if (asset.category === 'inscriptions') {
+            const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
+            if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
+              toast.error(`Limit ${MAX_INSCRIPTION_SELECTION} inscriptions per transfer. Remove one before adding another.`)
+              return current
+            }
+          }
+          next[asset.outpoint] = asset
         }
-        next[asset.outpoint] = asset
       }
       setDestinationMap((prev) => {
         const updated = { ...prev }
