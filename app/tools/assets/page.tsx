@@ -1940,12 +1940,18 @@ function SpendableTab({
   }>>({})
 
   const checkUtxoInscriptions = useCallback(async (outpoint: string) => {
-    if (checkedUtxos[outpoint]?.loading) return // Already checking
-    
-    setCheckedUtxos(prev => ({
-      ...prev,
-      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
-    }))
+    // Use functional update to check current state without depending on checkedUtxos
+    setCheckedUtxos(prev => {
+      // Skip if already loading or already checked (has result)
+      if (prev[outpoint]?.loading) return prev
+      if (prev[outpoint] && !prev[outpoint].loading) return prev // Already checked, don't re-check
+      
+      // Mark as loading
+      return {
+        ...prev,
+        [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
+      }
+    })
 
     try {
       const response = await fetch('/api/wallet/check-utxo-inscriptions', {
@@ -1978,9 +1984,28 @@ function SpendableTab({
         [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
       }))
     }
-  }, [checkedUtxos])
+  }, []) // No dependencies - uses functional updates
 
   const sorted = [...spendable].sort((a, b) => (sorting === 'asc' ? a.value - b.value : b.value - a.value))
+
+  // Use a ref to track checked UTXOs to prevent duplicate API calls
+  const checkedUtxosRef = useRef<Record<string, {
+    loading: boolean
+    checked: boolean
+  }>>({})
+  
+  // Sync ref with state when state updates
+  useEffect(() => {
+    Object.keys(checkedUtxos).forEach(outpoint => {
+      const state = checkedUtxos[outpoint]
+      if (state) {
+        checkedUtxosRef.current[outpoint] = {
+          loading: state.loading,
+          checked: !state.loading // Mark as checked once loading is complete
+        }
+      }
+    })
+  }, [checkedUtxos])
 
   // Automatically check small UTXOs (< 2000 sats) for inscriptions when component mounts or spendable list changes
   useEffect(() => {
@@ -1990,8 +2015,11 @@ function SpendableTab({
     
     // Only check UTXOs that haven't been checked yet and aren't already loading
     const toCheck = smallUtxos.filter(utxo => {
-      const checked = checkedUtxos[utxo.outpoint]
-      return !checked || (!checked.loading && !checked.hasInscriptions && !checked.isPending)
+      const refState = checkedUtxosRef.current[utxo.outpoint]
+      // Skip if already loading or already checked
+      if (refState?.loading) return false
+      if (refState?.checked) return false
+      return true
     })
 
     if (toCheck.length === 0) return
@@ -2002,6 +2030,15 @@ function SpendableTab({
 
     const checkBatch = async () => {
       const batch = toCheck.slice(currentIndex, currentIndex + batchSize)
+      // Mark as loading in ref before calling
+      batch.forEach(utxo => {
+        if (!checkedUtxosRef.current[utxo.outpoint]) {
+          checkedUtxosRef.current[utxo.outpoint] = { loading: true, checked: false }
+        } else {
+          checkedUtxosRef.current[utxo.outpoint].loading = true
+        }
+      })
+      
       await Promise.all(batch.map(utxo => checkUtxoInscriptions(utxo.outpoint)))
       currentIndex += batchSize
 
@@ -2012,7 +2049,7 @@ function SpendableTab({
     }
 
     checkBatch()
-  }, [sorted, checkUtxoInscriptions, checkedUtxos, spendable.length])
+  }, [sorted, checkUtxoInscriptions, spendable.length]) // Removed checkedUtxos from dependencies to prevent loops
 
   if (spendable.length === 0) {
     return (
