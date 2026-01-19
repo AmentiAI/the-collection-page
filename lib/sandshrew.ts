@@ -713,12 +713,25 @@ return results`
       
       // batchResults should be an array of { result: ... } or { error: ... } objects
       if (Array.isArray(batchResults)) {
+        if (batchResults.length !== batch.length) {
+          console.warn(`⚠️ Batch size mismatch: expected ${batch.length} results, got ${batchResults.length} for batch ${Math.floor(i / batchSize) + 1}`)
+        }
+        
         batch.forEach((item, index) => {
           const response = batchResults[index]
           
+          if (!response) {
+            console.warn(`⚠️ No response for UTXO ${item.outpoint} at index ${index} in batch ${Math.floor(i / batchSize) + 1}`)
+            return
+          }
+          
           // Handle error response (means clean UTXO)
-          if (response && response.error) {
+          if (response.error) {
             // Per guide: error means no ordinals data - UTXO is clean
+            // But log it for debugging
+            if (index < 3) { // Only log first few to avoid spam
+              console.log(`   Clean UTXO: ${item.outpoint} (error: ${JSON.stringify(response.error).substring(0, 100)})`)
+            }
             return
           }
           
@@ -749,12 +762,21 @@ return results`
                 runes: Array.isArray(runes) ? runes : (typeof runes === 'object' && runes !== null ? Object.values(runes) : [])
               })
               console.log(`✅ Found ordinals on ${item.outpoint}: ${hasInscriptions ? `${inscriptions.length} inscriptions` : ''} ${hasRunes ? 'runes' : ''}`)
+            } else {
+              // Log if we got a result but no ordinals (for debugging)
+              if (index < 3) {
+                console.log(`   Clean UTXO: ${item.outpoint} (result exists but no ordinals)`)
+              }
+            }
+          } else {
+            // Log if result is null or not an object
+            if (index < 3) {
+              console.log(`   Clean UTXO: ${item.outpoint} (result: ${result === null ? 'null' : typeof result})`)
             }
           }
-          // If result is null or error, UTXO is clean - don't add to addressOrdData
         })
       } else {
-        console.warn(`⚠️ Lua multicall returned non-array result for batch ${Math.floor(i / batchSize) + 1}`)
+        console.warn(`⚠️ Lua multicall returned non-array result for batch ${Math.floor(i / batchSize) + 1}:`, typeof batchResults, batchResults)
       }
     } catch (batchError) {
       const errorMsg = batchError instanceof Error ? batchError.message : String(batchError)
@@ -776,6 +798,13 @@ return results`
     sampleEntries.forEach(([outpoint, data]) => {
       console.log(`   📝 ${outpoint}: ${data.inscriptions.length} inscriptions, ${data.runes.length} runes`)
     })
+  } else {
+    console.warn(`⚠️ WARNING: No ordinals data found in ${utxosToProcess.length} UTXOs! This might indicate an API issue.`)
+    // Log a few sample outpoints for debugging
+    if (utxosToProcess.length > 0) {
+      const samples = utxosToProcess.slice(0, 3).map(u => u.outpoint)
+      console.log(`   Sample outpoints checked: ${samples.join(', ')}`)
+    }
   }
 
   // Step 5: Categorize UTXOs using batch results
@@ -863,6 +892,11 @@ return results`
   }
 
   console.log(`✅ Categorized: ${spendable.length} spendable, ${assets.length} assets, ${pending.length} pending`)
+  
+  // Warn if we have many UTXOs but no assets (might indicate detection issue)
+  if (utxosToProcess.length > 10 && assets.length === 0 && addressOrdData.size === 0) {
+    console.warn(`⚠️ WARNING: ${utxosToProcess.length} UTXOs processed but 0 assets found. This might indicate that ord_output checks are failing or not detecting inscriptions.`)
+  }
 
   const result: SandshrewBalancesResult = {
     spendable,

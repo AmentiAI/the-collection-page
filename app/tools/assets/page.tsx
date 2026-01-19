@@ -225,6 +225,16 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const [inscriptionMetadataMap, setInscriptionMetadataMap] = useState<Record<string, MagicEdenMetadata>>({})
   const [magicEdenLoading, setMagicEdenLoading] = useState(false)
+  
+  // Track checked UTXOs at parent level so queue can access them
+  const [checkedUtxosQueue, setCheckedUtxosQueue] = useState<Record<string, {
+    loading: boolean
+    inscriptions: string[]
+    hasInscriptions: boolean
+    hasRunes: boolean
+    isPending: boolean
+    blockHeight: number | null
+  }>>({})
 
   const [pickerType, setPickerType] = useState<AssetTabKey | null>(null)
   const [pickerPage, setPickerPage] = useState<Record<AssetTabKey, number>>({
@@ -1260,6 +1270,71 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     [toggleSelection, paymentAssets],
   )
 
+  // Function to check UTXO inscriptions from queue
+  const checkUtxoInscriptionsFromQueue = useCallback(async (outpoint: string) => {
+    // Don't check if already loading or checked
+    if (checkedUtxosQueue[outpoint]?.loading) return
+    if (checkedUtxosQueue[outpoint] && checkedUtxosQueue[outpoint].inscriptions.length > 0) return
+    
+    setCheckedUtxosQueue(prev => ({
+      ...prev,
+      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
+    }))
+    
+    try {
+      const response = await fetch('/api/wallet/check-utxo-inscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outpoint }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to check UTXO')
+      }
+      
+      const inscriptions = data.inscriptions || []
+      const hasInscriptions = data.hasInscriptions || false
+      
+      // Update checked state
+      setCheckedUtxosQueue(prev => ({
+        ...prev,
+        [outpoint]: {
+          loading: false,
+          inscriptions,
+          hasInscriptions,
+          hasRunes: data.hasRunes || false,
+          isPending: data.isPending || false,
+          blockHeight: data.blockHeight || null,
+        }
+      }))
+      
+      // If inscriptions found, update the selected asset
+      if (hasInscriptions && inscriptions.length > 0) {
+        setSelectedMap(prev => {
+          const current = prev[outpoint]
+          if (current) {
+            return {
+              ...prev,
+              [outpoint]: {
+                ...current,
+                inscriptions,
+              }
+            }
+          }
+          return prev
+        })
+      }
+    } catch (error) {
+      console.error('Failed to check UTXO inscriptions from queue:', error)
+      setCheckedUtxosQueue(prev => ({
+        ...prev,
+        [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
+      }))
+    }
+  }, [checkedUtxosQueue])
+  
   const handleToggleRune = useCallback(
     (utxo: RuneBearingUtxo, category: 'runes' | 'alkanes') => {
       toggleSelection({
@@ -1529,19 +1604,29 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                     {destinationDrafts.map((draft) => {
                       const { asset, address, required, valid, pending } = draft
                       
-                      // For spendable assets, try to get inscriptions from paymentAssets if not in selected asset
+                      // For spendable assets, try to get inscriptions from multiple sources
                       let inscriptions = asset.inscriptions
                       if (asset.category === 'spendable' && (!inscriptions || inscriptions.length === 0)) {
-                        const originalUtxo = paymentAssets?.spendable?.find(utxo => utxo.outpoint === asset.outpoint)
-                        if (originalUtxo?.inscriptions && originalUtxo.inscriptions.length > 0) {
-                          inscriptions = originalUtxo.inscriptions
+                        // First try checkedUtxosQueue (from queue check button)
+                        const checkedData = checkedUtxosQueue[asset.outpoint]
+                        if (checkedData?.hasInscriptions && checkedData.inscriptions.length > 0) {
+                          inscriptions = checkedData.inscriptions
+                        } else {
+                          // Fallback to paymentAssets
+                          const originalUtxo = paymentAssets?.spendable?.find(utxo => utxo.outpoint === asset.outpoint)
+                          if (originalUtxo?.inscriptions && originalUtxo.inscriptions.length > 0) {
+                            inscriptions = originalUtxo.inscriptions
+                          }
                         }
                       }
                       
                       const primaryInscriptionId = inscriptions?.[0] ?? null
                       const inscriptionCount = inscriptions?.length ?? 0
+                      const checkedData = checkedUtxosQueue[asset.outpoint]
+                      const isChecking = checkedData?.loading ?? false
                       const inscriptionMeta = primaryInscriptionId ? inscriptionMetadataMap[primaryInscriptionId] : undefined
                       const isInscriptionAsset = asset.category === 'inscriptions'
+                      const needsCheck = asset.category === 'spendable' && !primaryInscriptionId && !isChecking
                       const borderClass = pending
                         ? 'border-amber-500/60'
                         : required && !valid
@@ -1574,6 +1659,19 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-100">
                                       Pending
                                     </span>
+                                  )}
+                                  {needsCheck && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void checkUtxoInscriptionsFromQueue(asset.outpoint)
+                                      }}
+                                      disabled={isChecking}
+                                      className="inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-900/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-100 transition hover:bg-amber-900/50 disabled:opacity-50"
+                                    >
+                                      {isChecking ? 'Checking...' : 'Check'}
+                                    </button>
                                   )}
                                   <button
                                     type="button"
