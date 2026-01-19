@@ -2274,18 +2274,8 @@ function SpendableTab({
                           }
                         }
                         
-                        return (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              checkUtxoInscriptions(utxo.outpoint)
-                            }}
-                            className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-900/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-amber-200 transition hover:bg-amber-900/50"
-                          >
-                            Check
-                          </button>
-                        )
+                        // Auto-check happens automatically via useEffect - no button needed
+                        return null
                       })()}
                     </div>
                   )}
