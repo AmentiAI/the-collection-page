@@ -119,7 +119,7 @@ export function cleanupExpiredCache() {
   const now = Date.now()
   const keysToDelete: string[] = []
   
-  for (const [key, entry] of cache.entries()) {
+  for (const [key, entry] of Array.from(cache.entries())) {
     // Remove entries older than 5 minutes (even if TTL was longer)
     if (now - entry.timestamp > 300000 && !entry.promise) {
       keysToDelete.push(key)
