@@ -1238,6 +1238,15 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const handleToggleSpendable = useCallback(
     (utxo: CategorisedWalletAssets['spendable'][number]) => {
+      // Get inscriptions from the UTXO, or try to find it in paymentAssets if not present
+      let inscriptions = utxo.inscriptions
+      if (!inscriptions || inscriptions.length === 0) {
+        const originalUtxo = paymentAssets?.spendable?.find(u => u.outpoint === utxo.outpoint)
+        if (originalUtxo?.inscriptions && originalUtxo.inscriptions.length > 0) {
+          inscriptions = originalUtxo.inscriptions
+        }
+      }
+      
       toggleSelection({
         outpoint: utxo.outpoint,
         category: 'spendable',
@@ -1245,10 +1254,10 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         txid: utxo.txid,
         vout: utxo.vout,
         height: utxo.height,
-        inscriptions: utxo.inscriptions ?? undefined, // Include inscriptions for small UTXOs (convert null to undefined)
+        inscriptions: inscriptions && inscriptions.length > 0 ? inscriptions : undefined, // Include inscriptions if available
       })
     },
-    [toggleSelection],
+    [toggleSelection, paymentAssets],
   )
 
   const handleToggleRune = useCallback(
@@ -1519,7 +1528,18 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                   <div className="space-y-4">
                     {destinationDrafts.map((draft) => {
                       const { asset, address, required, valid, pending } = draft
-                      const primaryInscriptionId = asset.inscriptions?.[0] ?? null
+                      
+                      // For spendable assets, try to get inscriptions from paymentAssets if not in selected asset
+                      let inscriptions = asset.inscriptions
+                      if (asset.category === 'spendable' && (!inscriptions || inscriptions.length === 0)) {
+                        const originalUtxo = paymentAssets?.spendable?.find(utxo => utxo.outpoint === asset.outpoint)
+                        if (originalUtxo?.inscriptions && originalUtxo.inscriptions.length > 0) {
+                          inscriptions = originalUtxo.inscriptions
+                        }
+                      }
+                      
+                      const primaryInscriptionId = inscriptions?.[0] ?? null
+                      const inscriptionCount = inscriptions?.length ?? 0
                       const inscriptionMeta = primaryInscriptionId ? inscriptionMetadataMap[primaryInscriptionId] : undefined
                       const isInscriptionAsset = asset.category === 'inscriptions'
                       const borderClass = pending
@@ -1545,6 +1565,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                                     {asset.category.toUpperCase()}
                                   </span>
                                   <span>{formatSats(asset.value)}</span>
+                                  {inscriptionCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-100">
+                                      +{inscriptionCount} Inscription{inscriptionCount !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
                                   {pending && (
                                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-100">
                                       Pending
@@ -1567,6 +1592,13 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                                         {inscriptionMeta.collectionSymbol ? ` · ${inscriptionMeta.collectionSymbol}` : ''}
                                       </div>
                                     )}
+                                  </div>
+                                )}
+                                {primaryInscriptionId && !inscriptionMeta && (
+                                  <div className="space-y-1 text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
+                                    <div className="truncate text-amber-100/80 font-mono text-[10px]">
+                                      {truncateMiddle(primaryInscriptionId, 24)}
+                                    </div>
                                   </div>
                                 )}
                                 <div className="text-[11px] uppercase tracking-[0.35em] text-red-200/60">
