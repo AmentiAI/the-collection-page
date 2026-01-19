@@ -424,33 +424,33 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       if (exists) {
         delete next[asset.outpoint]
       } else {
-        // For inscriptions/assets: allow 330+ sats (minimum for transfer)
-        // For payment UTXOs: require 1201+ sats (minimum for paying gas)
-        // Exception: if a spendable UTXO has inscriptions, treat it as an inscription (allow 330+)
+        // Check if this UTXO has inscriptions (regardless of category)
+        // If it has inscriptions, it's for transfer, not payment - allow 330+ sats
         const hasInscriptions = asset.inscriptions && Array.isArray(asset.inscriptions) && asset.inscriptions.length > 0
         
-        // If it's a spendable UTXO with inscriptions, treat it as an inscription for transfer purposes
-        // (user is transferring the inscription, not using it as payment)
-        if (asset.category === 'spendable' && hasInscriptions) {
-          // Treat as inscription - allow 330+ sats
+        // ANY UTXO with inscriptions is for transfer, not payment - allow 330+ sats
+        if (hasInscriptions) {
+          // Treat as inscription for transfer - allow 330+ sats
           if (asset.value < MIN_TRANSFER_SATS) {
             toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
             return current
           }
-          // Change category to inscriptions for proper handling
+          // Change category to inscriptions for proper handling (if it was spendable)
+          const finalCategory = asset.category === 'spendable' ? 'inscriptions' as AssetTabKey : asset.category
           next[asset.outpoint] = {
             ...asset,
-            category: 'inscriptions' as AssetTabKey,
+            category: finalCategory,
           }
-        } else if (asset.category === 'spendable' && !hasInscriptions) {
+        } else if (asset.category === 'spendable') {
           // Pure payment UTXO (no inscriptions) - require 1201+ sats for gas
+          // These are automatically selected by the system for paying fees, not manually selected
           if (asset.value <= MIN_PAYMENT_INPUT_SATS) {
             toast.error(`Payment inputs must be larger than ${MIN_PAYMENT_INPUT_SATS} sats. Pick a bigger UTXO.`)
             return current
           }
           next[asset.outpoint] = asset
         } else {
-          // Inscriptions/runes/alkanes - allow 330+ sats
+          // Inscriptions/runes/alkanes (without inscriptions check) - allow 330+ sats
           if (asset.value < MIN_TRANSFER_SATS) {
             toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
             return current
