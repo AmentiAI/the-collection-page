@@ -24,10 +24,14 @@ export interface SandshrewSpendableUtxo {
   outpoint: string
   value?: number | string
   height?: number | string | null
+  txid?: string
+  vout?: number
+  inscriptions?: string[] | null  // For small UTXOs (< 2000 sats) that have inscriptions
+  runes?: SandshrewRuneBalance[] | null  // For small UTXOs that have runes
 }
 
 export interface SandshrewAssetUtxo extends SandshrewSpendableUtxo {
-  inscriptions?: string[] | string | null
+  inscriptions?: string[] | null
   runes?: SandshrewRuneBalance[] | null
 }
 
@@ -188,20 +192,13 @@ function normaliseBaseUtxo(entry: SandshrewSpendableUtxo): BaseUtxo {
   }
 }
 
-function normaliseInscriptions(value: SandshrewAssetUtxo['inscriptions']): string[] {
+function normaliseInscriptions(value: string[] | null | undefined): string[] {
   if (!value) {
     return []
   }
 
   if (Array.isArray(value)) {
     return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
-  }
-
-  if (typeof value === 'string') {
-    return value
-      .split(/\s+/)
-      .map((token) => token.trim())
-      .filter(Boolean)
   }
 
   return []
@@ -632,61 +629,130 @@ export async function fetchSandshrewBalances(
     })
   }
 
-  // Step 4: Check each UTXO for ordinals data using ord_output (per Subfrost API guide)
-  // Note: ord_output doesn't support batch RPC, so we call individually
-  console.log(`🔍 Checking ${utxosToProcess.length} UTXOs for ordinals data (individual calls)...`)
+  // Step 4: Check each UTXO for ordinals data using ord_output via Lua multicall
+  // Per Subfrost docs: https://api.subfrost.io/docs/lua/examples - use lua_evalscript for batch calls
+  console.log(`🔍 Checking ${utxosToProcess.length} UTXOs for ordinals data (Lua multicall)...`)
   const addressOrdData = new Map<string, { inscriptions: string[], runes: any[] }>()
   
-  // Process in smaller batches with Promise.all for parallelization (but not true batch RPC)
-  const concurrency = 10 // Process 10 at a time to avoid overwhelming the API
-  for (let i = 0; i < utxosToProcess.length; i += concurrency) {
-    const batch = utxosToProcess.slice(i, i + concurrency)
-    
-    const promises = batch.map(async (item) => {
-      try {
-        const result = await fetchSubfrostRpc('ord_output', [item.outpoint], SUBFROST_API_KEY, SUBFROST_API_URL)
-        
-        // Per guide: null result or error means clean UTXO (no ordinals data)
-        // Only process if result exists and is not null
-        if (result && result !== null && typeof result === 'object') {
-          // ord_output returns: { inscriptions: string[], runes: {} or [], ... }
-          const inscriptions = result.inscriptions || []
-          const runes = result.runes || {}
-          const protorunes = result.protorunes || []
-          
-          // Check for inscriptions (array of strings)
-          const hasInscriptions = Array.isArray(inscriptions) && inscriptions.length > 0
-          
-          // Check for runes (can be object {} or array [])
-          const hasRunes = (Array.isArray(runes) && runes.length > 0) || 
-                          (typeof runes === 'object' && runes !== null && !Array.isArray(runes) && Object.keys(runes).length > 0)
-          
-          // Check for protorunes
-          const hasProtorunes = Array.isArray(protorunes) && protorunes.length > 0
-          
-          // Only store if there's actual ordinals data
-          if (hasInscriptions || hasRunes || hasProtorunes) {
-            addressOrdData.set(item.outpoint, {
-              inscriptions: hasInscriptions 
-                ? inscriptions.map((ins: any) => typeof ins === 'string' ? ins : ins.id || ins.inscription_id || String(ins))
-                : [],
-              runes: Array.isArray(runes) ? runes : (typeof runes === 'object' && runes !== null ? Object.values(runes) : [])
-            })
-            console.log(`✅ Found ordinals on ${item.outpoint}: ${hasInscriptions ? `${inscriptions.length} inscriptions` : ''} ${hasRunes ? 'runes' : ''}`)
-          }
+  // Lua multicall script (from Subfrost docs)
+  const multicallScript = `-- Execute multiple RPC calls in a single batch
+local results = {}
+
+for i, call in ipairs(args) do
+    if type(call) ~= "table" or #call ~= 2 then
+        return {
+            error = "Each multicall entry must be a tuple of [method, params]",
+            index = i
         }
-        // If result is null or error, UTXO is clean - don't add to addressOrdData
-      } catch (ordError) {
-        // Per guide: on error, assume UTXO is clean (fail open)
-        // Don't log every error to avoid spam
-      }
-    })
+    end
     
-    await Promise.all(promises)
+    local method = call[1]
+    local params = call[2]
+    
+    if type(method) ~= "string" then
+        return { error = "Method name must be a string", index = i }
+    end
+    
+    if type(params) ~= "table" then
+        return { error = "Method params must be an array", index = i }
+    end
+    
+    local success, result = pcall(function()
+        local rpc_func = _RPC[method]
+        if not rpc_func then
+            error("Method not found: " .. method)
+        end
+        
+        if #params == 0 then
+            return rpc_func()
+        elseif #params == 1 then
+            return rpc_func(params[1])
+        elseif #params == 2 then
+            return rpc_func(params[1], params[2])
+        else
+            local unpack_func = table.unpack or unpack
+            return rpc_func(unpack_func(params))
+        end
+    end)
+    
+    if success then
+        table.insert(results, { result = result })
+    else
+        table.insert(results, { error = { message = tostring(result) } })
+    end
+end
+
+return results`
+  
+  // Process in batches of 50 to avoid overwhelming the API
+  const batchSize = 50
+  for (let i = 0; i < utxosToProcess.length; i += batchSize) {
+    const batch = utxosToProcess.slice(i, i + batchSize)
+    
+    // Build multicall args: array of [method, params] tuples
+    const multicallArgs = batch.map((item) => [
+      'ord_output',
+      [item.outpoint]
+    ])
+    
+    try {
+      // Call lua_evalscript with multicall script and args
+      const batchResults = await fetchSubfrostRpc('lua_evalscript', [multicallScript, multicallArgs], SUBFROST_API_KEY, SUBFROST_API_URL)
+      
+      // batchResults should be an array of { result: ... } or { error: ... } objects
+      if (Array.isArray(batchResults)) {
+        batch.forEach((item, index) => {
+          const response = batchResults[index]
+          
+          // Handle error response (means clean UTXO)
+          if (response && response.error) {
+            // Per guide: error means no ordinals data - UTXO is clean
+            return
+          }
+          
+          // Handle result
+          const result = response?.result
+          if (result && result !== null && typeof result === 'object') {
+            // ord_output returns: { inscriptions: string[], runes: {} or [], ... }
+            const inscriptions = result.inscriptions || []
+            const runes = result.runes || {}
+            const protorunes = result.protorunes || []
+            
+            // Check for inscriptions (array of strings)
+            const hasInscriptions = Array.isArray(inscriptions) && inscriptions.length > 0
+            
+            // Check for runes (can be object {} or array [])
+            const hasRunes = (Array.isArray(runes) && runes.length > 0) || 
+                            (typeof runes === 'object' && runes !== null && !Array.isArray(runes) && Object.keys(runes).length > 0)
+            
+            // Check for protorunes
+            const hasProtorunes = Array.isArray(protorunes) && protorunes.length > 0
+            
+            // Only store if there's actual ordinals data
+            if (hasInscriptions || hasRunes || hasProtorunes) {
+              addressOrdData.set(item.outpoint, {
+                inscriptions: hasInscriptions 
+                  ? inscriptions.map((ins: any) => typeof ins === 'string' ? ins : ins.id || ins.inscription_id || String(ins))
+                  : [],
+                runes: Array.isArray(runes) ? runes : (typeof runes === 'object' && runes !== null ? Object.values(runes) : [])
+              })
+              console.log(`✅ Found ordinals on ${item.outpoint}: ${hasInscriptions ? `${inscriptions.length} inscriptions` : ''} ${hasRunes ? 'runes' : ''}`)
+            }
+          }
+          // If result is null or error, UTXO is clean - don't add to addressOrdData
+        })
+      } else {
+        console.warn(`⚠️ Lua multicall returned non-array result for batch ${Math.floor(i / batchSize) + 1}`)
+      }
+    } catch (batchError) {
+      const errorMsg = batchError instanceof Error ? batchError.message : String(batchError)
+      console.warn(`⚠️ Lua multicall failed for batch ${Math.floor(i / batchSize) + 1}: ${errorMsg}`)
+      // Per guide: on error, assume UTXOs are clean (fail open)
+    }
     
     // Log progress
-    if ((i + concurrency) % 50 === 0 || i + concurrency >= utxosToProcess.length) {
-      console.log(`   Progress: ${Math.min(i + concurrency, utxosToProcess.length)}/${utxosToProcess.length} checked, ${addressOrdData.size} with ordinals`)
+    if ((i + batchSize) % 100 === 0 || i + batchSize >= utxosToProcess.length) {
+      console.log(`   Progress: ${Math.min(i + batchSize, utxosToProcess.length)}/${utxosToProcess.length} checked, ${addressOrdData.size} with ordinals`)
     }
   }
 
@@ -759,7 +825,18 @@ export async function fetchSandshrewBalances(
         runes: hasRunes ? runes : null,
       })
     } else if (hasInscriptions || hasRunes) {
-      // Asset UTXO (has inscriptions/runes)
+      // For small UTXOs (< 2000 sats), include them in spendable too (with inscription data for display)
+      // This allows users to see and potentially spend small UTXOs with inscriptions
+      if (value < 2000 && (hasInscriptions || hasRunes)) {
+        // Add to both spendable (with inscription data) and assets
+        spendable.push({
+          ...utxoEntry,
+          inscriptions: hasInscriptions ? inscriptions : null,
+          runes: hasRunes ? runes : null,
+        })
+      }
+      
+      // Asset UTXO (has inscriptions/runes) - always add to assets
       assets.push({
         ...utxoEntry,
         inscriptions: hasInscriptions ? inscriptions : null,

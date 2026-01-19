@@ -1135,7 +1135,8 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const spendableModalList = useMemo(() => {
     const list = paymentAssets?.spendable ?? []
-    return [...list].filter((utxo) => utxo.value > MIN_PAYMENT_INPUT_SATS).sort((a, b) => b.value - a.value)
+    // Show ALL spendable UTXOs (no minimum value filter) - user requested to see all including < 1000 sats
+    return [...list].sort((a, b) => b.value - a.value)
   }, [paymentAssets?.spendable])
 
   const tabCounts = useMemo(
@@ -1913,12 +1914,35 @@ function SpendableTab({
             className={rowClass}
             selectable={selectable && Boolean(handleToggle)}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
-              <span>{truncateMiddle(utxo.outpoint, 28)}</span>
-              <span>{formatSats(utxo.value)}</span>
-              <span>{formatBtc(utxo.value)}</span>
-              <span>Height {utxo.height ?? '—'}</span>
-              <span>Vout {utxo.vout}</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                <span>{truncateMiddle(utxo.outpoint, 28)}</span>
+                <span>{formatSats(utxo.value)}</span>
+                <span>{formatBtc(utxo.value)}</span>
+                <span>Height {utxo.height ?? '—'}</span>
+                <span>Vout {utxo.vout}</span>
+              </div>
+              {/* Show inscription links for small UTXOs (< 2000 sats) that have inscriptions */}
+              {utxo.value < 2000 && utxo.inscriptions && Array.isArray(utxo.inscriptions) && utxo.inscriptions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-amber-400/80">⚠️ Has {utxo.inscriptions.length} inscription{utxo.inscriptions.length > 1 ? 's' : ''}:</span>
+                  {utxo.inscriptions.slice(0, 3).map((inscriptionId: string) => (
+                    <a
+                      key={inscriptionId}
+                      href={`https://ordinals.com/inscription/${encodeURIComponent(inscriptionId)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-300 hover:text-amber-200 underline font-mono text-[10px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {inscriptionId.substring(0, 12)}...
+                    </a>
+                  ))}
+                  {utxo.inscriptions.length > 3 && (
+                    <span className="text-amber-400/60 text-[10px]">+{utxo.inscriptions.length - 3} more</span>
+                  )}
+                </div>
+              )}
             </div>
           </AssetRow>
         )
