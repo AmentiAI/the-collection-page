@@ -426,7 +426,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         // Allow small UTXOs with inscriptions to be selected (they're shown in the modal for a reason)
         // Only block regular small spendable UTXOs (without inscriptions) - require 330+ sats
         if (asset.category === 'spendable' && asset.value < 330 && (!asset.inscriptions || asset.inscriptions.length === 0)) {
-          toast.error('Payment inputs must be larger than 330 sats. Pick a bigger UTXO.')
+          toast.error('Payment inputs must be larger than 329 sats. Pick a bigger UTXO.')
           return current
         }
         if (asset.category === 'inscriptions') {
