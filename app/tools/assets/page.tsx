@@ -1282,6 +1282,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     : 'Payment wallet'
   const fundingNote = planPreview.status === 'ready' ? null : planPreview.message
   const fundingNoteSeverity = planPreview.status === 'error' ? 'border-red-500/50 text-red-200' : 'border-red-500/20 text-red-200/80'
+  
+  // Get chosen gas UTXOs (auto-selected payment inputs)
+  const chosenGasUtxos = displayedFundingPlan?.paymentInputs.filter(input => input.autoPayment) ?? []
+  const chosenGasUtxoOutpoints = new Set(chosenGasUtxos.map(utxo => utxo.outpoint))
+  const chosenGasUtxoTotal = chosenGasUtxos.reduce((sum, utxo) => sum + utxo.value, 0)
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-black via-stone-950 to-black px-4 py-10 text-zinc-200 md:px-8">
@@ -1651,6 +1656,12 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                             {fundingTotalSats != null ? formatSats(fundingTotalSats) : 'Awaiting plan'}
                           </span>
                         </div>
+                        {chosenGasUtxoTotal > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span>Gas UTXO{chosenGasUtxos.length > 1 ? 's' : ''}</span>
+                            <span className="text-yellow-300">{formatSats(chosenGasUtxoTotal)}</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <span>Gas cost</span>
                           <span className="text-red-100">{fundingFeeSats != null ? formatSats(fundingFeeSats) : '—'}</span>
@@ -1751,6 +1762,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             onClose={closePicker}
             onPageChange={(nextPage) => handlePickerPageChange(pickerType, nextPage)}
             onPreview={handlePreview}
+            chosenGasUtxoOutpoints={chosenGasUtxoOutpoints}
           />
         )}
       </div>
@@ -1888,6 +1900,7 @@ function SpendableTab({
   selectable = true,
   inscriptionMetadata,
   onPreview,
+  chosenGasUtxoOutpoints,
 }: {
   spendable: CategorisedWalletAssets['spendable']
   selectedMap: Record<string, SelectedAsset>
@@ -1897,6 +1910,7 @@ function SpendableTab({
   selectable?: boolean
   inscriptionMetadata?: Record<string, MagicEdenMetadata>
   onPreview?: (id: string) => void
+  chosenGasUtxoOutpoints?: Set<string>
 }) {
   const [checkedUtxos, setCheckedUtxos] = useState<Record<string, {
     loading: boolean
@@ -2055,12 +2069,15 @@ function SpendableTab({
             const handleToggle = onToggle ? () => onToggle(utxo) : undefined
             const primaryInscriptionId = utxo.inscriptions?.[0]
             const meta = primaryInscriptionId && inscriptionMetadata ? inscriptionMetadata[primaryInscriptionId] : undefined
+            const isChosenGasUtxo = chosenGasUtxoOutpoints?.has(utxo.outpoint) ?? false
             
             return (
               <div
                 key={utxo.outpoint}
                 className={`grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 items-center rounded-lg border p-3 transition ${
-                  checked ? 'border-red-400/70 bg-red-900/20' : rowClass || 'border-white/10 bg-black/30'
+                  checked ? 'border-red-400/70 bg-red-900/20' : 
+                  isChosenGasUtxo ? 'border-yellow-500/70 bg-yellow-900/30' :
+                  rowClass || 'border-white/10 bg-black/30'
                 } ${selectable && handleToggle ? 'cursor-pointer hover:bg-black/50' : ''}`}
                 onClick={selectable && handleToggle ? handleToggle : undefined}
               >
@@ -2097,6 +2114,9 @@ function SpendableTab({
                 
                 {/* Inscription ID(s) */}
                 <div className="flex flex-col gap-1 min-w-0">
+                  {isChosenGasUtxo && (
+                    <span className="text-yellow-300 font-semibold text-[10px] uppercase tracking-[0.2em]">Chosen Gas UTXO</span>
+                  )}
                   {utxo.inscriptions && utxo.inscriptions.length > 0 ? (
                     <>
                       {utxo.inscriptions.slice(0, 2).map((inscriptionId: string, idx: number) => (
@@ -2179,12 +2199,14 @@ function SpendableTab({
             const mightHaveInscriptions = utxo.value < 2000
             const checkedData = checkedUtxos[utxo.outpoint]
             const isPending = checkedData && !checkedData.loading && checkedData.isPending
+            const isChosenGasUtxo = chosenGasUtxoOutpoints?.has(utxo.outpoint) ?? false
             
             return (
               <div
                 key={utxo.outpoint}
                 className={`grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 items-center rounded-lg border p-3 transition ${
                   checked ? 'border-red-400/70 bg-red-900/20' : 
+                  isChosenGasUtxo ? 'border-yellow-500/70 bg-yellow-900/30' :
                   isPending ? 'border-amber-500/60 bg-amber-900/30' :
                   rowClass || 'border-white/10 bg-black/30'
                 } ${selectable && handleToggle ? 'cursor-pointer hover:bg-black/50' : ''} ${mightHaveInscriptions ? 'border-amber-500/40 bg-amber-900/20' : ''}`}
@@ -2424,6 +2446,7 @@ function AssetPickerModal({
   onClose,
   onPageChange,
   onPreview,
+  chosenGasUtxoOutpoints,
 }: {
   type: AssetTabKey
   label: string
@@ -2439,6 +2462,7 @@ function AssetPickerModal({
   onClose: () => void
   onPageChange: (page: number) => void
   onPreview: (id: string) => void
+  chosenGasUtxoOutpoints?: Set<string>
 }) {
   const formattedLabel = label || type.charAt(0).toUpperCase() + type.slice(1)
   const hasItems = items.length > 0
@@ -2534,6 +2558,7 @@ function AssetPickerModal({
               onToggle={onToggleSpendable}
               inscriptionMetadata={inscriptionMetadata}
               onPreview={onPreview}
+              chosenGasUtxoOutpoints={chosenGasUtxoOutpoints}
             />
           )}
         </div>
