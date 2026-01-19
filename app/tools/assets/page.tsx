@@ -1926,12 +1926,28 @@ function SpendableTab({
   }
 
   // Separate UTXOs with inscriptions from regular spendable UTXOs
-  const utxosWithInscriptions = sorted.filter(utxo => 
-    utxo.inscriptions && Array.isArray(utxo.inscriptions) && utxo.inscriptions.length > 0
-  )
-  const regularSpendable = sorted.filter(utxo => 
-    !utxo.inscriptions || !Array.isArray(utxo.inscriptions) || utxo.inscriptions.length === 0
-  )
+  // Debug: Log all UTXOs to see which have inscriptions
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[SpendableTab] Checking UTXOs for inscriptions:', sorted.map(u => ({
+      outpoint: u.outpoint.substring(0, 20),
+      value: u.value,
+      hasInscriptions: !!u.inscriptions,
+      inscriptionsType: Array.isArray(u.inscriptions) ? 'array' : typeof u.inscriptions,
+      inscriptionsLength: Array.isArray(u.inscriptions) ? u.inscriptions.length : 'N/A',
+      inscriptions: u.inscriptions
+    })))
+  }
+  
+  const utxosWithInscriptions = sorted.filter(utxo => {
+    const hasInscriptions = utxo.inscriptions && 
+                           (Array.isArray(utxo.inscriptions) ? utxo.inscriptions.length > 0 : false)
+    return hasInscriptions
+  })
+  const regularSpendable = sorted.filter(utxo => {
+    const hasInscriptions = utxo.inscriptions && 
+                           (Array.isArray(utxo.inscriptions) ? utxo.inscriptions.length > 0 : false)
+    return !hasInscriptions
+  })
 
   return (
     <div className="space-y-6">
@@ -2063,26 +2079,77 @@ function SpendableTab({
               Regular Spendable UTXOs ({regularSpendable.length})
             </div>
           )}
+          {/* Table header for regular spendable UTXOs */}
+          <div className="grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 border-b border-white/10 pb-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-red-200/60">
+            <div></div>
+            <div>Image</div>
+            <div>Outpoint</div>
+            <div>SATS</div>
+            <div>BTC</div>
+            <div>Height</div>
+            <div>Vout</div>
+          </div>
           {regularSpendable.map((utxo) => {
             const checked = Boolean(selectedMap[utxo.outpoint])
             const rowClass = getRowClass(utxo.value)
             const handleToggle = onToggle ? () => onToggle(utxo) : undefined
+            // Check if this might be a small UTXO that should have inscriptions but wasn't detected
+            const mightHaveInscriptions = utxo.value < 2000
+            
             return (
-              <AssetRow
+              <div
                 key={utxo.outpoint}
-                checked={checked}
-                onToggle={handleToggle}
-                className={rowClass}
-                selectable={selectable && Boolean(handleToggle)}
+                className={`grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 items-center rounded-lg border p-3 transition ${
+                  checked ? 'border-red-400/70 bg-red-900/20' : rowClass || 'border-white/10 bg-black/30'
+                } ${selectable && handleToggle ? 'cursor-pointer hover:bg-black/50' : ''} ${mightHaveInscriptions ? 'border-amber-500/40 bg-amber-900/20' : ''}`}
+                onClick={selectable && handleToggle ? handleToggle : undefined}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono uppercase tracking-[0.3em] text-red-100">
-                  <span>{truncateMiddle(utxo.outpoint, 28)}</span>
-                  <span>{formatSats(utxo.value)}</span>
-                  <span>{formatBtc(utxo.value)}</span>
-                  <span>Height {utxo.height ?? '—'}</span>
-                  <span>Vout {utxo.vout}</span>
+                {/* Checkbox */}
+                <div className="flex items-center">
+                  <div className="h-4 w-4 rounded border border-red-400/30 bg-black/50 flex items-center justify-center">
+                    {checked && <div className="h-2.5 w-2.5 rounded-full bg-red-400" />}
+                  </div>
                 </div>
-              </AssetRow>
+                
+                {/* Image/Preview - empty for regular spendable */}
+                <div className="flex-shrink-0">
+                  <div className="flex h-[60px] w-[60px] items-center justify-center rounded-xl border border-red-500/30 bg-black/50 text-[8px] uppercase tracking-[0.3em] text-red-200/50">
+                    {mightHaveInscriptions ? 'Check' : '—'}
+                  </div>
+                </div>
+                
+                {/* Outpoint */}
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="text-xs font-mono uppercase tracking-[0.3em] text-red-100 truncate" title={utxo.outpoint}>
+                    {truncateMiddle(utxo.outpoint, 28)}
+                  </span>
+                  {mightHaveInscriptions && (
+                    <span className="text-[9px] text-amber-400/60 font-mono">
+                      Small UTXO - may have inscriptions
+                    </span>
+                  )}
+                </div>
+                
+                {/* SATS */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {formatSats(utxo.value)}
+                </div>
+                
+                {/* BTC */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {formatBtc(utxo.value)}
+                </div>
+                
+                {/* Height */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {utxo.height ?? '—'}
+                </div>
+                
+                {/* Vout */}
+                <div className="text-xs font-mono uppercase tracking-[0.3em] text-red-100">
+                  {utxo.vout}
+                </div>
+              </div>
             )
           })}
         </div>

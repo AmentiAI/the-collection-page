@@ -900,40 +900,26 @@ export async function fetchSandshrewTx(
     throw new Error('A valid txid is required (64 hex characters)')
   }
 
-  const endpoint = buildSandshrewEndpoint()
-  const payload = {
-    jsonrpc: '2.0',
-    id: `tx-${txid}`,
-    method: 'esplora_tx',
-    params: [txid],
+  // Use Subfrost instead of Sandshrew
+  const SUBFROST_API_URL = process.env.SUBFROST_URL || 'https://mainnet.subfrost.io/v4'
+  const rawApiKey = process.env.SUBFROST_API_KEY || ''
+  const SUBFROST_API_KEY = rawApiKey.endsWith('%') ? rawApiKey.slice(0, -1) : rawApiKey
+
+  if (!SUBFROST_API_KEY) {
+    throw new Error('SUBFROST_API_KEY environment variable is not set')
   }
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache, no-store, max-age=0',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-    ...requestOptions,
-  })
+  console.log(`🔍 Fetching transaction via Subfrost: ${txid.substring(0, 16)}...`)
 
-  if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`Sandshrew tx request failed (${response.status}): ${body.slice(0, 200)}`)
+  // Use Subfrost's esplora_tx method (same method name as Sandshrew)
+  const tx = await fetchSubfrostRpc('esplora_tx', [txid], SUBFROST_API_KEY, SUBFROST_API_URL)
+
+  if (!tx || typeof tx !== 'object') {
+    throw new Error(`Subfrost tx request failed: invalid response for ${txid}`)
   }
 
-  const json = (await response.json()) as SandshrewEsploraTxResponse
-
-  if (json.error) {
-    throw new Error(`Sandshrew responded with error ${json.error.code}: ${json.error.message}`)
-  }
-
-  if (!json.result) {
-    throw new Error('Sandshrew tx response missing result field')
-  }
-
-  return json.result
+  // Subfrost returns the transaction directly, but we need to ensure it matches Sandshrew format
+  // The response should already be in the correct format (txid, version, locktime, vin, vout, etc.)
+  return tx as SandshrewEsploraTx
 }
 
