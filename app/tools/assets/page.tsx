@@ -80,8 +80,7 @@ const AVERAGE_OUTPUT_VBYTES = 43
 const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
 const MAX_INSCRIPTION_SELECTION = 20
-const MIN_PAYMENT_INPUT_SATS = 1201  // Minimum for payment UTXOs (used for gas)
-const MIN_TRANSFER_SATS = 330  // Minimum for transferring inscriptions/assets
+const MIN_PAYMENT_INPUT_SATS = 600
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -424,47 +423,20 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       if (exists) {
         delete next[asset.outpoint]
       } else {
-        // Check if this UTXO has inscriptions (regardless of category)
-        // If it has inscriptions, it's for transfer, not payment - allow 330+ sats
-        const hasInscriptions = asset.inscriptions && Array.isArray(asset.inscriptions) && asset.inscriptions.length > 0
-        
-        // ANY UTXO with inscriptions is for transfer, not payment - allow 330+ sats
-        if (hasInscriptions) {
-          // Treat as inscription for transfer - allow 330+ sats
-          if (asset.value < MIN_TRANSFER_SATS) {
-            toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
-            return current
-          }
-          // Change category to inscriptions for proper handling (if it was spendable)
-          const finalCategory = asset.category === 'spendable' ? 'inscriptions' as AssetTabKey : asset.category
-          next[asset.outpoint] = {
-            ...asset,
-            category: finalCategory,
-          }
-        } else if (asset.category === 'spendable') {
-          // Pure payment UTXO (no inscriptions) - require 1201+ sats for gas
-          // These are automatically selected by the system for paying fees, not manually selected
-          if (asset.value <= MIN_PAYMENT_INPUT_SATS) {
-            toast.error(`Payment inputs must be larger than ${MIN_PAYMENT_INPUT_SATS} sats. Pick a bigger UTXO.`)
-            return current
-          }
-          next[asset.outpoint] = asset
-        } else {
-          // Inscriptions/runes/alkanes (without inscriptions check) - allow 330+ sats
-          if (asset.value < MIN_TRANSFER_SATS) {
-            toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
-            return current
-          }
-          
-          if (asset.category === 'inscriptions') {
-            const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
-            if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
-              toast.error(`Limit ${MAX_INSCRIPTION_SELECTION} inscriptions per transfer. Remove one before adding another.`)
-              return current
-            }
-          }
-          next[asset.outpoint] = asset
+        // Allow small UTXOs with inscriptions to be selected (they're shown in the modal for a reason)
+        // Only block regular small spendable UTXOs (without inscriptions)
+        if (asset.category === 'spendable' && asset.value <= MIN_PAYMENT_INPUT_SATS && (!asset.inscriptions || asset.inscriptions.length === 0)) {
+          toast.error('Payment inputs must be larger than 600 sats. Pick a bigger UTXO.')
+          return current
         }
+        if (asset.category === 'inscriptions') {
+          const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
+          if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
+            toast.error(`Limit ${MAX_INSCRIPTION_SELECTION} inscriptions per transfer. Remove one before adding another.`)
+            return current
+          }
+        }
+        next[asset.outpoint] = asset
       }
       setDestinationMap((prev) => {
         const updated = { ...prev }
@@ -1237,7 +1209,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         txid: utxo.txid,
         vout: utxo.vout,
         height: utxo.height,
-        inscriptions: utxo.inscriptions || undefined,  // Include inscriptions if present
+        inscriptions: utxo.inscriptions, // Include inscriptions for small UTXOs
       })
     },
     [toggleSelection],
