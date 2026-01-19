@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
   } catch (error) {
-    console.error('[wallet/assets] Failed to fetch Sandshrew balances', error)
+    console.error('[wallet/assets] Failed to fetch Subfrost balances', error)
 
     const message =
-      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Sandshrew'
+      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Subfrost'
 
     const status = /not set|missing/i.test(message) ? 500 : 502
 
@@ -65,10 +65,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
   } catch (error) {
-    console.error('[wallet/assets] Failed to fetch Sandshrew balances (GET)', error)
+    console.error('[wallet/assets] Failed to fetch Subfrost balances (GET)', error)
 
     const message =
-      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Sandshrew'
+      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Subfrost'
 
     const status = /not set|missing/i.test(message) ? 500 : 502
 

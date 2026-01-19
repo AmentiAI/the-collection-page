@@ -15,85 +15,136 @@ export interface RareSatUtxo {
   is_confirm: boolean
 }
 
-export async function fetchUtxos(address: string, excludedUtxos: string[] = []) {
-  const SANDSHREW_API_URL = process.env.SANDSHREW_URL || "https://mainnet.sandshrew.io/v2"
-  const SANDSHREW_DEVELOPER_KEY = process.env.SANDSHREW_DEVELOPER_KEY
-  
-  if (!SANDSHREW_DEVELOPER_KEY) {
-    throw new Error("SANDSHREW_DEVELOPER_KEY environment variable is not set")
+async function fetchSubfrostRpc(
+  method: string,
+  params: any[],
+  apiKey: string,
+  apiUrl: string,
+): Promise<any> {
+  const request = {
+    jsonrpc: '2.0',
+    id: method,
+    method,
+    params,
   }
 
-  console.log(`🔍 Fetching UTXOs for: ${address.substring(0, 20)}...`)
-  console.log(`🔗 Sandshrew URL: ${SANDSHREW_API_URL}`)
-  console.log(`🔑 Has developer key: ${!!SANDSHREW_DEVELOPER_KEY}`)
-
-  const requestBody = {
-    jsonrpc: "2.0",
-    id: "420",
-    method: 'sandshrew_balances',
-    params: [{ address }]
-  }
-  
-  console.log(`📤 Request body:`, JSON.stringify(requestBody, null, 2))
-
-  const utxoResponse = await fetch(`${SANDSHREW_API_URL}/${SANDSHREW_DEVELOPER_KEY}`, {
+  // Try URL path authentication first
+  let response = await fetch(`${apiUrl}/${apiKey}`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
     },
-    body: JSON.stringify(requestBody),
-    cache: 'no-store'
+    body: JSON.stringify(request),
+    cache: 'no-store',
   })
-  
-  console.log(`📥 Response status: ${utxoResponse.status} ${utxoResponse.statusText}`)
-  console.log(`📥 Response headers:`, Object.fromEntries(utxoResponse.headers.entries()))
 
-  // Get response text first to handle both JSON and HTML responses
-  const responseText = await utxoResponse.text()
-  console.log(`📥 Response text (first 500 chars):`, responseText.substring(0, 500))
-
-  if (!utxoResponse.ok) {
-    console.error(`❌ HTTP Error ${utxoResponse.status}:`, responseText.substring(0, 200))
-    throw new Error(`Failed to fetch UTXOs: ${utxoResponse.status} ${utxoResponse.statusText} - ${responseText.substring(0, 100)}`)
+  // Fallback to header authentication if URL path fails
+  if (!response.ok && (response.status === 400 || response.status === 401)) {
+    response = await fetch(`${apiUrl}/jsonrpc`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-subfrost-api-key': apiKey,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+      body: JSON.stringify(request),
+      cache: 'no-store',
+    })
   }
-  
-  let utxoResult
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Subfrost ${method} failed (${response.status}): ${errorText.substring(0, 200)}`)
+  }
+
+  const data = await response.json()
+  if (data.error) {
+    throw new Error(`Subfrost ${method} error: ${data.error.message || JSON.stringify(data.error)}`)
+  }
+
+  return data.result
+}
+
+export async function fetchUtxos(address: string, excludedUtxos: string[] = []) {
+  const SUBFROST_API_URL = process.env.SUBFROST_URL || 'https://mainnet.subfrost.io/v4'
+  const rawApiKey = process.env.SUBFROST_API_KEY || ''
+  const SUBFROST_API_KEY = rawApiKey.endsWith('%') ? rawApiKey.slice(0, -1) : rawApiKey
+
+  if (!SUBFROST_API_KEY) {
+    throw new Error('SUBFROST_API_KEY environment variable is not set')
+  }
+
+  console.log(`🔍 Fetching UTXOs via Subfrost for: ${address.substring(0, 20)}...`)
+
+    // Step 1: Get all UTXOs - correct method name is esplora_address::utxo (with double colons)
+    const rawUtxos = await fetchSubfrostRpc('esplora_address::utxo', [address], SUBFROST_API_KEY, SUBFROST_API_URL)
+  console.log(`📊 Found ${rawUtxos.length} total UTXOs`)
+
+  // Step 1.5: Filter out UTXOs with value < 1001 sats (early filtering)
+  const minValueUtxos = rawUtxos.filter((utxo: any) => (utxo.value || 0) >= 1001)
+  console.log(`💰 Filtered to ${minValueUtxos.length} UTXOs with value >= 1001 sats`)
+
+  // Step 2: Get block height for confirmation check
+  let maxIndexedHeight = 0
   try {
-    utxoResult = JSON.parse(responseText)
-  } catch (parseError) {
-    console.error('❌ Failed to parse UTXO response as JSON')
-    console.error('   Response starts with:', responseText.substring(0, 200))
-    console.error('   Full URL:', `${SANDSHREW_API_URL}/${SANDSHREW_DEVELOPER_KEY?.substring(0, 10)}...`)
-    
-    // Check if response looks like HTML
-    if (responseText.trim().startsWith('<')) {
-      throw new Error(`Sandshrew API returned HTML instead of JSON. This usually means:
-        1. The API key is invalid or expired
-        2. The Sandshrew service is temporarily unavailable
-        3. The request URL is incorrect
-        Please check your SANDSHREW_DEVELOPER_KEY environment variable.`)
+    maxIndexedHeight = (await fetchSubfrostRpc('ord_blockheight', [], SUBFROST_API_KEY, SUBFROST_API_URL)) || 0
+    console.log(`📏 Max indexed height: ${maxIndexedHeight}`)
+  } catch (heightError) {
+    console.warn('Could not fetch block height, using all UTXOs with block_height')
+  }
+
+  // Step 3: Filter confirmed UTXOs and check for inscriptions/runes
+  const spendableUtxos: any[] = []
+
+  for (const utxo of minValueUtxos) {
+    const height = utxo.status?.block_height
+    if (!height) continue // Skip unconfirmed
+
+    // Check if confirmed (based on ord/metashrew height)
+    if (maxIndexedHeight > 0 && height > maxIndexedHeight) continue
+
+    const outpoint = `${utxo.txid}:${utxo.vout}`
+
+    // Check if UTXO has inscriptions or runes using ord_output
+    try {
+      const ordData = await fetchSubfrostRpc('ord_output', [outpoint], SUBFROST_API_KEY, SUBFROST_API_URL)
+      if (ordData) {
+        const hasInscriptions = ordData.inscriptions && Array.isArray(ordData.inscriptions) && ordData.inscriptions.length > 0
+        const hasRunes = ordData.runes && Array.isArray(ordData.runes) && ordData.runes.length > 0
+
+        if (hasInscriptions || hasRunes) {
+          console.log(`🚫 Filtering out UTXO ${outpoint} (has inscriptions: ${hasInscriptions}, has runes: ${hasRunes})`)
+          continue // Skip this UTXO
+        }
+      }
+    } catch (ordError) {
+      // If ord_output call fails, assume UTXO is clean (no ordinals data)
+      console.warn(`⚠️ Could not check ord_output for ${outpoint}, assuming clean`)
     }
-    
-    throw new Error(`UTXO API returned invalid JSON. Response: ${responseText.substring(0, 100)}...`)
-  }
-  
-  if (utxoResult.error) {
-    throw new Error(`UTXO fetch error: ${utxoResult.error.message}`)
+
+    // UTXO is confirmed and clean - add to spendable
+    spendableUtxos.push({
+      outpoint: outpoint,
+      value: utxo.value || 0,
+      height: height,
+      txid: utxo.txid,
+      vout: utxo.vout,
+    })
   }
 
-  let utxosGathered = utxoResult.result?.spendable || []
-  console.log(`📊 Found ${utxosGathered.length} payment UTXOs`)
+  console.log(`✅ Found ${spendableUtxos.length} spendable payment UTXOs (runes and inscriptions filtered out)`)
 
-  // Filter out excluded UTXOs (from recent pending transactions to prevent RBF errors)
+  // Filter out excluded UTXOs (from recent pending transactions)
+  let utxosGathered = spendableUtxos
   if (excludedUtxos.length > 0) {
     console.log(`🚫 Excluding ${excludedUtxos.length} UTXOs from recent pending transactions:`, excludedUtxos)
     const beforeCount = utxosGathered.length
-    utxosGathered = utxosGathered.filter((utxo: any) => 
-      !excludedUtxos.includes(utxo.outpoint)
-    )
+    utxosGathered = utxosGathered.filter((utxo: any) => !excludedUtxos.includes(utxo.outpoint))
     const filteredCount = beforeCount - utxosGathered.length
     if (filteredCount > 0) {
       console.log(`   - Filtered out ${filteredCount} excluded UTXO(s)`)
@@ -101,8 +152,8 @@ export async function fetchUtxos(address: string, excludedUtxos: string[] = []) 
   }
 
   if (utxosGathered.length === 0) {
-    const excludedMsg = excludedUtxos.length > 0 
-      ? ` (${excludedUtxos.length} UTXOs were excluded from pending transactions)` 
+    const excludedMsg = excludedUtxos.length > 0
+      ? ` (${excludedUtxos.length} UTXOs were excluded from pending transactions)`
       : ''
     throw new Error(`No spendable UTXOs found for this address${excludedMsg}`)
   }

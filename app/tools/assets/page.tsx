@@ -1197,6 +1197,20 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     [toggleSelection],
   )
 
+  const handleToggleSpendable = useCallback(
+    (utxo: CategorisedWalletAssets['spendable'][number]) => {
+      toggleSelection({
+        outpoint: utxo.outpoint,
+        category: 'spendable',
+        value: utxo.value,
+        txid: utxo.txid,
+        vout: utxo.vout,
+        height: utxo.height,
+      })
+    },
+    [toggleSelection],
+  )
+
   const handleToggleRune = useCallback(
     (utxo: RuneBearingUtxo, category: 'runes' | 'alkanes') => {
       toggleSelection({
@@ -1711,6 +1725,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
             inscriptionMetadata={inscriptionMetadataMap}
             onToggleInscription={handleToggleInscription}
             onToggleRune={handleToggleRune}
+            onToggleSpendable={handleToggleSpendable}
             onClose={closePicker}
             onPageChange={(nextPage) => handlePickerPageChange(pickerType, nextPage)}
             onPreview={handlePreview}
@@ -2132,6 +2147,7 @@ function AssetPickerModal({
               sorting="desc"
               colorize
               selectable={Boolean(onToggleSpendable)}
+              onToggle={onToggleSpendable}
             />
           )}
         </div>

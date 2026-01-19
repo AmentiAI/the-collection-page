@@ -15,76 +15,125 @@ export async function POST(request: NextRequest) {
       console.log(`🚫 Excluding ${excludedUtxos.length} UTXOs from selection`)
     }
     
-    const SANDSHREW_API_URL = process.env.SANDSHREW_URL || "https://mainnet.sandshrew.io/v2"
-    const SANDSHREW_DEVELOPER_KEY = process.env.SANDSHREW_DEVELOPER_KEY
-    
-    if (!SANDSHREW_DEVELOPER_KEY) {
-      throw new Error("SANDSHREW_DEVELOPER_KEY environment variable is not set")
+    const SUBFROST_API_URL = process.env.SUBFROST_URL || 'https://mainnet.subfrost.io/v4'
+    const rawApiKey = process.env.SUBFROST_API_KEY || ''
+    const SUBFROST_API_KEY = rawApiKey.endsWith('%') ? rawApiKey.slice(0, -1) : rawApiKey
+
+    if (!SUBFROST_API_KEY) {
+      throw new Error('SUBFROST_API_KEY environment variable is not set')
     }
-    
-    console.log(`🔍 Fetching UTXOs for speedup: ${address.substring(0, 20)}...`)
-    
-    const requestBody = {
-      jsonrpc: "2.0",
-      id: "speedup",
-      method: 'sandshrew_balances',
-      params: [{ address }]
-    }
-    
-    const utxoResponse = await fetch(`${SANDSHREW_API_URL}/${SANDSHREW_DEVELOPER_KEY}`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      },
-      body: JSON.stringify(requestBody),
-      cache: 'no-store'
-    })
-    
-    console.log(`📥 UTXO Response status: ${utxoResponse.status}`)
-    
-    const responseText = await utxoResponse.text()
-    
-    if (!utxoResponse.ok) {
-      console.error(`❌ HTTP Error ${utxoResponse.status}:`, responseText.substring(0, 200))
-      return NextResponse.json({
-        success: false,
-        error: 'Payment service temporarily unavailable. Please try again.'
-      }, { status: 503 })
-    }
-    
-    let utxoResult
-    try {
-      utxoResult = JSON.parse(responseText)
-    } catch (parseError) {
-      console.error('❌ Failed to parse UTXO response as JSON')
-      console.error('   Response starts with:', responseText.substring(0, 200))
-      
-      if (responseText.trim().startsWith('<')) {
-        return NextResponse.json({
-          success: false,
-          error: 'Payment service configuration error. Please contact support.'
-        }, { status: 503 })
+
+    console.log(`🔍 Fetching UTXOs via Subfrost for speedup: ${address.substring(0, 20)}...`)
+
+    // Helper function for Subfrost RPC calls
+    const fetchSubfrostRpc = async (method: string, params: any[]): Promise<any> => {
+      const request = {
+        jsonrpc: '2.0',
+        id: method,
+        method,
+        params,
       }
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Unable to fetch wallet UTXOs. Please try again.'
-      }, { status: 503 })
+
+      // Try URL path authentication first
+      let response = await fetch(`${SUBFROST_API_URL}/${SUBFROST_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        body: JSON.stringify(request),
+        cache: 'no-store',
+      })
+
+      // Fallback to header authentication if URL path fails
+      if (!response.ok && (response.status === 400 || response.status === 401)) {
+        response = await fetch(`${SUBFROST_API_URL}/jsonrpc`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-subfrost-api-key': SUBFROST_API_KEY,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+          body: JSON.stringify(request),
+          cache: 'no-store',
+        })
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Subfrost ${method} failed (${response.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      const data = await response.json()
+      if (data.error) {
+        throw new Error(`Subfrost ${method} error: ${data.error.message || JSON.stringify(data.error)}`)
+      }
+
+      return data.result
     }
-    
-    if (utxoResult.error) {
-      console.error('❌ Sandshrew API error:', utxoResult.error)
-      return NextResponse.json({
-        success: false,
-        error: `UTXO fetch error: ${utxoResult.error.message}`
-      }, { status: 500 })
+
+    // Step 1: Get all UTXOs - correct method name is esplora_address::utxo (with double colons)
+    const rawUtxos = await fetchSubfrostRpc('esplora_address::utxo', [address])
+    console.log(`📊 Found ${rawUtxos.length} total UTXOs`)
+
+    // Step 1.5: Filter out UTXOs with value < 1001 sats (early filtering)
+    const minValueUtxos = rawUtxos.filter((utxo: any) => (utxo.value || 0) >= 1001)
+    console.log(`💰 Filtered to ${minValueUtxos.length} UTXOs with value >= 1001 sats`)
+
+    // Step 2: Get block height for confirmation check
+    let maxIndexedHeight = 0
+    try {
+      maxIndexedHeight = (await fetchSubfrostRpc('ord_blockheight', [])) || 0
+      console.log(`📏 Max indexed height: ${maxIndexedHeight}`)
+    } catch (heightError) {
+      console.warn('Could not fetch block height, using all UTXOs with block_height')
     }
-    
-    const utxos = utxoResult.result?.spendable || []
-    console.log(`✅ Found ${utxos.length} spendable UTXOs from Sandshrew`)
+
+    // Step 3: Filter confirmed UTXOs and check for inscriptions/runes
+    const spendableUtxos: any[] = []
+
+    for (const utxo of minValueUtxos) {
+      const height = utxo.status?.block_height
+      if (!height) continue // Skip unconfirmed
+
+      // Check if confirmed (based on ord/metashrew height)
+      if (maxIndexedHeight > 0 && height > maxIndexedHeight) continue
+
+      const outpoint = `${utxo.txid}:${utxo.vout}`
+
+      // Check if UTXO has inscriptions or runes using ord_output
+      try {
+        const ordData = await fetchSubfrostRpc('ord_output', [outpoint])
+        if (ordData) {
+          const hasInscriptions = ordData.inscriptions && Array.isArray(ordData.inscriptions) && ordData.inscriptions.length > 0
+          const hasRunes = ordData.runes && Array.isArray(ordData.runes) && ordData.runes.length > 0
+
+          if (hasInscriptions || hasRunes) {
+            console.log(`🚫 Filtering out UTXO ${outpoint} (has inscriptions: ${hasInscriptions}, has runes: ${hasRunes})`)
+            continue // Skip this UTXO
+          }
+        }
+      } catch (ordError) {
+        // If ord_output call fails, assume UTXO is clean (no ordinals data)
+        console.warn(`⚠️ Could not check ord_output for ${outpoint}, assuming clean`)
+      }
+
+      // UTXO is confirmed and clean - add to spendable
+      spendableUtxos.push({
+        outpoint: outpoint,
+        value: utxo.value || 0,
+        height: height,
+        txid: utxo.txid,
+        vout: utxo.vout,
+      })
+    }
+
+    const utxos = spendableUtxos
+    console.log(`✅ Found ${utxos.length} spendable UTXOs from Subfrost`)
     if (utxos.length > 0) {
       console.log(`   First 3:`, utxos.slice(0, 3).map((u: any) => `${u.outpoint} = ${u.value} sats`))
     }
