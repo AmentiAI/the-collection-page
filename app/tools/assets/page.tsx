@@ -491,7 +491,17 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const parsedOutputDrafts = useMemo(
     () =>
       destinationDrafts
-        .filter((draft) => draft.asset.category !== 'spendable' && draft.address.length > 0)
+        .filter((draft) => {
+          // Include non-spendable assets (inscriptions/runes) with addresses
+          if (draft.asset.category !== 'spendable' && draft.address.length > 0) {
+            return true
+          }
+          // Include spendable assets with addresses (for payment transfers)
+          if (draft.asset.category === 'spendable' && draft.address.length > 0) {
+            return true
+          }
+          return false
+        })
         .map((draft) => ({
           address: draft.address,
           amount: draft.asset.value,
@@ -500,7 +510,12 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   )
 
   const requiredOutputsSatisfied = destinationDrafts.every((draft) => draft.valid)
-  const hasTransferableAssets = destinationDrafts.some((draft) => draft.asset.category !== 'spendable')
+  // Allow transfers if we have either:
+  // 1. Non-spendable assets (inscriptions/runes) - original behavior
+  // 2. Spendable assets with destination addresses - new behavior for payment transfers
+  const hasTransferableAssets = destinationDrafts.some((draft) => 
+    draft.asset.category !== 'spendable' || (draft.asset.category === 'spendable' && draft.address.length > 0)
+  )
   const pendingSelectedCount = useMemo(
     () => Object.values(pendingSelectedMap).filter(Boolean).length,
     [pendingSelectedMap],
@@ -1038,14 +1053,17 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     }
 
     if (!hasTransferableAssets) {
-      const message = 'Select inscriptions to transfer.'
+      const message = 'Select assets to transfer (inscriptions, runes, or payment UTXOs with destination addresses).'
       setTransferError(message)
       toast.error(message)
       return
     }
 
     if (!requiredOutputsSatisfied || !parsedOutputDrafts.length) {
-      const message = 'Enter destination addresses for each inscription.'
+      const hasSpendableOnly = selectedAssets.every(asset => asset.category === 'spendable')
+      const message = hasSpendableOnly 
+        ? 'Enter destination addresses for each payment UTXO.'
+        : 'Enter destination addresses for each inscription.'
       setTransferError(message)
       toast.error(message)
       return
