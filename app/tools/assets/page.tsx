@@ -1903,6 +1903,8 @@ function SpendableTab({
     inscriptions: string[]
     hasInscriptions: boolean
     hasRunes: boolean
+    isPending: boolean
+    blockHeight: number | null
   }>>({})
 
   const checkUtxoInscriptions = useCallback(async (outpoint: string) => {
@@ -1910,7 +1912,7 @@ function SpendableTab({
     
     setCheckedUtxos(prev => ({
       ...prev,
-      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false }
+      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
     }))
 
     try {
@@ -1933,13 +1935,15 @@ function SpendableTab({
           inscriptions: data.inscriptions || [],
           hasInscriptions: data.hasInscriptions || false,
           hasRunes: data.hasRunes || false,
+          isPending: data.isPending || false,
+          blockHeight: data.blockHeight || null,
         }
       }))
     } catch (error) {
       console.error('Failed to check UTXO inscriptions:', error)
       setCheckedUtxos(prev => ({
         ...prev,
-        [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false }
+        [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
       }))
     }
   }, [checkedUtxos])
@@ -2141,12 +2145,16 @@ function SpendableTab({
             const handleToggle = onToggle ? () => onToggle(utxo) : undefined
             // Check if this might be a small UTXO that should have inscriptions but wasn't detected
             const mightHaveInscriptions = utxo.value < 2000
+            const checkedData = checkedUtxos[utxo.outpoint]
+            const isPending = checkedData && !checkedData.loading && checkedData.isPending
             
             return (
               <div
                 key={utxo.outpoint}
                 className={`grid grid-cols-[auto_80px_1fr_120px_100px_80px_80px] gap-3 items-center rounded-lg border p-3 transition ${
-                  checked ? 'border-red-400/70 bg-red-900/20' : rowClass || 'border-white/10 bg-black/30'
+                  checked ? 'border-red-400/70 bg-red-900/20' : 
+                  isPending ? 'border-amber-500/60 bg-amber-900/30' :
+                  rowClass || 'border-white/10 bg-black/30'
                 } ${selectable && handleToggle ? 'cursor-pointer hover:bg-black/50' : ''} ${mightHaveInscriptions ? 'border-amber-500/40 bg-amber-900/20' : ''}`}
                 onClick={selectable && handleToggle ? handleToggle : undefined}
               >
@@ -2213,6 +2221,14 @@ function SpendableTab({
                         }
                         
                         if (hasChecked) {
+                          if (checked.isPending) {
+                            return (
+                              <span className="text-[9px] text-amber-400/80 font-mono">
+                                ⏳ Pending in mempool - wait for confirmation
+                              </span>
+                            )
+                          }
+                          
                           if (hasInscriptions) {
                             return (
                               <span className="text-[9px] text-amber-300 font-mono">

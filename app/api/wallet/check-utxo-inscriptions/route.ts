@@ -62,6 +62,39 @@ async function fetchSubfrostRpc(
   return data.result
 }
 
+async function checkTxInMempool(txid: string): Promise<{ inMempool: boolean; confirmed: boolean; blockHeight: number | null }> {
+  try {
+    const MEMPOOL_API_BASE = process.env.MEMPOOL_API_URL || 'https://mempool.space/api'
+    
+    const response = await fetch(`${MEMPOOL_API_BASE}/tx/${txid}`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+    
+    if (response.status === 404) {
+      // Not found in mempool or blockchain
+      return { inMempool: false, confirmed: false, blockHeight: null }
+    }
+    
+    if (!response.ok) {
+      return { inMempool: false, confirmed: false, blockHeight: null }
+    }
+    
+    const payload = await response.json()
+    const confirmed = Boolean(payload?.status?.confirmed)
+    const blockHeight = payload?.status?.block_height || null
+    
+    return {
+      inMempool: true,
+      confirmed,
+      blockHeight,
+    }
+  } catch (error) {
+    console.error(`Failed to check tx ${txid} in mempool:`, error)
+    return { inMempool: false, confirmed: false, blockHeight: null }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -70,6 +103,15 @@ export async function POST(request: NextRequest) {
     if (!outpoint || typeof outpoint !== 'string') {
       return NextResponse.json(
         { success: false, error: 'outpoint is required' },
+        { status: 400 },
+      )
+    }
+
+    // Parse outpoint to get txid
+    const [txid, voutStr] = outpoint.split(':')
+    if (!txid || !voutStr) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid outpoint format (expected txid:vout)' },
         { status: 400 },
       )
     }
@@ -85,22 +127,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check for inscriptions using ord_output
-    const ordData = await fetchSubfrostRpc('ord_output', [outpoint], SUBFROST_API_KEY, SUBFROST_API_URL)
+    // First check if transaction is pending/unconfirmed
+    const mempoolStatus = await checkTxInMempool(txid)
+    const isPending = mempoolStatus.inMempool && !mempoolStatus.confirmed
 
-    if (!ordData || ordData === null) {
-      return NextResponse.json({
-        success: true,
-        hasInscriptions: false,
-        hasRunes: false,
-        inscriptions: [],
-        runes: [],
-      })
+    // For pending UTXOs, ord_output might not work, so we need to check the transaction itself
+    let ordData = null
+    let inscriptions: any[] = []
+    let runes: any = {}
+    let protorunes: any[] = []
+
+    if (isPending) {
+      // For pending transactions, ord_output won't work (only indexes confirmed transactions)
+      // We can still try ord_output in case it's been indexed, but it will likely fail
+      // Return pending status so UI can inform user
+      console.log(`[check-utxo-inscriptions] UTXO ${outpoint} is pending in mempool - ord_output may not work`)
+      
+      // Still try ord_output in case the UTXO was just confirmed
+      try {
+        ordData = await fetchSubfrostRpc('ord_output', [outpoint], SUBFROST_API_KEY, SUBFROST_API_URL)
+        if (ordData && ordData !== null && typeof ordData === 'object') {
+          inscriptions = ordData.inscriptions || []
+          runes = ordData.runes || {}
+          protorunes = ordData.protorunes || []
+        }
+      } catch (ordError) {
+        // Expected for pending UTXOs - ord_output only works on confirmed transactions
+        console.log(`[check-utxo-inscriptions] ord_output failed for pending UTXO ${outpoint} (expected):`, ordError)
+      }
+    } else {
+      // For confirmed UTXOs, use ord_output
+      try {
+        ordData = await fetchSubfrostRpc('ord_output', [outpoint], SUBFROST_API_KEY, SUBFROST_API_URL)
+        
+        if (ordData && ordData !== null && typeof ordData === 'object') {
+          inscriptions = ordData.inscriptions || []
+          runes = ordData.runes || {}
+          protorunes = ordData.protorunes || []
+        } else if (ordData === null) {
+          // null means clean UTXO (no ordinals data)
+          console.log(`[check-utxo-inscriptions] UTXO ${outpoint} is clean (no ordinals)`)
+        }
+      } catch (ordError) {
+        console.warn(`[check-utxo-inscriptions] ord_output failed for ${outpoint}:`, ordError)
+        // If ord_output fails with an error, it might mean:
+        // 1. UTXO is clean (error response per Subfrost guide)
+        // 2. API issue
+        // We'll treat errors as "no inscriptions" for confirmed UTXOs
+      }
     }
-
-    const inscriptions = ordData.inscriptions || []
-    const runes = ordData.runes || {}
-    const protorunes = ordData.protorunes || []
 
     const hasInscriptions = Array.isArray(inscriptions) && inscriptions.length > 0
     const hasRunes = (Array.isArray(runes) && runes.length > 0) || 
@@ -119,10 +194,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      isPending,
       hasInscriptions,
       hasRunes: hasRunes || hasProtorunes,
       inscriptions: normalizedInscriptions,
       runes: normalizedRunes,
+      blockHeight: mempoolStatus.blockHeight,
     })
   } catch (error) {
     console.error('[check-utxo-inscriptions] Error:', error)
