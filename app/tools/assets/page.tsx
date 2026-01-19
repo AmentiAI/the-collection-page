@@ -1940,18 +1940,20 @@ function SpendableTab({
   }>>({})
 
   const checkUtxoInscriptions = useCallback(async (outpoint: string) => {
-    // Use functional update to check current state without depending on checkedUtxos
-    setCheckedUtxos(prev => {
-      // Skip if already loading or already checked (has result)
-      if (prev[outpoint]?.loading) return prev
-      if (prev[outpoint] && !prev[outpoint].loading) return prev // Already checked, don't re-check
-      
-      // Mark as loading
-      return {
-        ...prev,
-        [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
-      }
-    })
+    // Check ref first to prevent duplicate calls
+    if (checkedUtxosRef.current[outpoint]?.loading) {
+      return // Already checking
+    }
+    if (checkedUtxosRef.current[outpoint]?.checked) {
+      return // Already checked, don't re-check
+    }
+    
+    // Mark as loading in both ref and state
+    checkedUtxosRef.current[outpoint] = { loading: true, checked: false }
+    setCheckedUtxos(prev => ({
+      ...prev,
+      [outpoint]: { loading: true, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
+    }))
 
     try {
       const response = await fetch('/api/wallet/check-utxo-inscriptions', {
@@ -1966,6 +1968,8 @@ function SpendableTab({
         throw new Error(data.error || 'Failed to check UTXO')
       }
 
+      // Mark as checked in ref and update state
+      checkedUtxosRef.current[outpoint] = { loading: false, checked: true }
       setCheckedUtxos(prev => ({
         ...prev,
         [outpoint]: {
@@ -1979,33 +1983,23 @@ function SpendableTab({
       }))
     } catch (error) {
       console.error('Failed to check UTXO inscriptions:', error)
+      // Mark as checked even on error to prevent infinite retries
+      checkedUtxosRef.current[outpoint] = { loading: false, checked: true }
       setCheckedUtxos(prev => ({
         ...prev,
         [outpoint]: { loading: false, inscriptions: [], hasInscriptions: false, hasRunes: false, isPending: false, blockHeight: null }
       }))
     }
-  }, []) // No dependencies - uses functional updates
+  }, []) // No dependencies - uses ref and functional updates
 
   const sorted = [...spendable].sort((a, b) => (sorting === 'asc' ? a.value - b.value : b.value - a.value))
 
   // Use a ref to track checked UTXOs to prevent duplicate API calls
+  // This ref persists across renders and prevents infinite loops
   const checkedUtxosRef = useRef<Record<string, {
     loading: boolean
     checked: boolean
   }>>({})
-  
-  // Sync ref with state when state updates
-  useEffect(() => {
-    Object.keys(checkedUtxos).forEach(outpoint => {
-      const state = checkedUtxos[outpoint]
-      if (state) {
-        checkedUtxosRef.current[outpoint] = {
-          loading: state.loading,
-          checked: !state.loading // Mark as checked once loading is complete
-        }
-      }
-    })
-  }, [checkedUtxos])
 
   // Automatically check small UTXOs (< 2000 sats) for inscriptions when component mounts or spendable list changes
   useEffect(() => {
