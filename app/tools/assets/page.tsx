@@ -80,7 +80,8 @@ const AVERAGE_OUTPUT_VBYTES = 43
 const TX_OVERHEAD_VBYTES = 10
 const PICKER_PAGE_SIZE = 10
 const MAX_INSCRIPTION_SELECTION = 20
-const MIN_PAYMENT_INPUT_SATS = 600
+const MIN_PAYMENT_INPUT_SATS = 1201  // Minimum for payment UTXOs (used for gas)
+const MIN_TRANSFER_SATS = 330  // Minimum for transferring inscriptions/assets
 
 type MempoolRecommendedFees = {
   fastestFee: number
@@ -423,10 +424,23 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       if (exists) {
         delete next[asset.outpoint]
       } else {
-        if (asset.category === 'spendable' && asset.value <= MIN_PAYMENT_INPUT_SATS) {
-          toast.error('Payment inputs must be larger than 600 sats. Pick a bigger UTXO.')
+        // For inscriptions/assets: allow 330+ sats (minimum for transfer)
+        // For payment UTXOs: require 1201+ sats (minimum for paying gas)
+        // Exception: if a spendable UTXO has inscriptions, treat it as an inscription (allow 330+)
+        const hasInscriptions = asset.inscriptions && asset.inscriptions.length > 0
+        
+        if (asset.category === 'spendable' && !hasInscriptions && asset.value <= MIN_PAYMENT_INPUT_SATS) {
+          toast.error(`Payment inputs must be larger than ${MIN_PAYMENT_INPUT_SATS} sats. Pick a bigger UTXO.`)
           return current
         }
+        
+        // For inscriptions/assets or spendable UTXOs with inscriptions: check minimum transfer amount
+        if ((asset.category === 'inscriptions' || asset.category === 'runes' || asset.category === 'alkanes' || 
+             (asset.category === 'spendable' && hasInscriptions)) && asset.value < MIN_TRANSFER_SATS) {
+          toast.error(`UTXOs must be at least ${MIN_TRANSFER_SATS} sats to transfer.`)
+          return current
+        }
+        
         if (asset.category === 'inscriptions') {
           const currentInscriptionCount = Object.values(current).filter((item) => item.category === 'inscriptions').length
           if (currentInscriptionCount >= MAX_INSCRIPTION_SELECTION) {
@@ -1207,6 +1221,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         txid: utxo.txid,
         vout: utxo.vout,
         height: utxo.height,
+        inscriptions: utxo.inscriptions || undefined,  // Include inscriptions if present
       })
     },
     [toggleSelection],
