@@ -1209,7 +1209,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         txid: utxo.txid,
         vout: utxo.vout,
         height: utxo.height,
-        inscriptions: utxo.inscriptions, // Include inscriptions for small UTXOs
+        inscriptions: utxo.inscriptions ?? undefined, // Include inscriptions for small UTXOs (convert null to undefined)
       })
     },
     [toggleSelection],
