@@ -262,7 +262,7 @@ export async function fetchWalletAssetsWithOrdiscan(
       txid: utxo.txid,
       vout: utxo.vout,
       value: utxo.value,
-      height: utxo.height,
+      height: utxo.height ?? null,
     }
 
     // Check for inscriptions
