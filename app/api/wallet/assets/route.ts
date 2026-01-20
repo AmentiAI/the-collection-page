@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-
+import type { MempoolClientData } from '@/lib/hybrid-utxo'
+import { fetchWalletAssetsWithOrdiscan } from '@/lib/ordiscan-assets'
 import { categoriseWalletAssets, fetchSandshrewBalances } from '@/lib/sandshrew'
 
 function sanitizeForJson<T>(value: T): T {
@@ -10,8 +11,9 @@ function sanitizeForJson<T>(value: T): T {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({} as { address?: string }))
+    const body = await request.json().catch(() => ({} as { address?: string; clientMempoolData?: MempoolClientData }))
     const address = (body?.address || '').trim()
+    const clientMempoolData = body?.clientMempoolData
 
     if (!address) {
       return NextResponse.json(
@@ -23,15 +25,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Use Ordiscan-based fetching if API key is available
+    const ordiscanApiKey = process.env.ORDISCAN_API_KEY
+    if (ordiscanApiKey) {
+      console.log(`🔍 [wallet/assets] Using Ordiscan for asset detection: ${address.substring(0, 20)}...`)
+      try {
+        const assets = await fetchWalletAssetsWithOrdiscan(address, clientMempoolData)
+        return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
+      } catch (ordiscanError) {
+        console.error('[wallet/assets] Ordiscan fetch failed, falling back to Subfrost:', ordiscanError)
+        // Fall through to Subfrost fallback
+      }
+    }
+
+    // Fallback to Subfrost approach
+    console.log(`🔍 [wallet/assets] Using Subfrost (fallback): ${address.substring(0, 20)}...`)
     const rawBalances = await fetchSandshrewBalances(address)
     const assets = categoriseWalletAssets(address, rawBalances)
 
     return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
   } catch (error) {
-    console.error('[wallet/assets] Failed to fetch Subfrost balances', error)
+    console.error('[wallet/assets] Failed to fetch wallet assets', error)
 
     const message =
-      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Subfrost'
+      error instanceof Error ? error.message : 'Unable to retrieve wallet assets'
 
     const status = /not set|missing/i.test(message) ? 500 : 502
 
@@ -60,15 +77,30 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Use Ordiscan-based fetching if API key is available
+    const ordiscanApiKey = process.env.ORDISCAN_API_KEY
+    if (ordiscanApiKey) {
+      console.log(`🔍 [wallet/assets] Using Ordiscan for asset detection (GET): ${address.substring(0, 20)}...`)
+      try {
+        const assets = await fetchWalletAssetsWithOrdiscan(address)
+        return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
+      } catch (ordiscanError) {
+        console.error('[wallet/assets] Ordiscan fetch failed, falling back to Subfrost:', ordiscanError)
+        // Fall through to Subfrost fallback
+      }
+    }
+
+    // Fallback to Subfrost approach
+    console.log(`🔍 [wallet/assets] Using Subfrost (fallback, GET): ${address.substring(0, 20)}...`)
     const rawBalances = await fetchSandshrewBalances(address)
     const assets = categoriseWalletAssets(address, rawBalances)
 
     return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
   } catch (error) {
-    console.error('[wallet/assets] Failed to fetch Subfrost balances (GET)', error)
+    console.error('[wallet/assets] Failed to fetch wallet assets (GET)', error)
 
     const message =
-      error instanceof Error ? error.message : 'Unable to retrieve wallet assets from Subfrost'
+      error instanceof Error ? error.message : 'Unable to retrieve wallet assets'
 
     const status = /not set|missing/i.test(message) ? 500 : 502
 

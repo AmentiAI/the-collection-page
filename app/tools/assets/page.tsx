@@ -360,12 +360,27 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       try {
         setLoading(true)
         setError(null)
+        
+        // Optionally fetch mempool data for better UTXO data (distributes rate limits)
+        let clientMempoolData: { utxos: Array<{ txid: string; vout: number; value: number; status?: { confirmed: boolean; block_height?: number } }>; mempoolTxs: Array<{ txid: string; vin?: Array<{ txid: string; vout: number; prevout?: { scriptpubkey_address: string; value: number } }> }> } | undefined
+        try {
+          const { fetchMempoolData } = await import('@/lib/hybrid-utxo')
+          clientMempoolData = await fetchMempoolData(normalized)
+          console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
+        } catch (mempoolError) {
+          // If mempool fetch fails, proceed without it (server will use Subfrost fallback)
+          console.warn('[Assets] Failed to fetch mempool data, using server-side fallback:', mempoolError)
+        }
+        
         const response = await fetch('/api/wallet/assets', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ address: normalized }),
+          body: JSON.stringify({ 
+            address: normalized,
+            clientMempoolData 
+          }),
         })
 
         const payload = await response.json()
