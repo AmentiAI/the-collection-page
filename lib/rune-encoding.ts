@@ -27,16 +27,19 @@ export interface DeltaEncodedEdict {
  * Encode a 128-bit unsigned integer as LEB128 varint
  */
 export function encodeLEB128(value: bigint): Uint8Array {
-  if (value < 0n) {
+  if (value < BigInt(0)) {
     throw new Error('LEB128 encoding only supports unsigned integers')
   }
   
   const bytes: number[] = []
   let remaining = value
+  const mask = BigInt(0x7F)
+  const continuationBit = BigInt(0x80)
+  const shiftAmount = BigInt(7)
   
-  while (remaining >= 0x80n) {
-    bytes.push(Number(remaining & 0x7Fn) | 0x80)
-    remaining >>= 7n
+  while (remaining >= continuationBit) {
+    bytes.push(Number(remaining & mask) | 0x80)
+    remaining >>= shiftAmount
   }
   bytes.push(Number(remaining))
   
@@ -200,7 +203,7 @@ export function validateOutputIndices(
       )
     }
     
-    if (transfer.amount < 0n) {
+    if (transfer.amount < BigInt(0)) {
       errors.push(`Transfer ${i}: amount ${transfer.amount} is negative`)
     }
   }
@@ -266,7 +269,7 @@ export function formatRuneId(runeId: RuneId): string {
  * // Add to PSBT
  * psbt.addOutput({
  *   script,
- *   value: 0n  // OP_RETURN outputs have 0 value
+ *   value: BigInt(0)  // OP_RETURN outputs have 0 value
  * })
  * ```
  */
