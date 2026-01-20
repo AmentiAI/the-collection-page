@@ -1,3 +1,6 @@
+import type { MempoolClientData, PaymentUtxo } from '@/lib/hybrid-utxo'
+import { fetchUtxosHybrid, filterAndSortUtxos as hybridFilterAndSortUtxos, validateSufficientFunds as hybridValidateSufficientFunds } from '@/lib/hybrid-utxo'
+
 export interface RareSat {
   sat: [number, number]
   name: string
@@ -70,7 +73,53 @@ async function fetchSubfrostRpc(
   return data.result
 }
 
-export async function fetchUtxos(address: string, excludedUtxos: string[] = []) {
+/**
+ * Fetch payment-ready UTXOs using hybrid approach (mempool.space + Ordiscan)
+ * 
+ * @param address - Bitcoin address to fetch UTXOs for
+ * @param excludedUtxos - Outpoints to exclude (e.g., from recent pending txs)
+ * @param clientMempoolData - Optional: Client-provided mempool data. If not provided, falls back to legacy Subfrost approach.
+ * @returns Payment-ready UTXOs
+ */
+export async function fetchUtxos(
+  address: string, 
+  excludedUtxos: string[] = [],
+  clientMempoolData?: MempoolClientData
+) {
+  // Use hybrid approach if client mempool data is provided
+  if (clientMempoolData) {
+    console.log(`🔍 [Hybrid] Using hybrid UTXO fetching for: ${address.substring(0, 20)}...`)
+    const result = await fetchUtxosHybrid(address, clientMempoolData, excludedUtxos)
+    
+    // Convert PaymentUtxo[] to the expected format
+    const utxosGathered = result.utxos.map(utxo => ({
+      outpoint: utxo.outpoint,
+      value: utxo.value,
+      height: utxo.height,
+      txid: utxo.txid,
+      vout: utxo.vout,
+    }))
+    
+    if (utxosGathered.length === 0) {
+      const excludedMsg = excludedUtxos.length > 0
+        ? ` (${excludedUtxos.length} UTXOs were excluded from pending transactions)`
+        : ''
+      throw new Error(`No spendable UTXOs found for this address${excludedMsg}`)
+    }
+    
+    return { utxos: utxosGathered, excludedCount: excludedUtxos.length }
+  }
+  
+  // Fallback to legacy Subfrost approach (for backward compatibility during migration)
+  console.warn(`⚠️ [Legacy] Using legacy Subfrost approach. Consider migrating to hybrid approach with clientMempoolData.`)
+  return fetchUtxosLegacy(address, excludedUtxos)
+}
+
+/**
+ * Legacy Subfrost-based UTXO fetching (kept for backward compatibility)
+ * @deprecated Use hybrid approach with clientMempoolData instead
+ */
+async function fetchUtxosLegacy(address: string, excludedUtxos: string[] = []) {
   const SUBFROST_API_URL = process.env.SUBFROST_URL || 'https://mainnet.subfrost.io/v4'
   const rawApiKey = process.env.SUBFROST_API_KEY || ''
   const SUBFROST_API_KEY = rawApiKey.endsWith('%') ? rawApiKey.slice(0, -1) : rawApiKey
@@ -79,10 +128,10 @@ export async function fetchUtxos(address: string, excludedUtxos: string[] = []) 
     throw new Error('SUBFROST_API_KEY environment variable is not set')
   }
 
-  console.log(`🔍 Fetching UTXOs via Subfrost for: ${address.substring(0, 20)}...`)
+  console.log(`🔍 [Legacy] Fetching UTXOs via Subfrost for: ${address.substring(0, 20)}...`)
 
-    // Step 1: Get all UTXOs - correct method name is esplora_address::utxo (with double colons)
-    const rawUtxos = await fetchSubfrostRpc('esplora_address::utxo', [address], SUBFROST_API_KEY, SUBFROST_API_URL)
+  // Step 1: Get all UTXOs - correct method name is esplora_address::utxo (with double colons)
+  const rawUtxos = await fetchSubfrostRpc('esplora_address::utxo', [address], SUBFROST_API_KEY, SUBFROST_API_URL)
   console.log(`📊 Found ${rawUtxos.length} total UTXOs`)
 
   // Step 1.5: Filter out UTXOs with value < 1001 sats (early filtering)
@@ -161,41 +210,43 @@ export async function fetchUtxos(address: string, excludedUtxos: string[] = []) 
   return { utxos: utxosGathered, excludedCount: excludedUtxos.length }
 }
 
+/**
+ * Filter and sort UTXOs (wrapper for hybrid utility)
+ */
 export function filterAndSortUtxos(utxos: any[]) {
-  console.log(`🔍 Filtering and sorting ${utxos.length} UTXOs...`)
-  console.log(`   First 3 UTXOs before sort:`, utxos.slice(0, 3).map(u => ({ outpoint: u.outpoint, value: u.value })))
+  // Convert to PaymentUtxo format for hybrid utility
+  const paymentUtxos: PaymentUtxo[] = utxos.map((u: any) => ({
+    txid: u.txid,
+    vout: u.vout,
+    value: u.value,
+    outpoint: u.outpoint,
+    height: u.height || null,
+  }))
   
-  const filteredUtxos = utxos
-    .filter((utxo: any) => utxo.value > 800)
-    .sort((a: any, b: any) => b.value - a.value)
-
-  console.log(`✅ After filtering (>800 sats): ${filteredUtxos.length} UTXOs`)
-  console.log(`   Largest 5 UTXOs:`, filteredUtxos.slice(0, 5).map(u => ({ value: u.value, outpoint: u.outpoint.substring(0, 20) + '...' })))
-
-  if (filteredUtxos.length === 0) {
-    throw new Error('No suitable UTXOs found (all below 800 sats)')
-  }
-
-  return filteredUtxos
+  const filtered = hybridFilterAndSortUtxos(paymentUtxos)
+  
+  // Convert back to expected format
+  return filtered.map(utxo => ({
+    outpoint: utxo.outpoint,
+    value: utxo.value,
+    height: utxo.height,
+    txid: utxo.txid,
+    vout: utxo.vout,
+  }))
 }
 
+/**
+ * Validate sufficient funds (wrapper for hybrid utility)
+ */
 export function validateSufficientFunds(utxos: any[], targetAmount: number, excludedCount: number = 0) {
-  const amountRetrieved = utxos.reduce((sum: number, utxo: any) => sum + utxo.value, 0)
+  // Convert to PaymentUtxo format for hybrid utility
+  const paymentUtxos: PaymentUtxo[] = utxos.map((u: any) => ({
+    txid: u.txid,
+    vout: u.vout,
+    value: u.value,
+    outpoint: u.outpoint,
+    height: u.height || null,
+  }))
   
-  if (amountRetrieved === 0) {
-    const excludedMsg = excludedCount > 0 
-      ? ` (${excludedCount} UTXOs are currently excluded from pending transactions)` 
-      : ''
-    throw new Error(`No spendable UTXOs found${excludedMsg}. Please wait for pending transactions to confirm.`)
-  }
-  
-  if (amountRetrieved < targetAmount) {
-    const shortage = targetAmount - amountRetrieved
-    const excludedMsg = excludedCount > 0 
-      ? ` Note: ${excludedCount} UTXO(s) are currently excluded from pending transactions. ` 
-      : ''
-    throw new Error(`Insufficient funds: need ${targetAmount} sats but only have ${amountRetrieved} sats available (short by ${shortage} sats).${excludedMsg}Please wait for pending transactions to confirm or add more funds.`)
-  }
-  
-  return amountRetrieved
+  return hybridValidateSufficientFunds(paymentUtxos, targetAmount, excludedCount)
 }
