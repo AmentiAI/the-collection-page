@@ -1040,6 +1040,101 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         typeof laserEyes.paymentPublicKey === 'string' ? laserEyes.paymentPublicKey : undefined
       const taprootPublicKey = typeof laserEyes.publicKey === 'string' ? laserEyes.publicKey : undefined
 
+      // Build rune transfers from selected assets
+      const runeTransfers: Array<{
+        runeId: string
+        amount: string
+        outputIndex: number
+      }> = []
+      
+      // Find rune assets and map them to transfers
+      // Use destinationDrafts to get the actual address that was entered
+      const runeAssets = destinationDrafts
+        .filter((draft) => 
+          (draft.asset.category === 'runes' || draft.asset.category === 'alkanes') && 
+          draft.asset.runeBalances && 
+          draft.asset.runeBalances.length > 0 &&
+          draft.address.length > 0  // Only include if address is set
+        )
+      
+      if (runeAssets.length > 0) {
+        console.log(`🔮 [requestPsbt] Found ${runeAssets.length} rune asset(s) to transfer`)
+        
+        // Map each rune asset to its destination output
+        // The outputs in plan.outputs are in the same order as parsedOutputDrafts
+        // which filters destinationDrafts for assets with addresses
+        for (let i = 0; i < runeAssets.length; i++) {
+          const draft = runeAssets[i]
+          const runeAsset = draft.asset
+          const address = draft.address.trim()
+          
+          if (!address) {
+            console.warn(`⚠️ [requestPsbt] Rune asset ${runeAsset.outpoint} has no destination address, skipping`)
+            continue
+          }
+          
+          // Find the output index for this destination address in plan.outputs
+          // Note: OP_RETURN will be at index 0, so regular outputs start at 1
+          const outputIndex = plan.outputs.findIndex((output) => output.address === address)
+          if (outputIndex === -1) {
+            console.warn(`⚠️ [requestPsbt] Could not find output index for address ${address}, skipping`)
+            console.log(`   Available outputs:`, plan.outputs.map(o => o.address))
+            continue
+          }
+          
+          // Add a transfer for each rune balance on this UTXO
+          for (const runeBalance of runeAsset.runeBalances || []) {
+            let runeId: string | null = null
+            
+            // Check if we have valid block/tx for the rune ID
+            if (runeBalance.block !== null && runeBalance.txIndex !== null) {
+              runeId = `${runeBalance.block}:${runeBalance.txIndex}`
+            } else if (runeBalance.name) {
+              // Look up rune ID by name using Ordiscan API
+              console.log(`🔍 [requestPsbt] Looking up rune ID for "${runeBalance.name}" via Ordiscan API...`)
+              try {
+                const lookupResponse = await fetch(`/api/wallet/lookup-rune?name=${encodeURIComponent(runeBalance.name)}`)
+                if (lookupResponse.ok) {
+                  const lookupData = await lookupResponse.json()
+                  if (lookupData.success && lookupData.runeId) {
+                    runeId = lookupData.runeId
+                    console.log(`   ✅ Found rune ID: ${runeId} for "${runeBalance.name}"`)
+                  } else {
+                    console.warn(`   ⚠️ Ordiscan lookup failed for "${runeBalance.name}": ${lookupData.error || 'Unknown error'}`)
+                  }
+                } else {
+                  console.warn(`   ⚠️ Ordiscan lookup request failed: ${lookupResponse.status}`)
+                }
+              } catch (error) {
+                console.warn(`   ⚠️ Failed to look up rune ID for "${runeBalance.name}":`, error)
+              }
+            }
+            
+            if (!runeId) {
+              console.warn(`⚠️ [requestPsbt] Rune ${runeBalance.name} has no block/tx info and lookup failed, cannot transfer.`)
+              continue
+            }
+            
+            // Output index should match the actual output position
+            // OP_RETURN will be added LAST, so output indices don't need adjustment
+            // If destination is at output 0, edict should reference output 0
+            runeTransfers.push({
+              runeId,
+              amount: runeBalance.balance.toString(),
+              outputIndex: outputIndex,  // No adjustment - OP_RETURN comes after all regular outputs
+            })
+            
+            console.log(`   ✅ Added transfer: ${runeBalance.name} (${runeId}) → ${runeBalance.balanceFormatted} to output ${outputIndex} (address: ${address.substring(0, 20)}...)`)
+          }
+        }
+        
+        if (runeTransfers.length > 0) {
+          console.log(`📜 [requestPsbt] Built ${runeTransfers.length} rune transfer(s)`)
+        } else {
+          console.warn(`⚠️ [requestPsbt] No valid rune transfers could be built from ${runeAssets.length} rune asset(s)`)
+        }
+      }
+
       const response = await fetch('/api/wallet/psbt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1059,6 +1154,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
           taprootPublicKey,
           fee: plan.fee,
           vsize: plan.vsize,
+          runeTransfers: runeTransfers.length > 0 ? runeTransfers : undefined,
         }),
       })
 
@@ -1161,6 +1257,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     hasPendingSelected,
     toast,
     handleRefresh,
+    destinationDrafts,
   ])
 
   const handleReset = useCallback(() => {

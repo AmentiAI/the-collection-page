@@ -4,6 +4,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { addInputSigningInfo } from '@/app/api/self-inscribe/utils/bitcoin'
 import { fetchSandshrewTx } from '@/lib/sandshrew'
+import { buildRunestoneScript, parseRuneId, type RuneTransfer, validateOutputIndices } from '@/lib/rune-encoding'
 
 bitcoin.initEccLib(ecc)
 
@@ -28,6 +29,11 @@ interface BuildPsbtRequestBody {
   taprootPublicKey?: string | null
   fee?: number | null
   vsize?: number | null
+  runeTransfers?: Array<{
+    runeId: string  // Format: "block:tx"
+    amount: string  // BigInt as string
+    outputIndex: number
+  }>
 }
 
 function toHexBuffer(hex: string, field: string): Buffer {
@@ -111,6 +117,8 @@ export async function POST(request: NextRequest) {
 
     let totalOutputValue = 0
 
+    // Add regular outputs first (these are where runes will be sent)
+    // OP_RETURN will be added AFTER all regular outputs
     for (const output of body.outputs) {
       if (typeof output.amount !== 'number' || output.amount < 0) {
         throw new Error('Each output must include a non-negative amount')
@@ -145,6 +153,49 @@ export async function POST(request: NextRequest) {
         value: BigInt(body.changeOutput.amount),
       })
       totalOutputValue += body.changeOutput.amount
+    }
+
+    // Add OP_RETURN output LAST (after all regular outputs)
+    // The edict output indices should match the actual output positions (0-indexed)
+    if (body.runeTransfers && body.runeTransfers.length > 0) {
+      console.log(`🔮 [wallet/psbt] Processing ${body.runeTransfers.length} rune transfer(s)`)
+      
+      // At this point, we've added all regular outputs
+      // The output indices in edicts should already be correct (0-indexed from start)
+      // No need to adjust since OP_RETURN is being added last
+      
+      // Convert rune transfers to the format expected by buildRunestoneScript
+      const transfers: RuneTransfer[] = body.runeTransfers.map((rt) => {
+        const runeId = parseRuneId(rt.runeId)
+        return {
+          runeId,
+          amount: BigInt(rt.amount),
+          outputIndex: rt.outputIndex,  // This should already be the correct index (0 for first output, etc.)
+        }
+      })
+      
+      // Validate output indices (should be within range of regular outputs, not including OP_RETURN)
+      const regularOutputCount = psbt.txOutputs.length
+      const validation = validateOutputIndices(transfers, regularOutputCount)
+      if (!validation.valid) {
+        throw new Error(`Invalid rune transfer output indices: ${validation.errors.join(', ')}`)
+      }
+      
+      // Build the Runestone script
+      const runestoneScript = buildRunestoneScript(transfers)
+      console.log(`📜 [wallet/psbt] Built Runestone script (${runestoneScript.length} bytes)`)
+      console.log(`   Script hex: ${runestoneScript.toString('hex').substring(0, 100)}...`)
+      
+      // Add OP_RETURN output LAST (after all regular outputs)
+      psbt.addOutput({
+        script: runestoneScript,
+        value: BigInt(0),  // OP_RETURN outputs have 0 value
+      })
+      
+      const opReturnOutputIndex = psbt.txOutputs.length - 1
+      console.log(`✅ [wallet/psbt] Added OP_RETURN output at index ${opReturnOutputIndex} (after ${regularOutputCount} regular outputs)`)
+      console.log(`   Transfers:`, transfers.map(t => `${t.runeId.block}:${t.runeId.tx} → ${t.amount} to output ${t.outputIndex}`).join(', '))
+      console.log(`📊 [wallet/psbt] Final output count: ${psbt.txOutputs.length} (OP_RETURN at index ${opReturnOutputIndex})`)
     }
 
     const impliedFee = totalInputValue - totalOutputValue
