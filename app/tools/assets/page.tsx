@@ -1204,16 +1204,23 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   const tabCounts = useMemo(
     () => ({
+      // Taproot wallet assets
       inscriptions: ordinalAssets?.inscriptions.length ?? 0,
       runes: ordinalAssets?.runes.length ?? 0,
       alkanes: ordinalAssets?.alkanes.length ?? 0,
-      spendable: spendableModalList.length,
+      taprootSpendable: ordinalAssets?.spendable.length ?? 0,
+      // Pay wallet assets
+      paySpendable: spendableModalList.length,
+      payInscriptions: paymentAssets?.inscriptions.length ?? 0,
+      payRunes: paymentAssets?.runes.length ?? 0,
     }),
-    [ordinalAssets, spendableModalList],
+    [ordinalAssets, paymentAssets, spendableModalList],
   )
 
   const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
-  const paymentUtxoCount = tabCounts.spendable
+  const paymentUtxoCount = tabCounts.paySpendable
+  const taprootTotalCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes + tabCounts.taprootSpendable
+  const payTotalCount = tabCounts.paySpendable + tabCounts.payInscriptions + tabCounts.payRunes
 
   const pickerLists = useMemo(() => {
     return {
@@ -1223,6 +1230,25 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       spendable: spendableModalList,
     }
   }, [ordinalAssets, spendableModalList])
+
+  // Combined wallet views - show all asset types from each wallet
+  const taprootWalletAssets = useMemo(() => {
+    return {
+      inscriptions: ordinalAssets?.inscriptions ?? [],
+      runes: ordinalAssets?.runes ?? [],
+      alkanes: ordinalAssets?.alkanes ?? [],
+      spendable: ordinalAssets?.spendable ?? [],
+    }
+  }, [ordinalAssets])
+
+  const payWalletAssets = useMemo(() => {
+    return {
+      inscriptions: paymentAssets?.inscriptions ?? [],
+      runes: paymentAssets?.runes ?? [],
+      alkanes: paymentAssets?.alkanes ?? [],
+      spendable: spendableModalList,
+    }
+  }, [paymentAssets, spendableModalList])
 
   useEffect(() => {
     if (!pickerType) return
@@ -1494,19 +1520,29 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               </Button>
               <Button
                 type="button"
-                onClick={() => openPicker('inscriptions')}
+                onClick={() => {
+                  // Open inscriptions picker for taproot wallet (primary asset type)
+                  // User can still access runes via separate button
+                  openPicker('inscriptions')
+                }}
                 className="bg-red-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500"
-                disabled={!ordinalAssets?.inscriptions?.length}
+                disabled={taprootTotalCount === 0}
+                title={`Taproot Wallet: ${tabCounts.inscriptions} inscriptions, ${tabCounts.runes} runes, ${tabCounts.taprootSpendable} spendable`}
               >
-                Inscriptions ({tabCounts.inscriptions})
+                (Taproot) Wallet ({taprootTotalCount})
               </Button>
               <Button
                 type="button"
-                onClick={() => openPicker('spendable')}
+                onClick={() => {
+                  // Open spendable picker for pay wallet (primary asset type)
+                  // Pay wallet may also have inscriptions/runes but spendable is primary
+                  openPicker('spendable')
+                }}
                 className="bg-emerald-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-emerald-500"
-                disabled={!paymentAssets?.spendable?.length}
+                disabled={payTotalCount === 0}
+                title={`Pay Wallet: ${tabCounts.paySpendable} spendable, ${tabCounts.payInscriptions} inscriptions, ${tabCounts.payRunes} runes`}
               >
-                Pay UTXOs ({tabCounts.spendable})
+                (Pay) Wallet ({payTotalCount})
               </Button>
               <Button
                 type="button"
