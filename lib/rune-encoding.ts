@@ -159,7 +159,7 @@ export function buildRunestoneScript(transfers: RuneTransfer[]): Buffer {
   }
   
   // Convert script parts to buffer
-  const totalLength = scriptParts.reduce((sum, part) => {
+  const totalLength = scriptParts.reduce((sum: number, part) => {
     if (typeof part === 'number') {
       return sum + 1
     }
