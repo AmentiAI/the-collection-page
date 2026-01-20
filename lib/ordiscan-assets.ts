@@ -11,7 +11,8 @@ const ORDISCAN_API_URL = 'https://api.ordiscan.com/v1'
 
 export interface OrdiscanRune {
   name: string
-  amount: string
+  amount?: string  // Some APIs use "amount"
+  balance?: string  // Ordiscan uses "balance"
   divisibility?: number
   symbol?: string
 }
@@ -91,15 +92,19 @@ function processRuneBalance(
   const isAlkaneRune = isAlkane(rune.name, blockHeight)
   const category: 'rune' | 'alkane' = isAlkaneRune ? 'alkane' : 'rune'
   
-  // Parse amount (might be hex or decimal string)
+  // Parse amount/balance (Ordiscan uses "balance", some APIs use "amount")
   let balance: bigint
   let rawBalance: string
   try {
-    rawBalance = rune.amount
-    if (rune.amount.startsWith('0x') || rune.amount.startsWith('0X')) {
-      balance = BigInt(rune.amount)
+    // Ordiscan returns "balance", but support "amount" for compatibility
+    rawBalance = rune.balance || rune.amount || '0'
+    if (!rawBalance || rawBalance === '0') {
+      return null
+    }
+    if (rawBalance.startsWith('0x') || rawBalance.startsWith('0X')) {
+      balance = BigInt(rawBalance)
     } else {
-      balance = BigInt(rune.amount)
+      balance = BigInt(rawBalance)
     }
   } catch {
     return null
@@ -179,6 +184,12 @@ export async function fetchWalletAssetsWithOrdiscan(
   try {
     ordiscanUtxos = await callOrdiscan(`/address/${address}/utxos`, ordiscanApiKey)
     console.log(`📜 [Ordiscan] Got ${ordiscanUtxos.length} UTXOs with asset data`)
+    
+    // Debug: Count runes
+    const runeCount = ordiscanUtxos.reduce((sum, utxo) => sum + (utxo.runes?.length || 0), 0)
+    if (runeCount > 0) {
+      console.log(`🔮 [Ordiscan] Found ${runeCount} rune entries across ${ordiscanUtxos.filter(u => u.runes && u.runes.length > 0).length} UTXOs`)
+    }
   } catch (error) {
     console.error('[Ordiscan] Failed to fetch Ordiscan data:', error)
     throw new Error(`Failed to fetch Ordiscan data: ${error instanceof Error ? error.message : String(error)}`)
@@ -280,6 +291,10 @@ export async function fetchWalletAssetsWithOrdiscan(
       alkane: [],
     }
 
+    if (hasRunes) {
+      console.log(`🔮 [Ordiscan] Processing ${runeData.length} runes for UTXO ${outpoint}`)
+    }
+
     for (const rune of runeData) {
       const processed = processRuneBalance(rune, outpoint, utxo.height)
       if (processed) {
@@ -289,6 +304,9 @@ export async function fetchWalletAssetsWithOrdiscan(
         } else {
           runesByCategory.rune.push(processed)
         }
+        console.log(`   ✅ Processed rune: ${processed.name} (${processed.category}), balance: ${processed.rawBalance}`)
+      } else {
+        console.warn(`   ⚠️ Failed to process rune: ${JSON.stringify(rune)}`)
       }
     }
 
@@ -318,6 +336,7 @@ export async function fetchWalletAssetsWithOrdiscan(
           category: 'rune',
           runeBalances: runesByCategory.rune,
         })
+        console.log(`   ✅ Added to runes array: ${outpoint} with ${runesByCategory.rune.length} rune(s)`)
       }
 
       if (runesByCategory.alkane.length > 0) {
@@ -326,6 +345,7 @@ export async function fetchWalletAssetsWithOrdiscan(
           category: 'alkane',
           runeBalances: runesByCategory.alkane,
         })
+        console.log(`   ✅ Added to alkanes array: ${outpoint} with ${runesByCategory.alkane.length} alkane(s)`)
       }
 
       // For small UTXOs (< 2000 sats) with inscriptions, also add to spendable
