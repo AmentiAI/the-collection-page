@@ -159,14 +159,13 @@ export function buildRunestoneScript(transfers: RuneTransfer[]): Buffer {
   }
   
   // Convert script parts to buffer
-  const scriptBuffer = Buffer.allocUnsafe(
-    scriptParts.reduce((sum, part) => {
-      if (typeof part === 'number') {
-        return sum + 1
-      }
-      return sum + part.length
-    }, 0)
-  )
+  const totalLength = scriptParts.reduce((sum, part) => {
+    if (typeof part === 'number') {
+      return sum + 1
+    }
+    return sum + part.length
+  }, 0)
+  const scriptBuffer = Buffer.allocUnsafe(totalLength)
   
   let offset = 0
   for (const part of scriptParts) {

@@ -1677,6 +1677,8 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                       const isChecking = checkedData?.loading ?? false
                       const inscriptionMeta = primaryInscriptionId ? inscriptionMetadataMap[primaryInscriptionId] : undefined
                       const isInscriptionAsset = asset.category === 'inscriptions'
+                      const isRuneAsset = asset.category === 'runes' || asset.category === 'alkanes'
+                      const runeBalances = asset.runeBalances || []
                       const needsCheck = asset.category === 'spendable' && !primaryInscriptionId && !isChecking
                       const borderClass = pending
                         ? 'border-amber-500/60'
@@ -1750,6 +1752,17 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                                     </div>
                                   </div>
                                 )}
+                                {isRuneAsset && runeBalances.length > 0 && (
+                                  <div className="space-y-1 text-[11px] uppercase tracking-[0.3em] text-amber-200/80">
+                                    {runeBalances.map((rune, idx) => (
+                                      <div key={idx} className="truncate text-amber-100">
+                                        <span className="font-semibold">{rune.name}</span>
+                                        {rune.symbol && <span className="text-amber-100/60"> · {rune.symbol}</span>}
+                                        <span className="text-amber-100/60"> · {rune.balanceFormatted}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="text-[11px] uppercase tracking-[0.35em] text-red-200/60">
                                   Height {asset.height ?? '—'}
                                 </div>
@@ -1770,7 +1783,18 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                               }`}
                             />
                             <div className="rounded-lg border border-red-500/20 bg-black/40 p-2 text-[11px] uppercase tracking-[0.3em] text-red-200/70">
-                              Amount {formatSats(asset.value)} · full inscription transfer
+                              {isRuneAsset && runeBalances.length > 0 ? (
+                                <div className="space-y-1">
+                                  <div>Amount {formatSats(asset.value)}</div>
+                                  {runeBalances.map((rune, idx) => (
+                                    <div key={idx} className="text-amber-100/80">
+                                      {rune.name}: {rune.balanceFormatted}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <>Amount {formatSats(asset.value)} · full inscription transfer</>
+                              )}
                             </div>
                             {required && !valid && (
                               <div className="rounded-lg border border-red-500/40 bg-red-900/30 p-2 text-[11px] uppercase tracking-[0.3em] text-red-100">
