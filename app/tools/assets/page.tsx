@@ -1512,9 +1512,9 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 type="button"
                 onClick={() => openPicker('runes')}
                 className="bg-sky-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-70"
-                disabled
+                disabled={!ordinalAssets?.runes?.length}
               >
-                Runes ({tabCounts.runes}) (Soon)
+                Runes ({tabCounts.runes})
               </Button>
               <Button
                 type="button"
