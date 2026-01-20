@@ -1115,16 +1115,19 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               continue
             }
             
-            // Output index should match the actual output position
-            // OP_RETURN will be added LAST, so output indices don't need adjustment
-            // If destination is at output 0, edict should reference output 0
+            // Output index: OP_RETURN will be at index 0, so destination outputs start at index 1
+            // If the destination is the first regular output, it will be at index 1 (after OP_RETURN at 0)
+            // So we need to add 1 to the outputIndex to account for OP_RETURN being first
+            const adjustedOutputIndex = outputIndex + 1
+            
             runeTransfers.push({
               runeId,
               amount: runeBalance.balance.toString(),
-              outputIndex: outputIndex,  // No adjustment - OP_RETURN comes after all regular outputs
+              outputIndex: adjustedOutputIndex,  // +1 because OP_RETURN is at index 0
             })
             
-            console.log(`   ✅ Added transfer: ${runeBalance.name} (${runeId}) → ${runeBalance.balanceFormatted} to output ${outputIndex} (address: ${address.substring(0, 20)}...)`)
+            console.log(`   ✅ Added transfer: ${runeBalance.name} (${runeId}) → ${runeBalance.balanceFormatted} to output ${adjustedOutputIndex} (address: ${address.substring(0, 20)}...)`)
+            console.log(`      Note: OP_RETURN will be at index 0, destination at index ${adjustedOutputIndex}`)
           }
         }
         
@@ -1135,27 +1138,36 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         }
       }
 
+      const requestBody = {
+        inputs: plan.inputs.map((input) => ({
+          txid: input.txid,
+          vout: input.vout,
+          value: input.value,
+        })),
+        outputs: plan.outputs.map((output) => ({
+          address: output.address,
+          amount: output.amount,
+        })),
+        changeOutput: plan.changeOutput ?? null,
+        paymentAddress,
+        paymentPublicKey,
+        taprootPublicKey,
+        fee: plan.fee,
+        vsize: plan.vsize,
+        runeTransfers: runeTransfers.length > 0 ? runeTransfers : undefined,
+      }
+      
+      if (runeTransfers.length > 0) {
+        console.log(`📤 [requestPsbt] Sending ${runeTransfers.length} rune transfer(s) to PSBT API`)
+        console.log(`   Rune transfers:`, JSON.stringify(runeTransfers, null, 2))
+      } else {
+        console.log(`ℹ️ [requestPsbt] No rune transfers to send (array length: ${runeTransfers.length})`)
+      }
+
       const response = await fetch('/api/wallet/psbt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          inputs: plan.inputs.map((input) => ({
-            txid: input.txid,
-            vout: input.vout,
-            value: input.value,
-          })),
-          outputs: plan.outputs.map((output) => ({
-            address: output.address,
-            amount: output.amount,
-          })),
-          changeOutput: plan.changeOutput ?? null,
-          paymentAddress,
-          paymentPublicKey,
-          taprootPublicKey,
-          fee: plan.fee,
-          vsize: plan.vsize,
-          runeTransfers: runeTransfers.length > 0 ? runeTransfers : undefined,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const payload = await response.json()
