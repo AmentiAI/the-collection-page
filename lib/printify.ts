@@ -9,6 +9,136 @@ function getHeaders() {
   }
 }
 
+// Get all blueprints (catalog)
+export async function getBlueprints(): Promise<Array<{
+  id: number
+  title: string
+  description: string
+  brand: string
+  model: string
+  images: string[]
+}>> {
+  const response = await fetch(`${PRINTIFY_API_URL}/catalog/blueprints.json`, {
+    headers: getHeaders(),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to get blueprints: ${response.statusText} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  // Printify returns blueprints in a data array
+  return Array.isArray(data) ? data : (data.data || [])
+}
+
+// Get blueprint details
+export async function getBlueprintDetails(blueprintId: number): Promise<{
+  id: number
+  title: string
+  description: string
+  brand: string
+  model: string
+  images: string[]
+}> {
+  const response = await fetch(`${PRINTIFY_API_URL}/catalog/blueprints/${blueprintId}.json`, {
+    headers: getHeaders(),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to get blueprint details: ${response.statusText} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  console.log('Printify blueprint details response:', JSON.stringify(data, null, 2))
+  
+  // Handle both direct response and nested data
+  return data.data || data
+}
+
+// Get print providers for a blueprint
+export async function getBlueprintPrintProviders(blueprintId: number): Promise<Array<{
+  id: number
+  title: string
+  location: string
+}>> {
+  // Try to get print providers from blueprint details first
+  try {
+    const blueprintDetails = await getBlueprintDetails(blueprintId)
+    // Some blueprints might have print_providers in the response
+    if ((blueprintDetails as any).print_providers) {
+      return (blueprintDetails as any).print_providers
+    }
+  } catch (error) {
+    console.warn('Could not get print providers from blueprint details:', error)
+  }
+
+  // Fallback: Try fetching from a separate endpoint if it exists
+  // Note: Printify API might require fetching variants to get print providers
+  // For now, return a default provider
+  return [
+    { id: 1, title: 'Default Print Provider', location: 'US' }
+  ]
+}
+
+// Get print provider details including placeholder images
+export async function getPrintProviderDetails(
+  blueprintId: number,
+  printProviderId: number
+): Promise<{
+  id: number
+  title: string
+  location: string
+  variants: Array<{
+    id: number
+    cost: number
+    options: { size?: string; color?: string }
+  }>
+  placeholder_images: Array<{
+    position: string
+    images: string[]
+  }>
+}> {
+  const response = await fetch(
+    `${PRINTIFY_API_URL}/catalog/blueprints/${blueprintId}/print_providers/${printProviderId}.json`,
+    {
+      headers: getHeaders(),
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to get print provider details: ${response.statusText} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  console.log('Printify print provider response:', JSON.stringify(data, null, 2))
+  
+  // Handle both direct response and nested data
+  const providerData = data.data || data
+  
+  // Check for placeholder_images in various possible locations
+  let placeholderImages = providerData.placeholder_images || providerData.placeholders || []
+  
+  // If placeholder_images is empty, try to get from blueprint images or variants
+  if (!placeholderImages || placeholderImages.length === 0) {
+    // Try to get placeholder info from variants
+    if (providerData.variants && providerData.variants.length > 0) {
+      // Some APIs return placeholder info in variants
+      const firstVariant = providerData.variants[0]
+      if (firstVariant.placeholder_images) {
+        placeholderImages = firstVariant.placeholder_images
+      }
+    }
+  }
+  
+  return {
+    ...providerData,
+    placeholder_images: placeholderImages,
+  }
+}
+
 // Upload image to Printify
 export async function uploadImageToPrintify(
   imageUrl: string,

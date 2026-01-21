@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useLaserEyes } from '@omnisat/lasereyes'
+import Header from '@/components/Header'
+import ProductPlacementEditor from '@/components/ProductPlacementEditor'
+import BlueprintSelector from '@/components/BlueprintSelector'
 
 interface MagicEdenToken {
   id?: string
@@ -29,26 +32,62 @@ interface MagicEdenToken {
   [key: string]: any
 }
 
-interface Placement {
-  front?: { x: number; y: number; scale: number; angle: number }
-  back?: { x: number; y: number; scale: number; angle: number }
+interface PlacementPosition {
+  x: number
+  y: number
+  scale: number
+  widthScale?: number
+  heightScale?: number
+  angle: number
+  lockAspectRatio?: boolean
 }
+
+type Step = 'products' | 'design' | 'placement' | 'details'
 
 export default function MerchPage() {
   const { connected, address } = useLaserEyes()
+  
+  // Step management
+  const [currentStep, setCurrentStep] = useState<Step>('products')
+  
+  // Product selection
+  const [blueprintId, setBlueprintId] = useState<number | undefined>(undefined)
+  const [printProviderId, setPrintProviderId] = useState<number | undefined>(undefined)
+  const [mockupImages, setMockupImages] = useState<Record<string, string>>({})
+  
+  // Design image
+  const [designImageUrl, setDesignImageUrl] = useState<string>('')
   const [ordinals, setOrdinals] = useState<MagicEdenToken[]>([])
   const [loadingOrdinals, setLoadingOrdinals] = useState(false)
   const [selectedOrdinal, setSelectedOrdinal] = useState<MagicEdenToken | null>(null)
-  const [imageUrl, setImageUrl] = useState<string>('')
-  const [imageSource, setImageSource] = useState<'ordinal' | 'upload' | null>(null)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [blueprintId, setBlueprintId] = useState<number>(5) // Default: T-Shirt
-  const [printProviderId, setPrintProviderId] = useState<number>(1) // Default print provider
-  const [placement, setPlacement] = useState<Placement>({ front: { x: 0.5, y: 0.5, scale: 1.0, angle: 0 } })
+  
+  // Position management
+  const [selectedPositions, setSelectedPositions] = useState<Record<string, boolean>>({
+    front: false,
+    back: false,
+  })
+  
+  const [appliedPositions, setAppliedPositions] = useState<Record<string, boolean>>({
+    front: false,
+    back: false,
+  })
+  
+  // Placement data
+  const [placement, setPlacement] = useState<{
+    positionsData: Record<string, PlacementPosition>
+  }>({
+    positionsData: {}
+  })
+  
+  // Product details
+  const [productTitle, setProductTitle] = useState('')
+  const [productDescription, setProductDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Available positions
+  const availablePositions = ['front', 'back']
 
   // Fetch user's ordinals from Magic Eden
   useEffect(() => {
@@ -93,13 +132,10 @@ export default function MerchPage() {
 
   const handleOrdinalSelect = (ordinal: MagicEdenToken) => {
     setSelectedOrdinal(ordinal)
-    // Try to get image from contentURI, image, or thumbnail
     const image = ordinal.contentURI || ordinal.image || ordinal.thumbnail
     if (image) {
-      setImageUrl(image)
-      setImageSource('ordinal')
-    } else {
-      setError('Selected ordinal has no image URL')
+      setDesignImageUrl(image)
+      setProductTitle(ordinal.meta?.name || ordinal.name || 'Custom Product')
     }
   }
 
@@ -107,34 +143,57 @@ export default function MerchPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Convert to base64 data URL
     const reader = new FileReader()
     reader.onloadend = () => {
       const result = reader.result as string
-      setImageUrl(result)
-      setImageSource('upload')
+      setDesignImageUrl(result)
       setSelectedOrdinal(null)
     }
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
+      // Build placement data for applied positions only
+      const placementData: Record<string, any> = {}
+      Object.entries(appliedPositions).forEach(([pos, applied]) => {
+        if (applied && placement.positionsData[pos]) {
+          const posData = placement.positionsData[pos]
+          placementData[pos] = {
+            x: posData.x,
+            y: posData.y,
+            scale: posData.scale,
+            widthScale: posData.widthScale ?? posData.scale,
+            heightScale: posData.heightScale ?? posData.scale,
+            angle: posData.angle,
+          }
+        }
+      })
+
+      // Default to front if no positions applied
+      if (Object.keys(placementData).length === 0) {
+        placementData.front = {
+          x: 0.5,
+          y: 0.5,
+          scale: 1.0,
+          angle: 0,
+        }
+      }
+
       const response = await fetch('/api/products/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl,
-          title: title || (selectedOrdinal?.meta?.name || selectedOrdinal?.name || 'Custom Product'),
-          description: description || `Created from ${selectedOrdinal ? 'The Damned ordinal' : 'uploaded image'}`,
+          imageUrl: designImageUrl,
+          title: productTitle || 'Custom Product',
+          description: productDescription,
           blueprintId,
           printProviderId,
-          placement,
+          placement: placementData,
         }),
       })
 
@@ -142,11 +201,13 @@ export default function MerchPage() {
       if (data.success) {
         setSuccess(`Product created successfully! Printify ID: ${data.printifyProductId}`)
         // Reset form
-        setImageUrl('')
-        setImageSource(null)
+        setCurrentStep('products')
+        setDesignImageUrl('')
         setSelectedOrdinal(null)
-        setTitle('')
-        setDescription('')
+        setProductTitle('')
+        setProductDescription('')
+        setAppliedPositions({ front: false, back: false })
+        setPlacement({ positionsData: {} })
       } else {
         setError(data.error || 'Failed to create product')
       }
@@ -158,428 +219,312 @@ export default function MerchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-red-950 to-black text-white p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-widest text-red-200">
-            Create Merch
-          </h1>
-          <p className="text-gray-400 font-mono text-sm uppercase tracking-wide">
-            Select a Damned ordinal or upload your own design
-          </p>
-        </div>
-
-        {!connected && (
-          <div className="bg-red-950/70 rounded-xl border-2 border-red-500/70 p-6 text-center">
-            <p className="text-red-200 font-mono">Please connect your wallet to view your ordinals</p>
+    <div className="min-h-screen bg-gradient-to-b from-black via-red-950 to-black text-white">
+      <Header />
+      <div className="p-4 md:p-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-4xl md:text-6xl font-black uppercase tracking-widest text-red-200">
+              Create Merch
+            </h1>
+            <p className="text-gray-400 font-mono text-sm uppercase tracking-wide">
+              Step {currentStep === 'products' ? '1' : currentStep === 'design' ? '2' : currentStep === 'placement' ? '3' : '4'} of 4
+            </p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image Source Selection */}
-          <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-4">
-            <h2 className="text-xl font-bold uppercase tracking-widest text-red-200">Image Source</h2>
-            
-            {/* Ordinal Selection */}
-            {connected && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    id="source-ordinal"
-                    name="imageSource"
-                    checked={imageSource === 'ordinal'}
-                    onChange={() => {
-                      setImageSource('ordinal')
-                      if (selectedOrdinal) {
-                        const image = selectedOrdinal.contentURI || selectedOrdinal.image || selectedOrdinal.thumbnail
-                        if (image) setImageUrl(image)
-                      }
-                    }}
-                    className="w-4 h-4 text-red-600"
-                  />
-                  <label htmlFor="source-ordinal" className="font-mono text-sm uppercase">
-                    Select from The Damned Ordinals
-                  </label>
-                </div>
+          {/* Step 1: Product Selection */}
+          {currentStep === 'products' && (
+            <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-6">
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-red-200">Select Product Type</h2>
+              
+              <BlueprintSelector
+                onSelect={(bpId, ppId, mockups) => {
+                  setBlueprintId(bpId)
+                  setPrintProviderId(ppId)
+                  setMockupImages(mockups)
+                }}
+                selectedBlueprintId={blueprintId}
+                selectedPrintProviderId={printProviderId}
+                selectedMockupImages={mockupImages}
+              />
 
-                {imageSource === 'ordinal' && (
-                  <div className="space-y-2">
-                    {loadingOrdinals ? (
-                      <p className="text-gray-400 font-mono text-sm">Loading ordinals...</p>
-                    ) : ordinals.length === 0 ? (
-                      <p className="text-gray-400 font-mono text-sm">No ordinals found in your wallet</p>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-96 overflow-y-auto p-2">
-                        {ordinals.map((ordinal) => {
-                          const image = ordinal.contentURI || ordinal.image || ordinal.thumbnail
-                          return (
-                            <button
-                              key={ordinal.inscriptionId || ordinal.id}
-                              type="button"
-                              onClick={() => handleOrdinalSelect(ordinal)}
-                              className={`relative aspect-square rounded-lg border-2 overflow-hidden transition-all ${
-                                selectedOrdinal?.inscriptionId === ordinal.inscriptionId
-                                  ? 'border-red-500 ring-2 ring-red-500'
-                                  : 'border-gray-700 hover:border-red-600'
-                              }`}
-                            >
-                              {image ? (
-                                <img
-                                  src={image}
-                                  alt={ordinal.meta?.name || ordinal.name || 'Ordinal'}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                                  <span className="text-xs text-gray-500">No Image</span>
-                                </div>
-                              )}
-                              {selectedOrdinal?.inscriptionId === ordinal.inscriptionId && (
-                                <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                                  <span className="text-red-200 font-bold text-sm">✓</span>
-                                </div>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Upload Option */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  id="source-upload"
-                  name="imageSource"
-                  checked={imageSource === 'upload'}
-                  onChange={() => {
-                    setImageSource('upload')
-                    setSelectedOrdinal(null)
-                  }}
-                  className="w-4 h-4 text-red-600"
-                />
-                <label htmlFor="source-upload" className="font-mono text-sm uppercase">
-                  Upload Image
-                </label>
-              </div>
-
-              {imageSource === 'upload' && (
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-mono file:bg-red-600 file:text-white hover:file:bg-red-700"
-                  />
-                </div>
+              {blueprintId && printProviderId && (
+                <button
+                  onClick={() => setCurrentStep('design')}
+                  className="w-full py-4 bg-red-600 hover:bg-red-700 rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Continue to Design Selection
+                </button>
               )}
             </div>
+          )}
 
-            {/* Image Preview */}
-            {imageUrl && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-400 font-mono mb-2">Preview:</p>
-                <div className="relative w-full max-w-md aspect-square rounded-lg border border-red-600/40 overflow-hidden">
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="w-full h-full object-contain"
-                  />
+          {/* Step 2: Design Selection */}
+          {currentStep === 'design' && (
+            <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-6">
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-red-200">Select Design</h2>
+              
+              {/* Ordinal Selection */}
+              {connected && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-mono uppercase text-red-300">Select from The Damned Ordinals</h3>
+                  
+                  {loadingOrdinals ? (
+                    <p className="text-gray-400 font-mono text-sm">Loading ordinals...</p>
+                  ) : ordinals.length === 0 ? (
+                    <p className="text-gray-400 font-mono text-sm">No ordinals found in your wallet</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-96 overflow-y-auto p-2">
+                      {ordinals.map((ordinal) => {
+                        const image = ordinal.contentURI || ordinal.image || ordinal.thumbnail
+                        return (
+                          <button
+                            key={ordinal.inscriptionId || ordinal.id}
+                            type="button"
+                            onClick={() => handleOrdinalSelect(ordinal)}
+                            className={`relative aspect-square rounded-lg border-2 overflow-hidden transition-all ${
+                              selectedOrdinal?.inscriptionId === ordinal.inscriptionId
+                                ? 'border-red-500 ring-2 ring-red-500'
+                                : 'border-gray-700 hover:border-red-600'
+                            }`}
+                          >
+                            {image ? (
+                              <img
+                                src={image}
+                                alt={ordinal.meta?.name || ordinal.name || 'Ordinal'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                                <span className="text-xs text-gray-500">No Image</span>
+                              </div>
+                            )}
+                            {selectedOrdinal?.inscriptionId === ordinal.inscriptionId && (
+                              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                                <span className="text-red-200 font-bold text-sm">✓</span>
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Option */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-mono uppercase text-red-300">Or Upload Your Own Image</h3>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-mono file:bg-red-600 file:text-white hover:file:bg-red-700"
+                />
+              </div>
+
+              {/* Image Preview */}
+              {designImageUrl && (
+                <div className="mt-4">
+                  <p className="text-sm text-gray-400 font-mono mb-2">Preview:</p>
+                  <div className="relative w-full max-w-md aspect-square rounded-lg border border-red-600/40 overflow-hidden">
+                    <img
+                      src={designImageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setCurrentStep('products')}
+                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep('placement')}
+                  disabled={!designImageUrl}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Continue to Placement
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Placement Configuration */}
+          {currentStep === 'placement' && designImageUrl && (
+            <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-6">
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-red-200">Configure Placement</h2>
+              
+              {/* Position Selection (Single-select for viewing) */}
+              <div className="border border-red-600/40 rounded-lg p-4 bg-black/60">
+                <h3 className="text-sm font-mono uppercase text-gray-400 mb-3">Select Position to Configure</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {availablePositions.map((position) => (
+                    <label
+                      key={position}
+                      className={`flex items-center gap-2 p-3 rounded border-2 cursor-pointer transition-all ${
+                        selectedPositions[position]
+                          ? 'border-red-500 bg-red-950/50'
+                          : 'border-gray-700 hover:border-red-600/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="position"
+                        checked={selectedPositions[position] || false}
+                        onChange={() => {
+                          // Single-select: when checking, uncheck all others
+                          const newSelected: Record<string, boolean> = {}
+                          availablePositions.forEach(pos => {
+                            newSelected[pos] = pos === position
+                          })
+                          setSelectedPositions(newSelected)
+                        }}
+                        className="w-4 h-4 accent-red-600"
+                      />
+                      <span className="capitalize font-mono text-sm uppercase">{position}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Product Details */}
-          <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-4">
-            <h2 className="text-xl font-bold uppercase tracking-widest text-red-200">Product Details</h2>
-            
-            <div>
-              <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
-                Product Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={selectedOrdinal?.meta?.name || selectedOrdinal?.name || 'Enter product title'}
-                className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
-            </div>
+              {/* Visual Editor for Selected Position */}
+              {availablePositions.filter(pos => selectedPositions[pos]).map((position) => {
+                const isApplied = appliedPositions[position] || false
+                
+                // Initialize placement data if not exists
+                if (!placement.positionsData[position]) {
+                  setPlacement({
+                    positionsData: {
+                      ...placement.positionsData,
+                      [position]: { x: 0.5, y: 0.5, scale: 1.0, angle: 0 }
+                    }
+                  })
+                }
 
-            <div>
-              <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter product description"
-                rows={3}
-                className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
-            </div>
-          </div>
-
-          {/* Product Configuration */}
-          <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-4">
-            <h2 className="text-xl font-bold uppercase tracking-widest text-red-200">Product Configuration</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
-                  Blueprint ID
-                </label>
-                <input
-                  type="number"
-                  value={blueprintId}
-                  onChange={(e) => setBlueprintId(Number(e.target.value))}
-                  placeholder="5 (T-Shirt)"
-                  className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-                <p className="text-xs text-gray-500 mt-1 font-mono">5 = T-Shirt, 91 = Hoodie, 12 = Tank Top</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
-                  Print Provider ID
-                </label>
-                <input
-                  type="number"
-                  value={printProviderId}
-                  onChange={(e) => setPrintProviderId(Number(e.target.value))}
-                  placeholder="1"
-                  className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Placement Configuration */}
-          <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-4">
-            <h2 className="text-xl font-bold uppercase tracking-widest text-red-200">Placement Configuration</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={!!placement.front}
-                    onChange={(e) => {
-                      setPlacement({
-                        ...placement,
-                        front: e.target.checked
-                          ? { x: 0.5, y: 0.5, scale: 1.0, angle: 0 }
-                          : undefined,
-                      })
-                    }}
-                    className="w-4 h-4 text-red-600"
-                  />
-                  <span className="font-mono text-sm uppercase">Front Placement</span>
-                </label>
-                {placement.front && (
-                  <div className="ml-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">X</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={placement.front.x}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            front: { ...placement.front!, x: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.front.x.toFixed(2)}</span>
+                return (
+                  <div key={position} className="space-y-4">
+                    {/* Apply Toggle */}
+                    <div className="border border-red-600/40 rounded-lg p-4 bg-black/60">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isApplied}
+                            onChange={(e) => {
+                              setAppliedPositions({
+                                ...appliedPositions,
+                                [position]: e.target.checked
+                              })
+                            }}
+                            className="w-5 h-5 accent-red-600"
+                          />
+                          <span className="font-mono text-sm uppercase">
+                            Apply image to {position.charAt(0).toUpperCase() + position.slice(1)}
+                          </span>
+                        </label>
+                        {isApplied && <span className="text-green-500 text-sm font-mono">✓ Active</span>}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Y</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={placement.front.y}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            front: { ...placement.front!, y: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.front.y.toFixed(2)}</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Scale</label>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="2"
-                        step="0.1"
-                        value={placement.front.scale}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            front: { ...placement.front!, scale: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.front.scale.toFixed(1)}</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Angle</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="360"
-                        step="1"
-                        value={placement.front.angle}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            front: { ...placement.front!, angle: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.front.angle}°</span>
-                    </div>
+
+                    {/* Visual Placement Editor */}
+                    <ProductPlacementEditor
+                      previewUrl={designImageUrl}
+                      productImages={mockupImages[position] ? [mockupImages[position]] : null}
+                      placement={placement}
+                      onPlacementChange={setPlacement}
+                      position={position}
+                    />
                   </div>
-                )}
-              </div>
+                )
+              })}
 
-              <div>
-                <label className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={!!placement.back}
-                    onChange={(e) => {
-                      setPlacement({
-                        ...placement,
-                        back: e.target.checked
-                          ? { x: 0.5, y: 0.5, scale: 1.0, angle: 0 }
-                          : undefined,
-                      })
-                    }}
-                    className="w-4 h-4 text-red-600"
-                  />
-                  <span className="font-mono text-sm uppercase">Back Placement</span>
-                </label>
-                {placement.back && (
-                  <div className="ml-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">X</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={placement.back.x}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            back: { ...placement.back!, x: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.back.x.toFixed(2)}</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Y</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={placement.back.y}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            back: { ...placement.back!, y: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.back.y.toFixed(2)}</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Scale</label>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="2"
-                        step="0.1"
-                        value={placement.back.scale}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            back: { ...placement.back!, scale: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.back.scale.toFixed(1)}</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Angle</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="360"
-                        step="1"
-                        value={placement.back.angle}
-                        onChange={(e) =>
-                          setPlacement({
-                            ...placement,
-                            back: { ...placement.back!, angle: Number(e.target.value) },
-                          })
-                        }
-                        className="w-full"
-                      />
-                      <span className="text-xs text-gray-500">{placement.back.angle}°</span>
-                    </div>
-                  </div>
-                )}
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setCurrentStep('design')}
+                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep('details')}
+                  disabled={Object.values(appliedPositions).every(v => !v)}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Continue to Details
+                </button>
               </div>
-            </div>
-          </div>
-
-          {/* Error/Success Messages */}
-          {error && (
-            <div className="bg-red-950/70 rounded-xl border-2 border-red-500/70 p-4">
-              <p className="text-red-200 font-mono">{error}</p>
             </div>
           )}
 
-          {success && (
-            <div className="bg-green-950/70 rounded-xl border-2 border-green-500/70 p-4">
-              <p className="text-green-200 font-mono">{success}</p>
+          {/* Step 4: Product Details */}
+          {currentStep === 'details' && (
+            <div className="bg-black/40 rounded-xl border border-red-600/40 p-6 space-y-6">
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-red-200">Product Details</h2>
+              
+              <div>
+                <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
+                  Product Title
+                </label>
+                <input
+                  type="text"
+                  value={productTitle}
+                  onChange={(e) => setProductTitle(e.target.value)}
+                  placeholder="Enter product title"
+                  className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-mono uppercase text-gray-400 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={productDescription}
+                  onChange={(e) => setProductDescription(e.target.value)}
+                  placeholder="Enter product description"
+                  rows={4}
+                  className="w-full px-4 py-2 bg-black/60 border border-red-600/40 rounded-lg text-white font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              {/* Error/Success Messages */}
+              {error && (
+                <div className="bg-red-950/70 rounded-xl border-2 border-red-500/70 p-4">
+                  <p className="text-red-200 font-mono">{error}</p>
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-950/70 rounded-xl border-2 border-green-500/70 p-4">
+                  <p className="text-green-200 font-mono">{success}</p>
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setCurrentStep('placement')}
+                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || !productTitle || !designImageUrl}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
+                >
+                  {loading ? 'Creating Product...' : 'Create Product'}
+                </button>
+              </div>
             </div>
           )}
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || !imageUrl || !blueprintId || !printProviderId}
-            className="w-full py-4 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-mono font-bold uppercase tracking-widest text-white transition-all"
-          >
-            {loading ? 'Creating Product...' : 'Create Product'}
-          </button>
-        </form>
+        </div>
       </div>
     </div>
   )

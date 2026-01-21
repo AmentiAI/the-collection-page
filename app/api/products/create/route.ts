@@ -15,13 +15,23 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Upload image to Cloudinary
+    // Handle both data URLs and regular URLs
+    console.log('Uploading image to Cloudinary...', {
+      isDataUrl: body.imageUrl?.startsWith('data:image/'),
+      urlLength: body.imageUrl?.length,
+    })
+    
     const cloudinaryResult = await uploadToCloudinary(body.imageUrl, 'product-designs')
+    console.log('Cloudinary upload successful:', cloudinaryResult.url)
 
     // 2. Upload image to Printify
+    // Printify requires publicly accessible HTTPS URLs
+    console.log('Uploading to Printify...', cloudinaryResult.url)
     const printifyImageId = await uploadImageToPrintify(
       cloudinaryResult.url,
       `${body.title || 'design'}.png`
     )
+    console.log('Printify upload successful, image ID:', printifyImageId)
 
     // 3. Get blueprint variants
     const allVariants = await getBlueprintVariants(body.blueprintId, body.printProviderId)

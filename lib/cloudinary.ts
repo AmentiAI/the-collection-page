@@ -11,6 +11,16 @@ export async function uploadToCloudinary(
   folder: string = 'designs'
 ): Promise<{ url: string; publicId: string }> {
   try {
+    // Handle data URLs (base64 images)
+    if (imageUrl.startsWith('data:image/')) {
+      // Extract base64 data from data URL
+      const base64Data = imageUrl.split(',')[1]
+      const buffer = Buffer.from(base64Data, 'base64')
+      
+      return uploadBufferToCloudinary(buffer, folder)
+    }
+    
+    // Handle regular URLs
     const result = await cloudinary.uploader.upload(imageUrl, {
       folder,
       resource_type: 'image',
