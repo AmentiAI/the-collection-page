@@ -103,12 +103,19 @@ export async function fetchMempoolData(address: string, timeoutMs: number = 1000
 
     clearTimeout(timeoutId)
 
-    if (!utxosRes.ok) {
-      const errorText = utxosRes.status === 429 
-        ? 'Rate limited by mempool.space. Please try again later.'
-        : `mempool.space API error: ${utxosRes.status}`
-      throw new Error(errorText)
+  if (!utxosRes.ok) {
+    let errorText: string
+    if (utxosRes.status === 429) {
+      errorText = 'Rate limited by mempool.space. Please try again later.'
+    } else if (utxosRes.status === 400) {
+      errorText = 'Invalid request to mempool.space. The address may be invalid or the service is experiencing issues.'
+    } else if (utxosRes.status >= 500) {
+      errorText = `mempool.space server error: ${utxosRes.status}. Please try again later.`
+    } else {
+      errorText = `mempool.space API error: ${utxosRes.status}`
     }
+    throw new Error(errorText)
+  }
     
     if (!mempoolTxsRes.ok) {
       // Mempool txs endpoint might return 404 if no pending txs - that's OK

@@ -256,6 +256,14 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   
   // Track if we're currently fetching to prevent duplicate requests
   const fetchingRef = useRef<{ ordinal: boolean; payment: boolean }>({ ordinal: false, payment: false })
+  
+  // Track last error time to prevent spam (5 minute cooldown after errors)
+  const lastErrorRef = useRef<{ ordinal: number | null; payment: number | null }>({
+    ordinal: null,
+    payment: null,
+  })
+  
+  const ERROR_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
   const [copiedAddress, setCopiedAddress] = useState(false)
   const [feeRate, setFeeRate] = useState<string>('12')
@@ -365,15 +373,24 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         setError(null)
         
         // Optionally fetch mempool data for better UTXO data (distributes rate limits)
+        // Skip if we're in cooldown period to avoid rate limiting
         let clientMempoolData: { utxos: Array<{ txid: string; vout: number; value: number; status?: { confirmed: boolean; block_height?: number } }>; mempoolTxs: Array<{ txid: string; vin?: Array<{ txid: string; vout: number; prevout?: { scriptpubkey_address: string; value: number } }> }> } | undefined
-        try {
-          const { fetchMempoolData } = await import('@/lib/hybrid-utxo')
-          clientMempoolData = await fetchMempoolData(normalized)
-          console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
-        } catch (mempoolError) {
-          // If mempool fetch fails, proceed without it (server will fetch from mempool.space)
-          console.warn('[Assets] Failed to fetch mempool data client-side, server will fetch:', mempoolError)
-          // Don't throw - let server handle the fetch
+        const now = Date.now()
+        const lastError = lastErrorRef.current[refKey]
+        const inCooldown = lastError && (now - lastError) < ERROR_COOLDOWN_MS
+        
+        if (!inCooldown) {
+          try {
+            const { fetchMempoolData } = await import('@/lib/hybrid-utxo')
+            clientMempoolData = await fetchMempoolData(normalized)
+            console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
+          } catch (mempoolError) {
+            // If mempool fetch fails, proceed without it (server will fetch from mempool.space)
+            console.warn('[Assets] Failed to fetch mempool data client-side, server will fetch:', mempoolError)
+            // Don't throw - let server handle the fetch
+          }
+        } else {
+          console.log('[Assets] Skipping client-side mempool fetch due to cooldown period')
         }
         
         const response = await fetch('/api/wallet/assets', {
@@ -399,7 +416,24 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         console.error('Failed to fetch wallet assets', err)
         const message = err instanceof Error ? err.message : 'Unknown error fetching assets'
         setError(message)
-        toast.error(`Asset fetch failed: ${message}`)
+        
+        // Only show toast if it's not a rate limit/API error (to prevent spam)
+        const isRateLimitError = message.includes('rate limit') || 
+                                 message.includes('429') || 
+                                 message.includes('400') ||
+                                 message.includes('mempool.space')
+        
+        if (!isRateLimitError) {
+          toast.error(`Asset fetch failed: ${message}`)
+        } else {
+          // For rate limit errors, show once and set cooldown
+          const now = Date.now()
+          const lastError = lastErrorRef.current[refKey]
+          if (!lastError || (now - lastError) > ERROR_COOLDOWN_MS) {
+            toast.error(`Asset fetch failed: ${message}. Please wait before retrying.`)
+            lastErrorRef.current[refKey] = now
+          }
+        }
       } finally {
         setLoading(false)
       }
@@ -411,6 +445,15 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     if (!holderAllowed) {
       return
     }
+    
+    // Check cooldown period after errors
+    const now = Date.now()
+    const lastError = lastErrorRef.current.ordinal
+    if (lastError && (now - lastError) < ERROR_COOLDOWN_MS) {
+      console.log('[Assets] Skipping fetch due to error cooldown period')
+      return
+    }
+    
     if (ordinalAddress && ordinalAddress !== lastFetchedRef.current.ordinal && !fetchingRef.current.ordinal) {
       fetchingRef.current.ordinal = true
       fetchAssets(ordinalAddress, 'ordinal').finally(() => {
@@ -423,6 +466,15 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     if (!holderAllowed) {
       return
     }
+    
+    // Check cooldown period after errors
+    const now = Date.now()
+    const lastError = lastErrorRef.current.payment
+    if (lastError && (now - lastError) < ERROR_COOLDOWN_MS) {
+      console.log('[Assets] Skipping fetch due to error cooldown period')
+      return
+    }
+    
     if (paymentAddress && paymentAddress !== lastFetchedRef.current.payment && !fetchingRef.current.payment) {
       fetchingRef.current.payment = true
       fetchAssets(paymentAddress, 'payment').finally(() => {
