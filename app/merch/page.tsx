@@ -78,6 +78,16 @@ export default function MerchPage() {
   }>({
     positionsData: {}
   })
+
+  // Wrapper to handle partial updates from ProductPlacementEditor
+  const handlePlacementChange = (changes: Partial<{ positionsData: Record<string, PlacementPosition> }>) => {
+    setPlacement((prev) => ({
+      positionsData: {
+        ...prev.positionsData,
+        ...(changes.positionsData || {}),
+      },
+    }))
+  }
   
   // Product details
   const [productTitle, setProductTitle] = useState('')
@@ -438,7 +448,7 @@ export default function MerchPage() {
                       previewUrl={designImageUrl}
                       productImages={mockupImages[position] ? [mockupImages[position]] : null}
                       placement={placement}
-                      onPlacementChange={setPlacement}
+                      onPlacementChange={handlePlacementChange}
                       position={position}
                     />
                   </div>

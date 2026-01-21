@@ -164,7 +164,7 @@ function formatRuneBalance(balance: bigint, divisibility: number): string {
  * Fetch wallet assets using Ordiscan for inscription/rune detection
  * 
  * @param address - Bitcoin address to fetch assets for
- * @param clientMempoolData - Optional: Client-provided mempool data. If not provided, uses Subfrost for UTXO data.
+ * @param clientMempoolData - Optional: Client-provided mempool data. If not provided, fetches from mempool.space server-side.
  * @returns Categorised wallet assets
  */
 export async function fetchWalletAssetsWithOrdiscan(
