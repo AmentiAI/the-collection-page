@@ -363,23 +363,32 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       const setAssets = kind === 'ordinal' ? setOrdinalAssets : setPaymentAssets
       const refKey = kind === 'ordinal' ? 'ordinal' : 'payment'
 
+      // Check error flag BEFORE making any network calls
+      if (hasErrorRef.current[refKey]) {
+        console.log(`[Assets] Skipping fetch for ${refKey} due to previous error. Use refresh button to retry.`)
+        return
+      }
+
       try {
         setLoading(true)
         setError(null)
         
-        // Optionally fetch mempool data for better UTXO data (distributes rate limits)
-        // Skip if we've had an error to avoid rate limiting
+        // Skip mempool data fetch entirely if we've had any error
+        // This prevents rate limiting spam
         let clientMempoolData: { utxos: Array<{ txid: string; vout: number; value: number; status?: { confirmed: boolean; block_height?: number } }>; mempoolTxs: Array<{ txid: string; vin?: Array<{ txid: string; vout: number; prevout?: { scriptpubkey_address: string; value: number } }> }> } | undefined
         
-        if (!hasErrorRef.current[refKey]) {
+        // Don't fetch mempool data if we've had any error (prevents spam)
+        const hasAnyError = hasErrorRef.current.ordinal || hasErrorRef.current.payment
+        if (!hasAnyError) {
           try {
             const { fetchMempoolData } = await import('@/lib/hybrid-utxo')
             clientMempoolData = await fetchMempoolData(normalized)
             console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
           } catch (mempoolError) {
-            // If mempool fetch fails, proceed without it (server will fetch from mempool.space)
-            console.warn('[Assets] Failed to fetch mempool data client-side, server will fetch:', mempoolError)
-            // Don't throw - let server handle the fetch
+            // If mempool fetch fails, mark error and don't proceed
+            console.error('[Assets] Failed to fetch mempool data client-side:', mempoolError)
+            hasErrorRef.current[refKey] = true
+            throw new Error(`Failed to fetch from mempool.space: ${mempoolError instanceof Error ? mempoolError.message : String(mempoolError)}`)
           }
         } else {
           console.log('[Assets] Skipping client-side mempool fetch due to previous error')
