@@ -253,6 +253,9 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     ordinal: null,
     payment: null,
   })
+  
+  // Track if we're currently fetching to prevent duplicate requests
+  const fetchingRef = useRef<{ ordinal: boolean; payment: boolean }>({ ordinal: false, payment: false })
 
   const [copiedAddress, setCopiedAddress] = useState(false)
   const [feeRate, setFeeRate] = useState<string>('12')
@@ -368,8 +371,9 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
           clientMempoolData = await fetchMempoolData(normalized)
           console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
         } catch (mempoolError) {
-          // If mempool fetch fails, proceed without it (server will use Subfrost fallback)
-          console.warn('[Assets] Failed to fetch mempool data, using server-side fallback:', mempoolError)
+          // If mempool fetch fails, proceed without it (server will fetch from mempool.space)
+          console.warn('[Assets] Failed to fetch mempool data client-side, server will fetch:', mempoolError)
+          // Don't throw - let server handle the fetch
         }
         
         const response = await fetch('/api/wallet/assets', {
@@ -407,8 +411,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     if (!holderAllowed) {
       return
     }
-    if (ordinalAddress && ordinalAddress !== lastFetchedRef.current.ordinal) {
-      fetchAssets(ordinalAddress, 'ordinal')
+    if (ordinalAddress && ordinalAddress !== lastFetchedRef.current.ordinal && !fetchingRef.current.ordinal) {
+      fetchingRef.current.ordinal = true
+      fetchAssets(ordinalAddress, 'ordinal').finally(() => {
+        fetchingRef.current.ordinal = false
+      })
     }
   }, [ordinalAddress, fetchAssets, holderAllowed])
 
@@ -416,8 +423,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     if (!holderAllowed) {
       return
     }
-    if (paymentAddress && paymentAddress !== lastFetchedRef.current.payment) {
-      fetchAssets(paymentAddress, 'payment')
+    if (paymentAddress && paymentAddress !== lastFetchedRef.current.payment && !fetchingRef.current.payment) {
+      fetchingRef.current.payment = true
+      fetchAssets(paymentAddress, 'payment').finally(() => {
+        fetchingRef.current.payment = false
+      })
     }
   }, [paymentAddress, fetchAssets, holderAllowed])
 

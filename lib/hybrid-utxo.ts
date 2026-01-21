@@ -84,35 +84,68 @@ export interface HybridUtxoResult {
  * Fetch UTXO and mempool data from mempool.space (client-side)
  * This distributes rate limits across users instead of exhausting server quota
  */
-export async function fetchMempoolData(address: string): Promise<MempoolClientData> {
+export async function fetchMempoolData(address: string, timeoutMs: number = 10000): Promise<MempoolClientData> {
   console.log(`[Mempool] Fetching UTXOs for ${address.substring(0, 20)}...`)
   
-  const [utxosRes, mempoolTxsRes] = await Promise.all([
-    fetch(`https://mempool.space/api/address/${address}/utxo`),
-    fetch(`https://mempool.space/api/address/${address}/txs/mempool`)
-  ])
+  // Create abort controller for timeout
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    const [utxosRes, mempoolTxsRes] = await Promise.all([
+      fetch(`https://mempool.space/api/address/${address}/utxo`, {
+        signal: controller.signal,
+      }),
+      fetch(`https://mempool.space/api/address/${address}/txs/mempool`, {
+        signal: controller.signal,
+      })
+    ])
 
-  if (!utxosRes.ok) {
-    throw new Error(`Failed to fetch UTXOs: ${utxosRes.status}`)
-  }
-  if (!mempoolTxsRes.ok) {
-    // Mempool txs endpoint might return 404 if no pending txs - that's OK
-    if (mempoolTxsRes.status === 404) {
-      console.log(`[Mempool] No pending transactions found`)
-      return {
-        utxos: await utxosRes.json(),
-        mempoolTxs: []
-      }
+    clearTimeout(timeoutId)
+
+    if (!utxosRes.ok) {
+      const errorText = utxosRes.status === 429 
+        ? 'Rate limited by mempool.space. Please try again later.'
+        : `mempool.space API error: ${utxosRes.status}`
+      throw new Error(errorText)
     }
-    throw new Error(`Failed to fetch mempool txs: ${mempoolTxsRes.status}`)
+    
+    if (!mempoolTxsRes.ok) {
+      // Mempool txs endpoint might return 404 if no pending txs - that's OK
+      if (mempoolTxsRes.status === 404) {
+        console.log(`[Mempool] No pending transactions found`)
+        return {
+          utxos: await utxosRes.json(),
+          mempoolTxs: []
+        }
+      }
+      const errorText = mempoolTxsRes.status === 429
+        ? 'Rate limited by mempool.space. Please try again later.'
+        : `mempool.space API error: ${mempoolTxsRes.status}`
+      throw new Error(errorText)
+    }
+
+    const utxos = await utxosRes.json()
+    const mempoolTxs = await mempoolTxsRes.json()
+
+    console.log(`[Mempool] Got ${utxos.length} UTXOs, ${mempoolTxs.length} mempool txs`)
+
+    return { utxos, mempoolTxs }
+  } catch (error) {
+    clearTimeout(timeoutId)
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('mempool.space request timed out. Please try again.')
+      }
+      // Re-throw with more context
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Failed to connect to mempool.space. Please check your connection and try again.')
+      }
+      throw error
+    }
+    throw new Error(`Unknown error fetching from mempool.space: ${String(error)}`)
   }
-
-  const utxos = await utxosRes.json()
-  const mempoolTxs = await mempoolTxsRes.json()
-
-  console.log(`[Mempool] Got ${utxos.length} UTXOs, ${mempoolTxs.length} mempool txs`)
-
-  return { utxos, mempoolTxs }
 }
 
 // ============================================
