@@ -414,7 +414,17 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
           throw new Error(payload.error || 'Failed to load wallet assets')
         }
 
-        setAssets(payload.data as CategorisedWalletAssets)
+        const assetsData = payload.data as CategorisedWalletAssets
+        console.log(`[Assets] Setting ${refKey} assets:`, {
+          inscriptions: assetsData.inscriptions?.length ?? 0,
+          runes: assetsData.runes?.length ?? 0,
+          alkanes: assetsData.alkanes?.length ?? 0,
+          spendable: assetsData.spendable?.length ?? 0,
+          pending: assetsData.pending?.length ?? 0,
+          total: (assetsData.inscriptions?.length ?? 0) + (assetsData.runes?.length ?? 0) + (assetsData.alkanes?.length ?? 0) + (assetsData.spendable?.length ?? 0) + (assetsData.pending?.length ?? 0)
+        })
+        
+        setAssets(assetsData)
         lastFetchedRef.current[refKey] = normalized
         hasErrorRef.current[refKey] = false // Clear error flag on success
       } catch (err) {
@@ -1386,14 +1396,14 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const tabCounts = useMemo(
     () => ({
       // Taproot wallet assets
-      inscriptions: ordinalAssets?.inscriptions.length ?? 0,
-      runes: ordinalAssets?.runes.length ?? 0,
-      alkanes: ordinalAssets?.alkanes.length ?? 0,
-      taprootSpendable: ordinalAssets?.spendable.length ?? 0,
+      inscriptions: ordinalAssets?.inscriptions?.length ?? 0,
+      runes: ordinalAssets?.runes?.length ?? 0,
+      alkanes: ordinalAssets?.alkanes?.length ?? 0,
+      taprootSpendable: ordinalAssets?.spendable?.length ?? 0,
       // Pay wallet assets
       paySpendable: spendableModalList.length,
-      payInscriptions: paymentAssets?.inscriptions.length ?? 0,
-      payRunes: paymentAssets?.runes.length ?? 0,
+      payInscriptions: paymentAssets?.inscriptions?.length ?? 0,
+      payRunes: paymentAssets?.runes?.length ?? 0,
     }),
     [ordinalAssets, paymentAssets, spendableModalList],
   )
