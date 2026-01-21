@@ -195,7 +195,7 @@ export async function fetchWalletAssetsWithOrdiscan(
     throw new Error(`Failed to fetch Ordiscan data: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  // Step 2: Get UTXO data (from client mempool data or fetch from mempool.space)
+  // Step 2: Get UTXO data (from client mempool data, mempool.space, or Ordiscan fallback)
   let utxoData: Array<{ txid: string; vout: number; value: number; height?: number | null; confirmed: boolean }> = []
   
   if (clientMempoolData) {
@@ -209,11 +209,11 @@ export async function fetchWalletAssetsWithOrdiscan(
     }))
     console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from client mempool data`)
   } else {
-    // Fetch UTXO data from mempool.space (server-side)
+    // Try mempool.space first, fallback to Ordiscan if it fails
     console.log(`📊 [Ordiscan] Fetching UTXOs from mempool.space for ${address.substring(0, 20)}...`)
     try {
       const { fetchMempoolData } = await import('./hybrid-utxo')
-      const mempoolData = await fetchMempoolData(address)
+      const mempoolData = await fetchMempoolData(address, 15000) // 15 second timeout for server-side
       utxoData = mempoolData.utxos.map(utxo => ({
         txid: utxo.txid,
         vout: utxo.vout,
@@ -223,8 +223,18 @@ export async function fetchWalletAssetsWithOrdiscan(
       }))
       console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from mempool.space`)
     } catch (mempoolError) {
-      console.error('[Ordiscan] Failed to fetch mempool.space data:', mempoolError)
-      throw new Error(`Failed to fetch UTXO data from mempool.space: ${mempoolError instanceof Error ? mempoolError.message : String(mempoolError)}`)
+      console.warn('[Ordiscan] Failed to fetch mempool.space data, falling back to Ordiscan UTXOs:', mempoolError)
+      
+      // Fallback: Use Ordiscan UTXO data (already fetched in Step 1)
+      // Ordiscan utxos have txid, vout, value, block_height, and confirmed status
+      utxoData = ordiscanUtxos.map(utxo => ({
+        txid: utxo.txid,
+        vout: utxo.vout,
+        value: utxo.value || 0,
+        height: utxo.block_height || null,
+        confirmed: utxo.confirmed !== false, // Default to true if not specified
+      }))
+      console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from Ordiscan (fallback)`)
     }
   }
 
