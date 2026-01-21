@@ -1408,7 +1408,8 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
     [ordinalAssets, paymentAssets, spendableModalList],
   )
 
-  const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes
+  // Ordinal sync should show all taproot assets (inscriptions, runes, alkanes, and spendable)
+  const ordinalAssetCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes + tabCounts.taprootSpendable
   const paymentUtxoCount = tabCounts.paySpendable
   const taprootTotalCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes + tabCounts.taprootSpendable
   const payTotalCount = tabCounts.paySpendable + tabCounts.payInscriptions + tabCounts.payRunes
@@ -1418,7 +1419,11 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       inscriptions: ordinalAssets?.inscriptions ?? [],
       runes: ordinalAssets?.runes ?? [],
       alkanes: ordinalAssets?.alkanes ?? [],
-      spendable: spendableModalList,
+      // Include both payment wallet spendable AND taproot wallet spendable
+      spendable: [
+        ...(ordinalAssets?.spendable ?? []),
+        ...spendableModalList,
+      ].sort((a, b) => b.value - a.value),
     }
   }, [ordinalAssets, spendableModalList])
 
@@ -1712,9 +1717,17 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               <Button
                 type="button"
                 onClick={() => {
-                  // Open inscriptions picker for taproot wallet (primary asset type)
-                  // User can still access runes via separate button
-                  openPicker('inscriptions')
+                  // Open picker for taproot wallet - prefer inscriptions if available, otherwise spendable
+                  // This ensures the modal shows something even if there are no inscriptions
+                  if (tabCounts.inscriptions > 0) {
+                    openPicker('inscriptions')
+                  } else if (tabCounts.taprootSpendable > 0) {
+                    openPicker('spendable')
+                  } else if (tabCounts.runes > 0) {
+                    openPicker('runes')
+                  } else {
+                    openPicker('inscriptions') // Fallback
+                  }
                 }}
                 className="bg-red-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500"
                 disabled={taprootTotalCount === 0}
