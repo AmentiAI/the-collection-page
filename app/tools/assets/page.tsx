@@ -377,23 +377,26 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         // This prevents rate limiting spam
         let clientMempoolData: { utxos: Array<{ txid: string; vout: number; value: number; status?: { confirmed: boolean; block_height?: number } }>; mempoolTxs: Array<{ txid: string; vin?: Array<{ txid: string; vout: number; prevout?: { scriptpubkey_address: string; value: number } }> }> } | undefined
         
-        // Don't fetch mempool data if we've had any error (prevents spam)
-        const hasAnyError = hasErrorRef.current.ordinal || hasErrorRef.current.payment
-        if (!hasAnyError) {
+        // Don't fetch mempool data if THIS specific address has had an error (prevents spam)
+        // Each address is independent - don't block one address because the other failed
+        if (!hasErrorRef.current[refKey]) {
           try {
             const { fetchMempoolData } = await import('@/lib/hybrid-utxo')
             clientMempoolData = await fetchMempoolData(normalized)
-            console.log(`[Assets] Fetched mempool data: ${clientMempoolData.utxos.length} UTXOs`)
+            console.log(`[Assets] Fetched mempool data for ${refKey} (${normalized.substring(0, 20)}...): ${clientMempoolData.utxos.length} UTXOs`)
           } catch (mempoolError) {
-            // If mempool fetch fails, mark error and don't proceed
-            console.error('[Assets] Failed to fetch mempool data client-side:', mempoolError)
+            // If mempool fetch fails, mark error for THIS address and proceed without mempool data
+            // Server will use Ordiscan fallback
+            console.warn(`[Assets] Failed to fetch mempool data for ${refKey} (${normalized.substring(0, 20)}...), will use Ordiscan fallback:`, mempoolError)
             hasErrorRef.current[refKey] = true
-            throw new Error(`Failed to fetch from mempool.space: ${mempoolError instanceof Error ? mempoolError.message : String(mempoolError)}`)
+            // Don't throw - let server handle with Ordiscan fallback
+            clientMempoolData = undefined
           }
         } else {
-          console.log('[Assets] Skipping client-side mempool fetch due to previous error')
+          console.log(`[Assets] Skipping client-side mempool fetch for ${refKey} due to previous error for this address`)
         }
         
+        console.log(`[Assets] Calling /api/wallet/assets for ${refKey} with address: ${normalized.substring(0, 20)}...`)
         const response = await fetch('/api/wallet/assets', {
           method: 'POST',
           headers: {

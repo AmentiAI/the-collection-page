@@ -37,8 +37,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Ordiscan + mempool.space hybrid solution (no Subfrost fallback)
-    console.log(`🔍 [wallet/assets] Using Ordiscan + mempool.space hybrid: ${address.substring(0, 20)}...`)
+    console.log(`🔍 [wallet/assets] Using Ordiscan + mempool.space hybrid for address: ${address.substring(0, 20)}... (has clientMempoolData: ${!!clientMempoolData})`)
     const assets = await fetchWalletAssetsWithOrdiscan(address, clientMempoolData)
+    console.log(`✅ [wallet/assets] Successfully fetched assets for ${address.substring(0, 20)}...`)
     return NextResponse.json(sanitizeForJson({ success: true, data: assets }), { status: 200 })
   } catch (error) {
     console.error('[wallet/assets] Failed to fetch wallet assets', error)
