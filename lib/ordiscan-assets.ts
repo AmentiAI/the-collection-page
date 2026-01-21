@@ -195,7 +195,7 @@ export async function fetchWalletAssetsWithOrdiscan(
     throw new Error(`Failed to fetch Ordiscan data: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  // Step 2: Get UTXO data (from client mempool data or Subfrost)
+  // Step 2: Get UTXO data (from client mempool data or fetch from mempool.space)
   let utxoData: Array<{ txid: string; vout: number; value: number; height?: number | null; confirmed: boolean }> = []
   
   if (clientMempoolData) {
@@ -209,45 +209,23 @@ export async function fetchWalletAssetsWithOrdiscan(
     }))
     console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from client mempool data`)
   } else {
-    // Fallback to Subfrost for UTXO data
-    const { fetchSandshrewBalances } = await import('./sandshrew')
-    const rawBalances = await fetchSandshrewBalances(address)
-    
-    // Combine spendable, assets, and pending from Subfrost
-    const allUtxos: Array<{ txid: string; vout: number; value: number; height?: number | null; confirmed: boolean }> = []
-    
-    for (const utxo of rawBalances.spendable || []) {
-      allUtxos.push({
-        txid: utxo.txid || '',
-        vout: utxo.vout || 0,
-        value: typeof utxo.value === 'number' ? utxo.value : parseInt(String(utxo.value || 0), 10),
-        height: typeof utxo.height === 'number' ? utxo.height : (utxo.height ? parseInt(String(utxo.height), 10) : null),
-        confirmed: true,
-      })
+    // Fetch UTXO data from mempool.space (server-side)
+    console.log(`📊 [Ordiscan] Fetching UTXOs from mempool.space for ${address.substring(0, 20)}...`)
+    try {
+      const { fetchMempoolData } = await import('./hybrid-utxo')
+      const mempoolData = await fetchMempoolData(address)
+      utxoData = mempoolData.utxos.map(utxo => ({
+        txid: utxo.txid,
+        vout: utxo.vout,
+        value: utxo.value,
+        height: utxo.status?.block_height || null,
+        confirmed: utxo.status?.confirmed || false,
+      }))
+      console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from mempool.space`)
+    } catch (mempoolError) {
+      console.error('[Ordiscan] Failed to fetch mempool.space data:', mempoolError)
+      throw new Error(`Failed to fetch UTXO data from mempool.space: ${mempoolError instanceof Error ? mempoolError.message : String(mempoolError)}`)
     }
-    
-    for (const utxo of rawBalances.assets || []) {
-      allUtxos.push({
-        txid: utxo.txid || '',
-        vout: utxo.vout || 0,
-        value: typeof utxo.value === 'number' ? utxo.value : parseInt(String(utxo.value || 0), 10),
-        height: typeof utxo.height === 'number' ? utxo.height : (utxo.height ? parseInt(String(utxo.height), 10) : null),
-        confirmed: true,
-      })
-    }
-    
-    for (const utxo of rawBalances.pending || []) {
-      allUtxos.push({
-        txid: utxo.txid || '',
-        vout: utxo.vout || 0,
-        value: typeof utxo.value === 'number' ? utxo.value : parseInt(String(utxo.value || 0), 10),
-        height: null,
-        confirmed: false,
-      })
-    }
-    
-    utxoData = allUtxos
-    console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from Subfrost`)
   }
 
   // Step 3: Create outpoint map for Ordiscan data
