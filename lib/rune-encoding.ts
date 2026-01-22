@@ -94,6 +94,11 @@ export function encodeEdictsPayload(edicts: RuneTransfer[]): Buffer {
   const deltaEncoded = deltaEncodeEdicts(edicts)
   const payloadChunks: Uint8Array[] = []
   
+  // Add field count: 0 means no optional fields (just edicts)
+  // This is the "00" byte that appears in working implementations
+  // It indicates there are 0 optional fields before the edicts
+  payloadChunks.push(encodeLEB128(BigInt(0)))
+  
   for (const edict of deltaEncoded) {
     // Encode: blockDelta, txDelta, amount, outputIndex
     payloadChunks.push(encodeLEB128(BigInt(edict.blockDelta)))

@@ -834,10 +834,19 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         psbtToSign = signed
       }
 
-      const bitcoin = await import('bitcoinjs-lib')
-      const finalPsbt = bitcoin.Psbt.fromBase64(psbtToSign)
-      const signedTxHex = finalPsbt.extractTransaction().toHex()
+      // Extract transaction from PSBT via server-side API to avoid loading bitcoinjs-lib on client
+      const extractResponse = await fetch('/api/wallet/extract-psbt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ psbt: psbtToSign }),
+      })
 
+      const extractPayload = await extractResponse.json()
+      if (!extractResponse.ok || !extractPayload.success) {
+        throw new Error(extractPayload.error || 'Failed to extract transaction from PSBT')
+      }
+
+      const signedTxHex = extractPayload.signedTxHex
       const txid = await InscriptionService.broadcastTransaction(signedTxHex, feeRateValue)
       return { txid, signedPsbt: psbtToSign }
     },
