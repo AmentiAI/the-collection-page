@@ -48,11 +48,19 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as BuildPsbtRequestBody
     
     // Log if rune transfers are being passed
-    if (body.runeTransfers && body.runeTransfers.length > 0) {
+    console.log(`🔍 [wallet/psbt] Checking rune transfers in request body:`, {
+      hasRuneTransfers: !!body.runeTransfers,
+      isArray: Array.isArray(body.runeTransfers),
+      length: body.runeTransfers?.length ?? 0,
+      type: typeof body.runeTransfers,
+      value: body.runeTransfers
+    })
+    
+    if (body.runeTransfers && Array.isArray(body.runeTransfers) && body.runeTransfers.length > 0) {
       console.log(`🔮 [wallet/psbt] Received ${body.runeTransfers.length} rune transfer(s) in request`)
       console.log(`   Transfers:`, body.runeTransfers.map(rt => `${rt.runeId} → ${rt.amount} to output ${rt.outputIndex}`).join(', '))
     } else {
-      console.log(`ℹ️ [wallet/psbt] No rune transfers in request`)
+      console.log(`ℹ️ [wallet/psbt] No rune transfers in request (hasRuneTransfers: ${!!body.runeTransfers}, isArray: ${Array.isArray(body.runeTransfers)}, length: ${body.runeTransfers?.length ?? 0})`)
     }
 
     if (!body || !Array.isArray(body.inputs) || body.inputs.length === 0) {

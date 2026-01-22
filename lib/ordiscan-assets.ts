@@ -18,10 +18,10 @@ export interface OrdiscanRune {
 }
 
 export interface OrdiscanUtxoResponse {
-  txid: string
-  vout: number
+  txid?: string  // Optional - may be in outpoint instead
+  vout?: number  // Optional - may be in outpoint instead
   value: number
-  outpoint?: string
+  outpoint?: string  // Format: "txid:vout" - may be the only way to identify the UTXO
   inscriptions?: string[]
   runes?: OrdiscanRune[]
   block_height?: number
@@ -226,24 +226,88 @@ export async function fetchWalletAssetsWithOrdiscan(
       console.warn('[Ordiscan] Failed to fetch mempool.space data, falling back to Ordiscan UTXOs:', mempoolError)
       
       // Fallback: Use Ordiscan UTXO data (already fetched in Step 1)
-      // Ordiscan utxos have txid, vout, value, block_height, and confirmed status
-      utxoData = ordiscanUtxos.map(utxo => ({
-        txid: utxo.txid,
-        vout: utxo.vout,
-        value: utxo.value || 0,
-        height: utxo.block_height || null,
-        confirmed: utxo.confirmed !== false, // Default to true if not specified
-      }))
+      // Ordiscan may return outpoint (txid:vout) instead of separate txid/vout fields
+      console.log(`[Ordiscan] Sample Ordiscan UTXO structure:`, ordiscanUtxos[0] ? JSON.stringify(ordiscanUtxos[0], null, 2) : 'No UTXOs')
+      
+      utxoData = ordiscanUtxos.map(utxo => {
+        // Parse outpoint if txid/vout are not directly available
+        let txid = utxo.txid || ''
+        let vout = typeof utxo.vout === 'number' ? utxo.vout : (typeof utxo.vout === 'string' ? parseInt(String(utxo.vout), 10) : undefined)
+        
+        // If no txid but we have outpoint, parse it
+        if ((!txid || txid.length === 0) && utxo.outpoint) {
+          const parts = utxo.outpoint.split(':')
+          if (parts.length === 2) {
+            txid = parts[0]
+            vout = parseInt(parts[1], 10)
+          } else {
+            console.warn(`[Ordiscan] Invalid outpoint format: ${utxo.outpoint}`)
+            return null
+          }
+        }
+        
+        // If still no txid, skip this UTXO
+        if (!txid || txid.length === 0) {
+          console.warn(`[Ordiscan] UTXO missing txid and outpoint:`, utxo)
+          return null
+        }
+        
+        // If vout is still undefined, default to 0
+        if (vout === undefined) {
+          vout = 0
+        }
+        
+        const value = typeof utxo.value === 'number' ? utxo.value : (typeof utxo.value === 'string' ? parseInt(String(utxo.value), 10) : 0)
+        const height = typeof utxo.block_height === 'number' ? utxo.block_height : (utxo.block_height ? parseInt(String(utxo.block_height), 10) : null)
+        const confirmed = utxo.confirmed !== false // Default to true if not specified
+        
+        if (value === 0 && utxo.value !== 0) {
+          console.warn(`[Ordiscan] UTXO value parsing issue:`, { original: utxo.value, parsed: value, utxo })
+        }
+        
+        return {
+          txid,
+          vout,
+          value,
+          height,
+          confirmed,
+        }
+      }).filter((utxo): utxo is NonNullable<typeof utxo> => utxo !== null) // Filter out invalid UTXOs
       console.log(`📊 [Ordiscan] Using ${utxoData.length} UTXOs from Ordiscan (fallback)`)
+      if (utxoData.length > 0) {
+        console.log(`[Ordiscan] Sample mapped UTXO:`, utxoData[0])
+      }
     }
   }
 
   // Step 3: Create outpoint map for Ordiscan data
+  // Map by multiple keys to ensure we can find the data
   const ordiscanByOutpoint = new Map<string, OrdiscanUtxoResponse>()
   for (const utxo of ordiscanUtxos) {
-    const key = utxo.outpoint || `${utxo.txid}:${utxo.vout}`
-    ordiscanByOutpoint.set(key, utxo)
+    // Parse outpoint if txid/vout are not directly available
+    let txid = utxo.txid || ''
+    let vout = typeof utxo.vout === 'number' ? utxo.vout : (typeof utxo.vout === 'string' ? parseInt(String(utxo.vout), 10) : undefined)
+    
+    // If no txid but we have outpoint, parse it
+    if ((!txid || txid.length === 0) && utxo.outpoint) {
+      const parts = utxo.outpoint.split(':')
+      if (parts.length === 2) {
+        txid = parts[0]
+        vout = parseInt(parts[1], 10)
+      }
+    }
+    
+    // Store by outpoint if available
+    if (utxo.outpoint) {
+      ordiscanByOutpoint.set(utxo.outpoint, utxo)
+    }
+    // Also store by txid:vout format (use parsed values if needed)
+    if (txid && vout !== undefined) {
+      const txidVoutKey = `${txid}:${vout}`
+      ordiscanByOutpoint.set(txidVoutKey, utxo)
+    }
   }
+  console.log(`📊 [Ordiscan] Created outpoint map with ${ordiscanByOutpoint.size} entries from ${ordiscanUtxos.length} UTXOs`)
 
   // Step 4: Categorize UTXOs
   const spendable: BaseUtxo[] = []
@@ -253,15 +317,51 @@ export async function fetchWalletAssetsWithOrdiscan(
   const pending: PendingUtxo[] = []
 
   for (const utxo of utxoData) {
+    // Ensure we have valid txid and vout
+    if (!utxo.txid || utxo.txid.length === 0) {
+      console.warn(`[Ordiscan] Skipping UTXO with invalid txid:`, utxo)
+      continue
+    }
+    
     const outpoint = `${utxo.txid}:${utxo.vout}`
-    const ordiscanData = ordiscanByOutpoint.get(outpoint)
+    // Try multiple keys to find ordiscan data (in case outpoint format differs)
+    let ordiscanData = ordiscanByOutpoint.get(outpoint)
+    if (!ordiscanData && (utxo as any).outpoint) {
+      ordiscanData = ordiscanByOutpoint.get((utxo as any).outpoint)
+    }
+    // If still not found, try to find by matching txid and vout from ordiscanUtxos directly
+    if (!ordiscanData) {
+      ordiscanData = ordiscanUtxos.find(o => o.txid === utxo.txid && o.vout === utxo.vout)
+    }
+    
+    if (!ordiscanData && utxoData.length < 100) {
+      // Only log for smaller sets to avoid spam
+      console.warn(`[Ordiscan] Could not find ordiscan data for UTXO ${outpoint} (txid: ${utxo.txid}, vout: ${utxo.vout})`)
+    }
+    
+    // Ensure value is a number
+    const value = typeof utxo.value === 'number' ? utxo.value : (typeof utxo.value === 'string' ? parseInt(String(utxo.value), 10) : 0)
+    const vout = typeof utxo.vout === 'number' ? utxo.vout : (typeof utxo.vout === 'string' ? parseInt(String(utxo.vout), 10) : 0)
+    const height = typeof utxo.height === 'number' ? utxo.height : (utxo.height ? parseInt(String(utxo.height), 10) : null)
     
     const baseUtxo: BaseUtxo = {
       outpoint,
       txid: utxo.txid,
-      vout: utxo.vout,
-      value: utxo.value,
-      height: utxo.height ?? null,
+      vout,
+      value,
+      height,
+    }
+    
+    // Validate baseUtxo has all required fields
+    if (!baseUtxo.outpoint || !baseUtxo.txid || baseUtxo.vout === undefined || baseUtxo.value === undefined) {
+      console.error(`[Ordiscan] Invalid baseUtxo created:`, baseUtxo, 'from utxo:', utxo)
+      continue
+    }
+    
+    // Debug: Log first few UTXOs to verify structure
+    if (spendable.length + inscriptions.length + runes.length + alkanes.length + pending.length < 3) {
+      console.log(`[Ordiscan] Sample baseUtxo:`, JSON.stringify(baseUtxo, null, 2))
+      console.log(`[Ordiscan] Found ordiscanData:`, ordiscanData ? 'yes' : 'no', ordiscanData ? { inscriptions: ordiscanData.inscriptions?.length, runes: ordiscanData.runes?.length } : null)
     }
 
     // Check for inscriptions

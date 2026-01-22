@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import type { ComponentType, SVGProps } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, memo, startTransition } from 'react'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import { BadgeCheck, Copy, FileImage, FileText, Flame, Grid3X3, Layers3, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 
@@ -237,6 +237,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   }>>({})
 
   const [pickerType, setPickerType] = useState<AssetTabKey | null>(null)
+  const [pickerWallet, setPickerWallet] = useState<'taproot' | 'payment' | null>(null)
   const [pickerPage, setPickerPage] = useState<Record<AssetTabKey, number>>({
     inscriptions: 0,
     spendable: 0,
@@ -1236,7 +1237,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
         taprootPublicKey,
         fee: plan.fee,
         vsize: plan.vsize,
-        runeTransfers: runeTransfers.length > 0 ? runeTransfers : undefined,
+        runeTransfers: runeTransfers.length > 0 ? runeTransfers : [],
       }
       
       if (runeTransfers.length > 0) {
@@ -1370,12 +1371,13 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const pendingCount =
     (ordinalAssets?.pending.length ?? 0) + (paymentAssets?.pending.length ?? 0)
 
-  const openPicker = useCallback((type: AssetTabKey) => {
+  const openPicker = useCallback((type: AssetTabKey, wallet: 'taproot' | 'payment' = 'taproot') => {
     if (!holderAllowed) {
       toast.error('Holder access required to manage assets.')
       return
     }
     setPickerType(type)
+    setPickerWallet(wallet)
     setPickerPage((prev) => ({ ...prev, [type]: 0 }))
   }, [holderAllowed, toast])
 
@@ -1384,7 +1386,14 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   }, [])
 
   const handlePickerPageChange = useCallback((type: AssetTabKey, nextPage: number) => {
-    setPickerPage((prev) => ({ ...prev, [type]: nextPage }))
+    // Use startTransition to batch the state update and prevent double renders
+    startTransition(() => {
+      setPickerPage((prev) => {
+        // Only update if the page actually changed
+        if (prev[type] === nextPage) return prev
+        return { ...prev, [type]: nextPage }
+      })
+    })
   }, [])
 
   const spendableModalList = useMemo(() => {
@@ -1414,18 +1423,34 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
   const taprootTotalCount = tabCounts.inscriptions + tabCounts.runes + tabCounts.alkanes + tabCounts.taprootSpendable
   const payTotalCount = tabCounts.paySpendable + tabCounts.payInscriptions + tabCounts.payRunes
 
+  // Taproot wallet picker lists
   const pickerLists = useMemo(() => {
     return {
       inscriptions: ordinalAssets?.inscriptions ?? [],
       runes: ordinalAssets?.runes ?? [],
       alkanes: ordinalAssets?.alkanes ?? [],
-      // Include both payment wallet spendable AND taproot wallet spendable
-      spendable: [
-        ...(ordinalAssets?.spendable ?? []),
-        ...spendableModalList,
-      ].sort((a, b) => b.value - a.value),
+      spendable: (ordinalAssets?.spendable ?? []).sort((a, b) => b.value - a.value),
     }
-  }, [ordinalAssets, spendableModalList])
+  }, [ordinalAssets])
+  
+  // Payment wallet picker lists
+  const paymentPickerLists = useMemo(() => {
+    return {
+      inscriptions: paymentAssets?.inscriptions ?? [],
+      runes: paymentAssets?.runes ?? [],
+      alkanes: paymentAssets?.alkanes ?? [],
+      spendable: spendableModalList,
+    }
+  }, [paymentAssets, spendableModalList])
+  
+  // Get the correct picker list based on wallet context
+  // Default to taproot if not explicitly set to payment
+  const activePickerLists = pickerWallet === 'payment' ? paymentPickerLists : pickerLists
+  
+  // Debug logging
+  if (pickerType) {
+    console.log(`[Picker] Type: ${pickerType}, Wallet: ${pickerWallet ?? 'taproot (default)'}, Count: ${activePickerLists[pickerType]?.length ?? 0}`)
+  }
 
   // Combined wallet views - show all asset types from each wallet
   const taprootWalletAssets = useMemo(() => {
@@ -1448,7 +1473,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
 
   useEffect(() => {
     if (!pickerType) return
-    const list = pickerLists[pickerType] ?? []
+    const list = activePickerLists[pickerType] ?? []
     const totalPages = Math.max(1, Math.ceil(list.length / PICKER_PAGE_SIZE))
     setPickerPage((prev) => {
       const current = prev[pickerType] ?? 0
@@ -1457,16 +1482,30 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
       }
       return prev
     })
-  }, [pickerLists, pickerType])
+  }, [activePickerLists, pickerType])
 
-  const currentPickerPage = pickerType ? Math.min(pickerPage[pickerType] ?? 0, Math.max(0, Math.ceil((pickerLists[pickerType]?.length ?? 0) / PICKER_PAGE_SIZE) - 1)) : 0
-  const pickerTotalPages = pickerType ? Math.max(1, Math.ceil((pickerLists[pickerType]?.length ?? 0) / PICKER_PAGE_SIZE)) : 0
-  const pickerPageItems = pickerType
-    ? pickerLists[pickerType]!.slice(currentPickerPage * PICKER_PAGE_SIZE, currentPickerPage * PICKER_PAGE_SIZE + PICKER_PAGE_SIZE)
-    : []
+  const currentPickerPage = pickerType ? Math.min(pickerPage[pickerType] ?? 0, Math.max(0, Math.ceil((activePickerLists[pickerType]?.length ?? 0) / PICKER_PAGE_SIZE) - 1)) : 0
+  const pickerTotalPages = pickerType ? Math.max(1, Math.ceil((activePickerLists[pickerType]?.length ?? 0) / PICKER_PAGE_SIZE)) : 0
+  
+  // Memoize pickerPageItems to prevent unnecessary remounts when page changes
+  const pickerPageItems = useMemo(() => {
+    if (!pickerType) return []
+    const list = activePickerLists[pickerType]
+    if (!list) return []
+    const start = currentPickerPage * PICKER_PAGE_SIZE
+    const end = start + PICKER_PAGE_SIZE
+    return list.slice(start, end)
+  }, [pickerType, currentPickerPage, activePickerLists])
 
-  const pickerLabel = pickerType ? ASSET_TABS.find((tab) => tab.key === pickerType)?.label ?? '' : ''
-  const pickerCount = pickerType ? pickerLists[pickerType]?.length ?? 0 : 0
+  const pickerLabel = pickerType ? (() => {
+    const baseLabel = ASSET_TABS.find((tab) => tab.key === pickerType)?.label ?? ''
+    // Customize label based on wallet context for spendable
+    if (pickerType === 'spendable') {
+      return pickerWallet === 'payment' ? 'Payment UTXOs' : 'Taproot Wallet UTXOs'
+    }
+    return baseLabel
+  })() : ''
+  const pickerCount = pickerType ? activePickerLists[pickerType]?.length ?? 0 : 0
 
   const handleToggleInscription = useCallback(
     (utxo: InscriptionUtxo) => {
@@ -1720,13 +1759,13 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                   // Open picker for taproot wallet - prefer inscriptions if available, otherwise spendable
                   // This ensures the modal shows something even if there are no inscriptions
                   if (tabCounts.inscriptions > 0) {
-                    openPicker('inscriptions')
+                    openPicker('inscriptions', 'taproot')
                   } else if (tabCounts.taprootSpendable > 0) {
-                    openPicker('spendable')
+                    openPicker('spendable', 'taproot')
                   } else if (tabCounts.runes > 0) {
-                    openPicker('runes')
+                    openPicker('runes', 'taproot')
                   } else {
-                    openPicker('inscriptions') // Fallback
+                    openPicker('inscriptions', 'taproot') // Fallback
                   }
                 }}
                 className="bg-red-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500"
@@ -1740,7 +1779,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
                 onClick={() => {
                   // Open spendable picker for pay wallet (primary asset type)
                   // Pay wallet may also have inscriptions/runes but spendable is primary
-                  openPicker('spendable')
+                  openPicker('spendable', 'payment')
                 }}
                 className="bg-emerald-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-emerald-500"
                 disabled={payTotalCount === 0}
@@ -1750,7 +1789,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               </Button>
               <Button
                 type="button"
-                onClick={() => openPicker('runes')}
+                onClick={() => openPicker('runes', 'taproot')}
                 className="bg-sky-600 text-sm font-semibold uppercase tracking-[0.3em] text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={!ordinalAssets?.runes?.length}
               >
@@ -1758,7 +1797,7 @@ function AssetsPageContent({ isHolder }: AssetsPageContentProps) {
               </Button>
               <Button
                 type="button"
-                onClick={() => openPicker('alkanes')}
+                onClick={() => openPicker('alkanes', 'taproot')}
                 className="bg-zinc-700 text-sm font-semibold uppercase tracking-[0.3em] text-zinc-200 cursor-not-allowed"
                 disabled
               >
@@ -2241,7 +2280,7 @@ function InscriptionTab({
             </div>
 
             {primaryInscriptionId ? (
-              <InscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={120} interactive={false} />
+              <MemoizedInscriptionPreviewPanel inscriptionId={primaryInscriptionId} size={120} interactive={false} />
             ) : (
               <div className="flex h-[120px] w-[120px] items-center justify-center rounded-xl border border-amber-500/30 bg-black/50 text-[11px] uppercase tracking-[0.3em] text-amber-100">
                 No preview
@@ -2881,6 +2920,9 @@ function InscriptionPreviewModal({
   )
 }
 
+// Memoize to prevent unnecessary remounts when page changes
+const MemoizedInscriptionPreviewPanel = memo(InscriptionPreviewPanel)
+
 function ExternalLinkIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
@@ -2924,11 +2966,20 @@ function AssetPickerModal({
 }) {
   const formattedLabel = label || type.charAt(0).toUpperCase() + type.slice(1)
   const hasItems = items.length > 0
+  
+  // Use a ref to track if this is the initial mount to prevent double renders
+  const isInitialMount = useRef(true)
+  
+  useEffect(() => {
+    // After first render, set to false
+    isInitialMount.current = false
+  }, [])
 
   return (
     <div
-      className="fixed inset-0 z-[998] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[998] flex items-start justify-center bg-black/80 px-4 backdrop-blur-sm"
       onClick={onClose}
+      style={{ paddingTop: '250px' }}
     >
       <div
         className="relative flex w-full max-w-5xl flex-col gap-4 rounded-3xl border border-red-500/40 bg-black/90 p-6 shadow-[0_0_60px_rgba(248,113,113,0.15)]"
@@ -2971,7 +3022,7 @@ function AssetPickerModal({
           </div>
         </div>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+        <div className="max-h-[400px] space-y-4 overflow-y-auto pr-1">
           {!hasItems && (
             <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-red-200/70">
               No {formattedLabel.toLowerCase()} discovered for this wallet.
@@ -2980,6 +3031,7 @@ function AssetPickerModal({
 
           {hasItems && type === 'inscriptions' && (
             <InscriptionTab
+              key={`inscriptions-page-${page}`}
               inscriptions={items as InscriptionUtxo[]}
               selectedMap={selectedMap}
               metadata={inscriptionMetadata}
@@ -3053,40 +3105,112 @@ function SyncStatusRow({
   )
 }
 
+// Metadata cache to prevent refetching when components remount
+const metadataCache = new Map<string, { metadata: OrdinalContentMetadata; timestamp: number }>()
+// Track pending requests with promises so multiple components can wait for the same request
+const pendingRequests = new Map<string, Promise<OrdinalContentMetadata>>()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 function InscriptionPreviewPanel({ inscriptionId, size = 120, interactive = true }: { inscriptionId: string; size?: number; interactive?: boolean }) {
   const [metadata, setMetadata] = useState<OrdinalContentMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const requestStartedRef = useRef(false)
 
   useEffect(() => {
     if (!inscriptionId) return
-    const controller = new AbortController()
-
+    
+    let isMounted = true
+    
     async function loadMetadata() {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetch(`/api/ordinals/content/${encodeURIComponent(inscriptionId)}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        const payload = await response.json()
-        if (!response.ok || !payload.success) {
-          throw new Error(payload.error || 'Unable to fetch inscription metadata')
+      // Check cache first
+      const cached = metadataCache.get(inscriptionId)
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        if (isMounted) {
+          setMetadata(cached.metadata)
+          setLoading(false)
+          setError(null)
         }
-        setMetadata(payload.data as OrdinalContentMetadata)
+        return
+      }
+
+      // Check if a request is already in progress for this inscription
+      let requestPromise = pendingRequests.get(inscriptionId)
+      
+      if (!requestPromise) {
+        // Start a new request
+        requestStartedRef.current = true
+        if (isMounted) {
+          setLoading(true)
+          setError(null)
+        }
+        
+        requestPromise = (async () => {
+          const controller = new AbortController()
+          
+          try {
+            const response = await fetch(`/api/ordinals/content/${encodeURIComponent(inscriptionId)}`, {
+              cache: 'no-store',
+              signal: controller.signal,
+            })
+            const payload = await response.json()
+            if (!response.ok || !payload.success) {
+              throw new Error(payload.error || 'Unable to fetch inscription metadata')
+            }
+            const fetchedMetadata = payload.data as OrdinalContentMetadata
+            // Cache the result
+            metadataCache.set(inscriptionId, { metadata: fetchedMetadata, timestamp: Date.now() })
+            return fetchedMetadata
+          } catch (err) {
+            if ((err as Error).name === 'AbortError') {
+              // Check for cached data on abort
+              const cached = metadataCache.get(inscriptionId)
+              if (cached) {
+                return cached.metadata
+              }
+              throw err
+            }
+            throw err
+          } finally {
+            // Remove from pending after request completes (success or failure)
+            pendingRequests.delete(inscriptionId)
+            requestStartedRef.current = false
+          }
+        })()
+        
+        pendingRequests.set(inscriptionId, requestPromise)
+      } else {
+        // Request already in progress, wait for it
+        if (isMounted) {
+          setLoading(true)
+          setError(null)
+        }
+      }
+
+      // Wait for the request (either new or existing)
+      try {
+        const fetchedMetadata = await requestPromise
+        if (isMounted) {
+          setMetadata(fetchedMetadata)
+          setLoading(false)
+          setError(null)
+        }
       } catch (err) {
-        if ((err as Error).name === 'AbortError') return
-        console.error('Failed to load inscription preview metadata', err)
-        setError(err instanceof Error ? err.message : 'Failed to load metadata')
-      } finally {
-        setLoading(false)
+        if (isMounted) {
+          console.error('Failed to load inscription preview metadata', err)
+          setError(err instanceof Error ? err.message : 'Failed to load metadata')
+          setLoading(false)
+        }
       }
     }
 
     loadMetadata()
 
-    return () => controller.abort()
+    return () => {
+      isMounted = false
+      // Don't abort or delete from pendingRequests here
+      // Let the request complete so other components can use it
+    }
   }, [inscriptionId])
 
   const contentUrl = `https://ordinals.com/content/${encodeURIComponent(inscriptionId)}`
