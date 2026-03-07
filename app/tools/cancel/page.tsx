@@ -107,12 +107,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
   const [error, setError] = useState<string | null>(null)
   const [broadcasting, setBroadcasting] = useState(false)
   const [successTxid, setSuccessTxid] = useState<string | null>(null)
-  const [holderStatus, setHolderStatus] = useState<'unknown' | 'checking' | 'holder' | 'not-holder' | 'error'>(
-    initialHolder ? 'holder' : 'unknown'
-  )
-  const [holderMessage, setHolderMessage] = useState<string | null>(null)
-
-  const holderAllowed = holderStatus === 'holder'
 
   const fetchTransactionWithTxid = useCallback(
     async (transactionId: string) => {
@@ -124,13 +118,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
       }
       if (!currentAddress) {
         const msg = 'Please connect your wallet first.'
-        setError(msg)
-        toast.error(msg)
-        return
-      }
-
-      if (!holderAllowed) {
-        const msg = 'Only verified holders can use this tool.'
         setError(msg)
         toast.error(msg)
         return
@@ -176,7 +163,7 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
         setLoading(false)
       }
     },
-    [currentAddress, paymentAddress, toast, holderAllowed]
+    [currentAddress, paymentAddress, toast]
   )
 
   useEffect(() => {
@@ -188,67 +175,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
       }
     }
   }, [searchParams, isConnected, currentAddress, parsedTx, loading, fetchTransactionWithTxid])
-
-  useEffect(() => {
-    if (!isConnected || (!currentAddress && !paymentAddress)) {
-      setHolderStatus(initialHolder ? 'holder' : 'unknown')
-      setHolderMessage(null)
-      return
-    }
-
-    if (initialHolder) {
-      setHolderStatus('holder')
-      setHolderMessage(null)
-      return
-    }
-
-    const address = paymentAddress || currentAddress
-    if (!address) return
-
-    let cancelled = false
-    setHolderStatus('checking')
-    setHolderMessage(null)
-
-    // Check both Magic Eden ordinals and abyss_burns records
-    Promise.all([
-      fetch(`/api/magic-eden?ownerAddress=${encodeURIComponent(address)}&collectionSymbol=the-damned`).then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text()
-          throw new Error(text || `Magic Eden check failed (${res.status})`)
-        }
-        return res.json()
-      }),
-      fetch(`/api/holders/check-access?walletAddress=${encodeURIComponent(address)}`).then(async (res) => {
-        if (!res.ok) return { success: false, hasBurns: false }
-        return res.json()
-      }).catch(() => ({ success: false, hasBurns: false }))
-    ])
-      .then(([ordinalsData, burnsData]) => {
-        if (cancelled) return
-        let total = 0
-        if (typeof ordinalsData.total === 'number') total = ordinalsData.total
-        else if (Array.isArray(ordinalsData.tokens)) total = ordinalsData.tokens.length
-        else if (Array.isArray(ordinalsData)) total = ordinalsData.length
-        else if (typeof ordinalsData.count === 'number') total = ordinalsData.count
-        const hasOrdinals = total > 0
-        const hasBurns = burnsData.success && burnsData.hasBurns
-        const isHolderWallet = hasOrdinals || hasBurns
-        setHolderStatus(isHolderWallet ? 'holder' : 'not-holder')
-        if (!isHolderWallet) {
-          setHolderMessage('Tools are restricted to The Damned holders or those who have burned ordinals in the abyss.')
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error('Holder check failed:', err)
-        setHolderStatus('error')
-        setHolderMessage('Unable to verify holder status. Please retry shortly.')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [isConnected, currentAddress, paymentAddress, initialHolder])
 
   const fetchTransaction = async () => {
     await fetchTransactionWithTxid(txid)
@@ -344,11 +270,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
       return
     }
 
-    if (!holderAllowed) {
-      setError('Only verified holders can use this tool.')
-      return
-    }
-
     const validation = await revalidate()
     if (!validation.ok) {
       return
@@ -416,7 +337,7 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
     }
   }
 
-  const canCancel = parsedTx && parsedTx.status === 'unconfirmed' && parsedTx.optInRbf && holderAllowed
+  const canCancel = parsedTx && parsedTx.status === 'unconfirmed' && parsedTx.optInRbf
 
   return (
     <div className="px-4 py-12 md:px-8">
@@ -475,7 +396,7 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
                 />
                 <Button
                   onClick={fetchTransaction}
-                  disabled={loading || broadcasting || !isConnected || !txid || !holderAllowed}
+                  disabled={loading || broadcasting || !isConnected || !txid}
                   className="inline-flex min-w-[140px] items-center justify-center rounded-2xl bg-gradient-to-r from-purple-400 via-indigo-500 to-blue-500 py-2 text-sm font-semibold text-slate-950"
                 >
                   {loading ? (
@@ -492,18 +413,6 @@ function CancelTransactionContent({ initialHolder }: CancelTransactionContentPro
                 <Alert className="bg-amber-500/10 text-amber-100">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>Connect your wallet to stage a cancellation.</AlertDescription>
-                </Alert>
-              )}
-              {isConnected && holderStatus === 'checking' && (
-                <Alert className="bg-blue-500/10 text-blue-100">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <AlertDescription>Verifying holder status…</AlertDescription>
-                </Alert>
-              )}
-              {isConnected && holderStatus !== 'checking' && holderStatus !== 'holder' && holderMessage && (
-                <Alert className="bg-rose-500/10 text-rose-100">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{holderMessage}</AlertDescription>
                 </Alert>
               )}
               {error && (

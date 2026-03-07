@@ -35,3 +35,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Large data dumps — never commit these
+scripts/me-tables-dump.sql
+scripts/*.dump.sql
+scripts/__pycache__/
