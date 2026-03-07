@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
          i.collection_symbol,
          c.name            AS collection_name,
          c.image_uri       AS collection_image,
-         (c.raw_data->>'fp')::bigint   AS floor_price_sats,
+         NULLIF(COALESCE(c.raw_data->>'floorPrice', c.raw_data->>'floor_price', c.raw_data->>'fp'), '')::bigint AS floor_price_sats,
          c.supply          AS collection_supply,
          td.meta_name,
          td.display_name,

@@ -56,7 +56,7 @@ function InscriptionArt({
   float?: boolean
 }) {
   const [imgErr, setImgErr] = useState(false)
-  const sizeClass = { sm: 'w-12 h-12', md: 'w-20 h-20', lg: 'w-36 h-36' }[size]
+  const sizeClass = { sm: 'w-12 h-12 lg:w-16 lg:h-16', md: 'w-20 h-20 lg:w-32 lg:h-32', lg: 'w-36 h-36 lg:w-48 lg:h-48' }[size]
   const isImage = fighter.content_type?.startsWith('image/')
 
   if (!imgErr && isImage && fighter.content_url) {
@@ -77,9 +77,9 @@ function InscriptionArt({
       className={`${sizeClass} rounded-lg flex flex-col items-center justify-center border border-red-900/40`}
       style={{ background: 'rgba(120,10,10,0.25)' }}
     >
-      <span className="text-red-700 text-[10px] font-black uppercase tracking-widest">ORD</span>
+      <span className="text-red-700 text-[10px] lg:text-xs font-black uppercase tracking-widest">ORD</span>
       {size !== 'sm' && (
-        <span className="text-red-300 font-black text-xs mt-0.5">
+        <span className="text-red-300 font-black text-xs lg:text-sm mt-0.5">
           #{fighter.inscription_number.toLocaleString()}
         </span>
       )}
@@ -360,12 +360,12 @@ export default function FighterSelect() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2
-            className="text-lg font-black uppercase tracking-widest"
+            className="text-lg lg:text-2xl font-black uppercase tracking-widest"
             style={{ color: '#cc2200' }}
           >
             ⚔️ Choose Your Fighter
           </h2>
-          <p className="text-xs text-red-900 mt-0.5">
+          <p className="text-xs lg:text-sm text-red-900 mt-0.5">
             {loading
               ? 'Scanning your inscriptions…'
               : fighters.length > 0
@@ -391,13 +391,13 @@ export default function FighterSelect() {
         >
           {/* Floor filter */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-black uppercase tracking-widest text-red-900">Floor</span>
+            <span className="text-xs lg:text-sm font-black uppercase tracking-widest text-red-900">Floor</span>
             <div className="flex gap-1">
               {FLOOR_FILTERS.map((f) => (
                 <button
                   key={f.min}
                   onClick={() => setMinFloor(f.min)}
-                  className="px-2 py-0.5 rounded text-xs font-bold transition-all"
+                  className="px-2 lg:px-3 py-0.5 lg:py-1 rounded text-xs lg:text-sm font-bold transition-all"
                   style={{
                     background: minFloor === f.min ? '#991b1b' : 'rgba(255,255,255,0.03)',
                     color: minFloor === f.min ? '#fca5a5' : '#7f1d1d',
@@ -414,11 +414,11 @@ export default function FighterSelect() {
             <>
               <div className="w-px h-4 bg-red-950" />
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black uppercase tracking-widest text-red-900">Collection</span>
+                <span className="text-xs lg:text-sm font-black uppercase tracking-widest text-red-900">Collection</span>
                 <select
                   value={collectionFilter}
                   onChange={(e) => setCollectionFilter(e.target.value)}
-                  className="text-xs rounded px-2 py-0.5 font-bold outline-none"
+                  className="text-xs lg:text-sm rounded px-2 lg:px-3 py-0.5 lg:py-1 font-bold outline-none"
                   style={{
                     background: '#0d0509',
                     border: '1px solid rgba(185,28,28,0.2)',
@@ -434,18 +434,18 @@ export default function FighterSelect() {
             </>
           )}
 
-          <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
+          <label className="flex items-center gap-1.5 cursor-pointer ml-auto lg:gap-2">
             <div
-              className="w-7 h-3.5 rounded-full relative transition-all cursor-pointer"
+              className="w-7 h-3.5 lg:w-10 lg:h-5 rounded-full relative transition-all cursor-pointer"
               style={{ background: onlyCollections ? '#991b1b' : 'rgba(185,28,28,0.15)' }}
               onClick={() => setOnlyCollections((v) => !v)}
             >
               <div
-                className="absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all"
+                className="absolute top-0.5 lg:top-0.5 w-2.5 h-2.5 lg:w-4 lg:h-4 rounded-full bg-white transition-all"
                 style={{ left: onlyCollections ? 'calc(100% - 12px)' : '2px' }}
               />
             </div>
-            <span className="text-xs font-bold text-red-900">Known only</span>
+            <span className="text-xs lg:text-sm font-bold text-red-900">Known only</span>
           </label>
         </div>
       )}
@@ -485,7 +485,7 @@ export default function FighterSelect() {
 
       {/* Grid */}
       {!loading && !loadError && filtered.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4">
           {filtered.map((fighter) => {
             const isSelected = selected?.inscription_id === fighter.inscription_id
             const isSigned = signedPsbt && selected?.inscription_id === fighter.inscription_id
@@ -519,15 +519,15 @@ export default function FighterSelect() {
 
                 {/* Art */}
                 <div
-                  className="flex items-center justify-center py-4"
+                  className="flex items-center justify-center py-4 lg:py-6"
                   style={{ background: 'rgba(0,0,0,0.3)' }}
                 >
                   <InscriptionArt fighter={fighter} size="md" />
                 </div>
 
                 {/* Info */}
-                <div className="p-2">
-                  <div className="text-xs font-black text-red-200 truncate leading-tight">
+                <div className="p-2 lg:p-3">
+                  <div className="text-xs lg:text-sm font-black text-red-200 truncate leading-tight">
                     {displayName(fighter)}
                   </div>
 
@@ -537,27 +537,27 @@ export default function FighterSelect() {
                         <img
                           src={fighter.collection_image}
                           alt=""
-                          className="w-3 h-3 rounded-full object-cover flex-shrink-0"
+                          className="w-3 h-3 lg:w-4 lg:h-4 rounded-full object-cover flex-shrink-0"
                           onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                             e.currentTarget.style.display = 'none'
                           }}
                         />
                       )}
-                      <span className="text-[10px] text-red-800 truncate flex-1">{fighter.collection_name}</span>
+                      <span className="text-[10px] lg:text-xs text-red-800 truncate flex-1">{fighter.collection_name}</span>
                       {fighter.floor_price_usd !== null && (
-                        <span className="text-[10px] font-black text-green-700 flex-shrink-0">
+                        <span className="text-[10px] lg:text-xs font-black text-green-700 flex-shrink-0">
                           {formatFloor(fighter.floor_price_usd)}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <div className="text-[10px] text-red-900 mt-0.5">
+                    <div className="text-[10px] lg:text-xs text-red-900 mt-0.5">
                       #{fighter.inscription_number.toLocaleString()}
                     </div>
                   )}
 
                   {fighter.sat_rarity && fighter.sat_rarity !== 'common' && (
-                    <div className="text-[10px] text-yellow-700 font-bold mt-0.5">
+                    <div className="text-[10px] lg:text-xs text-yellow-700 font-bold mt-0.5">
                       ✦ {fighter.sat_rarity}
                     </div>
                   )}
@@ -571,7 +571,7 @@ export default function FighterSelect() {
       {/* Selected detail + commit CTA */}
       {selected && !showPsbt && (
         <div
-          className="mt-4 flex items-center gap-4 px-4 py-3 rounded-xl"
+          className="mt-4 flex items-center gap-4 lg:gap-6 px-4 lg:px-6 py-3 lg:py-4 rounded-xl"
           style={{
             background: 'rgba(120,10,10,0.1)',
             border: '1px solid rgba(185,28,28,0.25)',
@@ -579,23 +579,23 @@ export default function FighterSelect() {
         >
           <InscriptionArt fighter={selected} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-black text-red-200 truncate">{displayName(selected)}</div>
+            <div className="text-sm lg:text-lg font-black text-red-200 truncate">{displayName(selected)}</div>
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               {selected.collection_name && (
-                <span className="text-xs text-red-800">{selected.collection_name}</span>
+                <span className="text-xs lg:text-sm text-red-800">{selected.collection_name}</span>
               )}
               {selected.floor_price_usd !== null && (
-                <span className="text-xs font-bold text-green-700">
+                <span className="text-xs lg:text-sm font-bold text-green-700">
                   Floor {formatFloor(selected.floor_price_usd)}
                 </span>
               )}
               {selected.floor_price_sats !== null && (
-                <span className="text-[10px] text-red-900">
+                <span className="text-[10px] lg:text-xs text-red-900">
                   {selected.floor_price_sats.toLocaleString()} sats
                 </span>
               )}
               {selected.sat_rarity && selected.sat_rarity !== 'common' && (
-                <span className="text-[10px] text-yellow-700 font-bold">✦ {selected.sat_rarity}</span>
+                <span className="text-[10px] lg:text-xs text-yellow-700 font-bold">✦ {selected.sat_rarity}</span>
               )}
             </div>
           </div>
@@ -604,7 +604,7 @@ export default function FighterSelect() {
           ) : (
             <button
               onClick={() => setShowPsbt(true)}
-              className="flex-shrink-0 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest text-white transition-all"
+              className="flex-shrink-0 px-4 lg:px-6 py-2 lg:py-3 rounded-lg text-xs lg:text-sm font-black uppercase tracking-widest text-white transition-all"
               style={{
                 background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
                 boxShadow: '0 0 16px rgba(185,28,28,0.4)',
