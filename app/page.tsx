@@ -11,7 +11,6 @@ import Filters from '@/components/Filters'
 import Gallery from '@/components/Gallery'
 import Modal from '@/components/Modal'
 import SplashScreen from '@/components/SplashScreen'
-import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer'
 import FighterSelect from '@/components/FighterSelect'
 import { Ordinal, Trait } from '@/types'
 
@@ -29,8 +28,6 @@ export default function Home() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  
 
   const handleEnter = () => {
     setUserInteracted(true)
@@ -144,15 +141,8 @@ export default function Home() {
               onHolderVerified={handleHolderVerified}
               onVerifyingStart={handleVerifyingStart}
               onConnectedChange={setConnected}
-              showMusicControls={!isVideoPlaying}
+              showMusicControls={true}
             />
-            {/* YouTube Video Player with Custom Controls */}
-            <div className="w-full relative z-10">
-              <YouTubeVideoPlayer
-                videoId="wWkwbofYung"
-                onPlayingChange={setIsVideoPlaying}
-              />
-            </div>
             {/* Fighter selection section */}
             <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
               <FighterSelect />
