@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -37,11 +38,11 @@ function displayName(f: WalletFighter): string {
 }
 
 const FLOOR_FILTERS = [
-  { label: 'All', min: 0 },
-  { label: '>$2', min: 2 },
-  { label: '>$10', min: 10 },
-  { label: '>$100', min: 100 },
-  { label: '>$1k', min: 1000 },
+  { label: 'All', max: Infinity },
+  { label: '<$2', max: 2 },
+  { label: '<$10', max: 10 },
+  { label: '<$100', max: 100 },
+  { label: '<$1k', max: 1000 },
 ]
 
 // ─── Inscription art preview ──────────────────────────────────────────────────
@@ -274,6 +275,7 @@ function PsbtModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function FighterSelect() {
+  const router = useRouter()
   const { connected, address, publicKey } = useLaserEyes()
 
   const [fighters, setFighters] = useState<WalletFighter[]>([])
@@ -285,7 +287,7 @@ export default function FighterSelect() {
   const [signedPsbt, setSignedPsbt] = useState<string | null>(null)
 
   // Filters
-  const [minFloor, setMinFloor] = useState(0)
+  const [maxFloor, setMaxFloor] = useState(Infinity)
   const [collectionFilter, setCollectionFilter] = useState('all')
   const [onlyCollections, setOnlyCollections] = useState(false)
 
@@ -327,8 +329,8 @@ export default function FighterSelect() {
     return fighters.filter((f) => {
       if (onlyCollections && !f.collection_name) return false
       if (collectionFilter !== 'all' && f.collection_slug !== collectionFilter) return false
-      if (minFloor > 0) {
-        if (f.floor_price_usd === null || f.floor_price_usd < minFloor) return false
+      if (maxFloor < Infinity) {
+        if (f.floor_price_usd !== null && f.floor_price_usd >= maxFloor) return false
       }
       return true
     })
@@ -337,10 +339,10 @@ export default function FighterSelect() {
   const handlePsbtSigned = (psbt: string) => {
     setSignedPsbt(psbt)
     setShowPsbt(false)
-    // Store for battle system to use
     sessionStorage.setItem('fighter_inscription_id', selected!.inscription_id)
     sessionStorage.setItem('fighter_signed_psbt', psbt)
     sessionStorage.setItem('fighter_data', JSON.stringify(selected))
+    setTimeout(() => router.push('/lobby'), 600)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -397,13 +399,13 @@ export default function FighterSelect() {
             <div className="flex gap-1">
               {FLOOR_FILTERS.map((f) => (
                 <button
-                  key={f.min}
-                  onClick={() => setMinFloor(f.min)}
+                  key={f.max}
+                  onClick={() => setMaxFloor(f.max)}
                   className="px-2 lg:px-3 py-0.5 lg:py-1 rounded text-xs lg:text-sm font-bold transition-all"
                   style={{
-                    background: minFloor === f.min ? '#991b1b' : 'rgba(255,255,255,0.03)',
-                    color: minFloor === f.min ? '#fca5a5' : '#7f1d1d',
-                    border: `1px solid ${minFloor === f.min ? '#b91c1c50' : 'rgba(185,28,28,0.12)'}`,
+                    background: maxFloor === f.max ? '#991b1b' : 'rgba(255,255,255,0.03)',
+                    color: maxFloor === f.max ? '#fca5a5' : '#7f1d1d',
+                    border: `1px solid ${maxFloor === f.max ? '#b91c1c50' : 'rgba(185,28,28,0.12)'}`,
                   }}
                 >
                   {f.label}

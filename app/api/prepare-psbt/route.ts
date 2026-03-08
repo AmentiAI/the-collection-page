@@ -139,16 +139,8 @@ export async function POST(req: NextRequest) {
     // Add taproot signing info (tapInternalKey) using the same helper the speedup/cancel tools use
     addInputSigningInfo(psbt, 0, inscriptionAddress, undefined, public_key)
 
-    let outputScript: Buffer
-    try {
-      outputScript = Buffer.from(
-        bitcoin.address.toOutputScript(inscriptionAddress, bitcoin.networks.bitcoin)
-      )
-    } catch {
-      outputScript = prevOut.script
-    }
-
-    psbt.addOutput({ script: outputScript, value: BigInt(finalValue) })
+    // No output — this is just a signed input commitment.
+    // The cron will combine both players' signed inputs to build the final battle tx.
 
     return NextResponse.json({
       success: true,
