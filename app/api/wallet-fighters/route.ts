@@ -37,18 +37,6 @@ async function fetchAllInscriptions(address: string, apiKey: string): Promise<Or
   return all
 }
 
-async function getBtcPrice(): Promise<number> {
-  try {
-    const res = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot', {
-      next: { revalidate: 60 },
-    })
-    const data = await res.json()
-    return parseFloat(data.data.amount) || 100000
-  } catch {
-    return 100000
-  }
-}
-
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get('address')
   if (!address) {
@@ -61,13 +49,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [inscriptions, btcPriceUsd] = await Promise.all([
-      fetchAllInscriptions(address, apiKey),
-      getBtcPrice(),
-    ])
+    const inscriptions = await fetchAllInscriptions(address, apiKey)
 
     if (!inscriptions.length) {
-      return NextResponse.json({ data: [], btcPriceUsd })
+      return NextResponse.json({ data: [] })
     }
 
     const ids = inscriptions.map((i) => i.inscription_id)
@@ -109,8 +94,6 @@ export async function GET(req: NextRequest) {
     const data = inscriptions.map((ins) => {
       const db = dbMap.get(ins.inscription_id)
       const floorSats = db?.floor_price_sats != null ? Number(db.floor_price_sats) : null
-      const floorUsd =
-        floorSats != null ? Math.round((floorSats / 1e8) * btcPriceUsd * 100) / 100 : null
 
       return {
         inscription_id: ins.inscription_id,
@@ -121,7 +104,6 @@ export async function GET(req: NextRequest) {
         collection_name: (db?.collection_name as string | null) ?? null,
         collection_image: (db?.collection_image as string | null) ?? null,
         floor_price_sats: floorSats,
-        floor_price_usd: floorUsd,
         meta_name: (db?.meta_name as string | null) ?? (db?.display_name as string | null) ?? null,
         sat_rarity: (db?.sat_rarity as string | null) ?? null,
         output: (db?.output as string | null) ?? null,
@@ -129,7 +111,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({ data, btcPriceUsd })
+    return NextResponse.json({ data })
   } catch (e) {
     console.error('[wallet-fighters]', e)
     return NextResponse.json(

@@ -15,7 +15,6 @@ export interface WalletFighter {
   collection_name: string | null
   collection_image: string | null
   floor_price_sats: number | null
-  floor_price_usd: number | null
   meta_name: string | null
   sat_rarity: string | null
   output: string | null
@@ -24,11 +23,11 @@ export interface WalletFighter {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatFloor(usd: number | null): string {
-  if (usd === null) return '—'
-  if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}k`
-  if (usd >= 1) return `$${usd.toFixed(0)}`
-  return `$${usd.toFixed(2)}`
+function formatFloor(sats: number | null): string {
+  if (sats === null) return '—'
+  if (sats >= 1_000_000) return `${(sats / 1_000_000).toFixed(2)}M sats`
+  if (sats >= 1_000) return `${(sats / 1_000).toFixed(1)}k sats`
+  return `${sats} sats`
 }
 
 function displayName(f: WalletFighter): string {
@@ -39,10 +38,10 @@ function displayName(f: WalletFighter): string {
 
 const FLOOR_FILTERS = [
   { label: 'All', max: Infinity },
-  { label: '<$2', max: 2 },
-  { label: '<$10', max: 10 },
-  { label: '<$100', max: 100 },
-  { label: '<$1k', max: 1000 },
+  { label: '<10k', max: 10_000 },
+  { label: '<100k', max: 100_000 },
+  { label: '<500k', max: 500_000 },
+  { label: '<1M', max: 1_000_000 },
 ]
 
 // ─── Inscription art preview ──────────────────────────────────────────────────
@@ -167,9 +166,9 @@ function PsbtModal({
             {fighter.collection_name && (
               <div className="text-xs text-red-700 mt-0.5">{fighter.collection_name}</div>
             )}
-            {fighter.floor_price_usd !== null && (
+            {fighter.floor_price_sats !== null && (
               <div className="text-xs text-green-600 font-bold mt-0.5">
-                Floor {formatFloor(fighter.floor_price_usd)}
+                Floor {formatFloor(fighter.floor_price_sats)}
               </div>
             )}
           </div>
@@ -330,7 +329,7 @@ export default function FighterSelect() {
       if (onlyCollections && !f.collection_name) return false
       if (collectionFilter !== 'all' && f.collection_slug !== collectionFilter) return false
       if (maxFloor < Infinity) {
-        if (f.floor_price_usd !== null && f.floor_price_usd >= maxFloor) return false
+        if (f.floor_price_sats !== null && f.floor_price_sats >= maxFloor) return false
       }
       return true
     })
@@ -548,9 +547,9 @@ export default function FighterSelect() {
                         />
                       )}
                       <span className="text-[10px] lg:text-xs text-red-800 truncate flex-1">{fighter.collection_name}</span>
-                      {fighter.floor_price_usd !== null && (
+                      {fighter.floor_price_sats !== null && (
                         <span className="text-[10px] lg:text-xs font-black text-green-700 flex-shrink-0">
-                          {formatFloor(fighter.floor_price_usd)}
+                          {formatFloor(fighter.floor_price_sats)}
                         </span>
                       )}
                     </div>
@@ -588,14 +587,9 @@ export default function FighterSelect() {
               {selected.collection_name && (
                 <span className="text-xs lg:text-sm text-red-800">{selected.collection_name}</span>
               )}
-              {selected.floor_price_usd !== null && (
-                <span className="text-xs lg:text-sm font-bold text-green-700">
-                  Floor {formatFloor(selected.floor_price_usd)}
-                </span>
-              )}
               {selected.floor_price_sats !== null && (
-                <span className="text-[10px] lg:text-xs text-red-900">
-                  {selected.floor_price_sats.toLocaleString()} sats
+                <span className="text-xs lg:text-sm font-bold text-green-700">
+                  Floor {formatFloor(selected.floor_price_sats)}
                 </span>
               )}
               {selected.sat_rarity && selected.sat_rarity !== 'common' && (
