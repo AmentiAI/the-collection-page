@@ -113,7 +113,7 @@ function PsbtModal({
       const buildRes = await fetch('/api/prepare-psbt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inscription_id: fighter.inscription_id, address, public_key: publicKey }),
+        body: JSON.stringify({ inscription_id: fighter.inscription_id, address, public_key: publicKey, player_id: address }),
       })
       const buildData = await buildRes.json()
       if (!buildRes.ok || !buildData.psbt) throw new Error(buildData.error ?? 'Failed to build PSBT')

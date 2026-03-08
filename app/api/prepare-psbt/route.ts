@@ -76,10 +76,12 @@ async function getPrevOutput(txid: string, vout: number): Promise<{ script: Buff
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { inscription_id, address, public_key } = body as {
+    const { inscription_id, address, public_key, player_id, queue_id } = body as {
       inscription_id: string
       address: string
       public_key?: string
+      player_id?: string
+      queue_id?: string
     }
 
     if (!inscription_id || !address) {
@@ -142,10 +144,41 @@ export async function POST(req: NextRequest) {
     // No output — this is just a signed input commitment.
     // The cron will combine both players' signed inputs to build the final battle tx.
 
+    const scriptHex = Buffer.from(prevOut.script).toString('hex')
+
+    // Persist UTXO + unsigned PSBT to DB so the cron can build the final tx
+    // (signed_psbt will be updated when the player signs via /api/battle-commitment)
+    if (player_id) {
+      try {
+        const { getPool } = await import('@/lib/db')
+        const pool = getPool()
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS battle_commitments (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            queue_id UUID, player_id TEXT NOT NULL, inscription_id TEXT NOT NULL,
+            txid TEXT NOT NULL, vout INTEGER NOT NULL, output_value BIGINT NOT NULL,
+            script_pubkey TEXT NOT NULL, signed_psbt TEXT NOT NULL,
+            address TEXT NOT NULL, public_key TEXT, created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE (player_id, inscription_id)
+          )`)
+        await pool.query(
+          `INSERT INTO battle_commitments (queue_id, player_id, inscription_id, txid, vout, output_value, script_pubkey, signed_psbt, address, public_key)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (player_id, inscription_id) DO UPDATE SET
+             queue_id=EXCLUDED.queue_id, txid=EXCLUDED.txid, vout=EXCLUDED.vout,
+             output_value=EXCLUDED.output_value, script_pubkey=EXCLUDED.script_pubkey,
+             signed_psbt=EXCLUDED.signed_psbt, public_key=EXCLUDED.public_key, created_at=NOW()`,
+          [queue_id ?? null, player_id, inscription_id, txid, vout, finalValue, scriptHex, psbt.toBase64(), inscriptionAddress, public_key ?? null]
+        )
+      } catch (dbErr) {
+        console.warn('[prepare-psbt] Could not save commitment to DB:', dbErr)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       psbt: psbt.toBase64(),
-      summary: { inscription_id, txid, vout, output_value: finalValue, address: inscriptionAddress },
+      summary: { inscription_id, txid, vout, output_value: finalValue, address: inscriptionAddress, script_pubkey: scriptHex },
     })
   } catch (e) {
     console.error('[prepare-psbt]', e)

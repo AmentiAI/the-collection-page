@@ -65,16 +65,6 @@ function enrichedToFighter(enriched: any): Fighter {
   }
 }
 
-function getPlayerId(address?: string): string {
-  if (address) return address
-  const key = 'damned_player_id'
-  let id = sessionStorage.getItem(key)
-  if (!id) {
-    id = crypto.randomUUID()
-    sessionStorage.setItem(key, id)
-  }
-  return id
-}
 
 const RARITY_COLORS: Record<Fighter['rarity'], string> = {
   Legendary: '#f59e0b',
@@ -201,14 +191,14 @@ export default function LobbyPage() {
 
   const [myFighter, setMyFighter] = useState<Fighter | null>(null)
   const [opponent, setOpponent] = useState<Fighter | null>(null)
-  const [phase, setPhase] = useState<'searching' | 'found' | 'error'>('searching')
+  const [phase, setPhase] = useState<'connecting' | 'searching' | 'found' | 'error'>('connecting')
   const [waitSeconds, setWaitSeconds] = useState(0)
   const [countdown, setCountdown] = useState(3)
   const [error, setError] = useState<string | null>(null)
   const [dots, setDots] = useState('.')
 
   const queueIdRef = useRef<string | null>(null)
-  const playerIdRef = useRef<string | null>(null)
+  const joinedRef = useRef(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const waitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledRef = useRef(false)
@@ -220,17 +210,16 @@ export default function LobbyPage() {
 
   const handleMatched = useCallback((oppFighter: Fighter) => {
     stopPolling()
-    sessionStorage.setItem('opponent', JSON.stringify(oppFighter))
     setOpponent(oppFighter)
     setPhase('found')
   }, [])
 
   const poll = useCallback(async () => {
     const queueId = queueIdRef.current
-    const playerId = playerIdRef.current
+    const playerId = address
     if (!queueId || !playerId || cancelledRef.current) return
     try {
-      const res = await fetch(`/api/matchmaking/status?queue_id=${queueId}&player_id=${playerId}`)
+      const res = await fetch(`/api/matchmaking/status?queue_id=${queueId}&player_id=${encodeURIComponent(playerId)}`)
       const data = await res.json()
       if (data.status === 'matched' && data.opponent) {
         handleMatched(data.opponent as Fighter)
@@ -242,7 +231,7 @@ export default function LobbyPage() {
     } catch {
       // network blip — keep polling
     }
-  }, [handleMatched])
+  }, [handleMatched, address])
 
   // Blinking dots animation
   useEffect(() => {
@@ -251,49 +240,61 @@ export default function LobbyPage() {
     return () => clearInterval(t)
   }, [phase])
 
-  // Mount: load fighter + join or resume matchmaking
+  // Re-bind poll when address becomes available
   useEffect(() => {
-    const enrichedRaw = sessionStorage.getItem('fighter_data')
-    if (!enrichedRaw) { router.push('/'); return }
-
-    let fighter: Fighter
-    try {
-      const enriched = JSON.parse(enrichedRaw)
-      fighter = enrichedToFighter(enriched)
-    } catch {
-      router.push('/')
-      return
+    if (phase !== 'searching' || !queueIdRef.current) return
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = setInterval(poll, 2000)
     }
+  }, [poll, phase])
 
-    setMyFighter(fighter)
-
-    const playerId = getPlayerId(address ?? undefined)
-    playerIdRef.current = playerId
+  // Main effect: runs when wallet address is known
+  useEffect(() => {
+    if (!address) return          // wait for wallet to connect
+    if (joinedRef.current) return // already ran
+    joinedRef.current = true
     cancelledRef.current = false
 
     ;(async () => {
       try {
-        // Check DB for an existing active queue entry for this player
-        const playerRes = await fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(playerId)}`)
+        // Always check DB first — wallet address is the source of truth
+        const playerRes = await fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
         const playerData = await playerRes.json()
 
         if (playerData.found) {
-          // Resume — use the existing DB entry
+          // Resume from DB — fighter_data is already stored there
+          setMyFighter(playerData.fighter_data as Fighter)
           queueIdRef.current = playerData.queue_id
           if (playerData.status === 'matched' && playerData.opponent) {
             handleMatched(playerData.opponent as Fighter)
           } else {
+            setPhase('searching')
             waitTimerRef.current = setInterval(() => setWaitSeconds((s) => s + 1), 1000)
             pollRef.current = setInterval(poll, 2000)
           }
           return
         }
 
+        // No active DB entry — fresh join, need fighter from sessionStorage
+        const enrichedRaw = sessionStorage.getItem('fighter_data')
+        if (!enrichedRaw) { router.push('/'); return }
+
+        let fighter: Fighter
+        try {
+          fighter = enrichedToFighter(JSON.parse(enrichedRaw))
+        } catch {
+          router.push('/')
+          return
+        }
+
+        setMyFighter(fighter)
+
         const signedPsbt = sessionStorage.getItem('fighter_signed_psbt')
         const res = await fetch('/api/matchmaking/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player_id: playerId, fighter_data: fighter, signed_psbt: signedPsbt }),
+          body: JSON.stringify({ player_id: address, fighter_data: fighter, signed_psbt: signedPsbt }),
         })
         if (!res.ok) throw new Error(`Join failed (${res.status})`)
         const data = await res.json()
@@ -304,6 +305,7 @@ export default function LobbyPage() {
         if (data.matched && data.opponent) {
           handleMatched(data.opponent as Fighter)
         } else {
+          setPhase('searching')
           waitTimerRef.current = setInterval(() => setWaitSeconds((s) => s + 1), 1000)
           pollRef.current = setInterval(poll, 2000)
         }
@@ -318,10 +320,8 @@ export default function LobbyPage() {
     return () => {
       cancelledRef.current = true
       stopPolling()
-      // Don't cancel on unmount — user may be refreshing; cancel only on explicit Cancel button
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [address, handleMatched, poll, router])
 
   // Re-bind poll when it updates
   useEffect(() => {
@@ -344,7 +344,20 @@ export default function LobbyPage() {
     return () => clearInterval(t)
   }, [phase, router])
 
-  if (!myFighter) return null
+  if (phase === 'connecting' || !myFighter) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
+        <div className="text-center">
+          <div className="text-sm font-black uppercase tracking-widest mb-2" style={{ color: '#4a1515' }}>
+            {!address ? 'Connect your wallet to continue' : 'Loading match…'}
+          </div>
+          {address && (
+            <div className="w-8 h-8 mx-auto rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (phase === 'error') {
     return (
