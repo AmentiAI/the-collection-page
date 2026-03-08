@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as bitcoin from 'bitcoinjs-lib'
+import * as ecc from '@bitcoinerlab/secp256k1'
+import { addInputSigningInfo } from '@/app/api/self-inscribe/utils/bitcoin'
+
+bitcoin.initEccLib(ecc)
 
 export const dynamic = 'force-dynamic'
 
@@ -59,13 +63,14 @@ async function findUtxoByInscription(
   return null
 }
 
-async function getTxOutput(txid: string, vout: number) {
-  const res = await fetch(`${MEMPOOL_BASE}/tx/${txid}`)
-  if (!res.ok) throw new Error(`Mempool tx lookup failed: ${res.status}`)
-  const tx = await res.json()
-  const output = tx.vout?.[vout]
-  if (!output) throw new Error(`Output ${vout} not found in tx ${txid}`)
-  return output as { scriptpubkey: string; value: number }
+async function getPrevOutput(txid: string, vout: number): Promise<{ script: Buffer; value: number }> {
+  const res = await fetch(`${MEMPOOL_BASE}/tx/${txid}/hex`)
+  if (!res.ok) throw new Error(`Mempool tx hex lookup failed: ${res.status}`)
+  const hex = await res.text()
+  const tx = bitcoin.Transaction.fromHex(hex)
+  const out = tx.outs[vout]
+  if (!out) throw new Error(`Output ${vout} not found in tx ${txid}`)
+  return { script: Buffer.from(out.script), value: Number(out.value) }
 }
 
 export async function POST(req: NextRequest) {
@@ -113,42 +118,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid inscription output format' }, { status: 400 })
     }
 
-    // 2. Get scriptpubkey from mempool.space
-    const txOutput = await getTxOutput(txid, vout)
-    const finalValue = txOutput.value ?? outputValue
-    const scriptHex = txOutput.scriptpubkey
-    if (!scriptHex) {
-      return NextResponse.json({ error: 'Could not retrieve scriptpubkey' }, { status: 400 })
-    }
+    // 2. Get full tx hex from mempool.space and decode the output
+    const prevOut = await getPrevOutput(txid, vout)
+    const finalValue = prevOut.value || outputValue
 
     // 3. Build proof-of-ownership PSBT
-    //    Input: inscription UTXO
-    //    Output: same value back to inscription's current address (fee = 0, not for broadcast)
+    //    Input: inscription UTXO → Output: same value back to same address (fee=0, not for broadcast)
     const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
-
-    // Resolve tapInternalKey for taproot inputs (bc1p addresses)
-    let tapInternalKey: Buffer | undefined
-    if (public_key) {
-      let keyBuf = Buffer.from(public_key, 'hex')
-      // Strip 02/03 prefix if present to get 32-byte x-only key
-      if (keyBuf.length === 33 && (keyBuf[0] === 0x02 || keyBuf[0] === 0x03)) {
-        keyBuf = keyBuf.subarray(1)
-      }
-      if (keyBuf.length === 32) {
-        tapInternalKey = keyBuf
-      }
-    }
 
     psbt.addInput({
       hash: txid,
       index: vout,
+      sequence: 0xfffffffd,
       witnessUtxo: {
-        script: Buffer.from(scriptHex, 'hex'),
+        script: prevOut.script,
         value: BigInt(finalValue),
       },
-      ...(tapInternalKey ? { tapInternalKey } : {}),
-      sequence: 0xfffffffd,
     })
+
+    // Add taproot signing info (tapInternalKey) using the same helper the speedup/cancel tools use
+    addInputSigningInfo(psbt, 0, inscriptionAddress, undefined, public_key)
 
     let outputScript: Buffer
     try {
@@ -156,7 +145,7 @@ export async function POST(req: NextRequest) {
         bitcoin.address.toOutputScript(inscriptionAddress, bitcoin.networks.bitcoin)
       )
     } catch {
-      outputScript = Buffer.from(scriptHex, 'hex')
+      outputScript = prevOut.script
     }
 
     psbt.addOutput({ script: outputScript, value: BigInt(finalValue) })
