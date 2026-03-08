@@ -113,15 +113,9 @@ export default function Home() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [showEnter, setShowEnter] = useState(false)
-
-  useEffect(() => {
-    const seen = sessionStorage.getItem('damned_entered_v2')
-    if (!seen) setShowEnter(true)
-  }, [])
+  const [showEnter, setShowEnter] = useState(true)
 
   const handleEnterSite = () => {
-    sessionStorage.setItem('damned_entered_v2', '1')
     setShowEnter(false)
   }
 
