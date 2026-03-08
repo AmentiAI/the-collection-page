@@ -334,7 +334,7 @@ export default function FighterSelect() {
       }
       return true
     })
-  }, [fighters, onlyCollections, collectionFilter, minFloor])
+  }, [fighters, onlyCollections, collectionFilter, maxFloor])
 
   const handlePsbtSigned = (psbt: string) => {
     setSignedPsbt(psbt)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface TraitRarity {
   trait_type: string
@@ -30,10 +30,6 @@ export default function TraitRarityTracker({ collectionSymbol = 'the-damned' }: 
   const [error, setError] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [selectedTrait, setSelectedTrait] = useState<{ category: string; value: string } | null>(null)
-
-  useEffect(() => {
-    fetchTraitRarity()
-  }, [collectionSymbol])
 
   const fetchTraitRarity = async () => {
     try {
