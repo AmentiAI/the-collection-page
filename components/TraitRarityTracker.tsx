@@ -31,19 +31,19 @@ export default function TraitRarityTracker({ collectionSymbol = 'the-damned' }: 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [selectedTrait, setSelectedTrait] = useState<{ category: string; value: string } | null>(null)
 
-  const fetchTraitRarity = async () => {
+  const fetchTraitRarity = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch(`/api/magic-eden/traits?collectionSymbol=${encodeURIComponent(collectionSymbol)}`)
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch trait rarity: ${response.status}`)
       }
-      
+
       const data = await response.json()
-      
+
       // Process traits data if available
       if (data.traits && data.hasTraits && Object.keys(data.traits).length > 0) {
         setTraits(data.traits)
@@ -60,7 +60,9 @@ export default function TraitRarityTracker({ collectionSymbol = 'the-damned' }: 
     } finally {
       setLoading(false)
     }
-  }
+  }, [collectionSymbol])
+
+  useEffect(() => { fetchTraitRarity() }, [fetchTraitRarity])
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
