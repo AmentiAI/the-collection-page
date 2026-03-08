@@ -220,7 +220,6 @@ export default function LobbyPage() {
 
   const handleMatched = useCallback((oppFighter: Fighter) => {
     stopPolling()
-    sessionStorage.removeItem('matchmaking_queue_id')
     sessionStorage.setItem('opponent', JSON.stringify(oppFighter))
     setOpponent(oppFighter)
     setPhase('found')
@@ -272,15 +271,21 @@ export default function LobbyPage() {
     playerIdRef.current = playerId
     cancelledRef.current = false
 
-    const existingQueueId = sessionStorage.getItem('matchmaking_queue_id')
-
     ;(async () => {
       try {
-        if (existingQueueId) {
-          // Resume polling an existing queue entry instead of re-joining
-          queueIdRef.current = existingQueueId
-          waitTimerRef.current = setInterval(() => setWaitSeconds((s) => s + 1), 1000)
-          pollRef.current = setInterval(poll, 2000)
+        // Check DB for an existing active queue entry for this player
+        const playerRes = await fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(playerId)}`)
+        const playerData = await playerRes.json()
+
+        if (playerData.found) {
+          // Resume — use the existing DB entry
+          queueIdRef.current = playerData.queue_id
+          if (playerData.status === 'matched' && playerData.opponent) {
+            handleMatched(playerData.opponent as Fighter)
+          } else {
+            waitTimerRef.current = setInterval(() => setWaitSeconds((s) => s + 1), 1000)
+            pollRef.current = setInterval(poll, 2000)
+          }
           return
         }
 
@@ -295,7 +300,6 @@ export default function LobbyPage() {
         if (cancelledRef.current) return
 
         queueIdRef.current = data.queue_id
-        sessionStorage.setItem('matchmaking_queue_id', data.queue_id)
 
         if (data.matched && data.opponent) {
           handleMatched(data.opponent as Fighter)
@@ -450,7 +454,6 @@ export default function LobbyPage() {
           <button
             onClick={() => {
               const queueId = queueIdRef.current
-              sessionStorage.removeItem('matchmaking_queue_id')
               if (queueId) {
                 fetch('/api/matchmaking/cancel', {
                   method: 'POST',

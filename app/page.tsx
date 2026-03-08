@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useLaserEyes } from '@omnisat/lasereyes'
 import dynamicImport from 'next/dynamic'
 import Image from 'next/image'
 import BloodCanvas from '@/components/BloodCanvas'
@@ -19,111 +20,75 @@ import { Ordinal, Trait } from '@/types'
 
 function ActiveQueueBanner() {
   const router = useRouter()
-  const [queueId, setQueueId] = useState<string | null>(null)
-  const [fighter, setFighter] = useState<{ name: string; contentUrl?: string; contentType?: string } | null>(null)
-  const [status, setStatus] = useState<'waiting' | 'matched' | 'unknown'>('unknown')
+  const { address } = useLaserEyes()
+  const [entry, setEntry] = useState<{ queue_id: string; status: string; fighter_data: any } | null>(null)
 
   useEffect(() => {
-    const qid = sessionStorage.getItem('matchmaking_queue_id')
-    const raw = sessionStorage.getItem('fighter_data')
-    if (!qid || !raw) return
-
-    try {
-      const enriched = JSON.parse(raw)
-      const name =
-        enriched.meta_name ||
-        (enriched.collection_name
-          ? `${enriched.collection_name} #${Number(enriched.inscription_number).toLocaleString()}`
-          : `#${Number(enriched.inscription_number).toLocaleString()}`)
-      setFighter({ name, contentUrl: enriched.content_url, contentType: enriched.content_type })
-      setQueueId(qid)
-    } catch {
-      sessionStorage.removeItem('matchmaking_queue_id')
-    }
-  }, [])
-
-  // Poll once to get current status
-  useEffect(() => {
-    if (!queueId) return
-    fetch(`/api/matchmaking/status?queue_id=${queueId}&player_id=unknown`)
+    if (!address) return
+    fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
       .then(r => r.json())
-      .then(d => {
-        if (d.status === 'matched') setStatus('matched')
-        else if (d.status === 'waiting') setStatus('waiting')
-        else {
-          // cancelled/expired — clear
-          sessionStorage.removeItem('matchmaking_queue_id')
-          setQueueId(null)
-        }
-      })
+      .then(d => { if (d.found) setEntry(d) })
       .catch(() => {})
-  }, [queueId])
+  }, [address])
 
   const handleCancel = async () => {
-    if (queueId) {
-      await fetch('/api/matchmaking/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queue_id: queueId }),
-      }).catch(() => {})
-    }
-    sessionStorage.removeItem('matchmaking_queue_id')
-    setQueueId(null)
+    if (!entry) return
+    await fetch('/api/matchmaking/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queue_id: entry.queue_id }),
+    }).catch(() => {})
+    setEntry(null)
   }
 
-  if (!queueId || !fighter) return null
+  if (!entry) return null
 
-  const isImage = fighter.contentType?.startsWith('image/')
+  const f = entry.fighter_data
+  const matched = entry.status === 'matched'
+  const name = f?.name ?? f?.meta_name ?? (f?.collection_name ? `${f.collection_name} #${f.inscription_number}` : `#${f?.inscription_number}`)
+  const isImage = f?.contentType?.startsWith('image/') || f?.content_type?.startsWith('image/')
+  const imgUrl = f?.contentUrl ?? f?.content_url
 
   return (
     <div
       className="mb-6 rounded-xl px-4 py-3 flex items-center gap-4"
       style={{
         background: 'linear-gradient(135deg, rgba(185,28,28,0.12), rgba(5,2,2,0.9))',
-        border: '1px solid rgba(185,28,28,0.35)',
-        boxShadow: '0 0 20px rgba(185,28,28,0.1)',
+        border: `1px solid ${matched ? 'rgba(34,197,94,0.4)' : 'rgba(185,28,28,0.35)'}`,
+        boxShadow: `0 0 20px ${matched ? 'rgba(34,197,94,0.1)' : 'rgba(185,28,28,0.1)'}`,
       }}
     >
-      {/* Fighter art */}
-      {isImage && fighter.contentUrl ? (
-        <img
-          src={fighter.contentUrl}
-          alt={fighter.name}
-          className="w-12 h-12 rounded-lg object-contain flex-shrink-0"
-          style={{ filter: 'drop-shadow(0 0 8px rgba(204,34,0,0.5))' }}
-        />
+      {isImage && imgUrl ? (
+        <img src={imgUrl} alt={name} className="w-12 h-12 rounded-lg object-contain flex-shrink-0"
+          style={{ filter: 'drop-shadow(0 0 8px rgba(204,34,0,0.5))' }} />
       ) : (
         <div className="w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(120,10,10,0.3)' }}>
           <span className="text-xs font-black" style={{ color: '#cc2200' }}>ORD</span>
         </div>
       )}
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] uppercase tracking-widest font-black mb-0.5" style={{ color: '#7f1d1d' }}>
-          {status === 'matched' ? '⚔️ Match Found!' : '⏳ Searching for Opponent'}
+        <div className="text-[10px] uppercase tracking-widest font-black mb-0.5" style={{ color: matched ? '#22c55e' : '#7f1d1d' }}>
+          {matched ? '⚔️ Match Found!' : '⏳ Searching for Opponent'}
         </div>
-        <div className="text-sm font-black truncate" style={{ color: '#e8eef7' }}>{fighter.name}</div>
+        <div className="text-sm font-black truncate" style={{ color: '#e8eef7' }}>{name}</div>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => router.push('/lobby')}
           className="px-3 py-1.5 text-xs font-black uppercase tracking-widest rounded transition-all hover:scale-105"
           style={{
-            background: status === 'matched' ? 'linear-gradient(135deg, #b91c1c, #7f1d1d)' : 'rgba(185,28,28,0.2)',
-            color: status === 'matched' ? '#fff' : '#cc2200',
-            border: '1px solid rgba(185,28,28,0.4)',
+            background: matched ? 'linear-gradient(135deg, #15803d, #14532d)' : 'rgba(185,28,28,0.2)',
+            color: '#fff',
+            border: `1px solid ${matched ? 'rgba(34,197,94,0.5)' : 'rgba(185,28,28,0.4)'}`,
           }}
         >
-          {status === 'matched' ? '⚔️ Enter Battle' : 'Return to Lobby'}
+          {matched ? '⚔️ Enter Battle' : 'Return to Lobby'}
         </button>
-        <button
-          onClick={handleCancel}
+        <button onClick={handleCancel}
           className="px-2 py-1.5 text-xs font-bold uppercase tracking-widest rounded transition-opacity hover:opacity-60"
-          style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
-        >
+          style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}>
           Cancel
         </button>
       </div>
