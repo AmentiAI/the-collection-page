@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
          i.collection_symbol,
          c.name            AS collection_name,
          c.image_uri       AS collection_image,
-         NULLIF(COALESCE(c.raw_data->>'floorPrice', c.raw_data->>'floor_price', c.raw_data->>'fp'), '')::bigint AS floor_price_sats,
+         fp.floor_price_sats,
          c.supply          AS collection_supply,
          td.meta_name,
          td.display_name,
@@ -92,6 +92,12 @@ export async function GET(req: NextRequest) {
        FROM me_inscriptions i
        LEFT JOIN me_collections c    ON c.slug = i.collection_symbol
        LEFT JOIN me_token_details td ON td.inscription_id = i.inscription_id
+       LEFT JOIN (
+         SELECT collection_symbol, MIN(listed_price) AS floor_price_sats
+         FROM me_inscriptions
+         WHERE listed = true AND listed_price IS NOT NULL AND listed_price > 0
+         GROUP BY collection_symbol
+       ) fp ON fp.collection_symbol = i.collection_symbol
        WHERE i.inscription_id = ANY($1)`,
       [ids]
     )
