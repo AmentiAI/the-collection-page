@@ -18,7 +18,7 @@ import { Ordinal, Trait } from '@/types'
 
 // ─── Active queue banner ───────────────────────────────────────────────────────
 
-function ActiveQueueBanner() {
+function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
   const router = useRouter()
   const { address } = useLaserEyes()
   const [entry, setEntry] = useState<{ queue_id: string; status: string; fighter_data: any } | null>(null)
@@ -27,7 +27,10 @@ function ActiveQueueBanner() {
     if (!address) return
     fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
       .then(r => r.json())
-      .then(d => { if (d.found) setEntry(d) })
+      .then(d => {
+        if (d.found) { setEntry(d); onFound(true) }
+        else onFound(false)
+      })
       .catch(() => {})
   }, [address])
 
@@ -39,6 +42,7 @@ function ActiveQueueBanner() {
       body: JSON.stringify({ queue_id: entry.queue_id }),
     }).catch(() => {})
     setEntry(null)
+    onFound(false)
   }
 
   if (!entry) return null
@@ -195,6 +199,7 @@ export default function Home() {
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
   const [showEnter, setShowEnter] = useState(false)
+  const [hasActiveQueue, setHasActiveQueue] = useState(false)
 
   useEffect(() => {
     setShowEnter(true)
@@ -376,8 +381,8 @@ export default function Home() {
             <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
               {isLaunched ? (
                 <>
-                  <ActiveQueueBanner />
-                  <FighterSelect />
+                  <ActiveQueueBanner onFound={setHasActiveQueue} />
+                  <FighterSelect disabled={hasActiveQueue} />
                 </>
               ) : <BattleCountdown />}
             </div>

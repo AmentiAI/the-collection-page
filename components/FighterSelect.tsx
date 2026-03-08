@@ -273,7 +273,7 @@ function PsbtModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function FighterSelect() {
+export default function FighterSelect({ disabled }: { disabled?: boolean }) {
   const router = useRouter()
   const { connected, address, publicKey } = useLaserEyes()
 
@@ -358,7 +358,20 @@ export default function FighterSelect() {
   }
 
   return (
-    <div className="w-full">
+    <div className={`w-full relative ${disabled ? 'pointer-events-none' : ''}`}>
+      {/* Disabled overlay */}
+      {disabled && (
+        <div
+          className="absolute inset-0 z-20 rounded-xl flex items-center justify-center"
+          style={{ background: 'rgba(3,1,1,0.7)', backdropFilter: 'blur(2px)' }}
+        >
+          <div className="text-center px-6">
+            <div className="text-xs font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>
+              Fighter already in queue — return to lobby or cancel before selecting a new one
+            </div>
+          </div>
+        </div>
+      )}
       {/* Section header */}
       <div className="flex items-center justify-between mb-4">
         <div>
