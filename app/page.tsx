@@ -116,12 +116,12 @@ export default function Home() {
   const [showEnter, setShowEnter] = useState(false)
 
   useEffect(() => {
-    const seen = sessionStorage.getItem('damned_entered')
+    const seen = sessionStorage.getItem('damned_entered_v2')
     if (!seen) setShowEnter(true)
   }, [])
 
   const handleEnterSite = () => {
-    sessionStorage.setItem('damned_entered', '1')
+    sessionStorage.setItem('damned_entered_v2', '1')
     setShowEnter(false)
   }
 
@@ -214,11 +214,25 @@ export default function Home() {
 
   // Ensure we always render something
   if (!showSplash && ordinals.length === 0 && !loading) {
-    // Initial load - show loading state
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-[#ff6b6b] text-xl">Loading The Damned...</div>
-      </div>
+      <>
+        {showEnter && (
+          <div
+            className="fixed inset-0 z-[999] flex flex-col items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(4px)' }}
+          >
+            <div className="flex flex-col items-center gap-8 text-center px-4">
+              <div className="text-7xl sm:text-9xl font-black select-none" style={{ color: '#cc2200', textShadow: '0 0 80px rgba(185,28,28,0.7)' }}>💀</div>
+              <div className="text-2xl sm:text-4xl font-black uppercase tracking-[0.2em]" style={{ color: '#cc2200' }}>The Damned</div>
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#4a1515' }}>Sound on for best experience</p>
+              <button onClick={handleEnterSite} className="mt-4 px-12 py-4 font-black uppercase tracking-[0.3em] text-sm transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', color: '#fff', borderRadius: '4px', boxShadow: '0 0 40px rgba(185,28,28,0.4)' }}>Enter</button>
+            </div>
+          </div>
+        )}
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="text-[#ff6b6b] text-xl">Loading The Damned...</div>
+        </div>
+      </>
     )
   }
 
