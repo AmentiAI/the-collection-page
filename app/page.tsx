@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import dynamicImport from 'next/dynamic'
 import Image from 'next/image'
 import BloodCanvas from '@/components/BloodCanvas'
@@ -14,9 +15,93 @@ import SplashScreen from '@/components/SplashScreen'
 import FighterSelect from '@/components/FighterSelect'
 import { Ordinal, Trait } from '@/types'
 
+// March 9 2026 11:00 AM EST = 16:00 UTC
+const LAUNCH_TIME = new Date('2026-03-09T16:00:00Z')
+
+function useCountdown(target: Date) {
+  const [timeLeft, setTimeLeft] = useState(() => Math.max(0, target.getTime() - Date.now()))
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTimeLeft(Math.max(0, target.getTime() - Date.now()))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [target])
+  return timeLeft
+}
+
+function BattleCountdown() {
+  const ms = useCountdown(LAUNCH_TIME)
+  const days = Math.floor(ms / 86400000)
+  const hours = Math.floor((ms % 86400000) / 3600000)
+  const mins = Math.floor((ms % 3600000) / 60000)
+  const secs = Math.floor((ms % 60000) / 1000)
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 py-16 select-none">
+      <div
+        className="text-sm font-black uppercase tracking-[0.3em]"
+        style={{ color: '#7f1d1d' }}
+      >
+        Battle begins in
+      </div>
+
+      <div className="flex items-end gap-4 sm:gap-8">
+        {[
+          { value: days, label: 'Days' },
+          { value: hours, label: 'Hours' },
+          { value: mins, label: 'Min' },
+          { value: secs, label: 'Sec' },
+        ].map(({ value, label }, i) => (
+          <div key={label} className="flex items-end gap-4 sm:gap-8">
+            {i > 0 && (
+              <span
+                className="text-4xl sm:text-6xl lg:text-8xl font-black pb-6 sm:pb-8 lg:pb-10"
+                style={{ color: '#3d0a0a' }}
+              >
+                :
+              </span>
+            )}
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="text-6xl sm:text-8xl lg:text-[10rem] font-black tabular-nums leading-none"
+                style={{
+                  color: '#cc2200',
+                  textShadow: '0 0 60px rgba(185,28,28,0.5), 0 0 120px rgba(185,28,28,0.2)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {pad(value)}
+              </div>
+              <div
+                className="text-xs sm:text-sm font-black uppercase tracking-widest"
+                style={{ color: '#4a1515' }}
+              >
+                {label}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="text-xs font-bold uppercase tracking-widest mt-4"
+        style={{ color: '#3d0a0a' }}
+      >
+        March 9th · 11:00 AM EST
+      </div>
+    </div>
+  )
+}
+
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 export default function Home() {
+  const searchParams = useSearchParams()
+  const devMode = searchParams.get('battle') === '1'
+  const isLaunched = devMode || Date.now() >= LAUNCH_TIME.getTime()
+
   const [ordinals, setOrdinals] = useState<Ordinal[]>([])
   const [filteredOrdinals, setFilteredOrdinals] = useState<Ordinal[]>([])
   const [filters, setFilters] = useState<Record<string, Set<string>>>({})
@@ -143,9 +228,9 @@ export default function Home() {
               onConnectedChange={setConnected}
               showMusicControls={true}
             />
-            {/* Fighter selection section */}
+            {/* Battle UI or countdown */}
             <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-              <FighterSelect />
+              {isLaunched ? <FighterSelect /> : <BattleCountdown />}
             </div>
 
             {/* Ordinal collection hidden - just showing video */}
