@@ -92,15 +92,17 @@ function InscriptionArt({
 function PsbtModal({
   fighter,
   address,
+  publicKey,
   onSigned,
   onCancel,
 }: {
   fighter: WalletFighter
   address: string
+  publicKey: string
   onSigned: (psbt: string) => void
   onCancel: () => void
 }) {
-  const { client } = useLaserEyes()
+  const { client, publicKey } = useLaserEyes()
   const [step, setStep] = useState<'idle' | 'building' | 'signing' | 'done' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -111,7 +113,7 @@ function PsbtModal({
       const buildRes = await fetch('/api/prepare-psbt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inscription_id: fighter.inscription_id, address }),
+        body: JSON.stringify({ inscription_id: fighter.inscription_id, address, public_key: publicKey }),
       })
       const buildData = await buildRes.json()
       if (!buildRes.ok || !buildData.psbt) throw new Error(buildData.error ?? 'Failed to build PSBT')
@@ -136,7 +138,7 @@ function PsbtModal({
       setError(e instanceof Error ? e.message : 'Signing failed')
       setStep('error')
     }
-  }, [fighter.inscription_id, address, client, onSigned])
+  }, [fighter.inscription_id, address, publicKey, client, onSigned])
 
   const steps = ['Building PSBT', 'Sign in Wallet', 'Done']
   const stepIdx = { idle: -1, building: 0, signing: 1, done: 2, error: 0 }[step]
@@ -272,7 +274,7 @@ function PsbtModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function FighterSelect() {
-  const { connected, address } = useLaserEyes()
+  const { connected, address, publicKey } = useLaserEyes()
 
   const [fighters, setFighters] = useState<WalletFighter[]>([])
   const [loading, setLoading] = useState(false)
@@ -621,6 +623,7 @@ export default function FighterSelect() {
         <PsbtModal
           fighter={selected}
           address={address}
+          publicKey={publicKey ?? ''}
           onSigned={handlePsbtSigned}
           onCancel={() => setShowPsbt(false)}
         />

@@ -71,7 +71,11 @@ async function getTxOutput(txid: string, vout: number) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { inscription_id, address } = body as { inscription_id: string; address: string }
+    const { inscription_id, address, public_key } = body as {
+      inscription_id: string
+      address: string
+      public_key?: string
+    }
 
     if (!inscription_id || !address) {
       return NextResponse.json({ error: 'inscription_id and address required' }, { status: 400 })
@@ -122,6 +126,19 @@ export async function POST(req: NextRequest) {
     //    Output: same value back to inscription's current address (fee = 0, not for broadcast)
     const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
 
+    // Resolve tapInternalKey for taproot inputs (bc1p addresses)
+    let tapInternalKey: Buffer | undefined
+    if (public_key) {
+      let keyBuf = Buffer.from(public_key, 'hex')
+      // Strip 02/03 prefix if present to get 32-byte x-only key
+      if (keyBuf.length === 33 && (keyBuf[0] === 0x02 || keyBuf[0] === 0x03)) {
+        keyBuf = keyBuf.subarray(1)
+      }
+      if (keyBuf.length === 32) {
+        tapInternalKey = keyBuf
+      }
+    }
+
     psbt.addInput({
       hash: txid,
       index: vout,
@@ -129,6 +146,7 @@ export async function POST(req: NextRequest) {
         script: Buffer.from(scriptHex, 'hex'),
         value: BigInt(finalValue),
       },
+      ...(tapInternalKey ? { tapInternalKey } : {}),
       sequence: 0xfffffffd,
     })
 
