@@ -113,7 +113,11 @@ export default function Home() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [showEnter, setShowEnter] = useState(true)
+  const [showEnter, setShowEnter] = useState(false)
+
+  useEffect(() => {
+    setShowEnter(true)
+  }, [])
 
   const handleEnterSite = () => {
     setShowEnter(false)
