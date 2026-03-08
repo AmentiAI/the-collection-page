@@ -113,6 +113,17 @@ export default function Home() {
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [showEnter, setShowEnter] = useState(false)
+
+  useEffect(() => {
+    const seen = sessionStorage.getItem('damned_entered')
+    if (!seen) setShowEnter(true)
+  }, [])
+
+  const handleEnterSite = () => {
+    sessionStorage.setItem('damned_entered', '1')
+    setShowEnter(false)
+  }
 
   const handleEnter = () => {
     setUserInteracted(true)
@@ -213,6 +224,46 @@ export default function Home() {
 
   return (
     <>
+      {showEnter && (
+        <div
+          className="fixed inset-0 z-[999] flex flex-col items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(4px)' }}
+        >
+          <div className="flex flex-col items-center gap-8 text-center px-4">
+            <div
+              className="text-7xl sm:text-9xl font-black uppercase tracking-widest select-none"
+              style={{
+                color: '#cc2200',
+                textShadow: '0 0 80px rgba(185,28,28,0.7), 0 0 160px rgba(185,28,28,0.3)',
+              }}
+            >
+              💀
+            </div>
+            <div
+              className="text-2xl sm:text-4xl font-black uppercase tracking-[0.2em]"
+              style={{ color: '#cc2200', textShadow: '0 0 40px rgba(185,28,28,0.5)' }}
+            >
+              The Damned
+            </div>
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-widest" style={{ color: '#4a1515' }}>
+              Sound on for best experience
+            </p>
+            <button
+              onClick={handleEnterSite}
+              className="mt-4 px-12 py-4 font-black uppercase tracking-[0.3em] text-sm sm:text-base transition-all hover:scale-105 active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
+                color: '#fff',
+                border: '1px solid rgba(185,28,28,0.5)',
+                borderRadius: '4px',
+                boxShadow: '0 0 40px rgba(185,28,28,0.4)',
+              }}
+            >
+              Enter
+            </button>
+          </div>
+        </div>
+      )}
       {showSplash ? (
         <SplashScreen onEnter={handleEnter} />
       ) : (
