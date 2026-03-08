@@ -37,11 +37,21 @@ export async function POST(req: NextRequest) {
   const pool = getPool()
   await ensureTable()
 
-  // Clean expired entries and stale waiting entry for this player
+  const inscription_id: string = fighter_data?.id ?? ''
+
+  // Clean expired entries, stale waiting entries for this player, and stale entries for this inscription
+  // (handles player_id changing across refreshes — prevents self-match)
   await pool.query(`DELETE FROM matchmaking_queue WHERE expires_at < NOW()`)
   await pool.query(`DELETE FROM matchmaking_queue WHERE player_id = $1 AND status = 'waiting'`, [player_id])
+  if (inscription_id) {
+    await pool.query(
+      `DELETE FROM matchmaking_queue WHERE fighter_data->>'id' = $1 AND status = 'waiting'`,
+      [inscription_id]
+    )
+  }
 
   // Try to atomically claim a waiting opponent
+  // Exclude same player_id AND same inscription_id to prevent self-matching
   const { rows: claimed } = await pool.query(`
     UPDATE matchmaking_queue
     SET status = 'matched'
@@ -49,12 +59,13 @@ export async function POST(req: NextRequest) {
       SELECT id FROM matchmaking_queue
       WHERE status = 'waiting'
         AND player_id != $1
+        AND ($2 = '' OR fighter_data->>'id' != $2)
         AND expires_at > NOW()
       ORDER BY joined_at ASC
       LIMIT 1
     )
     RETURNING id, fighter_data
-  `, [player_id])
+  `, [player_id, inscription_id])
 
   if (claimed.length > 0) {
     const opp = claimed[0]

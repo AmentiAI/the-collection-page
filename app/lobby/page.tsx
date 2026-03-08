@@ -220,6 +220,7 @@ export default function LobbyPage() {
 
   const handleMatched = useCallback((oppFighter: Fighter) => {
     stopPolling()
+    sessionStorage.removeItem('matchmaking_queue_id')
     sessionStorage.setItem('opponent', JSON.stringify(oppFighter))
     setOpponent(oppFighter)
     setPhase('found')
@@ -251,7 +252,7 @@ export default function LobbyPage() {
     return () => clearInterval(t)
   }, [phase])
 
-  // Mount: load fighter + join matchmaking
+  // Mount: load fighter + join or resume matchmaking
   useEffect(() => {
     const enrichedRaw = sessionStorage.getItem('fighter_data')
     if (!enrichedRaw) { router.push('/'); return }
@@ -271,8 +272,18 @@ export default function LobbyPage() {
     playerIdRef.current = playerId
     cancelledRef.current = false
 
+    const existingQueueId = sessionStorage.getItem('matchmaking_queue_id')
+
     ;(async () => {
       try {
+        if (existingQueueId) {
+          // Resume polling an existing queue entry instead of re-joining
+          queueIdRef.current = existingQueueId
+          waitTimerRef.current = setInterval(() => setWaitSeconds((s) => s + 1), 1000)
+          pollRef.current = setInterval(poll, 2000)
+          return
+        }
+
         const signedPsbt = sessionStorage.getItem('fighter_signed_psbt')
         const res = await fetch('/api/matchmaking/join', {
           method: 'POST',
@@ -284,6 +295,7 @@ export default function LobbyPage() {
         if (cancelledRef.current) return
 
         queueIdRef.current = data.queue_id
+        sessionStorage.setItem('matchmaking_queue_id', data.queue_id)
 
         if (data.matched && data.opponent) {
           handleMatched(data.opponent as Fighter)
@@ -302,14 +314,7 @@ export default function LobbyPage() {
     return () => {
       cancelledRef.current = true
       stopPolling()
-      const queueId = queueIdRef.current
-      if (queueId) {
-        fetch('/api/matchmaking/cancel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ queue_id: queueId }),
-        }).catch(() => {})
-      }
+      // Don't cancel on unmount — user may be refreshing; cancel only on explicit Cancel button
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -443,7 +448,18 @@ export default function LobbyPage() {
         {/* Cancel while searching */}
         {phase === 'searching' && (
           <button
-            onClick={() => router.push('/?battle=1')}
+            onClick={() => {
+              const queueId = queueIdRef.current
+              sessionStorage.removeItem('matchmaking_queue_id')
+              if (queueId) {
+                fetch('/api/matchmaking/cancel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ queue_id: queueId }),
+                }).catch(() => {})
+              }
+              router.push('/?battle=1')
+            }}
             className="text-xs tracking-widest uppercase font-bold px-4 py-2 rounded transition-opacity hover:opacity-70"
             style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
           >

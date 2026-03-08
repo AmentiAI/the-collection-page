@@ -341,6 +341,7 @@ export default function FighterSelect() {
     sessionStorage.setItem('fighter_inscription_id', selected!.inscription_id)
     sessionStorage.setItem('fighter_signed_psbt', psbt)
     sessionStorage.setItem('fighter_data', JSON.stringify(selected))
+    sessionStorage.removeItem('matchmaking_queue_id') // ensure fresh queue entry
     setTimeout(() => router.push('/lobby'), 600)
   }
 
