@@ -59,6 +59,7 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
 
   // Playlist of 5 songs to cycle through
   const playlist = useMemo(() => [
+    '/newsong.mp3',
     '/music/rapsong.mp3',
     '/music/abysssummon2.mp3',
     '/music/summon2.mp3',

@@ -16,7 +16,6 @@ export default function BackgroundMusic({ shouldPlay, onInteraction, volume = 30
 
   const playlist = useMemo(
     () => [
-      '/newsong.mp3',
       '/music/Shadows creeping through the door (1).mp3',
       '/music/The Damned.mp3',
       '/music/The Damned 3.mp3',
