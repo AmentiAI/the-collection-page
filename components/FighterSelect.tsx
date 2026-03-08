@@ -102,7 +102,7 @@ function PsbtModal({
   onSigned: (psbt: string) => void
   onCancel: () => void
 }) {
-  const { client, publicKey } = useLaserEyes()
+  const { client } = useLaserEyes()
   const [step, setStep] = useState<'idle' | 'building' | 'signing' | 'done' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
