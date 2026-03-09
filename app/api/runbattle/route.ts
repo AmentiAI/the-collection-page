@@ -66,16 +66,22 @@ async function getOutputScript(txid: string, vout: number): Promise<{ script: Bu
 }
 
 export async function GET(_req: NextRequest) {
-  const privKeyHex  = process.env.BATTLE_WALLET_PRIVATE_KEY
-  const battleAddr  = process.env.BATTLE_WALLET_ADDRESS
+  const pool = getPool()
+
+  // Load battle wallet credentials from DB
+  const { rows: settingRows } = await pool.query(
+    `SELECT setting_key, setting_value FROM global_settings WHERE setting_key IN ('battle_wallet_private_key', 'battle_wallet_address')`
+  )
+  const settings = Object.fromEntries(settingRows.map((r: { setting_key: string; setting_value: string }) => [r.setting_key, r.setting_value]))
+  const privKeyHex = settings['battle_wallet_private_key']
+  const battleAddr = settings['battle_wallet_address']
+
   if (!privKeyHex || !battleAddr) {
     return NextResponse.json(
-      { error: 'BATTLE_WALLET_PRIVATE_KEY and BATTLE_WALLET_ADDRESS env vars required' },
+      { error: 'Battle wallet not configured — add battle_wallet_private_key and battle_wallet_address to global_settings' },
       { status: 500 }
     )
   }
-
-  const pool = getPool()
 
   // Find the oldest active matched battle where BOTH players have a signed PSBT.
   // q1.id < q1.opponent_queue_id deduplicates the pair (each pair appears once).
