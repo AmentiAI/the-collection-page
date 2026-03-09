@@ -86,9 +86,19 @@ export async function GET(req: NextRequest) {
   // Get both queue IDs in the match pair
   const queueIds = [match.id, match.opponent_queue_id].filter(Boolean)
 
-  // Get all commitments linked to either queue entry
+  // Get player_ids for both sides of the match
+  const { rows: queueRows } = await pool.query(
+    `SELECT id, player_id, fighter_data FROM matchmaking_queue WHERE id = ANY($1)`,
+    [queueIds]
+  )
+  const playerIds = queueRows.map((r) => r.player_id).filter(Boolean)
+  const inscriptionIds = queueRows
+    .map((r) => r.fighter_data?.id)
+    .filter(Boolean)
+
+  // Look up commitments by queue_id OR by (player_id + inscription_id) for legacy rows
   const { rows: commitments } = await pool.query(
-    `SELECT
+    `SELECT DISTINCT ON (bc.player_id)
        bc.player_id,
        bc.inscription_id,
        bc.txid,
@@ -102,8 +112,9 @@ export async function GET(req: NextRequest) {
        bc.queue_id AS commitment_queue_id
      FROM battle_commitments bc
      WHERE bc.queue_id = ANY($1)
-     ORDER BY bc.created_at ASC`,
-    [queueIds]
+        OR (bc.player_id = ANY($2) AND bc.inscription_id = ANY($3))
+     ORDER BY bc.player_id, bc.created_at DESC`,
+    [queueIds, playerIds, inscriptionIds]
   )
 
   const players = commitments.map((c) => ({

@@ -77,6 +77,14 @@ export async function POST(req: NextRequest) {
 
     await pool.query(`UPDATE matchmaking_queue SET opponent_queue_id = $1 WHERE id = $2`, [me[0].id, opp.id])
 
+    // Update battle_commitments with the real queue_id and signed PSBT
+    if (signed_psbt && inscription_id) {
+      await pool.query(
+        `UPDATE battle_commitments SET queue_id = $1, signed_psbt = $2 WHERE player_id = $3 AND inscription_id = $4`,
+        [me[0].id, signed_psbt, player_id, inscription_id]
+      ).catch(() => {})
+    }
+
     return NextResponse.json({ matched: true, queue_id: me[0].id, opponent: opp.fighter_data })
   }
 
@@ -86,6 +94,14 @@ export async function POST(req: NextRequest) {
     VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')
     RETURNING id
   `, [player_id, JSON.stringify(fighter_data), signed_psbt ?? null])
+
+  // Update battle_commitments with the real queue_id and signed PSBT
+  if (signed_psbt && inscription_id) {
+    await pool.query(
+      `UPDATE battle_commitments SET queue_id = $1, signed_psbt = $2 WHERE player_id = $3 AND inscription_id = $4`,
+      [me[0].id, signed_psbt, player_id, inscription_id]
+    ).catch(() => {})
+  }
 
   return NextResponse.json({ matched: false, queue_id: me[0].id })
 }
