@@ -10,7 +10,53 @@ export const dynamic = 'force-dynamic'
 
 const MEMPOOL_BASE  = 'https://mempool.space/api'
 const WINNER_PAYOUT = BigInt(625)  // sats to winner
-const BURN_VALUE    = BigInt(1)    // sats per OP_RETURN burn output
+const BURN_VALUE    = BigInt(1)    // 1 sat per OP_RETURN burn — first sat of each ordinal input burns
+
+// Broadcast via TAAL ARC, which accepts non-standard transactions (including
+// OP_RETURN outputs with value > 0 used for ordinal burns).
+// Falls back to mempool.space /api/tx for standard txs.
+async function broadcastTx(txHex: string): Promise<string> {
+  // Try TAAL ARC first (supports non-standard txs)
+  try {
+    const res = await fetch('https://arc.taal.com/v1/tx', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ rawTx: txHex }),
+      cache:   'no-store',
+    })
+    const text = await res.text()
+    if (res.ok) {
+      try {
+        const json = JSON.parse(text)
+        const txid = json?.txid ?? json?.txID
+        if (txid) return String(txid).trim()
+      } catch { /* not JSON */ }
+      if (/^[a-f0-9]{64}$/i.test(text.trim())) return text.trim()
+    }
+    // If TAAL fails, fall through to mempool.space
+    console.warn('[runbattle] TAAL ARC failed, falling back:', text.slice(0, 200))
+  } catch (e) {
+    console.warn('[runbattle] TAAL ARC error, falling back:', e)
+  }
+
+  // Fallback: mempool.space standard endpoint
+  const res2 = await fetch('https://mempool.space/api/tx', {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body:    txHex,
+    cache:   'no-store',
+  })
+  const text2 = await res2.text()
+  if (!res2.ok) throw new Error(`broadcast failed (${res2.status}): ${text2}`)
+  const txid2 = text2.trim()
+  if (/^[a-f0-9]{64}$/i.test(txid2)) return txid2
+  try {
+    const json = JSON.parse(text2)
+    const id = json?.txid ?? json?.result
+    if (id) return String(id).trim()
+  } catch { /* not JSON */ }
+  throw new Error(`Unexpected response: ${text2.slice(0, 300)}`)
+}
 
 // Calculate tx fee from actual witness sizes.
 // weight = non_witness_bytes × 4 + witness_bytes × 1
@@ -84,7 +130,8 @@ async function getOutputScript(txid: string, vout: number): Promise<{ script: Bu
 }
 
 export async function GET(req: NextRequest) {
-  const feeRate = Math.max(1, parseInt(req.nextUrl.searchParams.get('fee_rate') ?? '1'))
+  const feeRate    = Math.max(1, parseInt(req.nextUrl.searchParams.get('fee_rate') ?? '1'))
+  const doBroadcast = req.nextUrl.searchParams.get('broadcast') === 'true'
   const pool = getPool()
 
   // Load battle wallet credentials from DB
@@ -218,7 +265,7 @@ export async function GET(req: NextRequest) {
   // ── Calculate output values ─────────────────────────────────────────────────
   // output 2 = pad1 contribution after paying winner payout + full miner fee
   const out2Val = pad1Val - WINNER_PAYOUT - MINER_FEE
-  // output 4 = remaining ordinal sats (minus the 1 sat each burned) + pad2
+  // output 4 = remaining ordinal sats (minus 1 sat burned each) + pad2
   const out4Val = (ord1Val - BURN_VALUE) + (ord2Val - BURN_VALUE) + pad2Val
 
   const ourScript = bitcoin.address.toOutputScript(battleAddr, bitcoin.networks.bitcoin)
@@ -345,6 +392,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Broadcast if requested ───────────────────────────────────────────────────
+  let broadcast_txid: string | null = null
+  let broadcast_error: string | null = null
+  if (doBroadcast && tx_hex) {
+    try {
+      broadcast_txid = await broadcastTx(tx_hex)
+    } catch (e) {
+      broadcast_error = String(e)
+    }
+  }
+
   return NextResponse.json({
     battle: {
       queue_id:       row.q1_id,
@@ -381,6 +439,8 @@ export async function GET(req: NextRequest) {
       input_3_server:  serverSignError  ?? 'SIGNED + FINALIZED',
     },
     ready_to_broadcast: allSigned,
+    broadcast_txid,
+    broadcast_error,
     tx_hex,
     psbt_base64: psbt.toBase64(),
   })
