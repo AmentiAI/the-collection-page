@@ -277,39 +277,6 @@ export default function BattlePage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-1 text-xs font-mono" style={{ color: '#4a1515' }}>
-              {queueId && (
-                <a
-                  href={`/api/battle/utxos?queue_id=${queueId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline hover:opacity-70 transition-opacity"
-                >
-                  Queue UTXOs: /api/battle/utxos?queue_id={queueId}
-                </a>
-              )}
-              {address && (
-                <a
-                  href={`/api/battle/utxos?player_id=${encodeURIComponent(address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline hover:opacity-70 transition-opacity"
-                >
-                  My UTXO: /api/battle/utxos?player_id={address}
-                </a>
-              )}
-              {oppPlayerId && (
-                <a
-                  href={`/api/battle/utxos?player_id=${encodeURIComponent(oppPlayerId)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline hover:opacity-70 transition-opacity"
-                >
-                  Opponent UTXO: /api/battle/utxos?player_id={oppPlayerId}
-                </a>
-              )}
-            </div>
-
             <button
               onClick={() => router.push('/?battle=1')}
               className="text-sm tracking-widest uppercase font-bold px-6 py-3 rounded transition-opacity hover:opacity-70"
