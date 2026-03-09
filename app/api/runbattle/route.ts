@@ -14,10 +14,50 @@ const BURN_VALUE    = BigInt(1)    // 1 sat per OP_RETURN burn — first sat of 
 
 // Attempt to broadcast, returning { txid } on success or { error, attempts } on failure.
 // OP_RETURN outputs with value > 0 are non-standard; we try multiple endpoints.
-async function broadcastTx(txHex: string, taalApiKey?: string): Promise<{ txid?: string; error?: string; attempts: Record<string, string> }> {
+async function broadcastTx(txHex: string, taalApiKey?: string, quicknodeUrl?: string): Promise<{ txid?: string; error?: string; attempts: Record<string, string> }> {
   const attempts: Record<string, string> = {}
 
-  // ── Attempt 1: TAAL ARC (accepts non-standard txs) ──────────────────────────
+  // ── Attempt 1: QuickNode submitpackage with maxburnamount ────────────────────
+  // submitpackage accepts a maxburnamount param (in BTC) that bypasses the
+  // unspendable output check — allowing our 1-sat OP_RETURN burn outputs.
+  if (quicknodeUrl) {
+    try {
+      const res = await fetch(quicknodeUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method:  'submitpackage',
+          params:  [
+            [txHex],       // package = array of raw txs (single tx is valid)
+            0,             // maxfeerate: 0 = no limit
+            0.00000002,    // maxburnamount in BTC = 2 sats (covers our 2× 1-sat OP_RETURNs)
+          ],
+          id: 1,
+        }),
+        cache: 'no-store',
+      })
+      const text = await res.text()
+      attempts['quicknode_submitpackage'] = `HTTP ${res.status}: ${text.slice(0, 400)}`
+      if (res.ok) {
+        try {
+          const json = JSON.parse(text)
+          // submitpackage returns { result: { package_msg, tx-results: { <txid>: {...} } } }
+          const txResults = json?.result?.['tx-results']
+          if (txResults) {
+            const txid = Object.keys(txResults)[0]
+            if (txid) return { txid, attempts }
+          }
+          // Some versions return result.txid directly
+          if (json?.result?.txid) return { txid: json.result.txid, attempts }
+        } catch { /* not JSON */ }
+      }
+    } catch (e) {
+      attempts['quicknode_submitpackage'] = `Error: ${e}`
+    }
+  }
+
+  // ── Attempt 2: TAAL ARC (accepts non-standard txs) ──────────────────────────
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (taalApiKey) headers['Authorization'] = `Bearer ${taalApiKey}`
@@ -424,8 +464,9 @@ export async function GET(req: NextRequest) {
   let broadcast_error: string | null = null
   let broadcast_attempts: Record<string, string> | null = null
   if (doBroadcast && tx_hex) {
-    const taalKey = process.env.TAAL_API_KEY ?? undefined
-    const result = await broadcastTx(tx_hex, taalKey)
+    const taalKey     = process.env.TAAL_API_KEY ?? undefined
+    const quicknodeUrl = process.env.QUICKNODE_BTC_URL ?? undefined
+    const result = await broadcastTx(tx_hex, taalKey, quicknodeUrl)
     broadcast_txid    = result.txid ?? null
     broadcast_error   = result.error ?? null
     broadcast_attempts = result.attempts
