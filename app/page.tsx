@@ -605,14 +605,31 @@ export default function Home() {
               <div className="mb-8">
                 <ArenaLiveStats />
               </div>
-              <BattleStatsWidget address={address || undefined} />
               <div className="mt-10">
                 {isLaunched ? (
                   <>
                     <ActiveQueueBanner onFound={setHasActiveQueue} />
-                    <FighterSelect disabled={hasActiveQueue} />
+                    <div className="flex gap-6 items-start">
+                      <div className="flex-1 min-w-0">
+                        <FighterSelect disabled={hasActiveQueue} />
+                      </div>
+                      <div className="w-80 flex-shrink-0 hidden lg:block">
+                        <BattleStatsWidget address={address || undefined} />
+                      </div>
+                    </div>
+                    {/* Mobile: leaderboard below */}
+                    <div className="lg:hidden mt-8">
+                      <BattleStatsWidget address={address || undefined} />
+                    </div>
                   </>
-                ) : <BattleCountdown />}
+                ) : (
+                  <>
+                    <BattleCountdown />
+                    <div className="mt-8">
+                      <BattleStatsWidget address={address || undefined} />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
