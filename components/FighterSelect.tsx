@@ -58,6 +58,20 @@ function InscriptionArt({
   const [imgErr, setImgErr] = useState(false)
   const sizeClass = { sm: 'w-20 h-20', md: 'w-32 h-32 lg:w-40 lg:h-40', lg: 'w-44 h-44 lg:w-56 lg:h-56' }[size]
   const isImage = fighter.content_type?.startsWith('image/')
+  const isHtml = fighter.content_type?.startsWith('text/html') || fighter.content_type === 'application/xhtml+xml'
+
+  if (isHtml && fighter.content_url) {
+    return (
+      <iframe
+        src={fighter.content_url}
+        className={`${sizeClass} rounded-lg`}
+        style={{ border: 'none', pointerEvents: 'none', filter: 'drop-shadow(0 0 12px rgba(220,38,38,0.6))' }}
+        sandbox="allow-scripts allow-same-origin"
+        scrolling="no"
+        loading="lazy"
+      />
+    )
+  }
 
   if (!imgErr && isImage && fighter.content_url) {
     return (
@@ -328,6 +342,10 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
       .catch(() => {})
   }, [address])
 
+  const [activeTab, setActiveTab] = useState<'normal' | 'padded'>('normal')
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
+
   const collections = useMemo(() => {
     const map = new Map<string, string>()
     for (const f of fighters) {
@@ -346,6 +364,23 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
       return true
     })
   }, [fighters, onlyCollections, collectionFilter, maxFloor])
+
+  // Split by UTXO value
+  const normalFighters = useMemo(
+    () => filtered.filter((f) => f.output_value === 330 || f.output_value === 546),
+    [filtered]
+  )
+  const paddedFighters = useMemo(
+    () => filtered.filter((f) => f.output_value !== 330 && f.output_value !== 546),
+    [filtered]
+  )
+
+  const activeList = activeTab === 'normal' ? normalFighters : paddedFighters
+  const totalPages = Math.ceil(activeList.length / PAGE_SIZE)
+  const pageFighters = activeList.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  // Reset page when tab or filters change
+  useEffect(() => { setPage(0) }, [activeTab, maxFloor, collectionFilter, onlyCollections])
 
   const handlePsbtSigned = (psbt: string) => {
     setSignedPsbt(psbt)
@@ -397,7 +432,7 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
             {loading
               ? 'Scanning your inscriptions…'
               : fighters.length > 0
-              ? `${fighters.length} inscriptions — ${filtered.length} shown`
+              ? `${normalFighters.length} eligible · ${paddedFighters.length} extra padded`
               : 'No inscriptions found'}
           </p>
         </div>
@@ -410,6 +445,29 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
           </div>
         )}
       </div>
+
+      {/* Tabs */}
+      {!loading && fighters.length > 0 && (
+        <div className="flex gap-2 mb-4">
+          {([
+            { key: 'normal', label: '⚔️ Choose Your Fighter', count: normalFighters.length },
+            { key: 'padded', label: '🪙 Extra Padded UTXOs', count: paddedFighters.length },
+          ] as const).map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-wide transition-all"
+              style={{
+                background: activeTab === key ? 'rgba(185,28,28,0.25)' : 'rgba(120,10,10,0.06)',
+                border: `1px solid ${activeTab === key ? 'rgba(185,28,28,0.5)' : 'rgba(185,28,28,0.12)'}`,
+                color: activeTab === key ? '#cc2200' : '#4a1515',
+              }}
+            >
+              {label} <span className="opacity-60">({count})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filter bar */}
       {!loading && fighters.length > 0 && (
@@ -505,37 +563,33 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
       )}
 
       {/* No results */}
-      {!loading && !loadError && fighters.length > 0 && filtered.length === 0 && (
-        <div className="py-8 text-center text-red-900 text-xs">
-          No inscriptions match the current filters.
+      {!loading && !loadError && fighters.length > 0 && activeList.length === 0 && (
+        <div className="py-8 text-center text-red-900 text-sm">
+          {activeTab === 'normal'
+            ? 'No eligible inscriptions (330 or 546 sat UTXOs) match the current filters.'
+            : 'No extra-padded inscriptions match the current filters.'}
         </div>
       )}
 
       {/* Grid */}
-      {!loading && !loadError && filtered.length > 0 && (
+      {!loading && !loadError && pageFighters.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 lg:gap-5">
-          {filtered.map((fighter) => {
+          {pageFighters.map((fighter) => {
             const isSelected = selected?.inscription_id === fighter.inscription_id
             const isSigned = signedPsbt && selected?.inscription_id === fighter.inscription_id
 
             return (
               <button
                 key={fighter.inscription_id}
-                onClick={() => {
-                  setSelected(fighter)
-                  if (isSigned) return
-                }}
+                onClick={() => { setSelected(fighter) }}
                 className="relative rounded-xl text-left overflow-hidden transition-all"
                 style={{
-                  background: isSelected
-                    ? 'rgba(185,28,28,0.15)'
-                    : 'rgba(120,10,10,0.06)',
+                  background: isSelected ? 'rgba(185,28,28,0.15)' : 'rgba(120,10,10,0.06)',
                   border: `1px solid ${isSelected ? 'rgba(185,28,28,0.5)' : 'rgba(185,28,28,0.12)'}`,
                   boxShadow: isSelected ? '0 0 20px rgba(185,28,28,0.2)' : 'none',
                   transform: isSelected ? 'scale(1.02)' : 'scale(1)',
                 }}
               >
-                {/* Signed badge */}
                 {isSigned && (
                   <div
                     className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
@@ -555,6 +609,14 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
 
                 {/* Info */}
                 <div className="p-3 lg:p-4">
+                  {/* UTXO sat value — most important */}
+                  <div
+                    className="text-base lg:text-lg font-black tabular-nums mb-1"
+                    style={{ color: fighter.output_value === 330 || fighter.output_value === 546 ? '#22c55e' : '#f59e0b' }}
+                  >
+                    {fighter.output_value != null ? `${fighter.output_value.toLocaleString()} sats` : '— sats'}
+                  </div>
+
                   <div className="text-sm lg:text-base font-black text-red-200 truncate leading-tight">
                     {displayName(fighter)}
                   </div>
@@ -593,6 +655,31 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30"
+            style={{ background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}
+          >
+            ← Prev
+          </button>
+          <span className="text-sm font-black" style={{ color: '#4a1515' }}>
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30"
+            style={{ background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}
+          >
+            Next →
+          </button>
         </div>
       )}
 

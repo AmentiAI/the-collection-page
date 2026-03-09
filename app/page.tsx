@@ -305,7 +305,7 @@ function BattleStatsWidget({ address }: { address: string | undefined }) {
   const fmt = (w: string) => `${w.slice(0, 6)}…${w.slice(-4)}`
 
   return (
-    <div className="mt-10" style={{ maxWidth: 700, margin: '40px auto 0' }}>
+    <div className="w-full">
       {/* Personal stats row */}
       {myStats && (
         <div
