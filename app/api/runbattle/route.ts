@@ -8,10 +8,28 @@ bitcoin.initEccLib(ecc)
 
 export const dynamic = 'force-dynamic'
 
-const MEMPOOL_BASE = 'https://mempool.space/api'
+const MEMPOOL_BASE  = 'https://mempool.space/api'
 const WINNER_PAYOUT = BigInt(625)  // sats to winner
 const BURN_VALUE    = BigInt(1)    // sats per OP_RETURN burn output
-const MINER_FEE     = BigInt(35)   // total miner fee
+
+// Calculate tx fee from actual witness sizes.
+// weight = non_witness_bytes × 4 + witness_bytes × 1
+// vsize  = ceil(weight / 4)
+//
+// Non-witness per input: 32 (txid) + 4 (vout) + 1 (scriptLen=0) + 4 (seq) = 41 bytes
+// Server taproot witness per input: 1 (stack count) + 1 (sig len) + 64 (schnorr) = 66 bytes
+// Outputs (all non-witness):
+//   P2TR:      8 (value) + 1 (len) + 34 (script) = 43 bytes
+//   OP_RETURN: 8 (value) + 1 (len) + 8  (script) = 17 bytes (OP_RETURN + push + "BATTLE")
+// Overhead: 4 (version) + 4 (locktime) + 1 (vin count) + 1 (vout count) = 10 non-witness
+//           + 2 (segwit marker+flag) witness
+function calcFee(p1WitnessLen: number, p2WitnessLen: number, feeRate: number): bigint {
+  const nonWitness = 10 + (4 * 41) + (3 * 43) + (2 * 17) // overhead + 4 inputs base + outputs
+  const witness    = 2 + p1WitnessLen + 66 + p2WitnessLen + 66 // segwit flag + all input witnesses
+  const weight     = nonWitness * 4 + witness
+  const vsize      = Math.ceil(weight / 4)
+  return BigInt(vsize * feeRate)
+}
 
 // Determine winner: higher (atk + spd) wins; tiebreak = lower inscription number
 function determineWinner(f1: any, f2: any): 1 | 2 {
@@ -65,7 +83,8 @@ async function getOutputScript(txid: string, vout: number): Promise<{ script: Bu
   return { script: Buffer.from(out.script), value: BigInt(out.value) }
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const feeRate = Math.max(1, parseInt(req.nextUrl.searchParams.get('fee_rate') ?? '1'))
   const pool = getPool()
 
   // Load battle wallet credentials from DB
@@ -129,8 +148,14 @@ export async function GET(_req: NextRequest) {
   const p2In       = p2Psbt.txInputs[0]
   const p1Witness  = p1Psbt.data.inputs[0].witnessUtxo
   const p2Witness  = p2Psbt.data.inputs[0].witnessUtxo
-  const p1TapKey   = p1Psbt.data.inputs[0].tapInternalKey
-  const p2TapKey   = p2Psbt.data.inputs[0].tapInternalKey
+  const p1TapKey        = p1Psbt.data.inputs[0].tapInternalKey
+  const p2TapKey        = p2Psbt.data.inputs[0].tapInternalKey
+  const p1FinalWitness  = p1Psbt.data.inputs[0].finalScriptWitness
+  const p2FinalWitness  = p2Psbt.data.inputs[0].finalScriptWitness
+  // Fallback: taproot with 65-byte sig (sighash byte) = 1+1+65 = 67 witness bytes
+  const p1WitnessLen    = p1FinalWitness?.length ?? 67
+  const p2WitnessLen    = p2FinalWitness?.length ?? 67
+  const MINER_FEE       = calcFee(p1WitnessLen, p2WitnessLen, feeRate)
 
   if (!p1Witness || !p2Witness) {
     return NextResponse.json({ error: 'Player PSBTs missing witnessUtxo' }, { status: 400 })
@@ -154,8 +179,6 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: `Failed to fetch battle wallet UTXOs: ${e}` }, { status: 500 })
   }
 
-  // Need 2 confirmed padding UTXOs large enough to cover winner payout + fee
-  const MIN_PAD = WINNER_PAYOUT + MINER_FEE + BigInt(546)
   const candidates = walletUtxos
     .filter(u => u.status?.confirmed && BigInt(u.value) >= BigInt(1000))
     .sort((a, b) => a.value - b.value)
@@ -185,6 +208,7 @@ export async function GET(_req: NextRequest) {
   const pad1Val = pad1Out.value
   const pad2Val = pad2Out.value
 
+  const MIN_PAD = WINNER_PAYOUT + MINER_FEE + BigInt(546)
   if (pad1Val < MIN_PAD) {
     return NextResponse.json({
       error: `Padding UTXO 1 is ${pad1Val} sats — need ≥ ${MIN_PAD} to cover winner payout + fee`,
@@ -192,12 +216,7 @@ export async function GET(_req: NextRequest) {
   }
 
   // ── Calculate output values ─────────────────────────────────────────────────
-  //
-  // Input total  = ord1Val + pad1Val + ord2Val + pad2Val
-  // Output total = BURN_VALUE + WINNER_PAYOUT + out2Val + BURN_VALUE + out4Val
-  // Miner fee    = input_total - output_total = MINER_FEE (35 sats)
-  //
-  // output 2 = pad1 contribution after paying winner + half the fee
+  // output 2 = pad1 contribution after paying winner payout + full miner fee
   const out2Val = pad1Val - WINNER_PAYOUT - MINER_FEE
   // output 4 = remaining ordinal sats (minus the 1 sat each burned) + pad2
   const out4Val = (ord1Val - BURN_VALUE) + (ord2Val - BURN_VALUE) + pad2Val
@@ -258,10 +277,9 @@ export async function GET(_req: NextRequest) {
   // in finalScriptWitness rather than tapKeySig. Since players signed with 0x82
   // (SIGHASH_NONE|ANYONECANPAY), which commits only to their specific input prevout,
   // the witness is valid in any transaction spending that UTXO. Copy it directly.
-  const p1FinalWitness = p1Psbt.data.inputs[0].finalScriptWitness
-  const p2FinalWitness = p2Psbt.data.inputs[0].finalScriptWitness
-  const p1TapKeySig    = p1Psbt.data.inputs[0].tapKeySig
-  const p2TapKeySig    = p2Psbt.data.inputs[0].tapKeySig
+  // (p1FinalWitness / p2FinalWitness already extracted above for fee calculation)
+  const p1TapKeySig = p1Psbt.data.inputs[0].tapKeySig
+  const p2TapKeySig = p2Psbt.data.inputs[0].tapKeySig
 
   // ── Set tapInternalKey for our padding inputs only ──────────────────────────
   const signer = buildTaprootSigner(privKeyHex)
@@ -352,7 +370,9 @@ export async function GET(_req: NextRequest) {
     totals: {
       total_in_sats:  Number(totalIn),
       total_out_sats: Number(totalOut),
-      miner_fee_sats: Number(impliedFee),
+      miner_fee_sats:  Number(impliedFee),
+      fee_rate_per_vb: feeRate,
+      est_vsize:       Math.ceil((((10 + (4 * 41) + (3 * 43) + (2 * 17)) * 4) + (2 + p1WitnessLen + 66 + p2WitnessLen + 66)) / 4),
     },
     signing: {
       input_0_player1: p1FinalizeError ?? (p1FinalWitness ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
