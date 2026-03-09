@@ -14,7 +14,7 @@ async function ensureTable() {
       status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'matched', 'cancelled')),
       opponent_queue_id UUID,
       joined_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 minutes')
+      expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours')
     )
   `)
   // Add signed_psbt column if table already existed without it
@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
   if (claimed.length > 0) {
     const opp = claimed[0]
     const { rows: me } = await pool.query(`
-      INSERT INTO matchmaking_queue (player_id, fighter_data, signed_psbt, status, opponent_queue_id)
-      VALUES ($1, $2, $3, 'matched', $4)
+      INSERT INTO matchmaking_queue (player_id, fighter_data, signed_psbt, status, opponent_queue_id, expires_at)
+      VALUES ($1, $2, $3, 'matched', $4, NOW() + INTERVAL '24 hours')
       RETURNING id
     `, [player_id, JSON.stringify(fighter_data), signed_psbt ?? null, opp.id])
 
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   // No one waiting — enter the queue
   const { rows: me } = await pool.query(`
     INSERT INTO matchmaking_queue (player_id, fighter_data, signed_psbt, expires_at)
-    VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes')
+    VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')
     RETURNING id
   `, [player_id, JSON.stringify(fighter_data), signed_psbt ?? null])
 

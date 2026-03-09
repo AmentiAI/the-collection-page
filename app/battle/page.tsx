@@ -89,7 +89,7 @@ export default function BattlePage() {
   }, [address, router])
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: '#030101' }}>
+    <div className="h-screen overflow-hidden flex flex-col relative" style={{ background: '#030101' }}>
       <Header
         isHolder={isHolder}
         isVerifying={isVerifying}
@@ -101,21 +101,20 @@ export default function BattlePage() {
       />
 
       {!address && (
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-sm font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>Connect your wallet to view battle</div>
         </div>
       )}
 
       {address && (loading || !me || !opp) && (
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
         </div>
       )}
 
       {me && opp && (
         <div
-          className="relative flex flex-col items-center justify-center px-4 py-12"
-          style={{ minHeight: 'calc(100vh - 80px)' }}
+          className="relative flex-1 flex flex-col items-center justify-start px-4 pt-6 pb-4"
         >
           <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
