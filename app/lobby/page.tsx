@@ -27,7 +27,7 @@ export interface Fighter {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function deriveStats(inscriptionNumber: number): Omit<Fighter, 'id' | 'name' | 'contentUrl' | 'contentType' | 'inscriptionNumber'> {
+function deriveStats(inscriptionNumber: number): Omit<Fighter, 'id' | 'name' | 'contentUrl' | 'contentType' | 'inscriptionNumber' | 'utxoValue'> {
   const s = inscriptionNumber
   const hp = 70 + (s % 50)
   const atk = 60 + ((s * 3) % 40)
