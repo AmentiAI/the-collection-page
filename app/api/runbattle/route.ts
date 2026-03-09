@@ -339,13 +339,13 @@ export async function GET(req: NextRequest) {
   const pad2Val = pad2Out.value
 
   // ── Output values ───────────────────────────────────────────────────────────
-  // TX1 output 1: winner gets both ordinals' freed sats minus fee
-  const tx1WinnerOut = (winnerOrdVal - BURN_VALUE) + (loserOrdVal - BURN_VALUE) - fee1
-  // TX2 output 1: server collects both pads minus fee
-  const tx2ServerOut = pad1Val + pad2Val - BURN_VALUE - fee2
+  // TX1: winner's ordinal + pad1 → OP_RETURN burn + winner payout
+  const tx1WinnerOut = (winnerOrdVal - BURN_VALUE) + pad1Val - fee1
+  // TX2: loser's ordinal + pad2 → OP_RETURN burn + server collects
+  const tx2ServerOut = (loserOrdVal - BURN_VALUE) + pad2Val - fee2
 
   if (tx1WinnerOut <= BigInt(0)) {
-    return NextResponse.json({ error: `Ordinal values too small to cover TX1 fee (${fee1} sats)` }, { status: 400 })
+    return NextResponse.json({ error: `TX1 output negative — pad1 too small to cover fee (${fee1} sats)` }, { status: 400 })
   }
 
   const winnerScript = bitcoin.address.toOutputScript(winnerAddr, bitcoin.networks.bitcoin)
@@ -353,12 +353,12 @@ export async function GET(req: NextRequest) {
   const burnScript   = bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, Buffer.from('BATTLE')])
   const signer       = buildTaprootSigner(privKeyHex)
 
-  // ── Build TX1: winner's ordinal burned, winner paid ─────────────────────────
-  // Input 0: winner's ordinal — OP_RETURN burns winner's inscription (first sat)
-  // Input 1: loser's ordinal  — loser's inscription flows to winner with sats
+  // ── Build TX1: winner's ordinal (input 0) + server pad1 (input 1) ───────────
+  // Output 0: OP_RETURN burns winner's inscription (first sat of input 0)
+  // Output 1: (winnerOrdVal - 1) + pad1Val - fee → winner address
   const tx1 = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
   tx1.addInput({ hash: winnerTxId, index: winnerIn.index, sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(winnerOrdWU.script), value: winnerOrdVal } })
-  tx1.addInput({ hash: loserTxId,  index: loserIn.index,  sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(loserOrdWU.script),  value: loserOrdVal  } })
+  tx1.addInput({ hash: pad1.txid,  index: pad1.vout,      sequence: 0xfffffffd, witnessUtxo: { script: pad1Out.script, value: pad1Val } })
   tx1.addOutput({ script: burnScript,   value: BURN_VALUE    }) // 0: OP_RETURN burns winner inscription
   tx1.addOutput({ script: winnerScript, value: tx1WinnerOut  }) // 1: winner payout
 
@@ -376,43 +376,48 @@ export async function GET(req: NextRequest) {
     tx1WinnerErr = 'No signature found in winner PSBT'
   }
 
-  // Inject loser signature (input 1)
-  let tx1LoserErr: string | null = null
+  // Server signs pad1 (input 1)
+  tx1.updateInput(1, { tapInternalKey: signer.xOnly })
+  let tx1PadErr: string | null = null
+  try {
+    tx1.signInput(1, signer)
+    tx1.finalizeInput(1)
+  } catch (e) { tx1PadErr = String(e) }
+
+  // ── Build TX2: loser's ordinal (input 0) + server pad2 (input 1) ────────────
+  // Output 0: OP_RETURN burns loser's inscription (first sat of input 0)
+  // Output 1: (loserOrdVal - 1) + pad2Val - fee → server battle wallet
+  const tx2 = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
+  tx2.addInput({ hash: loserTxId, index: loserIn.index, sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(loserOrdWU.script), value: loserOrdVal } })
+  tx2.addInput({ hash: pad2.txid, index: pad2.vout,     sequence: 0xfffffffd, witnessUtxo: { script: pad2Out.script, value: pad2Val } })
+  tx2.addOutput({ script: burnScript, value: BURN_VALUE    }) // 0: OP_RETURN burns loser inscription
+  tx2.addOutput({ script: ourScript,  value: tx2ServerOut  }) // 1: server collects
+
+  // Inject loser signature (input 0)
+  let tx2LoserErr: string | null = null
   if (loserFW) {
-    tx1.data.inputs[1].finalScriptWitness = loserFW
+    tx2.data.inputs[0].finalScriptWitness = loserFW
   } else if (loserTapSig) {
     try {
-      if (loserTapKey) tx1.updateInput(1, { tapInternalKey: loserTapKey })
-      tx1.updateInput(1, { tapKeySig: loserTapSig })
-      tx1.finalizeInput(1)
-    } catch (e) { tx1LoserErr = String(e) }
+      if (loserTapKey) tx2.updateInput(0, { tapInternalKey: loserTapKey })
+      tx2.updateInput(0, { tapKeySig: loserTapSig })
+      tx2.finalizeInput(0)
+    } catch (e) { tx2LoserErr = String(e) }
   } else {
-    tx1LoserErr = 'No signature found in loser PSBT'
+    tx2LoserErr = 'No signature found in loser PSBT'
   }
 
-  // ── Build TX2: server collects pad UTXOs with BATTLE marker ─────────────────
-  const tx2 = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
-  tx2.addInput({ hash: pad1.txid, index: pad1.vout, sequence: 0xfffffffd, witnessUtxo: { script: pad1Out.script, value: pad1Val } })
-  tx2.addInput({ hash: pad2.txid, index: pad2.vout, sequence: 0xfffffffd, witnessUtxo: { script: pad2Out.script, value: pad2Val } })
-  tx2.addOutput({ script: burnScript, value: BURN_VALUE    }) // 0: OP_RETURN BATTLE marker
-  tx2.addOutput({ script: ourScript,  value: tx2ServerOut  }) // 1: server collects pads
-
-  tx2.updateInput(0, { tapInternalKey: signer.xOnly })
+  // Server signs pad2 (input 1)
   tx2.updateInput(1, { tapInternalKey: signer.xOnly })
-
-  let tx2SignErr: string | null = null
+  let tx2PadErr: string | null = null
   try {
-    tx2.signInput(0, signer)
     tx2.signInput(1, signer)
-    tx2.finalizeInput(0)
     tx2.finalizeInput(1)
-  } catch (e) {
-    tx2SignErr = String(e)
-  }
+  } catch (e) { tx2PadErr = String(e) }
 
   // ── Extract hex ─────────────────────────────────────────────────────────────
-  const tx1Ready = !tx1WinnerErr && !tx1LoserErr
-  const tx2Ready = !tx2SignErr
+  const tx1Ready = !tx1WinnerErr && !tx1PadErr
+  const tx2Ready = !tx2LoserErr && !tx2PadErr
   let tx1Hex: string | null = null
   let tx2Hex: string | null = null
   if (tx1Ready) { try { tx1Hex = tx1.extractTransaction().toHex() } catch { } }
@@ -455,7 +460,7 @@ export async function GET(req: NextRequest) {
       desc: 'Winner payout — winner inscription burned, winner receives both ordinal values',
       inputs: {
         0: { desc: 'winner ordinal (inscription burns)', txid: winnerTxId, vout: winnerIn.index, value_sats: Number(winnerOrdVal) },
-        1: { desc: 'loser ordinal',                     txid: loserTxId,  vout: loserIn.index,  value_sats: Number(loserOrdVal)  },
+        1: { desc: 'server pad1',                        txid: pad1.txid,  vout: pad1.vout,      value_sats: Number(pad1Val) },
       },
       outputs: {
         0: { desc: 'OP_RETURN burn (winner inscription)', value_sats: Number(BURN_VALUE) },
@@ -465,7 +470,7 @@ export async function GET(req: NextRequest) {
       est_vsize: Math.ceil(((10 + 2*41 + 17 + 43) * 4 + 2 + winnerWitnessLen + loserWitnessLen) / 4),
       signing: {
         input_0_winner: tx1WinnerErr ?? (winnerFW ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
-        input_1_loser:  tx1LoserErr  ?? (loserFW  ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
+        input_1_server_pad: tx1PadErr ?? 'SIGNED + FINALIZED',
       },
       ready: tx1Ready,
       broadcast_txid:     tx1BroadcastTxid,
@@ -486,8 +491,8 @@ export async function GET(req: NextRequest) {
       fee_sats:  Number(fee2),
       est_vsize: Math.ceil(((10 + 2*41 + 17 + 43) * 4 + 2 + 66 + 66) / 4),
       signing: {
-        input_0_server: tx2SignErr ?? 'SIGNED + FINALIZED',
-        input_1_server: tx2SignErr ?? 'SIGNED + FINALIZED',
+        input_0_loser:      tx2LoserErr ?? (loserFW ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
+        input_1_server_pad: tx2PadErr   ?? 'SIGNED + FINALIZED',
       },
       ready: tx2Ready,
       broadcast_txid:     tx2BroadcastTxid,
