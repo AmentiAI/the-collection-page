@@ -46,8 +46,8 @@ async function broadcastTx(txHex: string, taalApiKey?: string): Promise<{ txid?:
   try {
     const res = await fetch('https://slipstream.mara.com/tx', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ rawTx: txHex }),
+      headers: { 'Content-Type': 'text/plain' },
+      body:    txHex,
       cache:   'no-store',
     })
     const text = await res.text()
