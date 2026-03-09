@@ -192,8 +192,24 @@ function PsbtModal({
           <div className="text-2xl font-black text-red-100 mb-2">Commit to Battle</div>
           <p className="text-base text-red-900 leading-relaxed">
             Sign a PSBT that commits this inscription as your fighter. This proves ownership
-            on-chain — it will not move or broadcast your ordinal.
+            on-chain — it will not move or broadcast your ordinal until the battle executes.
           </p>
+        </div>
+
+        {/* Burn warning */}
+        <div
+          className="flex items-start gap-3 px-4 py-3 rounded-xl mb-5"
+          style={{ background: 'rgba(234,179,8,0.1)', border: '2px solid rgba(234,179,8,0.5)' }}
+        >
+          <span className="text-2xl flex-shrink-0">🔥</span>
+          <div>
+            <div className="text-base font-black uppercase tracking-widest mb-1" style={{ color: '#eab308' }}>
+              This inscription will be permanently burned
+            </div>
+            <div className="text-sm leading-relaxed" style={{ color: '#a16207' }}>
+              Win or lose, both inscriptions are destroyed on-chain. If you <span style={{ color: '#eab308', fontWeight: 900 }}>win</span>, you receive the sat value of both UTXOs back to your wallet. If you <span style={{ color: '#ef4444', fontWeight: 900 }}>lose</span>, you get nothing.
+            </div>
+          </div>
         </div>
 
         {/* UTXO info */}
@@ -444,6 +460,22 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
             ✓ {displayName(selected)} committed
           </div>
         )}
+      </div>
+
+      {/* Burn warning banner */}
+      <div
+        className="flex items-start gap-3 px-4 py-3 rounded-xl mb-4"
+        style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.35)' }}
+      >
+        <span className="text-xl flex-shrink-0 mt-0.5">🔥</span>
+        <div>
+          <div className="text-sm font-black uppercase tracking-widest mb-0.5" style={{ color: '#eab308' }}>
+            Your inscription will be burned — even if you win
+          </div>
+          <div className="text-xs leading-relaxed" style={{ color: '#a16207' }}>
+            Both inscriptions are permanently destroyed on-chain. The winner receives the sat value of both UTXOs back to their wallet. Only enter with an inscription you are willing to sacrifice.
+          </div>
+        </div>
       </div>
 
       {/* Selected detail + commit CTA */}
