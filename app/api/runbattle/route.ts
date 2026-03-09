@@ -51,13 +51,13 @@ function buildTaprootSigner(privKeyHex: string) {
 }
 
 async function fetchWalletUtxos(address: string) {
-  const res = await fetch(`${MEMPOOL_BASE}/address/${encodeURIComponent(address)}/utxo`)
+  const res = await fetch(`${MEMPOOL_BASE}/address/${encodeURIComponent(address)}/utxo`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Cannot fetch UTXOs: ${res.status}`)
   return res.json() as Promise<Array<{ txid: string; vout: number; status: { confirmed: boolean }; value: number }>>
 }
 
 async function getOutputScript(txid: string, vout: number): Promise<{ script: Buffer; value: bigint }> {
-  const res = await fetch(`${MEMPOOL_BASE}/tx/${txid}/hex`)
+  const res = await fetch(`${MEMPOOL_BASE}/tx/${txid}/hex`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Cannot fetch tx ${txid}: ${res.status}`)
   const tx  = bitcoin.Transaction.fromHex(await res.text())
   const out = tx.outs[vout]
