@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Try to atomically claim a waiting opponent
-  // Exclude same player_id AND same inscription_id to prevent self-matching
+  // Must match same utxoValue (330 vs 330, 546 vs 546) — no cross-value matches
+  const utxo_value = fighter_data?.utxoValue ?? 330
   const { rows: claimed } = await pool.query(`
     UPDATE matchmaking_queue
     SET status = 'matched'
@@ -61,11 +62,12 @@ export async function POST(req: NextRequest) {
         AND player_id != $1
         AND ($2 = '' OR fighter_data->>'id' != $2)
         AND expires_at > NOW()
+        AND (fighter_data->>'utxoValue')::int = $3
       ORDER BY joined_at ASC
       LIMIT 1
     )
     RETURNING id, fighter_data
-  `, [player_id, inscription_id])
+  `, [player_id, inscription_id, utxo_value])
 
   if (claimed.length > 0) {
     const opp = claimed[0]

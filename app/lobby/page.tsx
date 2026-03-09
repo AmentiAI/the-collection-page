@@ -13,6 +13,7 @@ export interface Fighter {
   name: string
   contentUrl?: string
   contentType?: string
+  utxoValue: number  // sat value of the UTXO (330, 546, etc.) — used for matchmaking
   hp: number
   atk: number
   def: number
@@ -62,6 +63,7 @@ function enrichedToFighter(enriched: any): Fighter {
     name,
     contentUrl: enriched.content_url,
     contentType: enriched.content_type ?? undefined,
+    utxoValue: enriched.output_value ?? 330,
     ...stats,
   }
 }
@@ -83,7 +85,26 @@ const ELEMENT_ICONS: Record<Fighter['element'], string> = {
 function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 'md' | 'lg' }) {
   const [err, setErr] = useState(false)
   const dim = { sm: 'w-24 h-24', md: 'w-36 h-36', lg: 'w-48 h-48' }[size]
+  const isHtml = fighter.contentType?.startsWith('text/html') || fighter.contentType === 'application/xhtml+xml'
   const isImage = fighter.contentType?.startsWith('image/')
+
+  if (isHtml && fighter.contentUrl) {
+    return (
+      <iframe
+        src={fighter.contentUrl}
+        className={`${dim} rounded-xl`}
+        style={{
+          border: 'none',
+          pointerEvents: 'none',
+          filter: `drop-shadow(0 0 12px ${fighter.glowColor})`,
+        }}
+        sandbox="allow-scripts allow-same-origin"
+        scrolling="no"
+        loading="lazy"
+      />
+    )
+  }
+
   if (!err && isImage && fighter.contentUrl) {
     return (
       <img
@@ -95,6 +116,7 @@ function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 
       />
     )
   }
+
   return (
     <div
       className={`${dim} rounded-xl flex flex-col items-center justify-center`}
@@ -423,7 +445,7 @@ export default function LobbyPage() {
           <div className="text-base mt-3 font-bold" style={{ color: '#4a1515' }}>
             {phase === 'found'
               ? `Battle starts in ${countdown}…`
-              : `Waiting for a challenger — ${waitSeconds}s`}
+              : `Waiting for a ${myFighter.utxoValue}-sat challenger — ${waitSeconds}s`}
           </div>
         </div>
 

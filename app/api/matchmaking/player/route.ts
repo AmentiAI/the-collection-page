@@ -13,11 +13,10 @@ export async function GET(req: NextRequest) {
   const pool = getPool()
 
   const { rows } = await pool.query(
-    `SELECT id, status, fighter_data, opponent_queue_id
+    `SELECT id, status, fighter_data, opponent_queue_id, battle_result
      FROM matchmaking_queue
      WHERE player_id = $1
-       AND status IN ('waiting', 'matched')
-       AND expires_at > NOW()
+       AND status IN ('waiting', 'matched', 'completed')
      ORDER BY joined_at DESC
      LIMIT 1`,
     [player_id]
@@ -25,6 +24,19 @@ export async function GET(req: NextRequest) {
 
   const entry = rows[0]
   if (!entry) return NextResponse.json({ found: false })
+
+  // Completed battle — return result directly
+  if (entry.status === 'completed' && entry.battle_result) {
+    return NextResponse.json({
+      found: true,
+      queue_id: entry.id,
+      status: 'completed',
+      fighter_data: entry.fighter_data,
+      battle_result: entry.battle_result,
+      opponent: null,
+      opponent_player_id: null,
+    })
+  }
 
   let opponent = null
   let opponent_player_id = null

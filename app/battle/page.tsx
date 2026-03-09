@@ -22,6 +22,15 @@ interface Fighter {
   glowColor: string
 }
 
+interface BattleResult {
+  winner_address: string
+  loser_address: string
+  winner_num: number
+  tx1_txid: string
+  tx2_txid: string
+  completed_at: string
+}
+
 function FighterArt({ fighter, flip }: { fighter: Fighter; flip?: boolean }) {
   const [err, setErr] = useState(false)
   const isImage = fighter.contentType?.startsWith('image/')
@@ -90,6 +99,7 @@ export default function BattlePage() {
   const [opp, setOpp] = useState<Fighter | null>(null)
   const [queueId, setQueueId] = useState<string | null>(null)
   const [oppPlayerId, setOppPlayerId] = useState<string | null>(null)
+  const [battleResult, setBattleResult] = useState<BattleResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -100,7 +110,18 @@ export default function BattlePage() {
     fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
       .then(r => r.json())
       .then(data => {
-        if (!data.found || data.status !== 'matched' || !data.opponent) {
+        if (!data.found) {
+          router.push('/?battle=1')
+          return
+        }
+        if (data.status === 'completed' && data.battle_result) {
+          setMe(data.fighter_data as Fighter)
+          setBattleResult(data.battle_result as BattleResult)
+          setQueueId(data.queue_id)
+          setLoading(false)
+          return
+        }
+        if (data.status !== 'matched' || !data.opponent) {
           router.push('/?battle=1')
           return
         }
@@ -112,6 +133,8 @@ export default function BattlePage() {
       })
       .catch(() => router.push('/?battle=1'))
   }, [address, router])
+
+  const iWon = battleResult && address && battleResult.winner_address.toLowerCase() === address.toLowerCase()
 
   return (
     <div className="h-screen overflow-hidden flex flex-col relative" style={{ background: '#030101' }}>
@@ -131,16 +154,86 @@ export default function BattlePage() {
         </div>
       )}
 
-      {address && (loading || !me || !opp) && (
+      {address && loading && (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
         </div>
       )}
 
-      {me && opp && (
-        <div
-          className="relative flex-1 flex flex-col items-center justify-start px-4 pt-6 pb-4"
-        >
+      {/* ── Completed battle result screen ── */}
+      {battleResult && me && (
+        <div className="relative flex-1 flex flex-col items-center justify-center px-4 pb-4">
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: iWon
+              ? 'radial-gradient(ellipse at 50% 0%, rgba(234,179,8,0.18) 0%, transparent 60%)'
+              : 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
+          }} />
+          <div className="relative z-10 w-full max-w-lg flex flex-col items-center gap-6 text-center">
+            <div>
+              <div
+                className="text-5xl lg:text-7xl font-black uppercase tracking-widest"
+                style={{
+                  color: iWon ? '#eab308' : '#cc2200',
+                  textShadow: iWon
+                    ? '0 0 40px rgba(234,179,8,0.7)'
+                    : '0 0 40px rgba(185,28,28,0.7)',
+                }}
+              >
+                {iWon ? '👑 Victory!' : '💀 Defeated'}
+              </div>
+              <div className="text-sm uppercase tracking-widest mt-3 font-bold" style={{ color: '#4a1515' }}>
+                {iWon ? 'Your inscription has been sacrificed — you claimed the spoils' : 'Your inscription has been sacrificed — better luck next time'}
+              </div>
+            </div>
+
+            <FighterArt fighter={me} />
+            <div className="font-black text-2xl" style={{ color: '#e8eef7' }}>{me.name}</div>
+
+            <div className="w-full rounded-xl px-5 py-4 flex flex-col gap-2 text-xs font-mono" style={{ background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.15)' }}>
+              <div className="flex justify-between">
+                <span style={{ color: '#4a1515' }}>Winner TX</span>
+                <a
+                  href={`https://mempool.space/tx/${battleResult.tx1_txid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                  style={{ color: '#cc2200' }}
+                >
+                  {battleResult.tx1_txid.slice(0, 12)}…{battleResult.tx1_txid.slice(-8)}
+                </a>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: '#4a1515' }}>Loser TX</span>
+                <a
+                  href={`https://mempool.space/tx/${battleResult.tx2_txid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                  style={{ color: '#cc2200' }}
+                >
+                  {battleResult.tx2_txid.slice(0, 12)}…{battleResult.tx2_txid.slice(-8)}
+                </a>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push('/?battle=1')}
+              className="text-base tracking-widest uppercase font-black px-8 py-4 rounded-xl transition-opacity hover:opacity-80"
+              style={{
+                background: iWon ? 'rgba(234,179,8,0.15)' : 'rgba(185,28,28,0.15)',
+                border: `1px solid ${iWon ? 'rgba(234,179,8,0.4)' : 'rgba(185,28,28,0.4)'}`,
+                color: iWon ? '#eab308' : '#cc2200',
+              }}
+            >
+              ⚔️ Fight Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pre-battle matchup screen ── */}
+      {me && opp && !battleResult && (
+        <div className="relative flex-1 flex flex-col items-center justify-start px-4 pt-6 pb-4">
           <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
           }} />
@@ -150,7 +243,7 @@ export default function BattlePage() {
                 ⚔️ Battle ⚔️
               </div>
               <div className="text-sm uppercase tracking-widest mt-2 font-bold" style={{ color: '#4a1515' }}>
-                Coming Soon — Match Recorded
+                Match Found — Awaiting Execution
               </div>
             </div>
 
