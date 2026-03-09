@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
+
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Surrogate-Control': 'no-store',
+}
 
 const ORDISCAN_BASE = 'https://api.ordiscan.com/v1'
 
@@ -40,19 +48,19 @@ async function fetchAllInscriptions(address: string, apiKey: string): Promise<Or
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get('address')
   if (!address) {
-    return NextResponse.json({ error: 'address required' }, { status: 400 })
+    return NextResponse.json({ error: 'address required' }, { status: 400, headers: NO_CACHE_HEADERS })
   }
 
   const apiKey = process.env.ORDISCAN_API_KEY
   if (!apiKey) {
-    return NextResponse.json({ error: 'ORDISCAN_API_KEY not configured' }, { status: 500 })
+    return NextResponse.json({ error: 'ORDISCAN_API_KEY not configured' }, { status: 500, headers: NO_CACHE_HEADERS })
   }
 
   try {
     const inscriptions = await fetchAllInscriptions(address, apiKey)
 
     if (!inscriptions.length) {
-      return NextResponse.json({ data: [] })
+      return NextResponse.json({ data: [] }, { headers: NO_CACHE_HEADERS })
     }
 
     const ids = inscriptions.map((i) => i.inscription_id)
@@ -111,12 +119,12 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data }, { headers: NO_CACHE_HEADERS })
   } catch (e) {
     console.error('[wallet-fighters]', e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Failed to load wallet' },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     )
   }
 }

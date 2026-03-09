@@ -204,6 +204,66 @@ function BattleCountdown() {
   )
 }
 
+// ─── Arena Live Stats ─────────────────────────────────────────────────────────
+
+interface ArenaStats {
+  in_queue: number
+  active_matches: number
+  total_fights: number
+  total_fighters: number
+}
+
+function ArenaLiveStats() {
+  const [stats, setStats] = useState<ArenaStats | null>(null)
+  const [pulse, setPulse] = useState(false)
+
+  const load = () => {
+    fetch('/api/arena/stats')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) { setStats(d); setPulse(true); setTimeout(() => setPulse(false), 600) }
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 15000)
+    return () => clearInterval(id)
+  }, [])
+
+  const items = [
+    { icon: '⏳', label: 'In Queue',        value: stats?.in_queue      ?? '—', color: '#f59e0b' },
+    { icon: '⚔️', label: 'Active Matches',  value: stats?.active_matches ?? '—', color: '#cc2200' },
+    { icon: '💀', label: 'Total Fights',     value: stats?.total_fights   ?? '—', color: '#a855f7' },
+    { icon: '🔥', label: 'Total Fighters',  value: stats?.total_fighters  ?? '—', color: '#22c55e' },
+  ]
+
+  return (
+    <div
+      className={`grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 transition-all duration-300 ${pulse ? 'opacity-80' : 'opacity-100'}`}
+    >
+      {items.map(({ icon, label, value, color }) => (
+        <div
+          key={label}
+          className="rounded-xl px-4 py-4 flex flex-col items-center gap-1 text-center"
+          style={{
+            background: 'rgba(5,2,2,0.85)',
+            border: `1px solid ${color}25`,
+            boxShadow: `0 0 18px ${color}10`,
+          }}
+        >
+          <div className="text-2xl leading-none">{icon}</div>
+          <div className="text-3xl sm:text-4xl font-black tabular-nums mt-1" style={{ color, textShadow: `0 0 20px ${color}60` }}>
+            {typeof value === 'number' ? value.toLocaleString() : value}
+          </div>
+          <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: '#4a1515' }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Battle Stats + Leaderboard Widget ────────────────────────────────────────
 
 interface BattleLeader {
@@ -268,7 +328,7 @@ function BattleStatsWidget({ address }: { address: string | undefined }) {
             <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Win Rate</div>
             <div className="text-3xl font-black tabular-nums" style={{ color: '#e8eef7', textShadow: '0 0 20px rgba(200,200,255,0.2)' }}>{myStats.win_pct}%</div>
           </div>
-          {myStats.rank && (
+          {myStats.rank && (myStats.wins > 0 || myStats.losses > 0) && (
             <div className="col-span-3 text-[10px] uppercase tracking-widest font-black" style={{ color: '#4a1515' }}>
               Your global rank: #{myStats.rank}
             </div>
@@ -541,13 +601,19 @@ export default function Home() {
             />
             {/* Battle UI or countdown */}
             <div className="container mx-auto px-4 py-8 relative z-10 max-w-7xl">
-              {isLaunched ? (
-                <>
-                  <ActiveQueueBanner onFound={setHasActiveQueue} />
-                  <FighterSelect disabled={hasActiveQueue} />
-                </>
-              ) : <BattleCountdown />}
+              {/* Hub stats — always at the top */}
+              <div className="mb-8">
+                <ArenaLiveStats />
+              </div>
               <BattleStatsWidget address={address || undefined} />
+              <div className="mt-10">
+                {isLaunched ? (
+                  <>
+                    <ActiveQueueBanner onFound={setHasActiveQueue} />
+                    <FighterSelect disabled={hasActiveQueue} />
+                  </>
+                ) : <BattleCountdown />}
+              </div>
             </div>
 
             {/* Ordinal collection hidden - just showing video */}
