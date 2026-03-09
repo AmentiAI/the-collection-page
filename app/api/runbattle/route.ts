@@ -464,8 +464,8 @@ export async function GET(req: NextRequest) {
   let broadcast_error: string | null = null
   let broadcast_attempts: Record<string, string> | null = null
   if (doBroadcast && tx_hex) {
-    const taalKey     = process.env.TAAL_API_KEY ?? undefined
-    const quicknodeUrl = process.env.QUICKNODE_BTC_URL ?? undefined
+    const taalKey      = process.env.TAAL_API_KEY ?? undefined
+    const quicknodeUrl = process.env.QUICKNODE_BTC_URL ?? 'https://special-bitter-dew.btc.quiknode.pro/82a382c9fef56c7a31e6e14a65bd512a8fde7130/'
     const result = await broadcastTx(tx_hex, taalKey, quicknodeUrl)
     broadcast_txid    = result.txid ?? null
     broadcast_error   = result.error ?? null
