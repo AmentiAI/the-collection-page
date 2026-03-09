@@ -9,9 +9,9 @@ bitcoin.initEccLib(ecc)
 export const dynamic = 'force-dynamic'
 
 const MEMPOOL_BASE = 'https://mempool.space/api'
-const WINNER_PAYOUT = 625n   // sats to winner
-const BURN_VALUE    = 1n     // sats per OP_RETURN burn output
-const MINER_FEE     = 35n    // total miner fee
+const WINNER_PAYOUT = BigInt(625)  // sats to winner
+const BURN_VALUE    = BigInt(1)    // sats per OP_RETURN burn output
+const MINER_FEE     = BigInt(35)   // total miner fee
 
 // Determine winner: higher (atk + spd) wins; tiebreak = lower inscription number
 function determineWinner(f1: any, f2: any): 1 | 2 {
@@ -147,9 +147,9 @@ export async function GET(_req: NextRequest) {
   }
 
   // Need 2 confirmed padding UTXOs large enough to cover winner payout + fee
-  const MIN_PAD = WINNER_PAYOUT + MINER_FEE + 546n // 660n + 546n = 1206n minimum for pad1
+  const MIN_PAD = WINNER_PAYOUT + MINER_FEE + BigInt(546)
   const candidates = walletUtxos
-    .filter(u => u.status?.confirmed && BigInt(u.value) >= 1000n)
+    .filter(u => u.status?.confirmed && BigInt(u.value) >= BigInt(1000))
     .sort((a, b) => a.value - b.value)
 
   if (candidates.length < 2) {

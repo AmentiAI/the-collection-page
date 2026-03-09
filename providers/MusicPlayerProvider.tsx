@@ -36,7 +36,7 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
   const lastLoadedSongRef = useRef<string | null>(null)
   const shouldContinuePlaylistRef = useRef(false)
 
-  const [musicVolume, setMusicVolume] = useState(65)
+  const [musicVolume, setMusicVolume] = useState(30)
   const [isMusicMuted, setIsMusicMuted] = useState(false)
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [musicReady, setMusicReady] = useState(false)
