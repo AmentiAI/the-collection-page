@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLaserEyes } from '@omnisat/lasereyes'
 
 interface Fighter {
   id: string
@@ -62,70 +63,42 @@ function StatBar({ label, value, color }: { label: string; value: number; color:
 
 export default function BattlePage() {
   const router = useRouter()
+  const { address } = useLaserEyes()
   const [me, setMe] = useState<Fighter | null>(null)
   const [opp, setOpp] = useState<Fighter | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try {
-      const meRaw = sessionStorage.getItem('fighter_data')
-      const oppRaw = sessionStorage.getItem('opponent')
-      if (!meRaw || !oppRaw) { router.push('/'); return }
-      // fighter_data is the enriched inscription object; convert to Fighter shape using stored opponent
-      setMe(JSON.parse(oppRaw)) // opponent is already Fighter shape from lobby
-      setOpp(JSON.parse(oppRaw))
-      // actually me is stored as enriched, let's just re-derive from lobby's opponent key
-      // The lobby stores opponent as Fighter already, me we need to re-enrich
-    } catch {
-      router.push('/')
-    }
-  }, [router])
+    if (!address) return
+    fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.found || data.status !== 'matched' || !data.opponent) {
+          router.push('/?battle=1')
+          return
+        }
+        setMe(data.fighter_data as Fighter)
+        setOpp(data.opponent as Fighter)
+        setLoading(false)
+      })
+      .catch(() => router.push('/?battle=1'))
+  }, [address, router])
 
-  useEffect(() => {
-    try {
-      const oppRaw = sessionStorage.getItem('opponent')
-      const meEnrichedRaw = sessionStorage.getItem('fighter_data')
-      if (!oppRaw || !meEnrichedRaw) return
+  if (!address) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
+        <div className="text-sm font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>Connect your wallet to view battle</div>
+      </div>
+    )
+  }
 
-      const opponent = JSON.parse(oppRaw) as Fighter
-      // Derive me from enriched data (same logic as lobby)
-      const enriched = JSON.parse(meEnrichedRaw)
-      const s = enriched.inscription_number as number
-      const rarities = ['Legendary', 'Epic', 'Rare', 'Uncommon'] as const
-      const elements = ['fire', 'shadow', 'lightning', 'ice', 'void', 'gold'] as const
-      const specials = [
-        ['Death Strike', 'Deal 40 damage to opponent'],
-        ['Chain Blast', 'Hit for 30, reduce enemy DEF'],
-        ['Diamond Hands', 'Block + restore 20 HP'],
-        ['LN Strike', 'Always attacks first'],
-        ['Cold Storage', 'Freeze opponent 1 turn'],
-        ['SHA-256', 'Random damage 20–60'],
-      ]
-      const glows = ['#a855f7', '#f97316', '#f59e0b', '#06b6d4', '#38bdf8', '#10b981']
-      const [special, specialDesc] = specials[(s * 5) % specials.length]
-      const myFighter: Fighter = {
-        id: enriched.inscription_id,
-        inscriptionNumber: s,
-        name: enriched.meta_name || (enriched.collection_name ? `${enriched.collection_name} #${s.toLocaleString()}` : `#${s.toLocaleString()}`),
-        contentUrl: enriched.content_url,
-        contentType: enriched.content_type,
-        hp: 70 + (s % 50),
-        atk: 60 + ((s * 3) % 40),
-        def: 55 + ((s * 7) % 40),
-        spd: 60 + ((s * 11) % 40),
-        rarity: rarities[s % rarities.length],
-        element: elements[(s * 3) % elements.length],
-        special,
-        specialDesc,
-        glowColor: glows[s % glows.length],
-      }
-      setMe(myFighter)
-      setOpp(opponent)
-    } catch {
-      router.push('/')
-    }
-  }, [router])
-
-  if (!me || !opp) return null
+  if (loading || !me || !opp) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -138,7 +111,6 @@ export default function BattlePage() {
 
       <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8">
 
-        {/* Title */}
         <div className="text-center">
           <div className="text-2xl lg:text-4xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.6)' }}>
             ⚔️ Battle ⚔️
@@ -148,9 +120,7 @@ export default function BattlePage() {
           </div>
         </div>
 
-        {/* VS layout */}
         <div className="w-full flex items-center justify-between gap-4 sm:gap-8">
-          {/* Me */}
           <div className="flex-1 flex flex-col items-center gap-3">
             <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>You</div>
             <FighterArt fighter={me} />
@@ -163,12 +133,10 @@ export default function BattlePage() {
             </div>
           </div>
 
-          {/* VS */}
           <div className="flex-shrink-0 text-4xl lg:text-6xl font-black" style={{ color: '#cc2200', textShadow: '0 0 40px rgba(185,28,28,0.9)' }}>
             VS
           </div>
 
-          {/* Opponent */}
           <div className="flex-1 flex flex-col items-center gap-3">
             <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>Opponent</div>
             <FighterArt fighter={opp} flip />
@@ -182,13 +150,8 @@ export default function BattlePage() {
           </div>
         </div>
 
-        {/* Back */}
         <button
-          onClick={() => {
-            sessionStorage.removeItem('opponent')
-            sessionStorage.removeItem('matchmaking_queue_id')
-            router.push('/?battle=1')
-          }}
+          onClick={() => router.push('/?battle=1')}
           className="text-xs tracking-widest uppercase font-bold px-4 py-2 rounded transition-opacity hover:opacity-70"
           style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
         >
