@@ -55,7 +55,7 @@ function StatBar({ label, value, color }: { label: string; value: number; color:
     <div className="flex items-center gap-2">
       <span className="text-[10px] uppercase tracking-widest w-7 font-black" style={{ color: '#4a1515' }}>{label}</span>
       <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${value}%`, background: color }} />
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(value, 100)}%`, background: color }} />
       </div>
       <span className="text-xs font-black w-6 text-right" style={{ color }}>{value}</span>
     </div>
