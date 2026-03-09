@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
 
   if (!entry) return NextResponse.json({ error: 'Queue entry not found' }, { status: 404 })
   if (entry.status === 'cancelled') return NextResponse.json({ status: 'cancelled' })
+  if (entry.status === 'completed') return NextResponse.json({ status: 'completed' })
 
   if (entry.status === 'matched' && entry.opponent_queue_id) {
     const { rows: oppRows } = await pool.query(

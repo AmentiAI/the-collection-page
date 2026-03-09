@@ -289,6 +289,11 @@ export default function LobbyPage() {
         const playerData = await playerRes.json()
 
         if (playerData.found) {
+          // Completed battle — send to battle page to show result
+          if (playerData.status === 'completed') {
+            router.push('/battle')
+            return
+          }
           // Resume from DB — fighter_data is already stored there
           setMyFighter(playerData.fighter_data as Fighter)
           queueIdRef.current = playerData.queue_id

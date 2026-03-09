@@ -354,7 +354,7 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
     if (!address) return
     fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
       .then(r => r.json())
-      .then(d => { if (d.found) setSelfDisabled(true) })
+      .then(d => { if (d.found && (d.status === 'waiting' || d.status === 'matched')) setSelfDisabled(true) })
       .catch(() => {})
   }, [address])
 
