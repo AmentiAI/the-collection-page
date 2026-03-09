@@ -18,10 +18,29 @@ import { Ordinal, Trait } from '@/types'
 
 // ─── Active queue banner ───────────────────────────────────────────────────────
 
+function FighterThumb({ f }: { f: any }) {
+  const isImage = f?.contentType?.startsWith('image/') || f?.content_type?.startsWith('image/')
+  const imgUrl = f?.contentUrl ?? f?.content_url
+  const name = f?.name ?? f?.meta_name ?? (f?.collection_name ? `${f.collection_name} #${f.inscription_number}` : `#${f?.inscription_number}`)
+  return (
+    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+      {isImage && imgUrl ? (
+        <img src={imgUrl} alt={name} className="w-10 h-10 rounded-lg object-contain"
+          style={{ filter: 'drop-shadow(0 0 6px rgba(204,34,0,0.5))' }} />
+      ) : (
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'rgba(120,10,10,0.3)' }}>
+          <span className="text-[9px] font-black" style={{ color: '#cc2200' }}>ORD</span>
+        </div>
+      )}
+      <div className="text-[9px] font-black truncate max-w-[72px] text-center" style={{ color: '#e8eef7' }}>{name}</div>
+    </div>
+  )
+}
+
 function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
   const router = useRouter()
   const { address } = useLaserEyes()
-  const [entry, setEntry] = useState<{ queue_id: string; status: string; fighter_data: any } | null>(null)
+  const [entry, setEntry] = useState<{ queue_id: string; status: string; fighter_data: any; opponent: any } | null>(null)
 
   useEffect(() => {
     if (!address) return
@@ -47,40 +66,42 @@ function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
 
   if (!entry) return null
 
-  const f = entry.fighter_data
   const matched = entry.status === 'matched'
-  const name = f?.name ?? f?.meta_name ?? (f?.collection_name ? `${f.collection_name} #${f.inscription_number}` : `#${f?.inscription_number}`)
-  const isImage = f?.contentType?.startsWith('image/') || f?.content_type?.startsWith('image/')
-  const imgUrl = f?.contentUrl ?? f?.content_url
 
   return (
     <div
-      className="mb-6 rounded-xl px-4 py-3 flex items-center gap-4"
+      className="mb-6 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap"
       style={{
         background: 'linear-gradient(135deg, rgba(185,28,28,0.12), rgba(5,2,2,0.9))',
         border: `1px solid ${matched ? 'rgba(34,197,94,0.4)' : 'rgba(185,28,28,0.35)'}`,
         boxShadow: `0 0 20px ${matched ? 'rgba(34,197,94,0.1)' : 'rgba(185,28,28,0.1)'}`,
       }}
     >
-      {isImage && imgUrl ? (
-        <img src={imgUrl} alt={name} className="w-12 h-12 rounded-lg object-contain flex-shrink-0"
-          style={{ filter: 'drop-shadow(0 0 8px rgba(204,34,0,0.5))' }} />
+      {/* My fighter */}
+      <FighterThumb f={entry.fighter_data} />
+
+      {matched && entry.opponent ? (
+        <>
+          <div className="text-lg font-black" style={{ color: '#cc2200' }}>VS</div>
+          {/* Opponent fighter */}
+          <FighterThumb f={entry.opponent} />
+        </>
       ) : (
-        <div className="w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(120,10,10,0.3)' }}>
-          <span className="text-xs font-black" style={{ color: '#cc2200' }}>ORD</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: '#7f1d1d' }}>⏳ Searching for Opponent</div>
         </div>
       )}
 
-      <div className="flex-1 min-w-0">
-        <div className="text-[10px] uppercase tracking-widest font-black mb-0.5" style={{ color: matched ? '#22c55e' : '#7f1d1d' }}>
-          {matched ? '⚔️ Match Found!' : '⏳ Searching for Opponent'}
+      {matched && (
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: '#22c55e' }}>⚔️ Match Found!</div>
+          <div className="text-[10px] mt-0.5" style={{ color: '#4a1515' }}>Your fighters are committed</div>
         </div>
-        <div className="text-sm font-black truncate" style={{ color: '#e8eef7' }}>{name}</div>
-      </div>
+      )}
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
         <button
-          onClick={() => router.push('/lobby')}
+          onClick={() => router.push(matched ? '/battle' : '/lobby')}
           className="px-3 py-1.5 text-xs font-black uppercase tracking-widest rounded transition-all hover:scale-105"
           style={{
             background: matched ? 'linear-gradient(135deg, #15803d, #14532d)' : 'rgba(185,28,28,0.2)',
@@ -90,11 +111,13 @@ function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
         >
           {matched ? '⚔️ Enter Battle' : 'Return to Lobby'}
         </button>
-        <button onClick={handleCancel}
-          className="px-2 py-1.5 text-xs font-bold uppercase tracking-widest rounded transition-opacity hover:opacity-60"
-          style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}>
-          Cancel
-        </button>
+        {!matched && (
+          <button onClick={handleCancel}
+            className="px-2 py-1.5 text-xs font-bold uppercase tracking-widest rounded transition-opacity hover:opacity-60"
+            style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}>
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   )

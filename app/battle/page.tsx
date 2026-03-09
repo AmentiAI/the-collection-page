@@ -114,61 +114,60 @@ export default function BattlePage() {
 
       {me && opp && (
         <div
-          className="flex flex-col items-center justify-center px-4 py-12 relative"
+          className="relative flex flex-col items-center justify-center px-4 py-12"
           style={{ minHeight: 'calc(100vh - 80px)' }}
         >
-      <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
-      }} />
-
-      <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8">
-
-        <div className="text-center">
-          <div className="text-2xl lg:text-4xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.6)' }}>
-            ⚔️ Battle ⚔️
-          </div>
-          <div className="text-xs uppercase tracking-widest mt-1 font-bold" style={{ color: '#4a1515' }}>
-            Coming Soon — Match Recorded
-          </div>
-        </div>
-
-        <div className="w-full flex items-center justify-between gap-4 sm:gap-8">
-          <div className="flex-1 flex flex-col items-center gap-3">
-            <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>You</div>
-            <FighterArt fighter={me} />
-            <div className="font-black text-sm text-center" style={{ color: '#e8eef7' }}>{me.name}</div>
-            <div className="w-full space-y-1.5">
-              <StatBar label="HP" value={me.hp} color="#22c55e" />
-              <StatBar label="ATK" value={me.atk} color={me.glowColor} />
-              <StatBar label="DEF" value={me.def} color={me.glowColor} />
-              <StatBar label="SPD" value={me.spd} color={me.glowColor} />
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
+          }} />
+          <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8">
+            <div className="text-center">
+              <div className="text-2xl lg:text-4xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.6)' }}>
+                ⚔️ Battle ⚔️
+              </div>
+              <div className="text-xs uppercase tracking-widest mt-1 font-bold" style={{ color: '#4a1515' }}>
+                Coming Soon — Match Recorded
+              </div>
             </div>
-          </div>
 
-          <div className="flex-shrink-0 text-4xl lg:text-6xl font-black" style={{ color: '#cc2200', textShadow: '0 0 40px rgba(185,28,28,0.9)' }}>
-            VS
-          </div>
+            <div className="w-full flex items-center justify-between gap-4 sm:gap-8">
+              <div className="flex-1 flex flex-col items-center gap-3">
+                <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>You</div>
+                <FighterArt fighter={me} />
+                <div className="font-black text-sm text-center" style={{ color: '#e8eef7' }}>{me.name}</div>
+                <div className="w-full space-y-1.5">
+                  <StatBar label="HP" value={me.hp} color="#22c55e" />
+                  <StatBar label="ATK" value={me.atk} color={me.glowColor} />
+                  <StatBar label="DEF" value={me.def} color={me.glowColor} />
+                  <StatBar label="SPD" value={me.spd} color={me.glowColor} />
+                </div>
+              </div>
 
-          <div className="flex-1 flex flex-col items-center gap-3">
-            <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>Opponent</div>
-            <FighterArt fighter={opp} flip />
-            <div className="font-black text-sm text-center" style={{ color: '#e8eef7' }}>{opp.name}</div>
-            <div className="w-full space-y-1.5">
-              <StatBar label="HP" value={opp.hp} color="#22c55e" />
-              <StatBar label="ATK" value={opp.atk} color={opp.glowColor} />
-              <StatBar label="DEF" value={opp.def} color={opp.glowColor} />
-              <StatBar label="SPD" value={opp.spd} color={opp.glowColor} />
+              <div className="flex-shrink-0 text-4xl lg:text-6xl font-black" style={{ color: '#cc2200', textShadow: '0 0 40px rgba(185,28,28,0.9)' }}>
+                VS
+              </div>
+
+              <div className="flex-1 flex flex-col items-center gap-3">
+                <div className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded" style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}>Opponent</div>
+                <FighterArt fighter={opp} flip />
+                <div className="font-black text-sm text-center" style={{ color: '#e8eef7' }}>{opp.name}</div>
+                <div className="w-full space-y-1.5">
+                  <StatBar label="HP" value={opp.hp} color="#22c55e" />
+                  <StatBar label="ATK" value={opp.atk} color={opp.glowColor} />
+                  <StatBar label="DEF" value={opp.def} color={opp.glowColor} />
+                  <StatBar label="SPD" value={opp.spd} color={opp.glowColor} />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <button
-          onClick={() => router.push('/?battle=1')}
-          className="text-xs tracking-widest uppercase font-bold px-4 py-2 rounded transition-opacity hover:opacity-70"
-          style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
-        >
-          ← Fight Again
-        </button>
+            <button
+              onClick={() => router.push('/?battle=1')}
+              className="text-xs tracking-widest uppercase font-bold px-4 py-2 rounded transition-opacity hover:opacity-70"
+              style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
+            >
+              ← Fight Again
+            </button>
+          </div>
         </div>
       )}
     </div>

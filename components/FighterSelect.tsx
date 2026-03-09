@@ -273,13 +273,16 @@ function PsbtModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function FighterSelect({ disabled }: { disabled?: boolean }) {
+export default function FighterSelect({ disabled: disabledProp }: { disabled?: boolean }) {
   const router = useRouter()
   const { connected, address, publicKey } = useLaserEyes()
 
   const [fighters, setFighters] = useState<WalletFighter[]>([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [selfDisabled, setSelfDisabled] = useState(false)
+
+  const disabled = disabledProp || selfDisabled
 
   const [selected, setSelected] = useState<WalletFighter | null>(null)
   const [showPsbt, setShowPsbt] = useState(false)
@@ -315,6 +318,15 @@ export default function FighterSelect({ disabled }: { disabled?: boolean }) {
       setSignedPsbt(null)
     }
   }, [connected, fetchFighters])
+
+  // Self-disable if wallet address has an active queue entry in the DB
+  useEffect(() => {
+    if (!address) return
+    fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
+      .then(r => r.json())
+      .then(d => { if (d.found) setSelfDisabled(true) })
+      .catch(() => {})
+  }, [address])
 
   const collections = useMemo(() => {
     const map = new Map<string, string>()
