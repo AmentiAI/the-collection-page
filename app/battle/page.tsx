@@ -67,6 +67,8 @@ export default function BattlePage() {
   const { address } = useLaserEyes()
   const [me, setMe] = useState<Fighter | null>(null)
   const [opp, setOpp] = useState<Fighter | null>(null)
+  const [queueId, setQueueId] = useState<string | null>(null)
+  const [oppPlayerId, setOppPlayerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -83,6 +85,8 @@ export default function BattlePage() {
         }
         setMe(data.fighter_data as Fighter)
         setOpp(data.opponent as Fighter)
+        setQueueId(data.queue_id)
+        setOppPlayerId(data.opponent_player_id ?? null)
         setLoading(false)
       })
       .catch(() => router.push('/?battle=1'))
@@ -157,6 +161,39 @@ export default function BattlePage() {
                   <StatBar label="SPD" value={opp.spd} color={opp.glowColor} />
                 </div>
               </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-1 text-[10px] font-mono" style={{ color: '#4a1515' }}>
+              {queueId && (
+                <a
+                  href={`/api/battle/utxos?queue_id=${queueId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:opacity-70 transition-opacity"
+                >
+                  Queue UTXOs: /api/battle/utxos?queue_id={queueId}
+                </a>
+              )}
+              {address && (
+                <a
+                  href={`/api/battle/utxos?player_id=${encodeURIComponent(address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:opacity-70 transition-opacity"
+                >
+                  My UTXO: /api/battle/utxos?player_id={address}
+                </a>
+              )}
+              {oppPlayerId && (
+                <a
+                  href={`/api/battle/utxos?player_id=${encodeURIComponent(oppPlayerId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:opacity-70 transition-opacity"
+                >
+                  Opponent UTXO: /api/battle/utxos?player_id={oppPlayerId}
+                </a>
+              )}
             </div>
 
             <button

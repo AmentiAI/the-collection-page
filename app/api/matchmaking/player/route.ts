@@ -27,12 +27,14 @@ export async function GET(req: NextRequest) {
   if (!entry) return NextResponse.json({ found: false })
 
   let opponent = null
+  let opponent_player_id = null
   if (entry.status === 'matched' && entry.opponent_queue_id) {
     const { rows: oppRows } = await pool.query(
-      `SELECT fighter_data FROM matchmaking_queue WHERE id = $1`,
+      `SELECT player_id, fighter_data FROM matchmaking_queue WHERE id = $1`,
       [entry.opponent_queue_id]
     )
     opponent = oppRows[0]?.fighter_data ?? null
+    opponent_player_id = oppRows[0]?.player_id ?? null
   }
 
   return NextResponse.json({
@@ -41,5 +43,6 @@ export async function GET(req: NextRequest) {
     status: entry.status,
     fighter_data: entry.fighter_data,
     opponent,
+    opponent_player_id,
   })
 }
