@@ -41,36 +41,30 @@ async function broadcastTx(txHex: string, taalApiKey?: string): Promise<{ txid?:
     attempts['taal_arc'] = `Error: ${e}`
   }
 
-  // ── Attempt 2: mempool.space Submit Package (maxburnamount in BTC) ──────────
-  // submitpackage accepts non-standard txs when maxburnamount is set.
-  // maxburnamount = 0.00000002 BTC = 2 sats (covers our 2× 1-sat OP_RETURN outputs)
+  // ── Attempt 2: MARA Slipstream (non-standard tx relay service) ─────────────
+  // https://slipstream.mara.com — purpose-built for non-standard Bitcoin txs
   try {
-    const params = new URLSearchParams({
-      transactions:  txHex,
-      maxfeerate:    '0',
-      maxburnamount: '0.00000002',
-    })
-    const res = await fetch('https://mempool.space/api/v1/tx/push', {
+    const res = await fetch('https://slipstream.mara.com/tx', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ rawTx: txHex }),
       cache:   'no-store',
     })
     const text = await res.text()
-    attempts['mempool_package'] = `HTTP ${res.status}: ${text.slice(0, 300)}`
+    attempts['mara_slipstream'] = `HTTP ${res.status}: ${text.slice(0, 300)}`
     if (res.ok) {
       try {
         const json = JSON.parse(text)
-        const txid = json?.txid ?? json?.result ?? json?.[0]?.txid
+        const txid = json?.txid ?? json?.txID ?? json?.data?.txid
         if (txid) return { txid: String(txid).trim(), attempts }
       } catch { /* not JSON */ }
       if (/^[a-f0-9]{64}$/i.test(text.trim())) return { txid: text.trim(), attempts }
     }
   } catch (e) {
-    attempts['mempool_package'] = `Error: ${e}`
+    attempts['mara_slipstream'] = `Error: ${e}`
   }
 
-  // ── Attempt 3: mempool.space standard /api/tx (will fail for non-standard) ──
+  // ── Attempt 4: mempool.space standard /api/tx (will fail for non-standard) ──
   try {
     const res = await fetch('https://mempool.space/api/tx', {
       method:  'POST',
