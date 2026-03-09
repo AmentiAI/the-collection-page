@@ -254,44 +254,49 @@ export async function GET(_req: NextRequest) {
   psbt.addOutput({ script: ourScript,    value: out4Val })        // 4: remaining to our wallet
 
   // ── Player signatures (SIGHASH_NONE | ANYONECANPAY) ─────────────────────────
-  // Players signed their single-input PSBTs with 0x82 which commits ONLY to their
-  // specific input prevout. The sig is valid in any tx spending that UTXO, so we
-  // can inject it directly into the combined PSBT without the players re-signing.
-  const p1TapKeySig = p1Psbt.data.inputs[0].tapKeySig
-  const p2TapKeySig = p2Psbt.data.inputs[0].tapKeySig
+  // Wallets typically finalize the PSBT input after signing, storing the witness
+  // in finalScriptWitness rather than tapKeySig. Since players signed with 0x82
+  // (SIGHASH_NONE|ANYONECANPAY), which commits only to their specific input prevout,
+  // the witness is valid in any transaction spending that UTXO. Copy it directly.
+  const p1FinalWitness = p1Psbt.data.inputs[0].finalScriptWitness
+  const p2FinalWitness = p2Psbt.data.inputs[0].finalScriptWitness
+  const p1TapKeySig    = p1Psbt.data.inputs[0].tapKeySig
+  const p2TapKeySig    = p2Psbt.data.inputs[0].tapKeySig
 
-  // ── Set tapInternalKey for all inputs ───────────────────────────────────────
-  if (p1TapKey) psbt.updateInput(0, { tapInternalKey: p1TapKey })
-  if (p2TapKey) psbt.updateInput(2, { tapInternalKey: p2TapKey })
-
+  // ── Set tapInternalKey for our padding inputs only ──────────────────────────
   const signer = buildTaprootSigner(privKeyHex)
   psbt.updateInput(1, { tapInternalKey: signer.xOnly })
   psbt.updateInput(3, { tapInternalKey: signer.xOnly })
 
-  // ── Inject player tapKeySig and finalize their inputs ───────────────────────
+  // ── Inject player witnesses / tapKeySig and finalize ────────────────────────
   let p1FinalizeError: string | null = null
   let p2FinalizeError: string | null = null
 
-  if (p1TapKeySig) {
+  // Player 1 (input 0)
+  if (p1FinalWitness) {
+    // Wallet finalized the input — copy the witness directly
+    psbt.data.inputs[0].finalScriptWitness = p1FinalWitness
+  } else if (p1TapKeySig) {
     try {
+      if (p1TapKey) psbt.updateInput(0, { tapInternalKey: p1TapKey })
       psbt.updateInput(0, { tapKeySig: p1TapKeySig })
       psbt.finalizeInput(0)
-    } catch (e) {
-      p1FinalizeError = String(e)
-    }
+    } catch (e) { p1FinalizeError = String(e) }
   } else {
-    p1FinalizeError = 'No tapKeySig in player 1 PSBT — player must have signed with SIGHASH_NONE|ANYONECANPAY'
+    p1FinalizeError = 'No signature found in player 1 PSBT'
   }
 
-  if (p2TapKeySig) {
+  // Player 2 (input 2)
+  if (p2FinalWitness) {
+    psbt.data.inputs[2].finalScriptWitness = p2FinalWitness
+  } else if (p2TapKeySig) {
     try {
+      if (p2TapKey) psbt.updateInput(2, { tapInternalKey: p2TapKey })
       psbt.updateInput(2, { tapKeySig: p2TapKeySig })
       psbt.finalizeInput(2)
-    } catch (e) {
-      p2FinalizeError = String(e)
-    }
+    } catch (e) { p2FinalizeError = String(e) }
   } else {
-    p2FinalizeError = 'No tapKeySig in player 2 PSBT — player must have signed with SIGHASH_NONE|ANYONECANPAY'
+    p2FinalizeError = 'No signature found in player 2 PSBT'
   }
 
   // ── Sign our padding inputs (1 and 3) ───────────────────────────────────────
@@ -350,9 +355,9 @@ export async function GET(_req: NextRequest) {
       miner_fee_sats: Number(impliedFee),
     },
     signing: {
-      input_0_player1: p1FinalizeError ?? 'SIGNED + FINALIZED',
+      input_0_player1: p1FinalizeError ?? (p1FinalWitness ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
       input_1_server:  serverSignError  ?? 'SIGNED + FINALIZED',
-      input_2_player2: p2FinalizeError  ?? 'SIGNED + FINALIZED',
+      input_2_player2: p2FinalizeError ?? (p2FinalWitness ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
       input_3_server:  serverSignError  ?? 'SIGNED + FINALIZED',
     },
     ready_to_broadcast: allSigned,
