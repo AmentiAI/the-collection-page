@@ -141,6 +141,14 @@ export async function POST(req: NextRequest) {
     // Add taproot signing info (tapInternalKey) using the same helper the speedup/cancel tools use
     addInputSigningInfo(psbt, 0, inscriptionAddress, undefined, public_key)
 
+    // SIGHASH_NONE | SIGHASH_ANYONECANPAY (0x82):
+    // The player's signature commits only to their specific input (txid:vout, amount, script).
+    // It does NOT commit to outputs or other inputs, so the sig remains valid when this
+    // input is later combined into the multi-input battle transaction by the server.
+    psbt.updateInput(0, {
+      sighashType: bitcoin.Transaction.SIGHASH_NONE | bitcoin.Transaction.SIGHASH_ANYONECANPAY,
+    })
+
     // No output — this is just a signed input commitment.
     // The cron will combine both players' signed inputs to build the final battle tx.
 
