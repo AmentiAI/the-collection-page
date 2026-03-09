@@ -446,6 +446,49 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
         )}
       </div>
 
+      {/* Selected detail + commit CTA */}
+      {selected && !showPsbt && (
+        <div
+          className="mb-4 flex items-center gap-4 lg:gap-6 px-5 lg:px-8 py-4 lg:py-5 rounded-xl"
+          style={{
+            background: 'rgba(120,10,10,0.1)',
+            border: '1px solid rgba(185,28,28,0.25)',
+          }}
+        >
+          <InscriptionArt fighter={selected} size="sm" />
+          <div className="flex-1 min-w-0">
+            <div className="text-lg lg:text-2xl font-black text-red-200 truncate">{displayName(selected)}</div>
+            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+              {selected.collection_name && (
+                <span className="text-sm lg:text-base text-red-800">{selected.collection_name}</span>
+              )}
+              {selected.floor_price_sats !== null && (
+                <span className="text-sm lg:text-base font-bold text-green-700">
+                  Floor {formatFloor(selected.floor_price_sats)}
+                </span>
+              )}
+              {selected.sat_rarity && selected.sat_rarity !== 'common' && (
+                <span className="text-xs lg:text-sm text-yellow-700 font-bold">✦ {selected.sat_rarity}</span>
+              )}
+            </div>
+          </div>
+          {signedPsbt ? (
+            <div className="text-sm font-black text-green-600 flex-shrink-0">✓ Committed</div>
+          ) : (
+            <button
+              onClick={() => setShowPsbt(true)}
+              className="flex-shrink-0 px-6 lg:px-8 py-3 lg:py-4 rounded-lg text-sm lg:text-base font-black uppercase tracking-widest text-white transition-all"
+              style={{
+                background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
+                boxShadow: '0 0 16px rgba(185,28,28,0.4)',
+              }}
+            >
+              ⚔️ Fight with This
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       {!loading && fighters.length > 0 && (
         <div className="flex gap-2 mb-4">
@@ -667,49 +710,6 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
           >
             Next →
           </button>
-        </div>
-      )}
-
-      {/* Selected detail + commit CTA */}
-      {selected && !showPsbt && (
-        <div
-          className="mt-6 flex items-center gap-4 lg:gap-6 px-5 lg:px-8 py-4 lg:py-5 rounded-xl"
-          style={{
-            background: 'rgba(120,10,10,0.1)',
-            border: '1px solid rgba(185,28,28,0.25)',
-          }}
-        >
-          <InscriptionArt fighter={selected} size="sm" />
-          <div className="flex-1 min-w-0">
-            <div className="text-lg lg:text-2xl font-black text-red-200 truncate">{displayName(selected)}</div>
-            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-              {selected.collection_name && (
-                <span className="text-sm lg:text-base text-red-800">{selected.collection_name}</span>
-              )}
-              {selected.floor_price_sats !== null && (
-                <span className="text-sm lg:text-base font-bold text-green-700">
-                  Floor {formatFloor(selected.floor_price_sats)}
-                </span>
-              )}
-              {selected.sat_rarity && selected.sat_rarity !== 'common' && (
-                <span className="text-xs lg:text-sm text-yellow-700 font-bold">✦ {selected.sat_rarity}</span>
-              )}
-            </div>
-          </div>
-          {signedPsbt ? (
-            <div className="text-sm font-black text-green-600 flex-shrink-0">✓ Committed</div>
-          ) : (
-            <button
-              onClick={() => setShowPsbt(true)}
-              className="flex-shrink-0 px-6 lg:px-8 py-3 lg:py-4 rounded-lg text-sm lg:text-base font-black uppercase tracking-widest text-white transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-                boxShadow: '0 0 16px rgba(185,28,28,0.4)',
-              }}
-            >
-              ⚔️ Fight with This
-            </button>
-          )}
         </div>
       )}
 

@@ -25,6 +25,26 @@ interface Fighter {
 function FighterArt({ fighter, flip }: { fighter: Fighter; flip?: boolean }) {
   const [err, setErr] = useState(false)
   const isImage = fighter.contentType?.startsWith('image/')
+  const isHtml = fighter.contentType?.startsWith('text/html') || fighter.contentType === 'application/xhtml+xml'
+
+  if (isHtml && fighter.contentUrl) {
+    return (
+      <iframe
+        src={fighter.contentUrl}
+        className="w-44 h-44 lg:w-64 lg:h-64 rounded-xl"
+        style={{
+          border: 'none',
+          pointerEvents: 'none',
+          filter: `drop-shadow(0 0 20px ${fighter.glowColor})`,
+          transform: flip ? 'scaleX(-1)' : undefined,
+        }}
+        sandbox="allow-scripts allow-same-origin"
+        scrolling="no"
+        loading="lazy"
+      />
+    )
+  }
+
   if (!err && isImage && fighter.contentUrl) {
     return (
       <img
@@ -39,6 +59,7 @@ function FighterArt({ fighter, flip }: { fighter: Fighter; flip?: boolean }) {
       />
     )
   }
+
   return (
     <div
       className="w-44 h-44 lg:w-64 lg:h-64 rounded-xl flex flex-col items-center justify-center"
