@@ -28,7 +28,7 @@ async function fetchAllInscriptions(address: string, apiKey: string): Promise<Or
   while (true) {
     const res = await fetch(
       `${ORDISCAN_BASE}/address/${encodeURIComponent(address)}/inscriptions?page=${page}`,
-      { headers: { Authorization: `Bearer ${apiKey}` } }
+      { headers: { Authorization: `Bearer ${apiKey}` }, cache: 'no-store' }
     )
     if (!res.ok) {
       if (page === 1) throw new Error(`Ordiscan error ${res.status}`)
