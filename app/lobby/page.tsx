@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
+import Header from '@/components/Header'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,9 @@ export default function LobbyPage() {
   const [countdown, setCountdown] = useState(3)
   const [error, setError] = useState<string | null>(null)
   const [dots, setDots] = useState('.')
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
 
   const queueIdRef = useRef<string | null>(null)
   const joinedRef = useRef(false)
@@ -344,16 +348,31 @@ export default function LobbyPage() {
     return () => clearInterval(t)
   }, [phase, router])
 
+  const headerEl = (
+    <Header
+      isHolder={isHolder}
+      isVerifying={isVerifying}
+      connected={connected}
+      onHolderVerified={(h) => { setIsHolder(h); setIsVerifying(false) }}
+      onVerifyingStart={() => setIsVerifying(true)}
+      onConnectedChange={setConnected}
+      showMusicControls={true}
+    />
+  )
+
   if (phase === 'connecting' || !myFighter) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
-        <div className="text-center">
-          <div className="text-sm font-black uppercase tracking-widest mb-2" style={{ color: '#4a1515' }}>
-            {!address ? 'Connect your wallet to continue' : 'Loading match…'}
+      <div className="min-h-screen" style={{ background: '#030101' }}>
+        {headerEl}
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="text-sm font-black uppercase tracking-widest mb-2" style={{ color: '#4a1515' }}>
+              {!address ? 'Connect your wallet to continue' : 'Loading match…'}
+            </div>
+            {address && (
+              <div className="w-8 h-8 mx-auto rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+            )}
           </div>
-          {address && (
-            <div className="w-8 h-8 mx-auto rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
-          )}
         </div>
       </div>
     )
@@ -361,30 +380,34 @@ export default function LobbyPage() {
 
   if (phase === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
-        <div className="text-center px-6">
-          <div className="text-3xl font-black uppercase tracking-widest mb-3" style={{ color: '#cc2200' }}>Connection Error</div>
-          <div className="text-sm mb-6" style={{ color: '#4a1515' }}>{error}</div>
-          <button
-            onClick={() => router.push('/?battle=1')}
-            className="px-6 py-3 font-black text-sm tracking-widest uppercase"
-            style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)', borderRadius: 4 }}
-          >
-            ← Back to Select
-          </button>
+      <div className="min-h-screen" style={{ background: '#030101' }}>
+        {headerEl}
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center px-6">
+            <div className="text-3xl font-black uppercase tracking-widest mb-3" style={{ color: '#cc2200' }}>Connection Error</div>
+            <div className="text-sm mb-6" style={{ color: '#4a1515' }}>{error}</div>
+            <button
+              onClick={() => router.push('/?battle=1')}
+              className="px-6 py-3 font-black text-sm tracking-widest uppercase"
+              style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)', borderRadius: 4 }}
+            >
+              ← Back to Select
+            </button>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-4 py-12" style={{ background: '#030101' }}>
+    <div className="min-h-screen relative overflow-hidden" style={{ background: '#030101' }}>
+      {headerEl}
       {/* Blood drip bg */}
       <div className="absolute inset-0 pointer-events-none" style={{
         background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.12) 0%, transparent 60%)',
       }} />
 
-      <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8">
+      <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center gap-8 px-4 py-12">
 
         {/* Status header */}
         <div className="text-center">

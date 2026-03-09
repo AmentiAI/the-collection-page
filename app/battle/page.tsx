@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
+import Header from '@/components/Header'
 
 interface Fighter {
   id: string
@@ -67,6 +68,9 @@ export default function BattlePage() {
   const [me, setMe] = useState<Fighter | null>(null)
   const [opp, setOpp] = useState<Fighter | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isHolder, setIsHolder] = useState<boolean | undefined>(undefined)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     if (!address) return
@@ -84,27 +88,35 @@ export default function BattlePage() {
       .catch(() => router.push('/?battle=1'))
   }, [address, router])
 
-  if (!address) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
-        <div className="text-sm font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>Connect your wallet to view battle</div>
-      </div>
-    )
-  }
-
-  if (loading || !me || !opp) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030101' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
-      </div>
-    )
-  }
-
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden"
-      style={{ background: '#030101' }}
-    >
+    <div className="min-h-screen relative overflow-hidden" style={{ background: '#030101' }}>
+      <Header
+        isHolder={isHolder}
+        isVerifying={isVerifying}
+        connected={connected}
+        onHolderVerified={(h) => { setIsHolder(h); setIsVerifying(false) }}
+        onVerifyingStart={() => setIsVerifying(true)}
+        onConnectedChange={setConnected}
+        showMusicControls={true}
+      />
+
+      {!address && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-sm font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>Connect your wallet to view battle</div>
+        </div>
+      )}
+
+      {address && (loading || !me || !opp) && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+        </div>
+      )}
+
+      {me && opp && (
+        <div
+          className="flex flex-col items-center justify-center px-4 py-12 relative"
+          style={{ minHeight: 'calc(100vh - 80px)' }}
+        >
       <div className="absolute inset-0 pointer-events-none" style={{
         background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.15) 0%, transparent 60%)',
       }} />
@@ -157,7 +169,8 @@ export default function BattlePage() {
         >
           ← Fight Again
         </button>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
