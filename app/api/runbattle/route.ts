@@ -43,6 +43,8 @@ function buildTaprootSigner(privKeyHex: string) {
     tweakedPub,  // for verification
     // bitcoinjs-lib PSBT: publicKey.slice(1) must match tweakKey(tapInternalKey).x
     publicKey: Buffer.concat([Buffer.from([0x02]), tweakedPub]),
+    sign: (hash: Buffer) =>
+      Buffer.from(ecc.signSchnorr(hash, tweakedSk, crypto.randomBytes(32))),
     signSchnorr: (hash: Buffer) =>
       Buffer.from(ecc.signSchnorr(hash, tweakedSk, crypto.randomBytes(32))),
   }
