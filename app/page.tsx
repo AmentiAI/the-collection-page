@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useLaserEyes } from '@omnisat/lasereyes'
 import dynamicImport from 'next/dynamic'
 import Image from 'next/image'
+import Link from 'next/link'
 import BloodCanvas from '@/components/BloodCanvas'
 import Header from '@/components/Header'
 import Filters from '@/components/Filters'
@@ -203,12 +204,150 @@ function BattleCountdown() {
   )
 }
 
+// ─── Battle Stats + Leaderboard Widget ────────────────────────────────────────
+
+interface BattleLeader {
+  wallet_address: string
+  wins: number
+  losses: number
+  win_pct: number
+}
+
+interface MyStats {
+  wallet_address: string
+  wins: number
+  losses: number
+  win_pct: number
+  rank: number
+}
+
+function BattleStatsWidget({ address }: { address: string | undefined }) {
+  const [leaders, setLeaders] = useState<BattleLeader[]>([])
+  const [myStats, setMyStats] = useState<MyStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const url = address
+      ? `/api/battle/leaderboard?limit=10&wallet=${encodeURIComponent(address)}`
+      : '/api/battle/leaderboard?limit=10'
+    fetch(url)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setLeaders(d.leaders ?? [])
+          setMyStats(d.myStats ?? null)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [address])
+
+  const fmt = (w: string) => `${w.slice(0, 6)}…${w.slice(-4)}`
+
+  return (
+    <div className="mt-10" style={{ maxWidth: 700, margin: '40px auto 0' }}>
+      {/* Personal stats row */}
+      {myStats && (
+        <div
+          className="mb-6 rounded-xl px-5 py-4 grid grid-cols-3 gap-4 text-center"
+          style={{
+            background: 'linear-gradient(135deg, rgba(185,28,28,0.12), rgba(5,2,2,0.9))',
+            border: '1px solid rgba(185,28,28,0.35)',
+            boxShadow: '0 0 20px rgba(185,28,28,0.08)',
+          }}
+        >
+          <div>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Wins</div>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.4)' }}>{myStats.wins}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Losses</div>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.4)' }}>{myStats.losses}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Win Rate</div>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#e8eef7', textShadow: '0 0 20px rgba(200,200,255,0.2)' }}>{myStats.win_pct}%</div>
+          </div>
+          {myStats.rank && (
+            <div className="col-span-3 text-[10px] uppercase tracking-widest font-black" style={{ color: '#4a1515' }}>
+              Your global rank: #{myStats.rank}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Leaderboard widget */}
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          border: '1px solid rgba(185,28,28,0.3)',
+          background: 'rgba(5,2,2,0.85)',
+        }}
+      >
+        <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(185,28,28,0.2)' }}>
+          <div className="text-[11px] uppercase tracking-[0.3em] font-black" style={{ color: '#cc2200' }}>⚔️ Battle Leaderboard</div>
+          <Link
+            href="/battle/leaderboard"
+            className="text-[10px] uppercase tracking-widest font-black transition-opacity hover:opacity-60"
+            style={{ color: '#7f1d1d' }}
+          >
+            View All →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-[10px] uppercase tracking-widest font-black" style={{ color: '#3d0a0a' }}>Loading…</div>
+        ) : leaders.length === 0 ? (
+          <div className="py-8 text-center text-[10px] uppercase tracking-widest font-black" style={{ color: '#3d0a0a' }}>No battles yet</div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(185,28,28,0.12)' }}>
+                <th className="px-4 py-2 text-left font-black uppercase tracking-widest" style={{ color: '#4a1515', fontSize: 9 }}>#</th>
+                <th className="px-4 py-2 text-left font-black uppercase tracking-widest" style={{ color: '#4a1515', fontSize: 9 }}>Wallet</th>
+                <th className="px-3 py-2 text-right font-black uppercase tracking-widest" style={{ color: '#4a1515', fontSize: 9 }}>W</th>
+                <th className="px-3 py-2 text-right font-black uppercase tracking-widest" style={{ color: '#4a1515', fontSize: 9 }}>L</th>
+                <th className="px-4 py-2 text-right font-black uppercase tracking-widest" style={{ color: '#4a1515', fontSize: 9 }}>Win%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaders.map((l, i) => {
+                const isMe = address && l.wallet_address.toLowerCase() === address.toLowerCase()
+                return (
+                  <tr
+                    key={l.wallet_address}
+                    style={{
+                      borderBottom: '1px solid rgba(185,28,28,0.06)',
+                      background: isMe ? 'rgba(185,28,28,0.08)' : undefined,
+                    }}
+                  >
+                    <td className="px-4 py-2 font-black tabular-nums" style={{ color: i < 3 ? '#cc2200' : '#4a1515' }}>
+                      {i === 0 ? '👑' : i + 1}
+                    </td>
+                    <td className="px-4 py-2 font-mono" style={{ color: isMe ? '#e8eef7' : '#9ca3af' }}>
+                      {fmt(l.wallet_address)}{isMe ? ' (you)' : ''}
+                    </td>
+                    <td className="px-3 py-2 text-right font-black tabular-nums" style={{ color: '#22c55e' }}>{l.wins}</td>
+                    <td className="px-3 py-2 text-right font-black tabular-nums" style={{ color: '#cc2200' }}>{l.losses}</td>
+                    <td className="px-4 py-2 text-right font-black tabular-nums" style={{ color: '#e8eef7' }}>{l.win_pct}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // LaserEyesWrapper is already provided by app/layout.tsx, no need to wrap again
 
 export default function Home() {
   const searchParams = useSearchParams()
   const devMode = searchParams.get('battle') === '1'
   const isLaunched = devMode || Date.now() >= LAUNCH_TIME.getTime()
+  const { address } = useLaserEyes()
 
   const [ordinals, setOrdinals] = useState<Ordinal[]>([])
   const [filteredOrdinals, setFilteredOrdinals] = useState<Ordinal[]>([])
@@ -408,6 +547,7 @@ export default function Home() {
                   <FighterSelect disabled={hasActiveQueue} />
                 </>
               ) : <BattleCountdown />}
+              <BattleStatsWidget address={address || undefined} />
             </div>
 
             {/* Ordinal collection hidden - just showing video */}

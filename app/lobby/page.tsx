@@ -82,7 +82,7 @@ const ELEMENT_ICONS: Record<Fighter['element'], string> = {
 
 function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 'md' | 'lg' }) {
   const [err, setErr] = useState(false)
-  const dim = { sm: 'w-16 h-16', md: 'w-24 h-24', lg: 'w-36 h-36' }[size]
+  const dim = { sm: 'w-24 h-24', md: 'w-36 h-36', lg: 'w-48 h-48' }[size]
   const isImage = fighter.contentType?.startsWith('image/')
   if (!err && isImage && fighter.contentUrl) {
     return (
@@ -100,8 +100,8 @@ function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 
       className={`${dim} rounded-xl flex flex-col items-center justify-center`}
       style={{ background: `${fighter.glowColor}20`, border: `2px solid ${fighter.glowColor}50` }}
     >
-      <span className="text-xs font-black uppercase" style={{ color: fighter.glowColor }}>ORD</span>
-      <span className="font-black text-sm" style={{ color: '#e8eef7' }}>#{fighter.inscriptionNumber.toLocaleString()}</span>
+      <span className="text-sm font-black uppercase" style={{ color: fighter.glowColor }}>ORD</span>
+      <span className="font-black text-base" style={{ color: '#e8eef7' }}>#{fighter.inscriptionNumber.toLocaleString()}</span>
     </div>
   )
 }
@@ -109,11 +109,11 @@ function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 
 function StatRow({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] uppercase tracking-widest w-7 font-black" style={{ color: '#4a1515' }}>{label}</span>
-      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+      <span className="text-xs uppercase tracking-widest w-9 font-black" style={{ color: '#4a1515' }}>{label}</span>
+      <div className="flex-1 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
         <div className="h-full rounded-full" style={{ width: `${Math.min(value, 100)}%`, background: color }} />
       </div>
-      <span className="text-xs font-black w-6 text-right" style={{ color }}>{value}</span>
+      <span className="text-sm font-black w-8 text-right" style={{ color }}>{value}</span>
     </div>
   )
 }
@@ -123,32 +123,32 @@ function FighterCard({ fighter, label, flip }: { fighter: Fighter; label: string
   return (
     <div className={`flex flex-col ${flip ? 'items-end' : 'items-start'} gap-3 w-full`}>
       <div
-        className="text-[10px] tracking-widest uppercase font-black px-2 py-0.5 rounded"
+        className="text-xs tracking-widest uppercase font-black px-3 py-1 rounded"
         style={{ background: 'rgba(185,28,28,0.2)', color: '#cc2200' }}
       >
         {label}
       </div>
       <div
-        className="w-full rounded-2xl p-4 flex flex-col gap-3"
+        className="w-full rounded-2xl p-6 flex flex-col gap-4"
         style={{
           background: `linear-gradient(135deg, ${fighter.glowColor}12, #050202)`,
           border: `1px solid ${fighter.glowColor}33`,
           boxShadow: `0 0 24px ${fighter.glowColor}18`,
         }}
       >
-        <div className={`flex items-center gap-4 ${flip ? 'flex-row-reverse' : ''}`}>
-          <FighterArt fighter={fighter} size="md" />
+        <div className={`flex items-center gap-5 ${flip ? 'flex-row-reverse' : ''}`}>
+          <FighterArt fighter={fighter} size="lg" />
           <div className={flip ? 'text-right' : ''}>
-            <div className="font-black text-base leading-tight" style={{ color: '#e8eef7' }}>{fighter.name}</div>
-            <div className="text-[10px] mt-0.5" style={{ color: '#4a1515' }}>#{fighter.inscriptionNumber.toLocaleString()}</div>
+            <div className="font-black text-2xl leading-tight" style={{ color: '#e8eef7' }}>{fighter.name}</div>
+            <div className="text-sm mt-1" style={{ color: '#4a1515' }}>#{fighter.inscriptionNumber.toLocaleString()}</div>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: `${rarityColor}20`, color: rarityColor }}>{fighter.rarity}</span>
-              <span className="text-[10px]">{ELEMENT_ICONS[fighter.element]}</span>
+              <span className="text-xs font-black px-2 py-1 rounded" style={{ background: `${rarityColor}20`, color: rarityColor }}>{fighter.rarity}</span>
+              <span>{ELEMENT_ICONS[fighter.element]}</span>
             </div>
-            <div className="text-xs mt-1 font-bold" style={{ color: fighter.glowColor }}>⚡ {fighter.special}</div>
+            <div className="text-sm mt-1.5 font-bold" style={{ color: fighter.glowColor }}>⚡ {fighter.special}</div>
           </div>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2.5">
           <StatRow label="HP" value={fighter.hp} color="#22c55e" />
           <StatRow label="ATK" value={fighter.atk} color={fighter.glowColor} />
           <StatRow label="DEF" value={fighter.def} color={fighter.glowColor} />
@@ -161,15 +161,15 @@ function FighterCard({ fighter, label, flip }: { fighter: Fighter; label: string
 
 function OpponentSkeleton() {
   return (
-    <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#0a0202', border: '1px solid rgba(185,28,28,0.08)' }}>
+    <div className="w-full rounded-2xl p-6 flex flex-col gap-3" style={{ background: '#0a0202', border: '1px solid rgba(185,28,28,0.08)' }}>
       <div className="flex items-center gap-4">
-        <div className="w-24 h-24 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: '#120808' }}>
+        <div className="w-36 h-36 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: '#120808' }}>
           <span className="text-2xl opacity-20 animate-spin" style={{ animationDuration: '3s' }}>⚙️</span>
         </div>
         <div className="flex-1 space-y-2">
-          <div className="h-4 rounded animate-pulse" style={{ background: '#1a0808', width: '70%' }} />
-          <div className="h-3 rounded animate-pulse" style={{ background: '#1a0808', width: '45%' }} />
-          <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: '#2d0a0a' }}>Scanning for opponents…</div>
+          <div className="h-5 rounded animate-pulse" style={{ background: '#1a0808', width: '70%' }} />
+          <div className="h-4 rounded animate-pulse" style={{ background: '#1a0808', width: '45%' }} />
+          <div className="text-sm uppercase tracking-widest mt-1" style={{ color: '#2d0a0a' }}>Scanning for opponents…</div>
         </div>
       </div>
       <div className="space-y-1.5">
@@ -366,7 +366,7 @@ export default function LobbyPage() {
         {headerEl}
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="text-sm font-black uppercase tracking-widest mb-2" style={{ color: '#4a1515' }}>
+            <div className="text-lg font-black uppercase tracking-widest mb-3" style={{ color: '#4a1515' }}>
               {!address ? 'Connect your wallet to continue' : 'Loading match…'}
             </div>
             {address && (
@@ -384,11 +384,11 @@ export default function LobbyPage() {
         {headerEl}
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center px-6">
-            <div className="text-3xl font-black uppercase tracking-widest mb-3" style={{ color: '#cc2200' }}>Connection Error</div>
-            <div className="text-sm mb-6" style={{ color: '#4a1515' }}>{error}</div>
+            <div className="text-5xl font-black uppercase tracking-widest mb-4" style={{ color: '#cc2200' }}>Connection Error</div>
+            <div className="text-base mb-8" style={{ color: '#4a1515' }}>{error}</div>
             <button
               onClick={() => router.push('/?battle=1')}
-              className="px-6 py-3 font-black text-sm tracking-widest uppercase"
+              className="px-8 py-4 font-black text-base tracking-widest uppercase"
               style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)', borderRadius: 4 }}
             >
               ← Back to Select
@@ -412,15 +412,15 @@ export default function LobbyPage() {
         {/* Status header */}
         <div className="text-center">
           {phase === 'found' ? (
-            <div className="text-xl font-black uppercase tracking-widest" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.5)' }}>
+            <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.5)' }}>
               Opponent Found ⚔️
             </div>
           ) : (
-            <div className="text-xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.5)' }}>
+            <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.5)' }}>
               Finding Opponent<span style={{ color: '#cc2200' }}>{dots}</span>
             </div>
           )}
-          <div className="text-sm mt-2 font-bold" style={{ color: '#4a1515' }}>
+          <div className="text-base mt-3 font-bold" style={{ color: '#4a1515' }}>
             {phase === 'found'
               ? `Battle starts in ${countdown}…`
               : `Waiting for a challenger — ${waitSeconds}s`}
@@ -437,13 +437,13 @@ export default function LobbyPage() {
           {/* VS */}
           <div className="flex flex-col items-center gap-3 flex-shrink-0">
             <div
-              className="text-3xl sm:text-5xl font-black"
+              className="text-5xl sm:text-7xl font-black"
               style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.8)' }}
             >
               VS
             </div>
             {phase === 'searching' && (
-              <div className="relative w-10 h-10">
+              <div className="relative w-16 h-16">
                 <div
                   className="absolute inset-0 rounded-full border-2 border-transparent animate-spin"
                   style={{ borderTopColor: '#cc2200' }}
@@ -477,8 +477,8 @@ export default function LobbyPage() {
             ].map((s, i) =>
               s.val !== null ? (
                 <div key={i} className="flex flex-col">
-                  <span className="text-xl sm:text-2xl font-black" style={{ color: s.color }}>{s.val}</span>
-                  <span className="text-[9px] uppercase tracking-widest mt-0.5" style={{ color: '#4a1515' }}>{s.label}</span>
+                  <span className="text-3xl sm:text-4xl font-black" style={{ color: s.color }}>{s.val}</span>
+                  <span className="text-xs uppercase tracking-widest mt-0.5" style={{ color: '#4a1515' }}>{s.label}</span>
                 </div>
               ) : <div key={i} className="w-4" />
             )}
@@ -499,7 +499,7 @@ export default function LobbyPage() {
               }
               router.push('/?battle=1')
             }}
-            className="text-xs tracking-widest uppercase font-bold px-4 py-2 rounded transition-opacity hover:opacity-70"
+            className="text-sm tracking-widest uppercase font-bold px-6 py-3 rounded transition-opacity hover:opacity-70"
             style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
           >
             Cancel Search
