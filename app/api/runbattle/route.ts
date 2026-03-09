@@ -12,50 +12,83 @@ const MEMPOOL_BASE  = 'https://mempool.space/api'
 const WINNER_PAYOUT = BigInt(625)  // sats to winner
 const BURN_VALUE    = BigInt(1)    // 1 sat per OP_RETURN burn — first sat of each ordinal input burns
 
-// Broadcast via TAAL ARC, which accepts non-standard transactions (including
-// OP_RETURN outputs with value > 0 used for ordinal burns).
-// Falls back to mempool.space /api/tx for standard txs.
-async function broadcastTx(txHex: string): Promise<string> {
-  // Try TAAL ARC first (supports non-standard txs)
+// Attempt to broadcast, returning { txid } on success or { error, attempts } on failure.
+// OP_RETURN outputs with value > 0 are non-standard; we try multiple endpoints.
+async function broadcastTx(txHex: string, taalApiKey?: string): Promise<{ txid?: string; error?: string; attempts: Record<string, string> }> {
+  const attempts: Record<string, string> = {}
+
+  // ── Attempt 1: TAAL ARC (accepts non-standard txs) ──────────────────────────
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (taalApiKey) headers['Authorization'] = `Bearer ${taalApiKey}`
     const res = await fetch('https://arc.taal.com/v1/tx', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ rawTx: txHex }),
-      cache:   'no-store',
+      method: 'POST',
+      headers,
+      body:   JSON.stringify({ rawTx: txHex }),
+      cache:  'no-store',
     })
     const text = await res.text()
+    attempts['taal_arc'] = `HTTP ${res.status}: ${text.slice(0, 300)}`
     if (res.ok) {
       try {
         const json = JSON.parse(text)
         const txid = json?.txid ?? json?.txID
-        if (txid) return String(txid).trim()
+        if (txid) return { txid: String(txid).trim(), attempts }
       } catch { /* not JSON */ }
-      if (/^[a-f0-9]{64}$/i.test(text.trim())) return text.trim()
+      if (/^[a-f0-9]{64}$/i.test(text.trim())) return { txid: text.trim(), attempts }
     }
-    // If TAAL fails, fall through to mempool.space
-    console.warn('[runbattle] TAAL ARC failed, falling back:', text.slice(0, 200))
   } catch (e) {
-    console.warn('[runbattle] TAAL ARC error, falling back:', e)
+    attempts['taal_arc'] = `Error: ${e}`
   }
 
-  // Fallback: mempool.space standard endpoint
-  const res2 = await fetch('https://mempool.space/api/tx', {
-    method:  'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body:    txHex,
-    cache:   'no-store',
-  })
-  const text2 = await res2.text()
-  if (!res2.ok) throw new Error(`broadcast failed (${res2.status}): ${text2}`)
-  const txid2 = text2.trim()
-  if (/^[a-f0-9]{64}$/i.test(txid2)) return txid2
+  // ── Attempt 2: mempool.space Submit Package (maxburnamount in BTC) ──────────
+  // submitpackage accepts non-standard txs when maxburnamount is set.
+  // maxburnamount = 0.00000002 BTC = 2 sats (covers our 2× 1-sat OP_RETURN outputs)
   try {
-    const json = JSON.parse(text2)
-    const id = json?.txid ?? json?.result
-    if (id) return String(id).trim()
-  } catch { /* not JSON */ }
-  throw new Error(`Unexpected response: ${text2.slice(0, 300)}`)
+    const params = new URLSearchParams({
+      transactions:  txHex,
+      maxfeerate:    '0',
+      maxburnamount: '0.00000002',
+    })
+    const res = await fetch('https://mempool.space/api/v1/tx/push', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    params.toString(),
+      cache:   'no-store',
+    })
+    const text = await res.text()
+    attempts['mempool_package'] = `HTTP ${res.status}: ${text.slice(0, 300)}`
+    if (res.ok) {
+      try {
+        const json = JSON.parse(text)
+        const txid = json?.txid ?? json?.result ?? json?.[0]?.txid
+        if (txid) return { txid: String(txid).trim(), attempts }
+      } catch { /* not JSON */ }
+      if (/^[a-f0-9]{64}$/i.test(text.trim())) return { txid: text.trim(), attempts }
+    }
+  } catch (e) {
+    attempts['mempool_package'] = `Error: ${e}`
+  }
+
+  // ── Attempt 3: mempool.space standard /api/tx (will fail for non-standard) ──
+  try {
+    const res = await fetch('https://mempool.space/api/tx', {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    txHex,
+      cache:   'no-store',
+    })
+    const text = await res.text()
+    attempts['mempool_standard'] = `HTTP ${res.status}: ${text.slice(0, 300)}`
+    if (res.ok) {
+      const txid = text.trim()
+      if (/^[a-f0-9]{64}$/i.test(txid)) return { txid, attempts }
+    }
+  } catch (e) {
+    attempts['mempool_standard'] = `Error: ${e}`
+  }
+
+  return { error: 'All broadcast attempts failed — see attempts for details', attempts }
 }
 
 // Calculate tx fee from actual witness sizes.
@@ -395,12 +428,13 @@ export async function GET(req: NextRequest) {
   // ── Broadcast if requested ───────────────────────────────────────────────────
   let broadcast_txid: string | null = null
   let broadcast_error: string | null = null
+  let broadcast_attempts: Record<string, string> | null = null
   if (doBroadcast && tx_hex) {
-    try {
-      broadcast_txid = await broadcastTx(tx_hex)
-    } catch (e) {
-      broadcast_error = String(e)
-    }
+    const taalKey = process.env.TAAL_API_KEY ?? undefined
+    const result = await broadcastTx(tx_hex, taalKey)
+    broadcast_txid    = result.txid ?? null
+    broadcast_error   = result.error ?? null
+    broadcast_attempts = result.attempts
   }
 
   return NextResponse.json({
@@ -441,6 +475,7 @@ export async function GET(req: NextRequest) {
     ready_to_broadcast: allSigned,
     broadcast_txid,
     broadcast_error,
+    broadcast_attempts,
     tx_hex,
     psbt_base64: psbt.toBase64(),
   })
