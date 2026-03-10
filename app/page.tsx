@@ -413,7 +413,6 @@ export default function Home() {
   const [filteredOrdinals, setFilteredOrdinals] = useState<Ordinal[]>([])
   const [filters, setFilters] = useState<Record<string, Set<string>>>({})
   const [loading, setLoading] = useState(true)
-  const [shake, setShake] = useState(false)
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal | null>(null)
   const [showSplash, setShowSplash] = useState(false)
   const [userInteracted, setUserInteracted] = useState(false)
@@ -446,14 +445,6 @@ export default function Home() {
   }
 
 
-  useEffect(() => {
-    const shakeInterval = setInterval(() => {
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-    }, 4000)
-
-    return () => clearInterval(shakeInterval)
-  }, [])
 
   useEffect(() => {
     fetch('/collection_metadata.json')

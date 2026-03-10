@@ -39,15 +39,9 @@ export async function POST(req: NextRequest) {
 
   const inscription_id: string = fighter_data?.id ?? ''
 
-  // Clean expired entries, stale waiting/completed entries for this player, and stale entries for this inscription
+  // Clean expired and completed entries globally, then for this player
   await pool.query(`DELETE FROM matchmaking_queue WHERE expires_at < NOW()`)
-  await pool.query(`DELETE FROM matchmaking_queue WHERE player_id = $1 AND status IN ('waiting', 'completed')`, [player_id])
-  if (inscription_id) {
-    await pool.query(
-      `DELETE FROM matchmaking_queue WHERE fighter_data->>'id' = $1 AND status = 'waiting'`,
-      [inscription_id]
-    )
-  }
+  await pool.query(`DELETE FROM matchmaking_queue WHERE player_id = $1 AND status = 'completed'`, [player_id])
 
   // Try to atomically claim a waiting opponent
   // Must match same utxoValue (330 vs 330, 546 vs 546) — no cross-value matches
@@ -70,15 +64,18 @@ export async function POST(req: NextRequest) {
 
   if (claimed.length > 0) {
     const opp = claimed[0]
+    // ON CONFLICT on active_player_key/active_inscription_key: if player already matched, update their entry
     const { rows: me } = await pool.query(`
       INSERT INTO matchmaking_queue (player_id, fighter_data, signed_psbt, status, opponent_queue_id, expires_at)
       VALUES ($1, $2, $3, 'matched', $4, NOW() + INTERVAL '24 hours')
+      ON CONFLICT (active_player_key) WHERE active_player_key IS NOT NULL
+        DO UPDATE SET fighter_data = EXCLUDED.fighter_data, signed_psbt = EXCLUDED.signed_psbt,
+                      opponent_queue_id = EXCLUDED.opponent_queue_id, expires_at = EXCLUDED.expires_at
       RETURNING id
     `, [player_id, JSON.stringify(fighter_data), signed_psbt ?? null, opp.id])
 
     await pool.query(`UPDATE matchmaking_queue SET opponent_queue_id = $1 WHERE id = $2`, [me[0].id, opp.id])
 
-    // Update battle_commitments with the real queue_id and signed PSBT
     if (signed_psbt && inscription_id) {
       await pool.query(
         `UPDATE battle_commitments SET queue_id = $1, signed_psbt = $2 WHERE player_id = $3 AND inscription_id = $4`,
@@ -89,10 +86,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ matched: true, queue_id: me[0].id, opponent: opp.fighter_data })
   }
 
-  // No one waiting — enter the queue
+  // No one waiting — enter the queue atomically (ON CONFLICT = player already waiting, just update their fighter/psbt)
   const { rows: me } = await pool.query(`
     INSERT INTO matchmaking_queue (player_id, fighter_data, signed_psbt, expires_at)
     VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')
+    ON CONFLICT (active_player_key) WHERE active_player_key IS NOT NULL
+      DO UPDATE SET fighter_data = EXCLUDED.fighter_data, signed_psbt = EXCLUDED.signed_psbt,
+                    expires_at = EXCLUDED.expires_at
     RETURNING id
   `, [player_id, JSON.stringify(fighter_data), signed_psbt ?? null])
 
