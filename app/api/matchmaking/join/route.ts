@@ -39,10 +39,9 @@ export async function POST(req: NextRequest) {
 
   const inscription_id: string = fighter_data?.id ?? ''
 
-  // Clean expired entries, stale waiting entries for this player, and stale entries for this inscription
-  // (handles player_id changing across refreshes — prevents self-match)
+  // Clean expired entries, stale waiting/completed entries for this player, and stale entries for this inscription
   await pool.query(`DELETE FROM matchmaking_queue WHERE expires_at < NOW()`)
-  await pool.query(`DELETE FROM matchmaking_queue WHERE player_id = $1 AND status = 'waiting'`, [player_id])
+  await pool.query(`DELETE FROM matchmaking_queue WHERE player_id = $1 AND status IN ('waiting', 'completed')`, [player_id])
   if (inscription_id) {
     await pool.query(
       `DELETE FROM matchmaking_queue WHERE fighter_data->>'id' = $1 AND status = 'waiting'`,

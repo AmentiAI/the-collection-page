@@ -217,7 +217,17 @@ export default function BattlePage() {
             </div>
 
             <button
-              onClick={() => router.push('/?battle=1')}
+              onClick={async () => {
+                // Clear the completed entry so lobby doesn't loop back here
+                if (queueId) {
+                  await fetch('/api/matchmaking/clear-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ queue_id: queueId }),
+                  }).catch(() => {})
+                }
+                router.push('/?battle=1')
+              }}
               className="text-base tracking-widest uppercase font-black px-8 py-4 rounded-xl transition-opacity hover:opacity-80"
               style={{
                 background: iWon ? 'rgba(234,179,8,0.15)' : 'rgba(185,28,28,0.15)',
