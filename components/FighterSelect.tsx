@@ -25,9 +25,7 @@ export interface WalletFighter {
 
 function formatFloor(sats: number | null): string {
   if (sats === null) return '—'
-  if (sats >= 1_000_000) return `${(sats / 1_000_000).toFixed(2)}M sats`
-  if (sats >= 1_000) return `${(sats / 1_000).toFixed(1)}k sats`
-  return `${sats} sats`
+  return `${(sats / 100_000_000).toFixed(8).replace(/\.?0+$/, '')} BTC`
 }
 
 function displayName(f: WalletFighter): string {
@@ -676,7 +674,7 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
                     className="text-base lg:text-lg font-black tabular-nums mb-1"
                     style={{ color: fighter.output_value === 330 || fighter.output_value === 546 ? '#22c55e' : '#f59e0b' }}
                   >
-                    {fighter.output_value != null ? `${fighter.output_value.toLocaleString()} sats` : '— sats'}
+                    {fighter.output_value != null ? `Size: ${fighter.output_value.toLocaleString()} Sats` : '— Sats'}
                   </div>
 
                   <div className="text-sm lg:text-base font-black text-red-200 truncate leading-tight">
