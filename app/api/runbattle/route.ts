@@ -135,6 +135,15 @@ function calcTx1Fee(winnerWitnessLen: number, feeRate: number): bigint {
   return BigInt(Math.ceil(weight / 4 * feeRate))
 }
 
+// TX1 with reward: reward UTXO (input 0) + winner ord (input 1) + pad1 (input 2)
+//   → reward P2TR + OP_RETURN + winner payout + server change (3 inputs, 4 outputs)
+function calcTx1FeeWithReward(winnerWitnessLen: number, feeRate: number): bigint {
+  const nonWitness = 10 + (3 * 41) + 43 + 17 + 43 + 43  // 4 outputs: reward P2TR + OP_RETURN + winner + server change
+  const witness    = 2 + 66 + winnerWitnessLen + 66      // reward server sig + winner taproot + pad1 server sig
+  const weight     = nonWitness * 4 + witness
+  return BigInt(Math.ceil(weight / 4 * feeRate))
+}
+
 function calcTx2Fee(loserWitnessLen: number, feeRate: number): bigint {
   const nonWitness = 10 + (2 * 41) + 17 + 43  // 2 outputs: OP_RETURN + server
   const witness    = 2 + loserWitnessLen + 66  // loser taproot + server taproot sig
@@ -195,7 +204,7 @@ async function getOutputScript(txid: string, vout: number): Promise<{ script: Bu
 }
 
 export async function GET(req: NextRequest) {
-  const feeRate     = Math.max(0.1, parseFloat(req.nextUrl.searchParams.get('fee_rate') ?? '0.2'))
+  const feeRate     = Math.max(1, parseFloat(req.nextUrl.searchParams.get('fee_rate') ?? '1'))
   const doBroadcast = req.nextUrl.searchParams.get('broadcast') === 'true'
   const pool = getPool()
 
@@ -300,8 +309,10 @@ export async function GET(req: NextRequest) {
   // ── Witness lengths for fee calculation ─────────────────────────────────────
   const winnerWitnessLen = winnerFW?.length ?? 67
   const loserWitnessLen  = loserFW?.length  ?? 67
-  const fee1 = calcTx1Fee(winnerWitnessLen, feeRate)
   const fee2 = calcTx2Fee(loserWitnessLen, feeRate)
+
+  // ── Roll 2% chance for reward ordinal ────────────────────────────────────────
+  const rewardRoll = Math.random() < 0.02
 
   // ── Fetch server padding UTXOs ──────────────────────────────────────────────
   let walletUtxos: Array<{ txid: string; vout: number; status: { confirmed: boolean }; value: number }>
@@ -325,13 +336,33 @@ export async function GET(req: NextRequest) {
 
   const [pad1, pad2] = candidates
 
+  // ── Find a 330-sat reward UTXO (confirmed, exactly 330 sats, not pad1/pad2) ─
+  const rewardCandidate = rewardRoll
+    ? walletUtxos.find(u =>
+        u.status?.confirmed &&
+        u.value === 330 &&
+        !(u.txid === pad1.txid && u.vout === pad1.vout) &&
+        !(u.txid === pad2.txid && u.vout === pad2.vout)
+      ) ?? null
+    : null
+
+  const rewardTriggered = rewardRoll && rewardCandidate !== null
+
   let pad1Out: { script: Buffer; value: bigint }
   let pad2Out: { script: Buffer; value: bigint }
+  let rewardOut: { script: Buffer; value: bigint } | null = null
   try {
-    ;[pad1Out, pad2Out] = await Promise.all([
+    const fetches: Promise<{ script: Buffer; value: bigint }>[] = [
       getOutputScript(pad1.txid, pad1.vout),
       getOutputScript(pad2.txid, pad2.vout),
-    ])
+    ]
+    if (rewardTriggered && rewardCandidate) {
+      fetches.push(getOutputScript(rewardCandidate.txid, rewardCandidate.vout))
+    }
+    const results = await Promise.all(fetches)
+    pad1Out   = results[0]
+    pad2Out   = results[1]
+    rewardOut = results[2] ?? null
   } catch (e) {
     return NextResponse.json({ error: `Failed to fetch padding UTXO scripts: ${e}` }, { status: 500 })
   }
@@ -339,8 +370,14 @@ export async function GET(req: NextRequest) {
   const pad1Val = pad1Out.value
   const pad2Val = pad2Out.value
 
+  // ── Fee for TX1 (normal or reward variant) ──────────────────────────────────
+  const fee1 = rewardTriggered
+    ? calcTx1FeeWithReward(winnerWitnessLen, feeRate)
+    : calcTx1Fee(winnerWitnessLen, feeRate)
+
   // ── Output values ───────────────────────────────────────────────────────────
   // TX1 winner payout = both ord values - both OP_RETURN burns - both tx fees
+  // (same formula whether reward is present or not — server eats the reward cost)
   const tx1WinnerOut    = (winnerOrdVal - BURN_VALUE) + (loserOrdVal - BURN_VALUE) - fee1 - fee2
   // TX1 server change = pad1 minus the portion the server fronted for the winner (loser ord value minus its fee contribution)
   const tx1ServerChange = pad1Val - (loserOrdVal - BURN_VALUE) + fee2
@@ -362,37 +399,72 @@ export async function GET(req: NextRequest) {
   const burnScript   = bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, Buffer.from('BATTLE')])
   const signer       = buildTaprootSigner(privKeyHex)
 
-  // ── Build TX1: winner's ordinal (input 0) + server pad1 (input 1) ───────────
-  // Output 0: OP_RETURN burns winner's inscription (first sat of input 0)
-  // Output 1: (winnerOrd - 1) + (loserOrd - 1) - fee1 - fee2 → winner (full payout from both ords)
-  // Output 2: pad1 - (loserOrd - 1) + fee2 → server change (server recoups its advance)
+  // ── Build TX1 ────────────────────────────────────────────────────────────────
+  // NORMAL (no reward):
+  //   Input 0: winner ordinal (player sig, burns)
+  //   Input 1: server pad1
+  //   Output 0: OP_RETURN — burns winner inscription (first sat of input 0)
+  //   Output 1: winner payout (both ord values - fees)
+  //   Output 2: server pad change
+  //
+  // REWARD (2% chance):
+  //   Input 0: reward 330-sat UTXO (server signs) — first sat = reward inscription
+  //   Input 1: winner ordinal (player sig, ANYONECANPAY — valid as input 1)
+  //   Input 2: server pad1
+  //   Output 0: 330 sats → winner (delivers reward inscription via ordinal theory)
+  //   Output 1: OP_RETURN — burns winner inscription (first sat of input 1 = sat #331)
+  //   Output 2: winner payout (same formula)
+  //   Output 3: server pad change
   const tx1 = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin })
-  tx1.addInput({ hash: winnerTxId, index: winnerIn.index, sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(winnerOrdWU.script), value: winnerOrdVal } })
-  tx1.addInput({ hash: pad1.txid,  index: pad1.vout,      sequence: 0xfffffffd, witnessUtxo: { script: pad1Out.script, value: pad1Val } })
-  tx1.addOutput({ script: burnScript,   value: BURN_VALUE      }) // 0: OP_RETURN burns winner inscription
-  tx1.addOutput({ script: winnerScript, value: tx1WinnerOut    }) // 1: winner receives both ord values minus fees
-  tx1.addOutput({ script: ourScript,    value: tx1ServerChange }) // 2: server gets its pad change back
 
-  // Inject winner signature (input 0)
+  let winnerInputIdx: number
+  let pad1InputIdx: number
+
+  if (rewardTriggered && rewardCandidate && rewardOut) {
+    // Reward path: reward UTXO is input 0, winner ord is input 1, pad1 is input 2
+    tx1.addInput({ hash: rewardCandidate.txid, index: rewardCandidate.vout, sequence: 0xfffffffd, witnessUtxo: { script: rewardOut.script, value: rewardOut.value } })
+    tx1.addInput({ hash: winnerTxId, index: winnerIn.index, sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(winnerOrdWU.script), value: winnerOrdVal } })
+    tx1.addInput({ hash: pad1.txid,  index: pad1.vout,      sequence: 0xfffffffd, witnessUtxo: { script: pad1Out.script, value: pad1Val } })
+    tx1.addOutput({ script: winnerScript, value: rewardOut.value  }) // 0: reward inscription → winner (ordinal theory: first sat of input 0)
+    tx1.addOutput({ script: burnScript,   value: BURN_VALUE       }) // 1: OP_RETURN burns winner inscription (first sat of input 1 = sat #331)
+    tx1.addOutput({ script: winnerScript, value: tx1WinnerOut     }) // 2: winner receives both ord values minus fees
+    tx1.addOutput({ script: ourScript,    value: tx1ServerChange  }) // 3: server gets its pad change back
+    winnerInputIdx = 1
+    pad1InputIdx   = 2
+    // Server signs reward UTXO (input 0)
+    tx1.updateInput(0, { tapInternalKey: signer.xOnly })
+    try { tx1.signInput(0, signer); tx1.finalizeInput(0) } catch { /* handled below */ }
+  } else {
+    // Normal path
+    tx1.addInput({ hash: winnerTxId, index: winnerIn.index, sequence: 0xfffffffd, witnessUtxo: { script: Buffer.from(winnerOrdWU.script), value: winnerOrdVal } })
+    tx1.addInput({ hash: pad1.txid,  index: pad1.vout,      sequence: 0xfffffffd, witnessUtxo: { script: pad1Out.script, value: pad1Val } })
+    tx1.addOutput({ script: burnScript,   value: BURN_VALUE      }) // 0: OP_RETURN burns winner inscription
+    tx1.addOutput({ script: winnerScript, value: tx1WinnerOut    }) // 1: winner receives both ord values minus fees
+    tx1.addOutput({ script: ourScript,    value: tx1ServerChange }) // 2: server gets its pad change back
+    winnerInputIdx = 0
+    pad1InputIdx   = 1
+  }
+
+  // Inject winner signature
   let tx1WinnerErr: string | null = null
   if (winnerFW) {
-    tx1.data.inputs[0].finalScriptWitness = winnerFW
+    tx1.data.inputs[winnerInputIdx].finalScriptWitness = winnerFW
   } else if (winnerTapSig) {
     try {
-      if (winnerTapKey) tx1.updateInput(0, { tapInternalKey: winnerTapKey })
-      tx1.updateInput(0, { tapKeySig: winnerTapSig })
-      tx1.finalizeInput(0)
+      if (winnerTapKey) tx1.updateInput(winnerInputIdx, { tapInternalKey: winnerTapKey })
+      tx1.updateInput(winnerInputIdx, { tapKeySig: winnerTapSig })
+      tx1.finalizeInput(winnerInputIdx)
     } catch (e) { tx1WinnerErr = String(e) }
   } else {
     tx1WinnerErr = 'No signature found in winner PSBT'
   }
 
-  // Server signs pad1 (input 1)
-  tx1.updateInput(1, { tapInternalKey: signer.xOnly })
+  // Server signs pad1
+  tx1.updateInput(pad1InputIdx, { tapInternalKey: signer.xOnly })
   let tx1PadErr: string | null = null
   try {
-    tx1.signInput(1, signer)
-    tx1.finalizeInput(1)
+    tx1.signInput(pad1InputIdx, signer)
+    tx1.finalizeInput(pad1InputIdx)
   } catch (e) { tx1PadErr = String(e) }
 
   // ── Build TX2: loser's ordinal (input 0) + server pad2 (input 1) ────────────
@@ -462,14 +534,16 @@ export async function GET(req: NextRequest) {
       const winnerPlayerId = winnerNum === 1 ? row.p1_id : row.p2_id
       const loserPlayerId  = winnerNum === 1 ? row.p2_id : row.p1_id
       const result = {
-        winner_address: winnerPlayerId,
-        loser_address:  loserPlayerId,
-        winner_num:     winnerNum,
-        tx1_txid:       tx1BroadcastTxid,
-        tx2_txid:       tx2BroadcastTxid,
-        completed_at:   new Date().toISOString(),
+        winner_address:   winnerPlayerId,
+        loser_address:    loserPlayerId,
+        winner_num:       winnerNum,
+        tx1_txid:         tx1BroadcastTxid,
+        tx2_txid:         tx2BroadcastTxid,
+        reward_triggered: rewardTriggered,
+        reward_utxo:      rewardTriggered && rewardCandidate ? `${rewardCandidate.txid}:${rewardCandidate.vout}` : null,
+        completed_at:     new Date().toISOString(),
       }
-      await Promise.all([
+      const dbOps: Promise<unknown>[] = [
         // Mark both queue entries as completed with result
         pool.query(
           `UPDATE matchmaking_queue SET status = 'completed', battle_result = $1
@@ -492,7 +566,18 @@ export async function GET(req: NextRequest) {
            SET battles_lost = COALESCE(profiles.battles_lost, 0) + 1`,
           [loserPlayerId]
         ),
-      ])
+      ]
+      // Record reward if triggered
+      if (rewardTriggered && rewardCandidate) {
+        dbOps.push(
+          pool.query(
+            `INSERT INTO battle_rewards (queue_id, winner_wallet, loser_wallet, reward_utxo_txid, reward_utxo_vout, reward_value_sats, battle_tx1_txid)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [row.q1_id, winnerPlayerId, loserPlayerId, rewardCandidate.txid, rewardCandidate.vout, rewardCandidate.value, tx1BroadcastTxid]
+          )
+        )
+      }
+      await Promise.all(dbOps)
     }
   }
 
@@ -505,21 +590,41 @@ export async function GET(req: NextRequest) {
       player1: { wallet: row.p1_id, fighter: row.f1 },
       player2: { wallet: row.p2_id, fighter: row.f2 },
     },
+    reward: {
+      rolled:    rewardRoll,
+      triggered: rewardTriggered,
+      utxo:      rewardTriggered && rewardCandidate ? { txid: rewardCandidate.txid, vout: rewardCandidate.vout, value: rewardCandidate.value } : null,
+      reason:    rewardRoll && !rewardTriggered ? 'No 330-sat UTXO available in battle wallet' : undefined,
+    },
     tx1: {
-      desc: 'Winner payout — both inscriptions value paid to winner, server gets pad change back',
-      inputs: {
+      desc: rewardTriggered
+        ? 'Winner payout + bonus reward ordinal — server reward UTXO (input 0) delivered to winner, winner ord burned, server gets pad change back'
+        : 'Winner payout — both inscriptions value paid to winner, server gets pad change back',
+      inputs: rewardTriggered && rewardCandidate && rewardOut ? {
+        0: { desc: 'server reward UTXO (330-sat ordinal → winner)',          txid: rewardCandidate.txid, vout: rewardCandidate.vout, value_sats: Number(rewardOut.value) },
+        1: { desc: 'winner ordinal (inscription burns via OP_RETURN out 1)', txid: winnerTxId,           vout: winnerIn.index,       value_sats: Number(winnerOrdVal) },
+        2: { desc: 'server pad1 (fronts loser value)',                       txid: pad1.txid,            vout: pad1.vout,            value_sats: Number(pad1Val) },
+      } : {
         0: { desc: 'winner ordinal (inscription burns)',  txid: winnerTxId, vout: winnerIn.index, value_sats: Number(winnerOrdVal) },
         1: { desc: 'server pad1 (fronts loser value)',   txid: pad1.txid,  vout: pad1.vout,      value_sats: Number(pad1Val) },
       },
-      outputs: {
-        0: { desc: 'OP_RETURN — winner inscription destroyed',                                         value_sats: Number(BURN_VALUE) },
-        1: { desc: `winner payout → ${winnerAddr}`,                                                    value_sats: Number(tx1WinnerOut) },
-        2: { desc: `server pad change → ${battleAddr}`,                                                value_sats: Number(tx1ServerChange) },
+      outputs: rewardTriggered && rewardCandidate && rewardOut ? {
+        0: { desc: `reward inscription → ${winnerAddr} (330 sats, ordinal theory: first sat of input 0)`, value_sats: Number(rewardOut.value) },
+        1: { desc: 'OP_RETURN — winner inscription destroyed (first sat of input 1)',                      value_sats: Number(BURN_VALUE) },
+        2: { desc: `winner payout → ${winnerAddr}`,                                                       value_sats: Number(tx1WinnerOut) },
+        3: { desc: `server pad change → ${battleAddr}`,                                                   value_sats: Number(tx1ServerChange) },
+      } : {
+        0: { desc: 'OP_RETURN — winner inscription destroyed',   value_sats: Number(BURN_VALUE) },
+        1: { desc: `winner payout → ${winnerAddr}`,             value_sats: Number(tx1WinnerOut) },
+        2: { desc: `server pad change → ${battleAddr}`,         value_sats: Number(tx1ServerChange) },
       },
-      formula: `winner gets (${winnerOrdVal}-1) + (${loserOrdVal}-1) - fee1(${fee1}) - fee2(${fee2}) = ${tx1WinnerOut} sats`,
+      formula: `winner gets (${winnerOrdVal}-1) + (${loserOrdVal}-1) - fee1(${fee1}) - fee2(${fee2}) = ${tx1WinnerOut} sats${rewardTriggered ? ' + bonus 330-sat reward ordinal' : ''}`,
       fee_sats:  Number(fee1),
-      est_vsize: Math.ceil(((10 + 2*41 + 17 + 43 + 43) * 4 + 2 + winnerWitnessLen + 66) / 4),
-      signing: {
+      signing: rewardTriggered ? {
+        input_0_server_reward: 'SIGNED + FINALIZED',
+        input_1_winner:        tx1WinnerErr ?? (winnerFW ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
+        input_2_server_pad:    tx1PadErr    ?? 'SIGNED + FINALIZED',
+      } : {
         input_0_winner:     tx1WinnerErr ?? (winnerFW ? 'FINALIZED (witness copied)' : 'SIGNED + FINALIZED'),
         input_1_server_pad: tx1PadErr    ?? 'SIGNED + FINALIZED',
       },
