@@ -83,22 +83,20 @@ const ELEMENT_ICONS: Record<Fighter['element'], string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 'md' | 'lg' }) {
+function FighterArt({ fighter, size = 'md', flip }: { fighter: Fighter; size?: 'sm' | 'md' | 'lg'; flip?: boolean }) {
   const [err, setErr] = useState(false)
   const dim = { sm: 'w-24 h-24', md: 'w-36 h-36', lg: 'w-48 h-48' }[size]
   const isHtml = fighter.contentType?.startsWith('text/html') || fighter.contentType === 'application/xhtml+xml'
   const isImage = fighter.contentType?.startsWith('image/')
+
+  const flipStyle = flip ? 'scaleX(-1)' : undefined
 
   if (isHtml && fighter.contentUrl) {
     return (
       <iframe
         src={fighter.contentUrl}
         className={`${dim} rounded-xl`}
-        style={{
-          border: 'none',
-          pointerEvents: 'none',
-          filter: `drop-shadow(0 0 12px ${fighter.glowColor})`,
-        }}
+        style={{ border: 'none', pointerEvents: 'none', filter: `drop-shadow(0 0 12px ${fighter.glowColor})`, transform: flipStyle }}
         sandbox="allow-scripts allow-same-origin"
         scrolling="no"
         loading="lazy"
@@ -112,7 +110,7 @@ function FighterArt({ fighter, size = 'md' }: { fighter: Fighter; size?: 'sm' | 
         src={fighter.contentUrl}
         alt={fighter.name}
         className={`${dim} object-contain rounded-xl`}
-        style={{ filter: `drop-shadow(0 0 12px ${fighter.glowColor})` }}
+        style={{ filter: `drop-shadow(0 0 12px ${fighter.glowColor})`, transform: flipStyle }}
         onError={() => setErr(true)}
       />
     )
