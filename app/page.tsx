@@ -125,7 +125,7 @@ function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
 }
 
 // March 10 2026 12:00 PM EST = 16:00 UTC
-const LAUNCH_TIME = new Date('2026-03-10T16:00:00Z')
+const LAUNCH_TIME = new Date('2026-03-11T16:00:00Z')
 
 function useCountdown(target: Date) {
   const [timeLeft, setTimeLeft] = useState(() => Math.max(0, target.getTime() - Date.now()))
@@ -156,25 +156,25 @@ function BattleCountdown() {
         Battle begins in
       </div>
 
-      <div className="flex items-end gap-4 sm:gap-8">
+      <div className="flex items-end gap-1.5 sm:gap-4 lg:gap-8 px-2">
         {[
           { value: days, label: 'Days' },
-          { value: hours, label: 'Hours' },
+          { value: hours, label: 'Hrs' },
           { value: mins, label: 'Min' },
           { value: secs, label: 'Sec' },
         ].map(({ value, label }, i) => (
-          <div key={label} className="flex items-end gap-4 sm:gap-8">
+          <div key={label} className="flex items-end gap-1.5 sm:gap-4 lg:gap-8">
             {i > 0 && (
               <span
-                className="text-4xl sm:text-6xl lg:text-8xl font-black pb-6 sm:pb-8 lg:pb-10"
+                className="text-2xl sm:text-5xl lg:text-8xl font-black pb-4 sm:pb-7 lg:pb-10"
                 style={{ color: '#3d0a0a' }}
               >
                 :
               </span>
             )}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1 sm:gap-2">
               <div
-                className="text-6xl sm:text-8xl lg:text-[10rem] font-black tabular-nums leading-none"
+                className="text-4xl sm:text-7xl lg:text-[10rem] font-black tabular-nums leading-none"
                 style={{
                   color: '#cc2200',
                   textShadow: '0 0 60px rgba(185,28,28,0.5), 0 0 120px rgba(185,28,28,0.2)',
@@ -184,7 +184,7 @@ function BattleCountdown() {
                 {pad(value)}
               </div>
               <div
-                className="text-xs sm:text-sm font-black uppercase tracking-widest"
+                className="text-[9px] sm:text-xs font-black uppercase tracking-widest"
                 style={{ color: '#4a1515' }}
               >
                 {label}
