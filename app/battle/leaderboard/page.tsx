@@ -81,7 +81,7 @@ export default function BattleLeaderboardPage() {
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Win Rate</div>
-              <div className="text-4xl font-black tabular-nums" style={{ color: '#e8eef7' }}>{myStats.win_pct}%</div>
+              <div className="text-2xl font-black tabular-nums leading-tight truncate" style={{ color: '#e8eef7' }}>{myStats.win_pct}%</div>
             </div>
             {(myStats.wins > 0 || myStats.losses > 0) && (
               <div className="col-span-3 text-[10px] uppercase tracking-widest font-black mt-1" style={{ color: '#4a1515' }}>
