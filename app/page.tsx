@@ -318,15 +318,15 @@ function BattleStatsWidget({ address }: { address: string | undefined }) {
         >
           <div>
             <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Wins</div>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.4)' }}>{myStats.wins}</div>
+            <div className="text-lg font-black tabular-nums" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.4)' }}>{myStats.wins}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Losses</div>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.4)' }}>{myStats.losses}</div>
+            <div className="text-lg font-black tabular-nums" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.4)' }}>{myStats.losses}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: '#7f1d1d' }}>Win Rate</div>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#e8eef7', textShadow: '0 0 20px rgba(200,200,255,0.2)' }}>{myStats.win_pct}%</div>
+            <div className="text-base font-black tabular-nums" style={{ color: '#e8eef7', textShadow: '0 0 20px rgba(200,200,255,0.2)' }}>{myStats.win_pct}%</div>
           </div>
           {myStats.rank && (myStats.wins > 0 || myStats.losses > 0) && (
             <div className="col-span-3 text-[10px] uppercase tracking-widest font-black" style={{ color: '#4a1515' }}>
