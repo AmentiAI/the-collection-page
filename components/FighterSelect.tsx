@@ -403,7 +403,7 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
           <div style={{ width: 3, height: 36, background: 'linear-gradient(180deg, #ff2200, #660000)', borderRadius: 2 }} />
           <div>
             <h2 className="text-2xl lg:text-3xl font-black uppercase" style={{ color: '#fff', textShadow: '0 0 30px rgba(255,40,0,0.4)', letterSpacing: '0.12em' }}>
-              Choose Your Fighter
+              Choose Your Ordinal
             </h2>
             <p className="text-xs uppercase tracking-widest font-bold mt-0.5" style={{ color: '#5a1515' }}>
               {loading ? 'Scanning inscriptions…' : fighters.length > 0 ? `${normalFighters.length} eligible · ${paddedFighters.length} padded` : 'No inscriptions found'}
