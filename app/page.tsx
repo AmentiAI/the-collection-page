@@ -580,7 +580,7 @@ export default function Home() {
       ) : (
         <>
           <BloodCanvas />
-          <main className={`min-h-screen relative overflow-x-hidden ${shake ? 'shake' : ''}`}>
+          <main className="min-h-screen relative overflow-x-hidden">
             <Header 
               isHolder={isHolder} 
               isVerifying={isVerifying}

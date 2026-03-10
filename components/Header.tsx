@@ -35,7 +35,6 @@ export default function Header({
   const pathname = usePathname()
   const { musicVolume, setMusicVolume, isMusicMuted, setIsMusicMuted, toggleMute } = useMusicPlayer()
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [shake, setShake] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   
   // Always show music controls on admin/sadmin/horde pages
@@ -108,14 +107,6 @@ export default function Header({
     return () => clearInterval(interval)
   }, [title.length])
 
-  useEffect(() => {
-    const shakeInterval = setInterval(() => {
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-    }, 6000)
-
-    return () => clearInterval(shakeInterval)
-  }, [])
 
   useEffect(() => {
     const handleResize = () => {

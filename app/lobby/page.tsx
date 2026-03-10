@@ -28,7 +28,8 @@ export interface Fighter {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function deriveStats(inscriptionNumber: number): Omit<Fighter, 'id' | 'name' | 'contentUrl' | 'contentType' | 'inscriptionNumber' | 'utxoValue'> {
-  const s = inscriptionNumber
+  // Guard against undefined/null/NaN/negative values from Ordiscan
+  const s = Math.abs(Math.floor(Number(inscriptionNumber) || 0))
   const hp = 70 + (s % 50)
   const atk = 60 + ((s * 3) % 40)
   const def = 55 + ((s * 7) % 40)
@@ -249,13 +250,17 @@ export default function LobbyPage() {
       const data = await res.json()
       if (data.status === 'matched' && data.opponent) {
         handleMatched(data.opponent as Fighter)
+      } else if (data.status === 'completed') {
+        stopPolling()
+        router.push('/battle')
       } else if (data.status === 'cancelled' || !res.ok) {
         stopPolling()
-        setError(data.error ?? 'Match was cancelled')
+        setError(data.error ?? `Match cancelled (status: ${data.status ?? res.status})`)
         setPhase('error')
       }
-    } catch {
-      // network blip — keep polling
+    } catch (e) {
+      // network blip — keep polling but log it
+      console.warn('[lobby poll error]', e)
     }
   }, [handleMatched, address])
 
@@ -285,8 +290,14 @@ export default function LobbyPage() {
     ;(async () => {
       try {
         // Always check DB first — wallet address is the source of truth
-        const playerRes = await fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
-        const playerData = await playerRes.json()
+        let playerData: any = {}
+        try {
+          const playerRes = await fetch(`/api/matchmaking/player?player_id=${encodeURIComponent(address)}`)
+          playerData = await playerRes.json()
+          if (!playerRes.ok) throw new Error(`Player lookup failed (${playerRes.status}): ${playerData.error ?? 'unknown'}`)
+        } catch (e) {
+          throw new Error(`Could not reach matchmaking API — ${e instanceof Error ? e.message : e}`)
+        }
 
         if (playerData.found) {
           // Completed battle — send to battle page to show result
@@ -307,28 +318,42 @@ export default function LobbyPage() {
           return
         }
 
-        // No active DB entry — fresh join, need fighter from sessionStorage
+        // No active DB entry — need fighter from sessionStorage
         const enrichedRaw = sessionStorage.getItem('fighter_data')
-        if (!enrichedRaw) { router.push('/'); return }
+        if (!enrichedRaw) {
+          throw new Error('Fighter data missing from session — go back and select your fighter again')
+        }
 
         let fighter: Fighter
         try {
           fighter = enrichedToFighter(JSON.parse(enrichedRaw))
-        } catch {
-          router.push('/')
-          return
+        } catch (e) {
+          sessionStorage.removeItem('fighter_data')
+          sessionStorage.removeItem('fighter_signed_psbt')
+          sessionStorage.removeItem('fighter_inscription_id')
+          throw new Error(`Could not parse fighter data — ${e instanceof Error ? e.message : e}. Go back and select your fighter again.`)
         }
 
         setMyFighter(fighter)
 
         const signedPsbt = sessionStorage.getItem('fighter_signed_psbt')
-        const res = await fetch('/api/matchmaking/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player_id: address, fighter_data: fighter, signed_psbt: signedPsbt }),
-        })
-        if (!res.ok) throw new Error(`Join failed (${res.status})`)
-        const data = await res.json()
+        if (!signedPsbt) {
+          throw new Error('Signed PSBT missing from session — go back and sign with your wallet again')
+        }
+
+        let data: any
+        try {
+          const res = await fetch('/api/matchmaking/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_id: address, fighter_data: fighter, signed_psbt: signedPsbt }),
+          })
+          data = await res.json()
+          if (!res.ok) throw new Error(`Join failed (${res.status}): ${data.error ?? 'unknown error'}`)
+        } catch (e) {
+          throw new Error(`Could not join matchmaking — ${e instanceof Error ? e.message : e}`)
+        }
+
         if (cancelledRef.current) return
 
         queueIdRef.current = data.queue_id
@@ -341,8 +366,9 @@ export default function LobbyPage() {
           pollRef.current = setInterval(poll, 2000)
         }
       } catch (e) {
+        console.error('[lobby] join error:', e)
         if (!cancelledRef.current) {
-          setError(e instanceof Error ? e.message : 'Failed to join matchmaking')
+          setError(e instanceof Error ? e.message : String(e))
           setPhase('error')
         }
       }
@@ -387,6 +413,47 @@ export default function LobbyPage() {
     />
   )
 
+  // Error check MUST come before the !myFighter check — errors can occur before fighter is set
+  if (phase === 'error') {
+    return (
+      <div className="min-h-screen" style={{ background: '#030101' }}>
+        {headerEl}
+        <div className="flex items-center justify-center min-h-[60vh] px-4">
+          <div className="w-full max-w-lg">
+            <div className="text-4xl font-black uppercase tracking-widest mb-4 text-center" style={{ color: '#cc2200' }}>⚠️ Error</div>
+            <div
+              className="rounded-xl px-5 py-4 mb-6 text-sm leading-relaxed font-mono break-words"
+              style={{ background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.35)', color: '#f87171' }}
+            >
+              {error ?? 'Unknown error'}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  joinedRef.current = false
+                  cancelledRef.current = false
+                  setError(null)
+                  setPhase('connecting')
+                }}
+                className="flex-1 px-6 py-4 font-black text-sm tracking-widest uppercase rounded-lg"
+                style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)' }}
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => router.push('/?battle=1')}
+                className="flex-1 px-6 py-4 font-black text-sm tracking-widest uppercase rounded-lg"
+                style={{ background: 'rgba(255,255,255,0.03)', color: '#4a1515', border: '1px solid rgba(185,28,28,0.15)' }}
+              >
+                ← Back to Select
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (phase === 'connecting' || !myFighter) {
     return (
       <div className="min-h-screen" style={{ background: '#030101' }}>
@@ -399,27 +466,6 @@ export default function LobbyPage() {
             {address && (
               <div className="w-8 h-8 mx-auto rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
             )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (phase === 'error') {
-    return (
-      <div className="min-h-screen" style={{ background: '#030101' }}>
-        {headerEl}
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center px-6">
-            <div className="text-5xl font-black uppercase tracking-widest mb-4" style={{ color: '#cc2200' }}>Connection Error</div>
-            <div className="text-base mb-8" style={{ color: '#4a1515' }}>{error}</div>
-            <button
-              onClick={() => router.push('/?battle=1')}
-              className="px-8 py-4 font-black text-base tracking-widest uppercase"
-              style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)', borderRadius: 4 }}
-            >
-              ← Back to Select
-            </button>
           </div>
         </div>
       </div>
