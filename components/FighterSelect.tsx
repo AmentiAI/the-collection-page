@@ -156,143 +156,87 @@ function PsbtModal({
   const stepIdx = { idle: -1, building: 0, signing: 1, done: 2, error: 0 }[step]
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.88)' }}
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-xl rounded-2xl p-8"
-        style={{
-          background: '#0d0509',
-          border: '1px solid rgba(185,28,28,0.4)',
-          boxShadow: '0 0 60px rgba(185,28,28,0.2)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Fighter preview */}
-        <div className="flex items-center gap-4 mb-5">
-          <InscriptionArt fighter={fighter} size="md" />
-          <div>
-            <div className="font-black text-xl text-red-100">{displayName(fighter)}</div>
-            {fighter.collection_name && (
-              <div className="text-sm text-red-700 mt-0.5">{fighter.collection_name}</div>
-            )}
-            {fighter.floor_price_sats !== null && (
-              <div className="text-sm text-green-600 font-bold mt-0.5">
-                Floor {formatFloor(fighter.floor_price_sats)}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.92)' }} onClick={onCancel}>
+      <div className="w-full max-w-xl relative overflow-hidden" style={{ borderRadius: 6 }} onClick={(e) => e.stopPropagation()}>
+        {/* Panel top shine */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,80,0,0.6) 25%, rgba(255,200,80,0.85) 50%, rgba(255,80,0,0.6) 75%, transparent)', zIndex: 3 }} />
+        <div style={{ position: 'absolute', top: 0, left: '18%', width: '32%', height: 50, background: 'linear-gradient(180deg, rgba(255,255,255,0.055) 0%, transparent 100%)', borderRadius: '0 0 50% 50%', zIndex: 2 }} />
+        <div style={{ border: '1px solid rgba(200,30,0,0.35)', borderRadius: 6, background: 'linear-gradient(160deg, rgba(120,5,5,0.28) 0%, rgba(8,2,5,0.97) 60%)', backdropFilter: 'blur(14px)', padding: '28px 28px 24px', position: 'relative', zIndex: 1 }}>
+
+          {/* Fighter preview */}
+          <div className="flex items-center gap-4 mb-6">
+            <InscriptionArt fighter={fighter} size="md" />
+            <div>
+              <div className="font-black text-xl" style={{ color: '#e8eef7' }}>{displayName(fighter)}</div>
+              {fighter.collection_name && <div className="text-sm mt-0.5" style={{ color: '#7f1d1d' }}>{fighter.collection_name}</div>}
+              {fighter.floor_price_sats !== null && <div className="text-sm font-bold mt-0.5" style={{ color: '#22c55e' }}>Floor {formatFloor(fighter.floor_price_sats)}</div>}
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <div style={{ width: 6, height: 6, background: '#ff2200', borderRadius: 1, transform: 'rotate(45deg)', boxShadow: '0 0 6px #ff2200' }} />
+              <div className="text-xl font-black uppercase tracking-widest" style={{ color: '#fff' }}>Commit to Battle</div>
+            </div>
+            <p className="text-sm leading-relaxed" style={{ color: '#6a2020' }}>
+              Sign a PSBT that commits this inscription as your fighter. Proves ownership on-chain — it will not broadcast until the battle executes.
+            </p>
+          </div>
+
+          {/* Burn warning */}
+          <div className="relative overflow-hidden flex items-start gap-3 px-4 py-3 mb-5" style={{ borderRadius: 4, background: 'linear-gradient(135deg, rgba(180,130,0,0.1), rgba(80,50,0,0.06))', border: '1px solid rgba(234,179,8,0.35)' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(234,179,8,0.6), transparent)' }} />
+            <span className="text-xl flex-shrink-0">🔥</span>
+            <div>
+              <div className="text-sm font-black uppercase tracking-widest mb-0.5" style={{ color: '#eab308' }}>This inscription will be permanently burned</div>
+              <div className="text-xs leading-relaxed" style={{ color: '#a16207' }}>
+                Win or lose, both inscriptions are destroyed. If you <span style={{ color: '#eab308', fontWeight: 900 }}>win</span>, you get the sat value of both UTXOs. If you <span style={{ color: '#ef4444', fontWeight: 900 }}>lose</span>, you get nothing.
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-5">
-          <div className="text-2xl font-black text-red-100 mb-2">Commit to Battle</div>
-          <p className="text-base text-red-900 leading-relaxed">
-            Sign a PSBT that commits this inscription as your fighter. This proves ownership
-            on-chain — it will not move or broadcast your ordinal until the battle executes.
-          </p>
-        </div>
-
-        {/* Burn warning */}
-        <div
-          className="flex items-start gap-3 px-4 py-3 rounded-xl mb-5"
-          style={{ background: 'rgba(234,179,8,0.1)', border: '2px solid rgba(234,179,8,0.5)' }}
-        >
-          <span className="text-2xl flex-shrink-0">🔥</span>
-          <div>
-            <div className="text-base font-black uppercase tracking-widest mb-1" style={{ color: '#eab308' }}>
-              This inscription will be permanently burned
-            </div>
-            <div className="text-sm leading-relaxed" style={{ color: '#a16207' }}>
-              Win or lose, both inscriptions are destroyed on-chain. If you <span style={{ color: '#eab308', fontWeight: 900 }}>win</span>, you receive the sat value of both UTXOs back to your wallet. If you <span style={{ color: '#ef4444', fontWeight: 900 }}>lose</span>, you get nothing.
             </div>
           </div>
-        </div>
 
-        {/* UTXO info */}
-        {fighter.output && (
-          <div
-            className="rounded-lg px-3 py-2 mb-4 font-mono text-xs"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(185,28,28,0.15)' }}
-          >
-            <div className="flex justify-between text-red-900 mb-1">
-              <span className="text-sm">UTXO</span>
-              <span className="text-sm text-red-700">
-                {fighter.output.slice(0, 8)}…{fighter.output.slice(-6)}
-              </span>
+          {/* UTXO info */}
+          {fighter.output && (
+            <div className="flex gap-4 px-4 py-2.5 mb-5 font-mono text-xs" style={{ borderRadius: 4, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(185,28,28,0.15)' }}>
+              <div className="flex-1 flex justify-between"><span style={{ color: '#4a1515' }}>UTXO</span><span style={{ color: '#7f1d1d' }}>{fighter.output.slice(0, 10)}…{fighter.output.slice(-6)}</span></div>
+              <div style={{ width: 1, background: 'rgba(185,28,28,0.15)' }} />
+              <div className="flex-1 flex justify-between"><span style={{ color: '#4a1515' }}>Value</span><span style={{ color: '#7f1d1d' }}>{fighter.output_value?.toLocaleString() ?? '—'} sats</span></div>
             </div>
-            <div className="flex justify-between text-red-900">
-              <span className="text-sm">Value</span>
-              <span className="text-sm text-red-700">{fighter.output_value?.toLocaleString() ?? '—'} sats</span>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Step progress */}
-        <div className="flex items-center gap-2 mb-5">
-          {steps.map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black"
-                style={{
-                  background:
-                    i < stepIdx ? '#b91c1c' : i === stepIdx ? 'rgba(185,28,28,0.4)' : 'rgba(255,255,255,0.05)',
-                  color: i <= stepIdx ? '#fff' : '#4a1515',
-                }}
-              >
-                {i < stepIdx ? '✓' : i + 1}
+          {/* Step progress */}
+          <div className="flex items-center gap-2 mb-5">
+            {steps.map((s, i) => (
+              <div key={s} className="flex items-center gap-2">
+                <div className="w-7 h-7 flex items-center justify-center text-xs font-black" style={{ borderRadius: 3, background: i < stepIdx ? '#b91c1c' : i === stepIdx ? 'rgba(185,28,28,0.35)' : 'rgba(255,255,255,0.04)', border: `1px solid ${i <= stepIdx ? 'rgba(185,28,28,0.6)' : 'rgba(185,28,28,0.12)'}`, color: i <= stepIdx ? '#fff' : '#4a1515' }}>
+                  {i < stepIdx ? '✓' : i + 1}
+                </div>
+                {i < steps.length - 1 && <div className="w-8 h-px" style={{ background: i < stepIdx ? '#b91c1c' : 'rgba(255,255,255,0.07)' }} />}
               </div>
-              {i < steps.length - 1 && (
-                <div
-                  className="w-10 h-0.5"
-                  style={{ background: i < stepIdx ? '#b91c1c' : 'rgba(255,255,255,0.08)' }}
-                />
-              )}
-            </div>
-          ))}
-          <span className="ml-3 text-sm text-red-900">
-            {step === 'idle' && 'Ready'}
-            {step === 'building' && 'Building…'}
-            {step === 'signing' && 'Awaiting wallet…'}
-            {step === 'done' && 'Signed!'}
-            {step === 'error' && 'Error'}
-          </span>
-        </div>
-
-        {error && (
-          <div
-            className="rounded-lg px-3 py-2 mb-4 text-sm text-red-400"
-            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
-          >
-            {error}
+            ))}
+            <span className="ml-3 text-xs font-black uppercase tracking-widest" style={{ color: '#6a2020' }}>
+              {step === 'idle' && 'Ready'}{step === 'building' && 'Building…'}{step === 'signing' && 'Awaiting wallet…'}{step === 'done' && 'Signed!'}{step === 'error' && 'Error'}
+            </span>
           </div>
-        )}
 
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-4 rounded-lg text-sm font-black uppercase tracking-widest text-red-800 border border-red-900/30 hover:border-red-800/50 transition-colors"
-            style={{ background: 'rgba(255,255,255,0.02)' }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={step === 'error' ? handleSign : step === 'idle' ? handleSign : undefined}
-            disabled={step === 'building' || step === 'signing' || step === 'done'}
-            className="flex-1 py-4 rounded-lg text-sm font-black uppercase tracking-widest text-white transition-all"
-            style={{
-              background: step === 'done' ? '#166534' : 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-              opacity: step === 'building' || step === 'signing' ? 0.6 : 1,
-              boxShadow: '0 0 20px rgba(185,28,28,0.3)',
-            }}
-          >
-            {step === 'idle' && '⚔️ Sign & Fight'}
-            {step === 'building' && 'Building…'}
-            {step === 'signing' && 'Sign in Wallet'}
-            {step === 'done' && '✓ Committed'}
-            {step === 'error' && 'Retry'}
-          </button>
+          {error && (
+            <div className="px-3 py-2 mb-4 text-sm" style={{ borderRadius: 4, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>{error}</div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={onCancel} className="flex-1 py-3.5 text-sm font-black uppercase tracking-widest transition-opacity hover:opacity-70" style={{ borderRadius: 4, background: 'rgba(255,255,255,0.02)', color: '#6a2020', border: '1px solid rgba(185,28,28,0.22)' }}>
+              Cancel
+            </button>
+            <button
+              onClick={step === 'error' || step === 'idle' ? handleSign : undefined}
+              disabled={step === 'building' || step === 'signing' || step === 'done'}
+              className="flex-1 relative overflow-hidden py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all"
+              style={{ borderRadius: 4, background: step === 'done' ? 'linear-gradient(135deg, rgba(22,101,52,0.6), rgba(5,40,15,0.8))' : 'linear-gradient(135deg, #b91c1c, #7f1d1d)', opacity: step === 'building' || step === 'signing' ? 0.55 : 1, boxShadow: step !== 'done' ? '0 0 20px rgba(185,28,28,0.35)' : 'none' }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,150,100,0.5), transparent)' }} />
+              {step === 'idle' && '⚔️ Sign & Fight'}{step === 'building' && 'Building…'}{step === 'signing' && 'Sign in Wallet'}{step === 'done' && '✓ Committed'}{step === 'error' && 'Retry'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -409,134 +353,128 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
 
   if (!connected) {
     return (
-      <div className="flex flex-col items-center gap-4 py-12 text-center">
-        <div className="text-4xl opacity-30">💀</div>
-        <div className="text-red-900 text-sm font-bold uppercase tracking-widest">
+      <div className="flex flex-col items-center gap-4 py-16 text-center">
+        <div className="text-5xl opacity-20">💀</div>
+        <div className="text-sm font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>
           Connect your wallet to choose a fighter
         </div>
       </div>
     )
   }
 
+  // ── Shared glass panel ────────────────────────────────────────────────────
+  const GlassCard = ({ children, selected: sel = false, onClick, className = '' }: { children: React.ReactNode; selected?: boolean; onClick?: () => void; className?: string }) => (
+    <div
+      onClick={onClick}
+      className={`relative overflow-hidden ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={{
+        borderRadius: 5,
+        border: `1px solid ${sel ? 'rgba(255,60,0,0.5)' : 'rgba(185,28,28,0.18)'}`,
+        background: sel
+          ? 'linear-gradient(160deg, rgba(140,10,10,0.28) 0%, rgba(8,2,5,0.95) 65%)'
+          : 'linear-gradient(160deg, rgba(80,5,5,0.14) 0%, rgba(6,1,4,0.97) 65%)',
+        backdropFilter: 'blur(8px)',
+        boxShadow: sel ? '0 0 22px rgba(255,50,0,0.18)' : 'none',
+        transform: sel && onClick ? 'scale(1.02)' : 'scale(1)',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      {/* Top shine */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: sel ? 'linear-gradient(90deg, transparent, rgba(255,80,0,0.7) 30%, rgba(255,200,80,0.9) 50%, rgba(255,80,0,0.7) 70%, transparent)' : 'linear-gradient(90deg, transparent, rgba(255,40,0,0.3) 40%, rgba(255,40,0,0.3) 60%, transparent)', zIndex: 1 }} />
+      {sel && <div style={{ position: 'absolute', top: 0, left: '15%', width: '32%', height: 36, background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)', borderRadius: '0 0 50% 50%', zIndex: 0 }} />}
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+    </div>
+  )
+
   return (
     <div className={`w-full relative ${disabled ? 'pointer-events-none' : ''}`}>
       {/* Disabled overlay */}
       {disabled && (
-        <div
-          className="absolute inset-0 z-20 rounded-xl flex items-center justify-center"
-          style={{ background: 'rgba(3,1,1,0.7)', backdropFilter: 'blur(2px)' }}
-        >
-          <div className="text-center px-6">
-            <div className="text-xs font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>
-              Fighter already in queue — return to lobby or cancel before selecting a new one
-            </div>
+        <div className="absolute inset-0 z-20 rounded-xl flex items-center justify-center" style={{ background: 'rgba(3,1,1,0.75)', backdropFilter: 'blur(3px)' }}>
+          <div className="text-xs font-black uppercase tracking-widest text-center px-6" style={{ color: '#4a1515' }}>
+            Fighter already in queue — return to lobby or cancel before selecting a new one
           </div>
         </div>
       )}
+
       {/* Section header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2
-            className="text-2xl lg:text-4xl font-black uppercase tracking-widest"
-            style={{ color: '#cc2200' }}
-          >
-            ⚔️ Choose Your Fighter
-          </h2>
-          <p className="text-sm lg:text-base text-red-900 mt-0.5">
-            {loading
-              ? 'Scanning your inscriptions…'
-              : fighters.length > 0
-              ? `${normalFighters.length} eligible · ${paddedFighters.length} extra padded`
-              : 'No inscriptions found'}
-          </p>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div style={{ width: 3, height: 36, background: 'linear-gradient(180deg, #ff2200, #660000)', borderRadius: 2 }} />
+          <div>
+            <h2 className="text-2xl lg:text-3xl font-black uppercase" style={{ color: '#fff', textShadow: '0 0 30px rgba(255,40,0,0.4)', letterSpacing: '0.12em' }}>
+              Choose Your Fighter
+            </h2>
+            <p className="text-xs uppercase tracking-widest font-bold mt-0.5" style={{ color: '#5a1515' }}>
+              {loading ? 'Scanning inscriptions…' : fighters.length > 0 ? `${normalFighters.length} eligible · ${paddedFighters.length} padded` : 'No inscriptions found'}
+            </p>
+          </div>
         </div>
         {signedPsbt && selected && (
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black"
-            style={{ background: 'rgba(22,101,52,0.2)', border: '1px solid rgba(22,163,74,0.3)', color: '#4ade80' }}
-          >
+          <div className="relative overflow-hidden flex items-center gap-2 px-3 py-1.5 text-xs font-black" style={{ borderRadius: 4, background: 'rgba(22,101,52,0.18)', border: '1px solid rgba(22,163,74,0.3)', color: '#4ade80' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(34,197,94,0.5), transparent)' }} />
             ✓ {displayName(selected)} committed
           </div>
         )}
       </div>
 
-      {/* Burn warning banner */}
-      <div
-        className="flex items-start gap-3 px-4 py-3 rounded-xl mb-4"
-        style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.35)' }}
-      >
+      {/* Burn warning */}
+      <div className="relative overflow-hidden flex items-start gap-3 px-4 py-3 mb-5" style={{ borderRadius: 5, background: 'linear-gradient(135deg, rgba(180,130,0,0.1), rgba(80,50,0,0.06))', border: '1px solid rgba(234,179,8,0.3)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(234,179,8,0.5) 30%, rgba(255,220,80,0.7) 50%, rgba(234,179,8,0.5) 70%, transparent)' }} />
         <span className="text-xl flex-shrink-0 mt-0.5">🔥</span>
         <div>
-          <div className="text-sm font-black uppercase tracking-widest mb-0.5" style={{ color: '#eab308' }}>
-            Your inscription will be burned — even if you win
-          </div>
-          <div className="text-xs leading-relaxed" style={{ color: '#a16207' }}>
-            Both inscriptions are permanently destroyed on-chain. The winner receives the sat value of both UTXOs back to their wallet. Only enter with an inscription you are willing to sacrifice.
-          </div>
+          <div className="text-sm font-black uppercase tracking-widest mb-0.5" style={{ color: '#eab308' }}>Your inscription will be burned — even if you win</div>
+          <div className="text-xs leading-relaxed" style={{ color: '#a16207' }}>Both inscriptions are permanently destroyed on-chain. The winner receives the sat value of both UTXOs. Only enter with an inscription you are willing to sacrifice.</div>
         </div>
       </div>
 
       {/* Selected detail + commit CTA */}
       {selected && !showPsbt && (
-        <div
-          className="mb-4 flex items-center gap-4 lg:gap-6 px-5 lg:px-8 py-4 lg:py-5 rounded-xl"
-          style={{
-            background: 'rgba(120,10,10,0.1)',
-            border: '1px solid rgba(185,28,28,0.25)',
-          }}
-        >
+        <GlassCard selected className="mb-5 flex items-center gap-4 lg:gap-5 px-5 py-4">
           <InscriptionArt fighter={selected} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-lg lg:text-2xl font-black text-red-200 truncate">{displayName(selected)}</div>
+            <div className="text-base lg:text-xl font-black truncate" style={{ color: '#e8eef7' }}>{displayName(selected)}</div>
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-              {selected.collection_name && (
-                <span className="text-sm lg:text-base text-red-800">{selected.collection_name}</span>
-              )}
-              {selected.floor_price_sats !== null && (
-                <span className="text-sm lg:text-base font-bold text-green-700">
-                  Floor {formatFloor(selected.floor_price_sats)}
-                </span>
-              )}
-              {selected.sat_rarity && selected.sat_rarity !== 'common' && (
-                <span className="text-xs lg:text-sm text-yellow-700 font-bold">✦ {selected.sat_rarity}</span>
-              )}
+              {selected.collection_name && <span className="text-xs text-red-800">{selected.collection_name}</span>}
+              {selected.floor_price_sats !== null && <span className="text-xs font-bold" style={{ color: '#22c55e' }}>Floor {formatFloor(selected.floor_price_sats)}</span>}
+              {selected.sat_rarity && selected.sat_rarity !== 'common' && <span className="text-xs font-bold" style={{ color: '#f5d060' }}>✦ {selected.sat_rarity}</span>}
             </div>
           </div>
           {signedPsbt ? (
-            <div className="text-sm font-black text-green-600 flex-shrink-0">✓ Committed</div>
+            <div className="text-sm font-black flex-shrink-0" style={{ color: '#22c55e' }}>✓ Committed</div>
           ) : (
             <button
               onClick={() => setShowPsbt(true)}
-              className="flex-shrink-0 px-6 lg:px-8 py-3 lg:py-4 rounded-lg text-sm lg:text-base font-black uppercase tracking-widest text-white transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-                boxShadow: '0 0 16px rgba(185,28,28,0.4)',
-              }}
+              className="flex-shrink-0 relative overflow-hidden px-6 py-3 text-sm font-black uppercase tracking-widest text-white transition-opacity hover:opacity-85"
+              style={{ borderRadius: 4, background: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', boxShadow: '0 0 18px rgba(185,28,28,0.45)' }}
             >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,150,100,0.6), transparent)' }} />
               ⚔️ Fight with This
             </button>
           )}
-        </div>
+        </GlassCard>
       )}
 
       {/* Tabs */}
       {!loading && fighters.length > 0 && (
         <div className="flex gap-2 mb-4">
           {([
-            { key: 'normal', label: '⚔️ Choose Your Fighter', count: normalFighters.length },
-            { key: 'padded', label: '🪙 Extra Padded UTXOs', count: paddedFighters.length },
+            { key: 'normal', label: '⚔️ Eligible Fighters', count: normalFighters.length },
+            { key: 'padded', label: '🪙 Extra Padded', count: paddedFighters.length },
           ] as const).map(({ key, label, count }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-wide transition-all"
+              className="relative overflow-hidden px-4 py-2 font-black text-sm uppercase tracking-wide transition-all"
               style={{
-                background: activeTab === key ? 'rgba(185,28,28,0.25)' : 'rgba(120,10,10,0.06)',
-                border: `1px solid ${activeTab === key ? 'rgba(185,28,28,0.5)' : 'rgba(185,28,28,0.12)'}`,
+                borderRadius: 4,
+                background: activeTab === key ? 'linear-gradient(135deg, rgba(185,28,28,0.25), rgba(100,10,10,0.12))' : 'rgba(80,5,5,0.08)',
+                border: `1px solid ${activeTab === key ? 'rgba(185,28,28,0.45)' : 'rgba(185,28,28,0.14)'}`,
                 color: activeTab === key ? '#cc2200' : '#4a1515',
               }}
             >
-              {label} <span className="opacity-60">({count})</span>
+              {activeTab === key && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,80,0,0.5), transparent)' }} />}
+              {label} <span className="opacity-50 ml-1">({count})</span>
             </button>
           ))}
         </div>
@@ -544,175 +482,93 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
 
       {/* Filter bar */}
       {!loading && fighters.length > 0 && (
-        <div
-          className="flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-xl mb-4"
-          style={{ background: 'rgba(120,10,10,0.08)', border: '1px solid rgba(185,28,28,0.12)' }}
-        >
-          {/* Floor filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm lg:text-base font-black uppercase tracking-widest text-red-900">Floor</span>
+        <div className="relative overflow-hidden flex flex-wrap items-center gap-3 px-4 py-3 mb-5" style={{ borderRadius: 5, background: 'rgba(80,5,5,0.1)', border: '1px solid rgba(185,28,28,0.14)' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(185,28,28,0.25), transparent)' }} />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#6a2020' }}>Floor</span>
             <div className="flex gap-1">
               {FLOOR_FILTERS.map((f) => (
-                <button
-                  key={f.max}
-                  onClick={() => setMaxFloor(f.max)}
-                  className="px-3 lg:px-4 py-1 lg:py-1.5 rounded text-sm lg:text-base font-bold transition-all"
-                  style={{
-                    background: maxFloor === f.max ? '#991b1b' : 'rgba(255,255,255,0.03)',
-                    color: maxFloor === f.max ? '#fca5a5' : '#7f1d1d',
-                    border: `1px solid ${maxFloor === f.max ? '#b91c1c50' : 'rgba(185,28,28,0.12)'}`,
-                  }}
-                >
+                <button key={f.max} onClick={() => setMaxFloor(f.max)} className="px-3 py-1 text-xs font-bold transition-all" style={{ borderRadius: 3, background: maxFloor === f.max ? '#991b1b' : 'rgba(255,255,255,0.03)', color: maxFloor === f.max ? '#fca5a5' : '#7f1d1d', border: `1px solid ${maxFloor === f.max ? 'rgba(185,28,28,0.5)' : 'rgba(185,28,28,0.12)'}` }}>
                   {f.label}
                 </button>
               ))}
             </div>
           </div>
-
           {collections.length > 0 && (
             <>
-              <div className="w-px h-4 bg-red-950" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm lg:text-base font-black uppercase tracking-widest text-red-900">Collection</span>
-                <select
-                  value={collectionFilter}
-                  onChange={(e) => setCollectionFilter(e.target.value)}
-                  className="text-sm lg:text-base rounded px-3 lg:px-4 py-1 lg:py-1.5 font-bold outline-none"
-                  style={{
-                    background: '#0d0509',
-                    border: '1px solid rgba(185,28,28,0.2)',
-                    color: '#7f1d1d',
-                  }}
-                >
+              <div style={{ width: 1, height: 16, background: 'rgba(185,28,28,0.2)' }} />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#6a2020' }}>Collection</span>
+                <select value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} className="text-xs rounded px-3 py-1 font-bold outline-none" style={{ background: '#0d0509', border: '1px solid rgba(185,28,28,0.2)', color: '#7f1d1d' }}>
                   <option value="all">All</option>
-                  {collections.map(([slug, name]) => (
-                    <option key={slug} value={slug}>{name}</option>
-                  ))}
+                  {collections.map(([slug, name]) => <option key={slug} value={slug}>{name}</option>)}
                 </select>
               </div>
             </>
           )}
-
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-12 gap-3">
-          <div
-            className="w-5 h-5 rounded-full border-2 border-transparent animate-spin"
-            style={{ borderTopColor: '#b91c1c' }}
-          />
-          <span className="text-red-900 text-xs uppercase tracking-widest font-bold">
-            Summoning inscriptions…
-          </span>
+        <div className="flex items-center justify-center py-14 gap-3">
+          <div className="w-5 h-5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+          <span className="text-xs uppercase tracking-widest font-black" style={{ color: '#4a1515' }}>Summoning inscriptions…</span>
         </div>
       )}
 
       {/* Error */}
       {loadError && (
-        <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className="text-xs text-red-500">{loadError}</div>
-          <button
-            onClick={fetchFighters}
-            className="text-xs font-black uppercase tracking-widest text-red-800 underline hover:text-red-600"
-          >
-            Retry
-          </button>
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <div className="text-sm" style={{ color: '#f87171' }}>{loadError}</div>
+          <button onClick={fetchFighters} className="text-xs font-black uppercase tracking-widest underline hover:opacity-70" style={{ color: '#cc2200' }}>Retry</button>
         </div>
       )}
 
       {/* No results */}
       {!loading && !loadError && fighters.length > 0 && activeList.length === 0 && (
-        <div className="py-8 text-center text-red-900 text-sm">
-          {activeTab === 'normal'
-            ? 'No eligible inscriptions (330 or 546 sat UTXOs) match the current filters.'
-            : 'No extra-padded inscriptions match the current filters.'}
+        <div className="py-10 text-center text-sm font-bold" style={{ color: '#4a1515' }}>
+          {activeTab === 'normal' ? 'No eligible inscriptions (330 or 546 sat UTXOs) match the current filters.' : 'No extra-padded inscriptions match the current filters.'}
         </div>
       )}
 
       {/* Grid */}
       {!loading && !loadError && pageFighters.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 lg:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
           {pageFighters.map((fighter) => {
             const isSelected = selected?.inscription_id === fighter.inscription_id
-            const isSigned = signedPsbt && selected?.inscription_id === fighter.inscription_id
-
+            const isSigned = !!(signedPsbt && selected?.inscription_id === fighter.inscription_id)
             return (
-              <button
-                key={fighter.inscription_id}
-                onClick={() => { setSelected(fighter) }}
-                className="relative rounded-xl text-left overflow-hidden transition-all"
-                style={{
-                  background: isSelected ? 'rgba(185,28,28,0.15)' : 'rgba(120,10,10,0.06)',
-                  border: `1px solid ${isSelected ? 'rgba(185,28,28,0.5)' : 'rgba(185,28,28,0.12)'}`,
-                  boxShadow: isSelected ? '0 0 20px rgba(185,28,28,0.2)' : 'none',
-                  transform: isSelected ? 'scale(1.02)' : 'scale(1)',
-                }}
-              >
+              <GlassCard key={fighter.inscription_id} selected={isSelected} onClick={() => setSelected(fighter)}>
                 {isSigned && (
-                  <div
-                    className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
-                    style={{ background: '#166534', color: '#4ade80' }}
-                  >
-                    ✓
-                  </div>
+                  <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black" style={{ background: '#166534', color: '#4ade80' }}>✓</div>
                 )}
-
                 {/* Art */}
-                <div
-                  className="flex items-center justify-center py-6 lg:py-8"
-                  style={{ background: 'rgba(0,0,0,0.3)' }}
-                >
+                <div className="flex items-center justify-center py-5 lg:py-7" style={{ background: 'rgba(0,0,0,0.25)' }}>
                   <InscriptionArt fighter={fighter} size="md" />
                 </div>
-
                 {/* Info */}
-                <div className="p-3 lg:p-4">
-                  {/* UTXO sat value — most important */}
-                  <div
-                    className="text-base lg:text-lg font-black tabular-nums mb-1"
-                    style={{ color: fighter.output_value === 330 || fighter.output_value === 546 ? '#22c55e' : '#f59e0b' }}
-                  >
+                <div className="p-3">
+                  <div className="text-sm font-black tabular-nums mb-1" style={{ color: fighter.output_value === 330 || fighter.output_value === 546 ? '#22c55e' : '#f59e0b' }}>
                     {fighter.output_value != null ? `Size: ${fighter.output_value.toLocaleString()} Sats` : '— Sats'}
                   </div>
-
-                  <div className="text-sm lg:text-base font-black text-red-200 truncate leading-tight">
-                    {displayName(fighter)}
-                  </div>
-
+                  <div className="text-sm font-black truncate leading-tight" style={{ color: '#e8eef7' }}>{displayName(fighter)}</div>
                   {fighter.collection_name ? (
                     <div className="flex items-center gap-1 mt-1">
                       {fighter.collection_image && (
-                        <img
-                          src={fighter.collection_image}
-                          alt=""
-                          className="w-3 h-3 lg:w-4 lg:h-4 rounded-full object-cover flex-shrink-0"
-                          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                            e.currentTarget.style.display = 'none'
-                          }}
-                        />
+                        <img src={fighter.collection_image} alt="" className="w-3 h-3 rounded-full object-cover flex-shrink-0" onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none' }} />
                       )}
-                      <span className="text-xs lg:text-sm text-red-800 truncate flex-1">{fighter.collection_name}</span>
-                      {fighter.floor_price_sats !== null && (
-                        <span className="text-xs lg:text-sm font-black text-green-700 flex-shrink-0">
-                          {formatFloor(fighter.floor_price_sats)}
-                        </span>
-                      )}
+                      <span className="text-xs truncate flex-1" style={{ color: '#5a2020' }}>{fighter.collection_name}</span>
+                      {fighter.floor_price_sats !== null && <span className="text-xs font-black flex-shrink-0" style={{ color: '#22c55e' }}>{formatFloor(fighter.floor_price_sats)}</span>}
                     </div>
                   ) : (
-                    <div className="text-xs lg:text-sm text-red-900 mt-0.5">
-                      #{fighter.inscription_number.toLocaleString()}
-                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: '#4a1515' }}>#{fighter.inscription_number.toLocaleString()}</div>
                   )}
-
                   {fighter.sat_rarity && fighter.sat_rarity !== 'common' && (
-                    <div className="text-xs lg:text-sm text-yellow-700 font-bold mt-0.5">
-                      ✦ {fighter.sat_rarity}
-                    </div>
+                    <div className="text-xs font-bold mt-0.5" style={{ color: '#f5d060' }}>✦ {fighter.sat_rarity}</div>
                   )}
                 </div>
-              </button>
+              </GlassCard>
             )
           })}
         </div>
@@ -721,25 +577,9 @@ export default function FighterSelect({ disabled: disabledProp }: { disabled?: b
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-6">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30"
-            style={{ background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}
-          >
-            ← Prev
-          </button>
-          <span className="text-sm font-black" style={{ color: '#4a1515' }}>
-            {page + 1} / {totalPages}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            className="px-4 py-2 rounded-lg font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30"
-            style={{ background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}
-          >
-            Next →
-          </button>
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-4 py-2 font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30" style={{ borderRadius: 4, background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}>← Prev</button>
+          <span className="text-sm font-black" style={{ color: '#4a1515' }}>{page + 1} / {totalPages}</span>
+          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 font-black text-sm uppercase tracking-widest transition-all disabled:opacity-30" style={{ borderRadius: 4, background: 'rgba(185,28,28,0.12)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.25)' }}>Next →</button>
         </div>
       )}
 

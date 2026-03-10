@@ -413,87 +413,110 @@ export default function LobbyPage() {
     />
   )
 
+  // ── Shared page shell ──────────────────────────────────────────────────────
+  const PageShell = ({ children }: { children: React.ReactNode }) => (
+    <div className="min-h-screen relative overflow-hidden" style={{ background: '#080205' }}>
+      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 55% at 50% -5%, rgba(180,0,0,0.2) 0%, transparent 65%)' }} />
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,0,0,0.012) 40px)' }} />
+      </div>
+      <div className="relative" style={{ zIndex: 1 }}>{headerEl}</div>
+      <div className="relative" style={{ zIndex: 1 }}>{children}</div>
+    </div>
+  )
+
+  const GlassPanel = ({ children, accent = 'red' }: { children: React.ReactNode; accent?: 'red' | 'green' }) => {
+    const shine = accent === 'green'
+      ? 'linear-gradient(90deg, transparent, rgba(34,197,94,0.4) 30%, rgba(100,255,140,0.6) 50%, rgba(34,197,94,0.4) 70%, transparent)'
+      : 'linear-gradient(90deg, transparent, rgba(255,80,0,0.55) 30%, rgba(255,160,80,0.7) 50%, rgba(255,80,0,0.55) 70%, transparent)'
+    const border = accent === 'green' ? 'rgba(34,197,94,0.25)' : 'rgba(200,30,0,0.28)'
+    const bg = accent === 'green'
+      ? 'linear-gradient(160deg, rgba(0,60,20,0.2) 0%, rgba(2,7,3,0.96) 65%)'
+      : 'linear-gradient(160deg, rgba(110,5,5,0.22) 0%, rgba(7,1,4,0.96) 65%)'
+    return (
+      <div className="relative overflow-hidden" style={{ borderRadius: 6 }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: shine, zIndex: 2 }} />
+        <div style={{ position: 'absolute', top: 0, left: '18%', width: '30%', height: 44, background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)', borderRadius: '0 0 50% 50%', zIndex: 1 }} />
+        <div style={{ border: `1px solid ${border}`, borderRadius: 6, background: bg, backdropFilter: 'blur(10px)', overflow: 'hidden' }}>
+          {children}
+        </div>
+      </div>
+    )
+  }
+
   // Error check MUST come before the !myFighter check — errors can occur before fighter is set
   if (phase === 'error') {
     return (
-      <div className="min-h-screen" style={{ background: '#030101' }}>
-        {headerEl}
-        <div className="flex items-center justify-center min-h-[60vh] px-4">
-          <div className="w-full max-w-lg">
-            <div className="text-4xl font-black uppercase tracking-widest mb-4 text-center" style={{ color: '#cc2200' }}>⚠️ Error</div>
-            <div
-              className="rounded-xl px-5 py-4 mb-6 text-sm leading-relaxed font-mono break-words"
-              style={{ background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.35)', color: '#f87171' }}
-            >
-              {error ?? 'Unknown error'}
+      <PageShell>
+        <div className="flex items-center justify-center min-h-[70vh] px-4">
+          <div className="w-full max-w-lg flex flex-col gap-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div style={{ width: 3, height: 32, background: 'linear-gradient(180deg, #ff2200, #660000)', borderRadius: 2 }} />
+              <div className="text-3xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.5)' }}>Error</div>
             </div>
-            <div className="flex gap-3">
+            <GlassPanel>
+              <div className="px-5 py-4 text-sm leading-relaxed font-mono break-words" style={{ color: '#f87171' }}>
+                {error ?? 'Unknown error'}
+              </div>
+            </GlassPanel>
+            <div className="flex gap-3 mt-2">
               <button
-                onClick={() => {
-                  joinedRef.current = false
-                  cancelledRef.current = false
-                  setError(null)
-                  setPhase('connecting')
-                }}
-                className="flex-1 px-6 py-4 font-black text-sm tracking-widest uppercase rounded-lg"
-                style={{ background: 'rgba(185,28,28,0.15)', color: '#cc2200', border: '1px solid rgba(185,28,28,0.3)' }}
+                onClick={() => { joinedRef.current = false; cancelledRef.current = false; setError(null); setPhase('connecting') }}
+                className="flex-1 relative overflow-hidden px-6 py-4 font-black text-sm tracking-widest uppercase transition-opacity hover:opacity-80"
+                style={{ borderRadius: 4, background: 'linear-gradient(135deg, rgba(185,28,28,0.2), rgba(100,10,10,0.1))', border: '1px solid rgba(185,28,28,0.4)', color: '#cc2200' }}
               >
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,80,0,0.5), transparent)' }} />
                 Retry
               </button>
               <button
                 onClick={() => router.push('/?battle=1')}
-                className="flex-1 px-6 py-4 font-black text-sm tracking-widest uppercase rounded-lg"
-                style={{ background: 'rgba(255,255,255,0.03)', color: '#4a1515', border: '1px solid rgba(185,28,28,0.15)' }}
+                className="flex-1 px-6 py-4 font-black text-sm tracking-widest uppercase transition-opacity hover:opacity-70"
+                style={{ borderRadius: 4, background: 'rgba(255,255,255,0.02)', color: '#4a1515', border: '1px solid rgba(185,28,28,0.15)' }}
               >
                 ← Back to Select
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </PageShell>
     )
   }
 
   if (phase === 'connecting' || !myFighter) {
     return (
-      <div className="min-h-screen" style={{ background: '#030101' }}>
-        {headerEl}
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="text-lg font-black uppercase tracking-widest mb-3" style={{ color: '#4a1515' }}>
+      <PageShell>
+        <div className="flex items-center justify-center min-h-[70vh]">
+          <div className="text-center flex flex-col items-center gap-4">
+            <div className="text-base font-black uppercase tracking-widest" style={{ color: '#4a1515' }}>
               {!address ? 'Connect your wallet to continue' : 'Loading match…'}
             </div>
-            {address && (
-              <div className="w-8 h-8 mx-auto rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
-            )}
+            {address && <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />}
           </div>
         </div>
-      </div>
+      </PageShell>
     )
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: '#030101' }}>
-      {headerEl}
-      {/* Blood drip bg */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(185,28,28,0.12) 0%, transparent 60%)',
-      }} />
-
-      <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center gap-8 px-4 py-12">
+    <PageShell>
+      <div className="w-full max-w-5xl mx-auto flex flex-col items-center gap-8 px-4 py-10">
 
         {/* Status header */}
-        <div className="text-center">
-          {phase === 'found' ? (
-            <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#22c55e', textShadow: '0 0 20px rgba(34,197,94,0.5)' }}>
-              Opponent Found ⚔️
-            </div>
-          ) : (
-            <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#cc2200', textShadow: '0 0 20px rgba(185,28,28,0.5)' }}>
-              Finding Opponent<span style={{ color: '#cc2200' }}>{dots}</span>
-            </div>
-          )}
-          <div className="text-base mt-3 font-bold" style={{ color: '#4a1515' }}>
+        <div className="text-center w-full">
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <div style={{ width: 3, height: 32, background: 'linear-gradient(180deg, #ff2200, #660000)', borderRadius: 2 }} />
+            {phase === 'found' ? (
+              <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#22c55e', textShadow: '0 0 30px rgba(34,197,94,0.5)' }}>
+                Opponent Found ⚔️
+              </div>
+            ) : (
+              <div className="text-3xl sm:text-5xl font-black uppercase tracking-widest" style={{ color: '#fff', textShadow: '0 0 40px rgba(255,40,0,0.4)' }}>
+                Matchmaking{dots}
+              </div>
+            )}
+            <div style={{ width: 3, height: 32, background: 'linear-gradient(180deg, #ff2200, #660000)', borderRadius: 2 }} />
+          </div>
+          <div className="text-sm font-bold uppercase tracking-widest" style={{ color: '#4a1515' }}>
             {phase === 'found'
               ? `Battle starts in ${countdown}…`
               : `Waiting for a ${myFighter.utxoValue}-sat challenger — ${waitSeconds}s`}
@@ -501,84 +524,106 @@ export default function LobbyPage() {
         </div>
 
         {/* VS layout */}
-        <div className="w-full flex items-center justify-between gap-4 sm:gap-8">
+        <div className="w-full flex items-start justify-between gap-4 sm:gap-6">
           {/* My fighter */}
           <div className="flex-1">
-            <FighterCard fighter={myFighter} label="You" />
+            <GlassPanel>
+              <div className="p-5 flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 6, height: 6, background: '#ff2200', borderRadius: 1, transform: 'rotate(45deg)', boxShadow: '0 0 6px #ff2200' }} />
+                  <span className="text-xs uppercase tracking-widest font-black" style={{ color: '#7a2020' }}>You</span>
+                </div>
+                <div className="flex justify-center">
+                  <FighterArt fighter={myFighter} size="md" />
+                </div>
+                <div className="font-black text-lg text-center leading-tight" style={{ color: '#e8eef7' }}>{myFighter.name}</div>
+                <div className="space-y-2">
+                  <StatRow label="HP"  value={myFighter.hp}  color="#22c55e" />
+                  <StatRow label="ATK" value={myFighter.atk} color={myFighter.glowColor} />
+                  <StatRow label="DEF" value={myFighter.def} color={myFighter.glowColor} />
+                  <StatRow label="SPD" value={myFighter.spd} color={myFighter.glowColor} />
+                </div>
+              </div>
+            </GlassPanel>
           </div>
 
           {/* VS */}
-          <div className="flex flex-col items-center gap-3 flex-shrink-0">
-            <div
-              className="text-5xl sm:text-7xl font-black"
-              style={{ color: '#cc2200', textShadow: '0 0 30px rgba(185,28,28,0.8)' }}
-            >
-              VS
-            </div>
+          <div className="flex flex-col items-center gap-4 pt-14 flex-shrink-0">
+            <div className="text-5xl sm:text-7xl font-black" style={{ color: '#cc2200', textShadow: '0 0 40px rgba(185,28,28,0.9)' }}>VS</div>
             {phase === 'searching' && (
-              <div className="relative w-16 h-16">
-                <div
-                  className="absolute inset-0 rounded-full border-2 border-transparent animate-spin"
-                  style={{ borderTopColor: '#cc2200' }}
-                />
-                <div
-                  className="absolute inset-1 rounded-full border-2 border-transparent animate-spin"
-                  style={{ borderBottomColor: '#7f1d1d', animationDirection: 'reverse', animationDuration: '1.5s' }}
-                />
+              <div className="relative w-14 h-14">
+                <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#cc2200' }} />
+                <div className="absolute inset-1.5 rounded-full border-2 border-transparent animate-spin" style={{ borderBottomColor: '#7f1d1d', animationDirection: 'reverse', animationDuration: '1.5s' }} />
               </div>
             )}
           </div>
 
           {/* Opponent */}
           <div className="flex-1">
-            {phase === 'searching'
-              ? <OpponentSkeleton />
-              : opponent && <FighterCard fighter={opponent} label="Opponent" flip />
-            }
+            {phase === 'searching' ? (
+              <GlassPanel>
+                <div className="p-5 flex flex-col gap-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-xs uppercase tracking-widest font-black" style={{ color: '#7a2020' }}>Opponent</span>
+                    <div style={{ width: 6, height: 6, background: '#ff2200', borderRadius: 1, transform: 'rotate(45deg)', boxShadow: '0 0 6px #ff2200' }} />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-36 h-36 rounded-lg flex items-center justify-center" style={{ background: '#0a0202' }}>
+                      <span className="text-3xl opacity-20 animate-spin" style={{ animationDuration: '3s' }}>⚙️</span>
+                    </div>
+                  </div>
+                  <div className="h-5 rounded animate-pulse mx-4" style={{ background: '#1a0808' }} />
+                  <div className="space-y-1.5 mt-1">
+                    {['HP','ATK','DEF','SPD'].map(l => (
+                      <div key={l} className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-widest w-9 font-black" style={{ color: '#2d0a0a' }}>{l}</span>
+                        <div className="flex-1 h-1.5 rounded-full animate-pulse" style={{ background: '#1a0808' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs uppercase tracking-widest text-center font-black" style={{ color: '#2d0a0a' }}>Scanning for opponent…</div>
+                </div>
+              </GlassPanel>
+            ) : opponent ? (
+              <GlassPanel>
+                <div className="p-5 flex flex-col gap-4">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-xs uppercase tracking-widest font-black" style={{ color: '#7a2020' }}>Opponent</span>
+                    <div style={{ width: 6, height: 6, background: '#ff2200', borderRadius: 1, transform: 'rotate(45deg)', boxShadow: '0 0 6px #ff2200' }} />
+                  </div>
+                  <div className="flex justify-center">
+                    <FighterArt fighter={opponent} size="md" flip />
+                  </div>
+                  <div className="font-black text-lg text-center leading-tight" style={{ color: '#e8eef7' }}>{opponent.name}</div>
+                  <div className="space-y-2">
+                    <StatRow label="HP"  value={opponent.hp}  color="#22c55e" />
+                    <StatRow label="ATK" value={opponent.atk} color={opponent.glowColor} />
+                    <StatRow label="DEF" value={opponent.def} color={opponent.glowColor} />
+                    <StatRow label="SPD" value={opponent.spd} color={opponent.glowColor} />
+                  </div>
+                </div>
+              </GlassPanel>
+            ) : null}
           </div>
         </div>
 
-        {/* Stats comparison when matched */}
-        {phase === 'found' && opponent && (
-          <div className="flex gap-6 sm:gap-10 text-center">
-            {[
-              { label: 'Your HP', val: myFighter.hp, color: '#22c55e' },
-              { label: 'Your ATK', val: myFighter.atk, color: '#f97316' },
-              { label: '', val: null, color: '' },
-              { label: 'Opp HP', val: opponent.hp, color: '#22c55e' },
-              { label: 'Opp ATK', val: opponent.atk, color: '#ef4444' },
-            ].map((s, i) =>
-              s.val !== null ? (
-                <div key={i} className="flex flex-col">
-                  <span className="text-3xl sm:text-4xl font-black" style={{ color: s.color }}>{s.val}</span>
-                  <span className="text-xs uppercase tracking-widest mt-0.5" style={{ color: '#4a1515' }}>{s.label}</span>
-                </div>
-              ) : <div key={i} className="w-4" />
-            )}
-          </div>
-        )}
-
-        {/* Cancel while searching */}
+        {/* Cancel button */}
         {phase === 'searching' && (
           <button
             onClick={() => {
               const queueId = queueIdRef.current
               if (queueId) {
-                fetch('/api/matchmaking/cancel', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ queue_id: queueId }),
-                }).catch(() => {})
+                fetch('/api/matchmaking/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_id: queueId }) }).catch(() => {})
               }
               router.push('/?battle=1')
             }}
-            className="text-sm tracking-widest uppercase font-bold px-6 py-3 rounded transition-opacity hover:opacity-70"
-            style={{ color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
+            className="text-sm tracking-widest uppercase font-bold px-6 py-3 transition-opacity hover:opacity-60"
+            style={{ borderRadius: 4, color: '#4a1515', border: '1px solid rgba(185,28,28,0.12)' }}
           >
             Cancel Search
           </button>
         )}
       </div>
-    </div>
+    </PageShell>
   )
 }
