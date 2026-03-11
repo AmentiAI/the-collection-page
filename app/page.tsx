@@ -125,7 +125,7 @@ function ActiveQueueBanner({ onFound }: { onFound: (found: boolean) => void }) {
 }
 
 // March 10 2026 12:00 PM EST = 16:00 UTC
-const LAUNCH_TIME = new Date('2026-03-11T16:00:00Z')
+const LAUNCH_TIME = new Date('2026-03-12T16:00:00Z')
 
 function useCountdown(target: Date) {
   const [timeLeft, setTimeLeft] = useState(() => Math.max(0, target.getTime() - Date.now()))
