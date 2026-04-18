@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { getHolderCount } from '@/lib/holder-verification'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,29 +37,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Get current ordinal count
-    let ordinalCount = 0
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-      const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(walletAddress)}&showAll=true`
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-          'Authorization': `Bearer ${apiKey}`
-        },
-        next: { revalidate: 0 }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        ordinalCount = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
-      }
-    } catch (error) {
-      console.error('Error fetching ordinal count:', error)
-    }
+    // Get current ordinal count (via Ordiscan + collection.json)
+    const ordinalCountResult = await getHolderCount(walletAddress)
+    const ordinalCount = ordinalCountResult ?? 0
     
     // Update profile with ordinal count and holder role status
     await pool.query(`

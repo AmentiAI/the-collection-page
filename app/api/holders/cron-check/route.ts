@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { getHolderCount } from '@/lib/holder-verification'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,8 +9,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   try {
     const pool = getPool()
-    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-    
+
     // Get 30 profiles with oldest last_holder_check (or NULL) to process
     const profilesToCheck = await pool.query(`
       SELECT id, wallet_address, last_ordinal_count, current_ordinal_count, last_holder_check
@@ -39,20 +39,10 @@ export async function GET(request: Request) {
     // Process each profile
     for (const profile of profilesToCheck.rows) {
       try {
-        const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(profile.wallet_address)}&showAll=true`
-        
-        const response = await fetch(apiUrl, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey,
-            'Authorization': `Bearer ${apiKey}`
-          },
-          next: { revalidate: 0 }
-        })
-        
-        if (!response.ok) {
-          console.error(`Error checking profile ${profile.wallet_address}:`, response.status)
+        const currentCount = await getHolderCount(profile.wallet_address)
+
+        if (currentCount === null) {
+          console.error(`Error checking profile ${profile.wallet_address}`)
           results.errors++
           // Still update last_holder_check to avoid getting stuck
           await pool.query(
@@ -61,9 +51,7 @@ export async function GET(request: Request) {
           )
           continue
         }
-        
-        const data = await response.json()
-        const currentCount = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
+
         const previousCount = profile.last_ordinal_count || 0
         const currentCountInDb = profile.current_ordinal_count || 0
         

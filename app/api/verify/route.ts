@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { getHolderCount } from '@/lib/holder-verification'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,59 +9,27 @@ function generateCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase()
 }
 
-// Check if address is a holder using Magic Eden API for The Damned collection OR has abyss_burns records
+// Check if address is a holder via Ordiscan (matched against public/collection.json) OR has abyss_burns records
 async function checkForOrdinals(address: string): Promise<boolean> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-    const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(address)}&showAll=true&sortBy=priceAsc`
-    
-    // Check both Magic Eden ordinals and abyss_burns in parallel
-    const [ordinalsResponse, pool] = await Promise.all([
-      fetch(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-          'Authorization': `Bearer ${apiKey}`
-        }
-      }),
-      getPool(),
-    ])
-    
-    let hasOrdinals = false
-    if (ordinalsResponse.ok) {
-      const data = await ordinalsResponse.json()
-      // Check multiple possible response formats
-      const tokens = Array.isArray(data.tokens) ? data.tokens : (Array.isArray(data) ? data : [])
-      // Must have at least one NFT with listed: false AND no listed ordinals at all
-      const hasUnlisted = tokens.some((token: { listed?: boolean }) => token.listed === false)
-      const hasAnyListed = tokens.some((token: { listed?: boolean }) => token.listed === true)
-      hasOrdinals = hasUnlisted && !hasAnyListed
-      const total = data.total ?? tokens.length
-      console.log('Verify route - Total The Damned ordinals:', total, 'Has unlisted ordinals:', hasUnlisted, 'Has any listed:', hasAnyListed, 'Is holder:', hasOrdinals)
-    } else {
-      console.error('Magic Eden API error:', ordinalsResponse.status)
-    }
-    
-    // Check abyss_burns records
-    let hasBurns = false
-    try {
-      const burnsResult = await pool.query(
+    const pool = getPool()
+    const [ordinalCount, burnsResult] = await Promise.all([
+      getHolderCount(address),
+      pool.query(
         `SELECT COUNT(*)::int AS count FROM abyss_burns WHERE LOWER(ordinal_wallet) = LOWER($1)`,
         [address],
-      )
-      const burnCount = burnsResult.rows[0]?.count ?? 0
-      hasBurns = burnCount > 0
-      console.log('Verify route - Abyss burns count:', burnCount, 'Has burns:', hasBurns)
-    } catch (error) {
-      console.error('Error checking abyss_burns:', error)
-    }
-    
-    // User is a holder if they have ordinals OR have burned in the abyss
-    const isHolder = hasOrdinals || hasBurns
-    console.log('Verify route - Final holder status:', isHolder)
-    
-    return isHolder
+      ).catch((error) => {
+        console.error('Error checking abyss_burns:', error)
+        return { rows: [{ count: 0 }] }
+      }),
+    ])
+
+    const hasOrdinals = (ordinalCount ?? 0) > 0
+    const burnCount = burnsResult.rows[0]?.count ?? 0
+    const hasBurns = burnCount > 0
+    console.log('Verify route - Ordinal count:', ordinalCount, 'Burn count:', burnCount, 'Is holder:', hasOrdinals || hasBurns)
+
+    return hasOrdinals || hasBurns
   } catch (error) {
     console.error('Error checking holder status:', error)
     return false

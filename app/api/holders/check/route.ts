@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
+import { getHolderCount } from '@/lib/holder-verification'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,11 +8,10 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const pool = getPool()
-    const apiKey = process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY || 'd637ae87-8bfe-4d6a-ac3d-9d563901b444'
-    
+
     // Get all Discord users linked to profiles with holder roles and their ordinal counts
     const discordUsers = await pool.query(`
-      SELECT du.discord_user_id, p.wallet_address, 
+      SELECT du.discord_user_id, p.wallet_address,
              COALESCE(p.last_ordinal_count, 0) as last_ordinal_count,
              COALESCE(p.current_ordinal_count, 0) as current_ordinal_count,
              COALESCE(p.has_holder_role, false) as has_holder_role
@@ -19,31 +19,17 @@ export async function GET() {
       INNER JOIN profiles p ON du.profile_id = p.id
       WHERE COALESCE(p.has_holder_role, false) = true
     `)
-    
+
     const usersToRemoveRole: Array<{ discordUserId: string; walletAddress: string }> = []
-    
+
     // Check each user's holder status
     for (const user of discordUsers.rows) {
       try {
-        const apiUrl = `https://api-mainnet.magiceden.dev/v2/ord/btc/tokens?collectionSymbol=the-damned&ownerAddress=${encodeURIComponent(user.wallet_address)}&showAll=true`
-        
-        const response = await fetch(apiUrl, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey,
-            'Authorization': `Bearer ${apiKey}`
-          },
-          next: { revalidate: 0 } // Don't cache
-        })
-        
-        if (!response.ok) {
-          console.error(`Error checking holder status for ${user.wallet_address}:`, response.status)
+        const total = await getHolderCount(user.wallet_address)
+        if (total === null) {
+          console.error(`Error checking holder status for ${user.wallet_address}`)
           continue
         }
-        
-        const data = await response.json()
-        const total = data.total ?? (Array.isArray(data.tokens) ? data.tokens.length : 0)
         const hasOrdinals = total > 0
         const previousCount = user.last_ordinal_count || 0
         const currentCountInDb = user.current_ordinal_count || 0
